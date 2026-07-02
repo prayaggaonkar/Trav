@@ -140,7 +140,6 @@ final class EarthGlobeRenderer {
         scene.background.contents = loadImage(named: "stars")
 
         buildEarth()
-        buildNorthCloudVeil()
         buildAtmosphere()
         buildLights()
         buildCamera()
@@ -169,29 +168,6 @@ final class EarthGlobeRenderer {
 
         geometry.materials = [material]
         earthNode.geometry = geometry
-    }
-
-    /// Faint cloud veil over the geographic north cap to soften the equirectangular pole artifact.
-    private func buildNorthCloudVeil() {
-        let geometry = SCNSphere(radius: 1.017)
-        geometry.segmentCount = 128
-
-        let material = SCNMaterial()
-        material.diffuse.contents = loadImage(named: "clouds")
-        material.diffuse.wrapS = .repeat
-        material.diffuse.wrapT = .clamp
-        material.diffuse.magnificationFilter = .linear
-        material.diffuse.minificationFilter = .linear
-        material.lightingModel = .constant
-        material.isDoubleSided = false
-        material.cullMode = .back
-        material.blendMode = .alpha
-        material.writesToDepthBuffer = false
-        material.readsFromDepthBuffer = true
-        material.shaderModifiers = [.fragment: Self.northCloudVeilShader]
-
-        geometry.materials = [material]
-        earthNode.addChildNode(SCNNode(geometry: geometry))
     }
 
     /// Soft atmospheric shell — no custom shaders.
@@ -307,17 +283,6 @@ final class EarthGlobeRenderer {
         simd_dot(q.vector, orientation.vector) < 0 ? -q : q
     }
 
-    /// Geographic mask + luminance from clouds.jpg; only affects the northern cap.
-    private static let northCloudVeilShader = """
-    #pragma body
-    float north = clamp(_geometry.normal.y, 0.0, 1.0);
-    float region = smoothstep(0.86, 0.985, north);
-    float density = dot(_output.color.rgb, float3(0.333));
-    density = smoothstep(0.12, 0.72, density);
-    float alpha = density * region * 0.44;
-    _output.color = float4(0.96, 0.98, 1.0, alpha);
-    """
-
     /// SceneKit applies euler angles in X → Y → Z order on the node pivot.
     private func orientationFromEuler(x: Float, y: Float, z: Float) -> simd_quatf {
         let qx = simd_quatf(angle: x, axis: SIMD3(1, 0, 0))
@@ -354,6 +319,9 @@ private struct EarthCityMarker {
     let city: City
     let node: SCNNode
 
+    private static let warmGold = UIColor(red: 1.0, green: 0.82, blue: 0.18, alpha: 1)
+    private static let glowTexture = makeGlowTexture()
+
     init(city: City) {
         self.city = city
         let lat = Float(city.latitude * .pi / 180)
@@ -365,34 +333,97 @@ private struct EarthCityMarker {
         root.position = position
         root.look(at: SCNVector3(position.x * 2, position.y * 2, position.z * 2))
 
-        let core = SCNSphere(radius: 0.011)
-        let coreMat = SCNMaterial()
-        coreMat.lightingModel = .constant
-        coreMat.emission.contents = UIColor(red: 1, green: 0.42, blue: 0.24, alpha: 1)
-        core.materials = [coreMat]
-        root.addChildNode(SCNNode(geometry: core))
+        // Soft light spill on nearby terrain — reads as shine, not a flat sticker.
+        let shine = SCNNode()
+        shine.light = SCNLight()
+        shine.light?.type = .omni
+        shine.light?.color = Self.warmGold
+        shine.light?.intensity = 90
+        shine.light?.attenuationStartDistance = 0.008
+        shine.light?.attenuationEndDistance = 0.13
+        shine.light?.attenuationFalloffExponent = 2
+        root.addChildNode(shine)
 
-        let halo = SCNSphere(radius: 0.022)
-        let haloMat = SCNMaterial()
-        haloMat.lightingModel = .constant
-        haloMat.emission.contents = UIColor(red: 1, green: 0.36, blue: 0.21, alpha: 0.35)
-        haloMat.transparency = 0.6
-        halo.materials = [haloMat]
-        let haloNode = SCNNode(geometry: halo)
-        root.addChildNode(haloNode)
+        let markerSize: CGFloat = 0.028
+        let glow = SCNPlane(width: markerSize, height: markerSize)
+        let glowMat = SCNMaterial()
+        glowMat.diffuse.contents = Self.glowTexture
+        glowMat.emission.contents = Self.glowTexture
+        glowMat.emission.intensity = 0.85
+        glowMat.lightingModel = .constant
+        glowMat.blendMode = .add
+        glowMat.isDoubleSided = true
+        glowMat.writesToDepthBuffer = false
+        glowMat.readsFromDepthBuffer = true
+        glow.materials = [glowMat]
+
+        let glowNode = SCNNode(geometry: glow)
+        glowNode.constraints = [SCNBillboardConstraint()]
+        root.addChildNode(glowNode)
 
         let pulse = CABasicAnimation(keyPath: "opacity")
-        pulse.fromValue = 0.35
-        pulse.toValue = 0.9
-        pulse.duration = 2.0
+        pulse.fromValue = 0.78
+        pulse.toValue = 1.0
+        pulse.duration = 2.2
         pulse.autoreverses = true
         pulse.repeatCount = .infinity
-        haloNode.addAnimation(pulse, forKey: "pulse")
+        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        glowNode.addAnimation(pulse, forKey: "pulse")
+
+        let lightPulse = CABasicAnimation(keyPath: "light.intensity")
+        lightPulse.fromValue = 72
+        lightPulse.toValue = 125
+        lightPulse.duration = 2.2
+        lightPulse.autoreverses = true
+        lightPulse.repeatCount = .infinity
+        lightPulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        shine.addAnimation(lightPulse, forKey: "lightPulse")
 
         self.node = root
     }
 
     func contains(_ hitNode: SCNNode) -> Bool {
         hitNode === node || node.childNodes.contains(hitNode)
+    }
+
+    /// Gaussian amber glow — feathered to the plane corners so no hard disc edge.
+    private static func makeGlowTexture() -> UIImage {
+        let size = 256
+        let center = Double(size - 1) / 2
+        let cornerRadius = center * sqrt(2)
+
+        var pixels = [UInt8](repeating: 0, count: size * size * 4)
+        for y in 0..<size {
+            for x in 0..<size {
+                let dx = (Double(x) - center) / cornerRadius
+                let dy = (Double(y) - center) / cornerRadius
+                let falloff = exp(-(dx * dx + dy * dy) * 3.8)
+                let alpha = falloff * 0.68
+                let idx = (y * size + x) * 4
+                pixels[idx] = UInt8(min(255, 255 * alpha * 1.0))       // warm R
+                pixels[idx + 1] = UInt8(min(255, 255 * alpha * 0.82)) // G
+                pixels[idx + 2] = UInt8(min(255, 255 * alpha * 0.18)) // B
+                pixels[idx + 3] = UInt8(min(255, 255 * alpha))
+            }
+        }
+
+        let data = Data(pixels)
+        guard let provider = CGDataProvider(data: data as CFData),
+              let cgImage = CGImage(
+                  width: size,
+                  height: size,
+                  bitsPerComponent: 8,
+                  bitsPerPixel: 32,
+                  bytesPerRow: size * 4,
+                  space: CGColorSpaceCreateDeviceRGB(),
+                  bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                  provider: provider,
+                  decode: nil,
+                  shouldInterpolate: true,
+                  intent: .defaultIntent
+              ) else {
+            return UIImage()
+        }
+        return UIImage(cgImage: cgImage)
     }
 }
