@@ -8,7 +8,7 @@ struct TravApp: App {
         WindowGroup {
             RootCoordinator()
                 .injectAppEnvironment(environment)
-                .preferredColorScheme(.light)
+                .preferredColorScheme(.dark)
         }
     }
 }

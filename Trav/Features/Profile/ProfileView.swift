@@ -4,6 +4,7 @@ struct ProfileView: View {
     @Environment(AppRouter.self) private var router
 
     let username: String
+    var showDismissButton: Bool = true
 
     var body: some View {
         NavigationStack {
@@ -18,12 +19,14 @@ struct ProfileView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(TravColors.surface)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { router.dismiss() } label: {
-                        Image(systemName: "xmark")
-                            .padding(10)
-                            .background(TravColors.surfaceElevated)
-                            .clipShape(Circle())
+                if showDismissButton {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { router.dismiss() } label: {
+                            Image(systemName: "xmark")
+                                .padding(10)
+                                .background(TravColors.surfaceElevated)
+                                .clipShape(Circle())
+                        }
                     }
                 }
             }

@@ -31,6 +31,7 @@
 		780EE4863FE0451081FCBD9D /* GlobeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F591E88F61EF4737B2D7D7B8 /* GlobeViewModel.swift */; };
 		F1986924026E487191DB1D8E /* AuthSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8030AE8F9A54F7DA59061C9 /* AuthSheetView.swift */; };
 		E6888FCE0E734087B26A6E2C /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8504B0C4FAF0439AB0EB2AB5 /* ProfileView.swift */; };
+		C7EAD1EAE5A54853BC25399B /* CreateExperienceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EAD1EAE5A54853BC25399A /* CreateExperienceView.swift */; };
 		D6759BDEF8B24A44823FB801 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9D789CF333594AE0B2D8A18E /* Assets.xcassets */; };
 		10474AB917424CD0AD7A2340 /* earth_day.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 496BA6B3143F4D3DB499E304 /* earth_day.jpg */; };
 		8BA97A58085D4264B2E48D5F /* earth_night.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 718377C590AA4881A90EFC95 /* earth_night.jpg */; };
@@ -69,6 +70,7 @@
 		F591E88F61EF4737B2D7D7B8 /* GlobeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobeViewModel.swift; sourceTree = "<group>"; };
 		F8030AE8F9A54F7DA59061C9 /* AuthSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSheetView.swift; sourceTree = "<group>"; };
 		8504B0C4FAF0439AB0EB2AB5 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		C7EAD1EAE5A54853BC25399A /* CreateExperienceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateExperienceView.swift; sourceTree = "<group>"; };
 		9D789CF333594AE0B2D8A18E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		496BA6B3143F4D3DB499E304 /* earth_day.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = earth_day.jpg; sourceTree = "<group>"; };
 		718377C590AA4881A90EFC95 /* earth_night.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = earth_night.jpg; sourceTree = "<group>"; };
@@ -176,6 +178,7 @@
 				3135ACFAA51B427A80B50DBA /* Experience */,
 				8FC45DD7329E4045852F9C15 /* Globe */,
 				BF002BE61CD74981A2F62551 /* Profile */,
+				C7EAD1EAE5A54853BC25399C /* CreateExperience */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -224,6 +227,14 @@
 				8504B0C4FAF0439AB0EB2AB5 /* ProfileView.swift */,
 			);
 			path = Profile;
+			sourceTree = "<group>";
+		};
+		C7EAD1EAE5A54853BC25399C /* CreateExperience */ = {
+			isa = PBXGroup;
+			children = (
+				C7EAD1EAE5A54853BC25399A /* CreateExperienceView.swift */,
+			);
+			path = CreateExperience;
 			sourceTree = "<group>";
 		};
 		D80EF0443C9F4083B79FAADB /* Resources */ = {
@@ -305,7 +316,8 @@
 				4F74844EC7E044F89EB831E0 /* GlobeLandingView.swift in Sources */,
 				780EE4863FE0451081FCBD9D /* GlobeViewModel.swift in Sources */,
 				F1986924026E487191DB1D8E /* AuthSheetView.swift in Sources */,
-				E6888FCE0E734087B26A6E2C /* ProfileView.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+				E6888FCE0E734087B26A6E2C /* ProfileView.swift in Sources */,
+				C7EAD1EAE5A54853BC25399B /* CreateExperienceView.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 /* Begin XCBuildConfiguration section */
 		7A2C10DACCAE4528B4765FF7 = { isa = XCBuildConfiguration; buildSettings = { IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 6.0; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };

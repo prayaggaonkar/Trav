@@ -1,14 +1,25 @@
 import SwiftUI
+import UIKit
 
 enum TravColors {
-    static let primary = Color(red: 0.04, green: 0.04, blue: 0.043)
+    static let primary = Color(uiColor: UIColor { traitCollection in
+        traitCollection.userInterfaceStyle == .dark ? UIColor.white : UIColor(red: 0.04, green: 0.04, blue: 0.043, alpha: 1.0)
+    })
     static let accent = Color(red: 1.0, green: 0.36, blue: 0.21)
     static let accentSoft = accent.opacity(0.12)
-    static let surface = Color.white
-    static let surfaceElevated = Color(red: 0.97, green: 0.97, blue: 0.973)
-    static let border = Color(red: 0.91, green: 0.91, blue: 0.918)
+    static let surface = Color(uiColor: UIColor { traitCollection in
+        traitCollection.userInterfaceStyle == .dark ? UIColor.black : UIColor.white
+    })
+    static let surfaceElevated = Color(uiColor: UIColor { traitCollection in
+        traitCollection.userInterfaceStyle == .dark ? UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 1.0) : UIColor(red: 0.97, green: 0.97, blue: 0.973, alpha: 1.0)
+    })
+    static let border = Color(uiColor: UIColor { traitCollection in
+        traitCollection.userInterfaceStyle == .dark ? UIColor(red: 0.2, green: 0.2, blue: 0.22, alpha: 1.0) : UIColor(red: 0.91, green: 0.91, blue: 0.918, alpha: 1.0)
+    })
     static let success = Color(red: 0.13, green: 0.77, blue: 0.37)
-    static let muted = Color(red: 0.42, green: 0.42, blue: 0.44)
+    static let muted = Color(uiColor: UIColor { traitCollection in
+        traitCollection.userInterfaceStyle == .dark ? UIColor(red: 0.6, green: 0.6, blue: 0.62, alpha: 1.0) : UIColor(red: 0.42, green: 0.42, blue: 0.44, alpha: 1.0)
+    })
     static let globeBackground = Color(red: 0.02, green: 0.02, blue: 0.05)
 }
 

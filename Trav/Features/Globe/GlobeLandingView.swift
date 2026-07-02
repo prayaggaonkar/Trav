@@ -24,7 +24,7 @@ struct GlobeLandingView: View {
                 }
                 .padding(.horizontal, TravSpacing.screenHorizontal)
                 .padding(.top, 8)
-                .padding(.bottom, TravSpacing.lg)
+                .padding(.bottom, 100)
             }
         }
         .ignoresSafeArea()
