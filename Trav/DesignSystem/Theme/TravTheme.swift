@@ -17,6 +17,7 @@ enum TravColors {
         traitCollection.userInterfaceStyle == .dark ? UIColor(red: 0.2, green: 0.2, blue: 0.22, alpha: 1.0) : UIColor(red: 0.91, green: 0.91, blue: 0.918, alpha: 1.0)
     })
     static let success = Color(red: 0.13, green: 0.77, blue: 0.37)
+    static let error = Color(red: 0.94, green: 0.27, blue: 0.27)
     static let muted = Color(uiColor: UIColor { traitCollection in
         traitCollection.userInterfaceStyle == .dark ? UIColor(red: 0.6, green: 0.6, blue: 0.62, alpha: 1.0) : UIColor(red: 0.42, green: 0.42, blue: 0.44, alpha: 1.0)
     })
@@ -33,6 +34,7 @@ enum TravSpacing {
     static let xxl: CGFloat = 48
     static let hero: CGFloat = 64
     static let screenHorizontal: CGFloat = 20
+    static let tabBarBottom: CGFloat = 8
 }
 
 enum TravRadius {
@@ -40,6 +42,41 @@ enum TravRadius {
     static let md: CGFloat = 12
     static let lg: CGFloat = 16
     static let xl: CGFloat = 24
+}
+
+enum TravLayout {
+    static let buttonHeight: CGFloat = 52
+    static let minTouchTarget: CGFloat = 44
+    static let tabBarIconSize: CGFloat = 22
+    static let heroCityHeight: CGFloat = 320
+    static let heroExperienceHeight: CGFloat = 360
+    static let cardImageHeight: CGFloat = 160
+    static let featuredCardHeight: CGFloat = 200
+}
+
+enum TravIcon {
+    static let sm: CGFloat = 14
+    static let md: CGFloat = 20
+    static let lg: CGFloat = 28
+    static let xl: CGFloat = 56
+}
+
+enum TravShadow {
+    static func card() -> (color: Color, radius: CGFloat, y: CGFloat) {
+        (Color.black.opacity(0.08), 10, 4)
+    }
+
+    static func elevated() -> (color: Color, radius: CGFloat, y: CGFloat) {
+        (Color.black.opacity(0.25), 20, 10)
+    }
+}
+
+enum TravAnimation {
+    static let quick = Animation.easeOut(duration: 0.18)
+    static let press = Animation.easeOut(duration: 0.15)
+    static let enter = Animation.spring(duration: 0.45, bounce: 0.18)
+    static let tab = Animation.spring(duration: 0.32, bounce: 0.12)
+    static let modal = Animation.spring(duration: 0.42, bounce: 0.14)
 }
 
 enum TravTypography {
@@ -51,4 +88,24 @@ enum TravTypography {
     static func bodyMedium() -> Font { .system(size: 15, weight: .regular, design: .default) }
     static func labelMedium() -> Font { .system(size: 13, weight: .medium, design: .default) }
     static func caption() -> Font { .system(size: 12, weight: .regular, design: .default) }
+    static func tabLabel() -> Font { .system(size: 10, weight: .medium, design: .default) }
+}
+
+enum TravFormatters {
+    static func duration(_ minutes: Int) -> String {
+        if minutes >= 60 {
+            let hours = minutes / 60
+            let remainder = minutes % 60
+            return remainder > 0 ? "\(hours)h \(remainder)m" : "\(hours)h"
+        }
+        return "\(minutes)m"
+    }
+
+    static func distance(_ meters: Int) -> String {
+        meters >= 1000 ? String(format: "%.1f km", Double(meters) / 1000) : "\(meters) m"
+    }
+
+    static func count(_ count: Int) -> String {
+        count >= 1000 ? String(format: "%.1fk", Double(count) / 1000) : "\(count)"
+    }
 }

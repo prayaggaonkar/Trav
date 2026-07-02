@@ -3,6 +3,7 @@ import SwiftUI
 struct PrimaryButton: View {
     let title: String
     var isLoading: Bool = false
+    var isEnabled: Bool = true
     let action: () -> Void
 
     var body: some View {
@@ -18,19 +19,12 @@ struct PrimaryButton: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 52)
-            .background(TravColors.accent)
+            .frame(minHeight: TravLayout.buttonHeight)
+            .background(isEnabled ? TravColors.accent : TravColors.muted.opacity(0.4))
             .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
         }
-        .buttonStyle(PressScaleButtonStyle())
-        .disabled(isLoading)
-    }
-}
-
-private struct PressScaleButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+        .buttonStyle(TravPressButtonStyle())
+        .disabled(isLoading || !isEnabled)
+        .animation(TravAnimation.quick, value: isEnabled)
     }
 }

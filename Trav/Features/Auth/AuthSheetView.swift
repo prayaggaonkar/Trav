@@ -21,28 +21,51 @@ struct AuthSheetView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: TravSpacing.lg) {
                     header
+                        .travAppear()
+
                     modePicker
+                        .travAppear(delay: 0.05)
+
                     formFields
+                        .travAppear(delay: 0.1)
+
                     if let errorMessage {
                         Text(errorMessage)
                             .font(TravTypography.caption())
-                            .foregroundStyle(.red)
+                            .foregroundStyle(TravColors.error)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                     }
+
                     PrimaryButton(title: primaryActionTitle, isLoading: isLoading) {
                         Task { await submit() }
                     }
-                    googleButton
+                    .travAppear(delay: 0.15)
+
+                    SecondaryButton("Continue with Google", icon: "globe") {}
+                        .travAppear(delay: 0.2)
+
                     footerLinks
+                        .travAppear(delay: 0.25)
                 }
                 .padding(TravSpacing.screenHorizontal)
                 .padding(.top, TravSpacing.md)
+                .padding(.bottom, TravSpacing.xl)
             }
-            .background(TravColors.surface)
+            .travScreenBackground()
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cancel") { router.dismissAuth() }
+                        .font(TravTypography.labelMedium())
+                        .foregroundStyle(TravColors.muted)
+                }
+            }
         }
+        .animation(TravAnimation.quick, value: errorMessage)
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: TravSpacing.xs) {
             Text("Welcome to Trav")
                 .font(TravTypography.displayMedium())
                 .foregroundStyle(TravColors.primary)
@@ -62,37 +85,23 @@ struct AuthSheetView: View {
     }
 
     private var formFields: some View {
-        VStack(spacing: TravSpacing.sm) {
-            TextField("Email", text: $email)
-                .textContentType(.emailAddress)
-                .keyboardType(.emailAddress)
-                .autocapitalization(.none)
-                .padding()
-                .background(TravColors.surfaceElevated)
-                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+        VStack(spacing: TravSpacing.md) {
+            TravTextField(
+                title: "Email",
+                placeholder: "you@example.com",
+                text: $email,
+                contentType: .emailAddress,
+                keyboardType: .emailAddress
+            )
 
-            SecureField("Password", text: $password)
-                .textContentType(mode == .signUp ? .newPassword : .password)
-                .padding()
-                .background(TravColors.surfaceElevated)
-                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+            TravTextField(
+                title: "Password",
+                placeholder: "Enter your password",
+                text: $password,
+                contentType: mode == .signUp ? .newPassword : .password,
+                isSecure: true
+            )
         }
-    }
-
-    private var googleButton: some View {
-        Button {} label: {
-            HStack {
-                Image(systemName: "globe")
-                Text("Continue with Google")
-                    .font(TravTypography.titleMedium())
-            }
-            .foregroundStyle(TravColors.primary)
-            .frame(maxWidth: .infinity)
-            .frame(height: 52)
-            .background(TravColors.surfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
-        }
-        .buttonStyle(.plain)
     }
 
     private var footerLinks: some View {
@@ -102,7 +111,7 @@ struct AuthSheetView: View {
                     .font(TravTypography.labelMedium())
                     .foregroundStyle(TravColors.accent)
             }
-            Button("Verify email or set up 2FA in Settings after signing in.") {}
+            Text("Verify email or set up 2FA in Settings after signing in.")
                 .font(TravTypography.caption())
                 .foregroundStyle(TravColors.muted)
                 .multilineTextAlignment(.center)

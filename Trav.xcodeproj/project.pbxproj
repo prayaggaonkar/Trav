@@ -9,6 +9,7 @@
 		96B0986901994F2DBFB620C8 /* RoutePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06CAAC7E093049558C61768C /* RoutePreview.swift */; };
 		1081907320D844448603E8A7 /* StatPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9989CC2CCE5A4311865A3993 /* StatPill.swift */; };
 		F05EC542AE7646348C0BADEA /* TravTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7BECECB35284C65AD16C0BC /* TravTheme.swift */; };
+		A1B2C3D4E5F6789012345678 /* TravUIComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F67890123456789 /* TravUIComponents.swift */; };
 		5C86BAE105404C02AD5D6696 /* MockData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95CEF1A3A1C74205A47D2D6D /* MockData.swift */; };
 		4B0CBB095FB74753BB541641 /* MockRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = B26BA97D662C4CA8849CBA1E /* MockRepositories.swift */; };
 		58C7207A898B4216A3F3341B /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0BA082CA18B4C8FA2514428 /* AppRouter.swift */; };
@@ -48,6 +49,7 @@
 		06CAAC7E093049558C61768C /* RoutePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePreview.swift; sourceTree = "<group>"; };
 		9989CC2CCE5A4311865A3993 /* StatPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatPill.swift; sourceTree = "<group>"; };
 		E7BECECB35284C65AD16C0BC /* TravTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravTheme.swift; sourceTree = "<group>"; };
+		B2C3D4E5F67890123456789 /* TravUIComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravUIComponents.swift; sourceTree = "<group>"; };
 		95CEF1A3A1C74205A47D2D6D /* MockData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockData.swift; sourceTree = "<group>"; };
 		B26BA97D662C4CA8849CBA1E /* MockRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockRepositories.swift; sourceTree = "<group>"; };
 		C0BA082CA18B4C8FA2514428 /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
@@ -158,6 +160,7 @@
 				22D7B624DAAF4F4AA1F44A7F /* PrimaryButton.swift */,
 				06CAAC7E093049558C61768C /* RoutePreview.swift */,
 				9989CC2CCE5A4311865A3993 /* StatPill.swift */,
+				B2C3D4E5F67890123456789 /* TravUIComponents.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -295,6 +298,7 @@
 				96B0986901994F2DBFB620C8 /* RoutePreview.swift in Sources */,
 				1081907320D844448603E8A7 /* StatPill.swift in Sources */,
 				F05EC542AE7646348C0BADEA /* TravTheme.swift in Sources */,
+				A1B2C3D4E5F6789012345678 /* TravUIComponents.swift in Sources */,
 				5C86BAE105404C02AD5D6696 /* MockData.swift in Sources */,
 				4B0CBB095FB74753BB541641 /* MockRepositories.swift in Sources */,
 				58C7207A898B4216A3F3341B /* AppRouter.swift in Sources */,

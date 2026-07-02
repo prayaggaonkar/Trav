@@ -14,43 +14,25 @@ struct CityPageView: View {
             Group {
                 switch viewModel.phase {
                 case .loading:
-                    VStack { ProgressView(); Spacer() }
+                    CityPageSkeleton()
                 case .empty:
-                    Text("No experiences yet in this city.")
-                        .font(TravTypography.bodyMedium())
-                        .foregroundStyle(TravColors.muted)
+                    EmptyStateView(
+                        icon: "map",
+                        title: "No Experiences Yet",
+                        description: "This city doesn't have any published experiences. Check back soon."
+                    )
                 case let .loaded(content):
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 0) {
-                            heroSection(content.city)
-                            featuredSection(content.featured)
-                            feedSection(content.feed)
-                        }
-                    }
-                    .ignoresSafeArea(edges: .top)
+                    loadedContent(content)
                 case let .failed(error):
-                    VStack(spacing: TravSpacing.md) {
-                        Text(error.localizedDescription)
-                        PrimaryButton(title: "Try Again") {
-                            Task { await viewModel.load(using: environment) }
-                        }
+                    ErrorStateView(message: error.localizedDescription) {
+                        Task { await viewModel.load(using: environment) }
                     }
-                    .padding()
                 }
             }
-            .background(TravColors.surface)
+            .travScreenBackground()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        router.dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(TravColors.primary)
-                            .padding(10)
-                            .background(TravColors.surfaceElevated)
-                            .clipShape(Circle())
-                    }
+                    DismissButton { router.dismiss() }
                 }
             }
         }
@@ -60,30 +42,26 @@ struct CityPageView: View {
     }
 
     @ViewBuilder
-    private func heroSection(_ city: City) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            Group {
-                if let url = city.heroImageURL {
-                    AsyncImage(url: url) { phase in
-                        if case let .success(image) = phase {
-                            image.resizable().scaledToFill()
-                        } else {
-                            Rectangle().fill(TravColors.surfaceElevated)
-                        }
-                    }
-                }
+    private func loadedContent(_ content: CityViewModel.Content) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                heroSection(content.city)
+                    .travAppear()
+
+                featuredSection(content.featured)
+                    .travAppear(delay: 0.08)
+
+                feedSection(content.feed)
+                    .travAppear(delay: 0.14)
             }
-            .frame(height: 380)
-            .frame(maxWidth: .infinity)
-            .clipped()
+            .padding(.bottom, TravSpacing.xxl)
+        }
+        .ignoresSafeArea(edges: .top)
+    }
 
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.7)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 380)
-
+    @ViewBuilder
+    private func heroSection(_ city: City) -> some View {
+        HeroImageHeader(url: city.heroImageURL, height: TravLayout.heroCityHeight) {
             VStack(alignment: .leading, spacing: TravSpacing.xs) {
                 Text(city.name)
                     .font(TravTypography.displayLarge())
@@ -96,8 +74,6 @@ struct CityPageView: View {
                 .font(TravTypography.labelMedium())
                 .foregroundStyle(.white.opacity(0.85))
             }
-            .padding(TravSpacing.screenHorizontal)
-            .padding(.bottom, TravSpacing.lg)
         }
     }
 
@@ -114,16 +90,11 @@ struct CityPageView: View {
                     router.openExperience(featured.id)
                 } label: {
                     ZStack(alignment: .bottomLeading) {
-                        AsyncImage(url: featured.coverImageURL) { phase in
-                            if case let .success(image) = phase {
-                                image.resizable().scaledToFill()
-                            } else {
-                                Rectangle().fill(TravColors.surfaceElevated)
-                            }
-                        }
-                        .frame(height: 220)
-                        .frame(maxWidth: .infinity)
-                        .clipped()
+                        RemoteImage(
+                            url: featured.coverImageURL,
+                            height: TravLayout.featuredCardHeight,
+                            cornerRadius: TravRadius.lg
+                        )
 
                         LinearGradient(
                             colors: [.clear, .black.opacity(0.65)],
@@ -131,7 +102,7 @@ struct CityPageView: View {
                             endPoint: .bottom
                         )
 
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: TravSpacing.xs) {
                             Text(featured.title)
                                 .font(TravTypography.titleLarge())
                                 .foregroundStyle(.white)
@@ -141,7 +112,7 @@ struct CityPageView: View {
                     }
                     .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TravPressButtonStyle())
                 .padding(.horizontal, TravSpacing.screenHorizontal)
             }
             .padding(.top, TravSpacing.lg)
@@ -164,14 +135,14 @@ struct CityPageView: View {
                 ],
                 spacing: TravSpacing.md
             ) {
-                ForEach(feed) { experience in
+                ForEach(Array(feed.enumerated()), id: \.element.id) { index, experience in
                     ExperienceCard(experience: experience) {
                         router.openExperience(experience.id)
                     }
+                    .travAppear(delay: Double(index) * 0.04)
                 }
             }
             .padding(.horizontal, TravSpacing.screenHorizontal)
-            .padding(.bottom, TravSpacing.xxl)
         }
     }
 }

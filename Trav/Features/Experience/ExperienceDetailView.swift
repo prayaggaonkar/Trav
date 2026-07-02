@@ -13,37 +13,23 @@ struct ExperienceDetailView: View {
         NavigationStack {
             Group {
                 if isLoading {
-                    ProgressView()
+                    ExperienceDetailSkeleton()
                 } else if let experience {
                     experienceContent(experience)
                 } else if let error {
-                    VStack(spacing: TravSpacing.md) {
-                        Text(error.localizedDescription)
-                        PrimaryButton(title: "Try Again") {
-                            Task { await load() }
-                        }
+                    ErrorStateView(message: error.localizedDescription) {
+                        Task { await load() }
                     }
-                    .padding()
                 }
             }
-            .background(TravColors.surface)
+            .travScreenBackground()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    closeButton
+                    DismissButton { router.dismiss() }
                 }
             }
         }
         .task { await load() }
-    }
-
-    private var closeButton: some View {
-        Button { router.dismiss() } label: {
-            Image(systemName: "xmark")
-                .font(.system(size: 14, weight: .semibold))
-                .padding(10)
-                .background(TravColors.surfaceElevated)
-                .clipShape(Circle())
-        }
     }
 
     @ViewBuilder
@@ -51,86 +37,64 @@ struct ExperienceDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 hero(experience)
-                actionBar(experience)
+                    .travAppear()
+
+                actionBar
+                    .travAppear(delay: 0.06)
+
                 statsRow(experience)
+                    .travAppear(delay: 0.1)
+
                 routeOverview(experience)
+                    .travAppear(delay: 0.14)
+
                 timeline(experience)
+                    .travAppear(delay: 0.18)
             }
+            .padding(.bottom, TravSpacing.xxl)
         }
         .ignoresSafeArea(edges: .top)
     }
 
     @ViewBuilder
     private func hero(_ experience: Experience) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            AsyncImage(url: experience.coverImageURL) { phase in
-                if case let .success(image) = phase {
-                    image.resizable().scaledToFill()
-                } else {
-                    Rectangle().fill(TravColors.surfaceElevated)
-                }
-            }
-            .frame(height: 420)
-            .frame(maxWidth: .infinity)
-            .clipped()
-
-            LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom)
-
+        HeroImageHeader(url: experience.coverImageURL, height: TravLayout.heroExperienceHeight) {
             VStack(alignment: .leading, spacing: TravSpacing.sm) {
                 Text(experience.title)
                     .font(TravTypography.displayMedium())
                     .foregroundStyle(.white)
 
-                HStack(spacing: 8) {
+                HStack(spacing: TravSpacing.xs) {
                     AvatarView(url: experience.creator.avatarURL, size: 32)
                     Text(experience.creator.displayName)
                         .font(TravTypography.bodyMedium())
                         .foregroundStyle(.white.opacity(0.9))
                 }
             }
-            .padding(TravSpacing.screenHorizontal)
-            .padding(.bottom, TravSpacing.lg)
         }
     }
 
-    @ViewBuilder
-    private func actionBar(_ experience: Experience) -> some View {
-        HStack(spacing: TravSpacing.md) {
-            actionButton(symbol: "bookmark", label: "Save")
-            actionButton(symbol: "checkmark.circle.fill", label: "Complete", accent: true)
-            actionButton(symbol: "square.and.arrow.up", label: "Share")
+    private var actionBar: some View {
+        HStack(spacing: TravSpacing.sm) {
+            TravActionButton(symbol: "bookmark", label: "Save") {}
+            TravActionButton(symbol: "checkmark.circle.fill", label: "Complete", isAccent: true) {}
+            TravActionButton(symbol: "square.and.arrow.up", label: "Share") {}
         }
-        .padding(TravSpacing.screenHorizontal)
+        .padding(.horizontal, TravSpacing.screenHorizontal)
         .padding(.vertical, TravSpacing.md)
     }
 
     @ViewBuilder
-    private func actionButton(symbol: String, label: String, accent: Bool = false) -> some View {
-        Button {} label: {
-            VStack(spacing: 4) {
-                Image(systemName: symbol)
-                    .font(.system(size: 20, weight: .medium))
-                Text(label)
-                    .font(TravTypography.caption())
-            }
-            .foregroundStyle(accent ? TravColors.accent : TravColors.primary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, TravSpacing.sm)
-            .background(accent ? TravColors.accentSoft : TravColors.surfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
     private func statsRow(_ experience: Experience) -> some View {
-        HStack(spacing: TravSpacing.sm) {
-            StatPill(symbol: "clock", value: formatDuration(experience.durationMinutes))
-            StatPill(symbol: "dollarsign.circle", value: experience.costLevel.displayName)
-            StatPill(symbol: "figure.walk", value: formatDistance(experience.totalDistanceMeters))
-            StatPill(symbol: "checkmark.circle", value: "\(experience.completionCount)")
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: TravSpacing.sm) {
+                StatPill(symbol: "clock", value: TravFormatters.duration(experience.durationMinutes))
+                StatPill(symbol: "dollarsign.circle", value: experience.costLevel.displayName)
+                StatPill(symbol: "figure.walk", value: TravFormatters.distance(experience.totalDistanceMeters))
+                StatPill(symbol: "checkmark.circle", value: TravFormatters.count(experience.completionCount))
+            }
+            .padding(.horizontal, TravSpacing.screenHorizontal)
         }
-        .padding(.horizontal, TravSpacing.screenHorizontal)
         .padding(.bottom, TravSpacing.lg)
     }
 
@@ -163,9 +127,9 @@ struct ExperienceDetailView: View {
 
             ForEach(Array(experience.stops.enumerated()), id: \.element.id) { index, stop in
                 StopTimelineRow(stop: stop, index: index + 1)
+                    .travAppear(delay: Double(index) * 0.05)
             }
         }
-        .padding(.bottom, TravSpacing.xxl)
     }
 
     private func load() async {
@@ -178,14 +142,6 @@ struct ExperienceDetailView: View {
         }
         isLoading = false
     }
-
-    private func formatDuration(_ minutes: Int) -> String {
-        minutes >= 60 ? "\(minutes / 60)h \(minutes % 60)m" : "\(minutes)m"
-    }
-
-    private func formatDistance(_ meters: Int) -> String {
-        meters >= 1000 ? String(format: "%.1f km", Double(meters) / 1000) : "\(meters) m"
-    }
 }
 
 private struct StopTimelineRow: View {
@@ -197,12 +153,12 @@ private struct StopTimelineRow: View {
             Text("\(index)")
                 .font(TravTypography.labelMedium())
                 .foregroundStyle(.white)
-                .frame(width: 28, height: 28)
+                .frame(width: TravLayout.minTouchTarget - 16, height: TravLayout.minTouchTarget - 16)
                 .background(TravColors.accent)
                 .clipShape(Circle())
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
+            VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                HStack(spacing: TravSpacing.xxs) {
                     if let emoji = stop.emoji { Text(emoji) }
                     Text(stop.name)
                         .font(TravTypography.titleMedium())
@@ -222,11 +178,11 @@ private struct StopTimelineRow: View {
                         .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
                 }
 
-                HStack {
+                HStack(spacing: TravSpacing.sm) {
                     if let time = stop.recommendedTime {
                         Label(time, systemImage: "sun.max")
                     }
-                    Label("\(stop.durationMinutes)m", systemImage: "clock")
+                    Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
                 }
                 .font(TravTypography.caption())
                 .foregroundStyle(TravColors.muted)

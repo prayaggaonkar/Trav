@@ -1,34 +1,47 @@
 import SwiftUI
+import UIKit
 
 struct GlobeLandingView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
     @State private var viewModel: GlobeViewModel?
+    @State private var topOverlayPadding: CGFloat = 79
+
+    /// Extra clearance below the status bar / Dynamic Island.
+    private static let headerTopInset: CGFloat = 20
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                Color.black.ignoresSafeArea()
+        ZStack {
+            Color.black.ignoresSafeArea()
 
+            GeometryReader { geo in
                 if let viewModel {
                     EarthGlobeView(controller: viewModel.controller)
                         .frame(width: geo.size.width, height: geo.size.height * 0.68)
                         .position(x: geo.size.width * 0.5, y: geo.size.height * 0.40)
                 }
-
-                VStack {
-                    header
-                    Spacer()
-                        .allowsHitTesting(false)
-                    bottomCTA
-                }
-                .padding(.horizontal, TravSpacing.screenHorizontal)
-                .padding(.top, 8)
-                .padding(.bottom, 100)
             }
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                Color.clear
+                    .frame(height: topOverlayPadding)
+                    .allowsHitTesting(false)
+
+                header
+                    .offset(y: -20)
+
+                Spacer(minLength: 0)
+                    .allowsHitTesting(false)
+
+                bottomCTA
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .padding(.horizontal, TravSpacing.screenHorizontal)
+            .padding(.bottom, 100)
         }
-        .ignoresSafeArea()
+        .onAppear(perform: refreshTopOverlayPadding)
         .task {
             guard viewModel == nil else { return }
             let vm = GlobeViewModel(
@@ -38,6 +51,15 @@ struct GlobeLandingView: View {
             viewModel = vm
             await vm.loadCities()
         }
+    }
+
+    private func refreshTopOverlayPadding() {
+        let safeTop = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .safeAreaInsets.top ?? 59
+        topOverlayPadding = safeTop + Self.headerTopInset
     }
 
     private var header: some View {

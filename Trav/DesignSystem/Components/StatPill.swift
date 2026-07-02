@@ -5,16 +5,19 @@ struct StatPill: View {
     let value: String
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: TravSpacing.xxs) {
             Image(systemName: symbol)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: TravIcon.sm - 3, weight: .medium))
             Text(value)
                 .font(TravTypography.caption())
         }
         .foregroundStyle(TravColors.muted)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(TravColors.surfaceElevated)
+        .padding(.horizontal, TravSpacing.xs)
+        .padding(.vertical, TravSpacing.xxs)
+        .background(TravColors.surface)
         .clipShape(Capsule())
+        .overlay {
+            Capsule().stroke(TravColors.border.opacity(0.4), lineWidth: 1)
+        }
     }
 }

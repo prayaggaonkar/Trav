@@ -3,7 +3,7 @@ import SwiftUI
 struct CreateExperienceView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(SessionStore.self) private var session
-    
+
     @State private var title = ""
     @State private var description = ""
     @State private var selectedCity: City?
@@ -11,169 +11,26 @@ struct CreateExperienceView: View {
     @State private var stops: [StopPreview] = []
     @State private var newStopName = ""
     @State private var newStopEmoji = "📍"
-    
+
     @State private var isSubmitting = false
     @State private var showSuccess = false
-    
+
     let emojis = ["📍", "☕", "📚", "🍜", "🌃", "🍕", "🌳", "🏛️", "🍷", "🏖️", "🛍️", "🏨"]
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
-                TravColors.surface.ignoresSafeArea()
-                
                 if showSuccess {
                     successView
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: TravSpacing.lg) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Create Experience")
-                                    .font(TravTypography.displayMedium())
-                                    .foregroundStyle(TravColors.primary)
-                                Text("Map your favorite stops and share them with the world.")
-                                    .font(TravTypography.bodyMedium())
-                                    .foregroundStyle(TravColors.muted)
-                            }
-                            .padding(.top, TravSpacing.md)
-                            
-                            // Section 1: Basic Info
-                            VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                                Text("Experience Title")
-                                    .font(TravTypography.labelMedium())
-                                    .foregroundStyle(TravColors.muted)
-                                TextField("e.g. SF Coffee & Books Tour", text: $title)
-                                    .padding()
-                                    .background(TravColors.surfaceElevated)
-                                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
-                                
-                                Text("Description")
-                                    .font(TravTypography.labelMedium())
-                                    .foregroundStyle(TravColors.muted)
-                                    .padding(.top, 4)
-                                TextField("What makes this experience special?", text: $description)
-                                    .padding()
-                                    .background(TravColors.surfaceElevated)
-                                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
-                            }
-                            
-                            // Section 2: Choose City
-                            VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                                Text("Select Destination City")
-                                    .font(TravTypography.labelMedium())
-                                    .foregroundStyle(TravColors.muted)
-                                
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: TravSpacing.sm) {
-                                        ForEach(cities) { city in
-                                            Button {
-                                                selectedCity = city
-                                            } label: {
-                                                Text(city.name)
-                                                    .font(TravTypography.labelMedium())
-                                                    .foregroundStyle(selectedCity?.id == city.id ? .white : TravColors.primary)
-                                                    .padding(.horizontal, 16)
-                                                    .padding(.vertical, 10)
-                                                    .background(selectedCity?.id == city.id ? TravColors.accent : TravColors.surfaceElevated)
-                                                    .clipShape(Capsule())
-                                            }
-                                            .buttonStyle(.plain)
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            // Section 3: Add Stops
-                            VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                                Text("Stops Along the Way")
-                                    .font(TravTypography.labelMedium())
-                                    .foregroundStyle(TravColors.muted)
-                                
-                                if !stops.isEmpty {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        ForEach(stops) { stop in
-                                            HStack {
-                                                Text(stop.emoji ?? "📍")
-                                                Text(stop.name)
-                                                    .font(TravTypography.bodyMedium())
-                                                    .foregroundStyle(TravColors.primary)
-                                                Spacer()
-                                                Button {
-                                                    stops.removeAll { $0.id == stop.id }
-                                                } label: {
-                                                    Image(systemName: "minus.circle.fill")
-                                                        .foregroundStyle(.red.opacity(0.8))
-                                                }
-                                            }
-                                            .padding()
-                                            .background(TravColors.surfaceElevated)
-                                            .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm))
-                                        }
-                                    }
-                                    .padding(.bottom, 8)
-                                }
-                                
-                                HStack(spacing: TravSpacing.xs) {
-                                    Menu {
-                                        ForEach(emojis, id: \.self) { emoji in
-                                            Button(emoji) { newStopEmoji = emoji }
-                                        }
-                                    } label: {
-                                        Text(newStopEmoji)
-                                            .font(.title2)
-                                            .padding(10)
-                                            .background(TravColors.surfaceElevated)
-                                            .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm))
-                                    }
-                                    
-                                    TextField("Add a new stop name...", text: $newStopName)
-                                        .padding()
-                                        .background(TravColors.surfaceElevated)
-                                        .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
-                                    
-                                    Button {
-                                        guard !newStopName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                                        let newStop = StopPreview(id: UUID(), name: newStopName, emoji: newStopEmoji)
-                                        stops.append(newStop)
-                                        newStopName = ""
-                                        newStopEmoji = "📍"
-                                    } label: {
-                                        Image(systemName: "plus")
-                                            .font(.system(size: 16, weight: .bold))
-                                            .foregroundStyle(.white)
-                                            .padding(18)
-                                            .background(TravColors.accent)
-                                            .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm))
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            
-                            // Publish Button
-                            Button {
-                                submit()
-                            } label: {
-                                if isSubmitting {
-                                    ProgressView().tint(.white)
-                                } else {
-                                    Text("Publish Experience")
-                                        .font(TravTypography.titleMedium())
-                                        .foregroundStyle(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: 52)
-                                        .background(canPublish ? TravColors.accent : TravColors.muted.opacity(0.4))
-                                        .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
-                                }
-                            }
-                            .disabled(!canPublish || isSubmitting)
-                            .padding(.top, TravSpacing.md)
-                        }
-                        .padding(TravSpacing.screenHorizontal)
-                        .padding(.bottom, 120)
-                    }
+                    formContent
+                        .transition(.opacity)
                 }
             }
+            .travScreenBackground()
             .navigationBarTitleDisplayMode(.inline)
+            .animation(TravAnimation.enter, value: showSuccess)
             .task {
                 do {
                     cities = try await environment.cities.fetchGlobeCities()
@@ -181,32 +38,140 @@ struct CreateExperienceView: View {
             }
         }
     }
-    
-    private var canPublish: Bool {
-        !title.trimmingCharacters(in: .whitespaces).isEmpty &&
-        selectedCity != nil &&
-        !stops.isEmpty
-    }
-    
-    private func submit() {
-        isSubmitting = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            isSubmitting = false
-            withAnimation(.spring(duration: 0.4)) {
-                showSuccess = true
+
+    private var formContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: TravSpacing.lg) {
+                VStack(alignment: .leading, spacing: TravSpacing.xxs) {
+                    Text("Create Experience")
+                        .font(TravTypography.displayMedium())
+                        .foregroundStyle(TravColors.primary)
+                    Text("Map your favorite stops and share them with the world.")
+                        .font(TravTypography.bodyMedium())
+                        .foregroundStyle(TravColors.muted)
+                }
+                .padding(.top, TravSpacing.md)
+                .travAppear()
+
+                TravFormSection(title: "Basic Info") {
+                    VStack(spacing: TravSpacing.md) {
+                        TravTextField(
+                            title: "Experience Title",
+                            placeholder: "e.g. SF Coffee & Books Tour",
+                            text: $title
+                        )
+                        TravTextField(
+                            title: "Description",
+                            placeholder: "What makes this experience special?",
+                            text: $description,
+                            axis: .vertical
+                        )
+                    }
+                }
+                .travAppear(delay: 0.05)
+
+                TravFormSection(title: "Destination City") {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: TravSpacing.sm) {
+                            ForEach(cities) { city in
+                                SelectionChip(
+                                    title: city.name,
+                                    isSelected: selectedCity?.id == city.id
+                                ) {
+                                    selectedCity = city
+                                }
+                            }
+                        }
+                    }
+                }
+                .travAppear(delay: 0.1)
+
+                TravFormSection(title: "Stops Along the Way") {
+                    VStack(spacing: TravSpacing.sm) {
+                        if !stops.isEmpty {
+                            VStack(spacing: TravSpacing.xs) {
+                                ForEach(stops) { stop in
+                                    HStack(spacing: TravSpacing.sm) {
+                                        Text(stop.emoji ?? "📍")
+                                        Text(stop.name)
+                                            .font(TravTypography.bodyMedium())
+                                            .foregroundStyle(TravColors.primary)
+                                        Spacer()
+                                        Button {
+                                            withAnimation(TravAnimation.quick) {
+                                                stops.removeAll { $0.id == stop.id }
+                                            }
+                                        } label: {
+                                            Image(systemName: "minus.circle.fill")
+                                                .foregroundStyle(TravColors.error.opacity(0.85))
+                                                .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
+                                        }
+                                    }
+                                    .padding(TravSpacing.md)
+                                    .background(TravColors.surfaceElevated)
+                                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
+                                }
+                            }
+                        }
+
+                        HStack(spacing: TravSpacing.xs) {
+                            Menu {
+                                ForEach(emojis, id: \.self) { emoji in
+                                    Button(emoji) { newStopEmoji = emoji }
+                                }
+                            } label: {
+                                Text(newStopEmoji)
+                                    .font(.title2)
+                                    .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
+                                    .background(TravColors.surfaceElevated)
+                                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
+                            }
+
+                            TextField("Add a new stop name...", text: $newStopName)
+                                .font(TravTypography.bodyLarge())
+                                .padding(TravSpacing.md)
+                                .frame(minHeight: TravLayout.minTouchTarget)
+                                .background(TravColors.surfaceElevated)
+                                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+
+                            Button(action: addStop) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: TravIcon.sm, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
+                                    .background(TravColors.accent)
+                                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
+                            }
+                            .buttonStyle(TravPressButtonStyle())
+                        }
+                    }
+                }
+                .travAppear(delay: 0.15)
+
+                PrimaryButton(
+                    title: "Publish Experience",
+                    isLoading: isSubmitting,
+                    isEnabled: canPublish
+                ) {
+                    submit()
+                }
+                .padding(.top, TravSpacing.sm)
+                .travAppear(delay: 0.2)
             }
+            .padding(.horizontal, TravSpacing.screenHorizontal)
+            .padding(.bottom, TravSpacing.lg)
         }
     }
-    
+
     private var successView: some View {
         VStack(spacing: TravSpacing.xl) {
             Spacer()
-            
+
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 80))
+                .font(.system(size: 72))
                 .foregroundStyle(TravColors.success)
                 .symbolEffect(.bounce, value: showSuccess)
-            
+
             VStack(spacing: TravSpacing.sm) {
                 Text("Experience Published!")
                     .font(TravTypography.displayMedium())
@@ -215,29 +180,49 @@ struct CreateExperienceView: View {
                     .font(TravTypography.bodyMedium())
                     .foregroundStyle(TravColors.muted)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, TravSpacing.xl)
             }
-            
-            Button {
-                title = ""
-                description = ""
-                selectedCity = nil
-                stops = []
-                showSuccess = false
-            } label: {
-                Text("Create Another")
-                    .font(TravTypography.titleMedium())
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(TravColors.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+
+            PrimaryButton(title: "Create Another") {
+                resetForm()
             }
-            .padding(.horizontal, 32)
-            
+            .padding(.horizontal, TravSpacing.xl)
+
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.bottom, 60)
+    }
+
+    private var canPublish: Bool {
+        !title.trimmingCharacters(in: .whitespaces).isEmpty &&
+        selectedCity != nil &&
+        !stops.isEmpty
+    }
+
+    private func addStop() {
+        guard !newStopName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        withAnimation(TravAnimation.enter) {
+            stops.append(StopPreview(id: UUID(), name: newStopName, emoji: newStopEmoji))
+            newStopName = ""
+            newStopEmoji = "📍"
+        }
+    }
+
+    private func submit() {
+        isSubmitting = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            isSubmitting = false
+            withAnimation(TravAnimation.enter) {
+                showSuccess = true
+            }
+        }
+    }
+
+    private func resetForm() {
+        title = ""
+        description = ""
+        selectedCity = nil
+        stops = []
+        showSuccess = false
     }
 }
