@@ -1,0 +1,320 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+/* Begin PBXBuildFile section */
+		FAEEC631BDED43D580C242D5 /* AsyncContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5214E298F515465C8669751B /* AsyncContentView.swift */; };
+		46A179BD4874465B8AC6B21E /* AvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97FB1FAE08B1495C952EA4C6 /* AvatarView.swift */; };
+		E5BE68835328407E9AA51B15 /* ExperienceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A46AA5C500644F89A7A8FFD /* ExperienceCard.swift */; };
+		014352908D96491BA4E04437 /* PrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22D7B624DAAF4F4AA1F44A7F /* PrimaryButton.swift */; };
+		96B0986901994F2DBFB620C8 /* RoutePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06CAAC7E093049558C61768C /* RoutePreview.swift */; };
+		1081907320D844448603E8A7 /* StatPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9989CC2CCE5A4311865A3993 /* StatPill.swift */; };
+		F05EC542AE7646348C0BADEA /* TravTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7BECECB35284C65AD16C0BC /* TravTheme.swift */; };
+		5C86BAE105404C02AD5D6696 /* MockData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95CEF1A3A1C74205A47D2D6D /* MockData.swift */; };
+		4B0CBB095FB74753BB541641 /* MockRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = B26BA97D662C4CA8849CBA1E /* MockRepositories.swift */; };
+		58C7207A898B4216A3F3341B /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0BA082CA18B4C8FA2514428 /* AppRouter.swift */; };
+		0A139D20BECF4AB8AA14CC31 /* RepositoryProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4762DCE38F22479AB6D818E6 /* RepositoryProtocols.swift */; };
+		DFF1B5277CE74DFFADA18AF0 /* City.swift in Sources */ = {isa = PBXBuildFile; fileRef = 495A3A8B9C6E42DFB539E0D3 /* City.swift */; };
+		482C3B63F39346109D16B1EE /* Enums.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1468F8B546604199BB6747BD /* Enums.swift */; };
+		DA6E2C6FB17F46A5B6B7D9B6 /* Experience.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCB1B49407444C75B6389332 /* Experience.swift */; };
+		8B190362ECF6427BB5B10288 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ECA72ADC07B4172BD8D8F12 /* Profile.swift */; };
+		2D9C4391DE9B4203970F202E /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10CE54D2D476419EB5E371A9 /* AppEnvironment.swift */; };
+		876F04B073464336BA929541 /* RootCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 672FB6BB7F77428D976B3870 /* RootCoordinator.swift */; };
+		8DB0861862E74A70A9F34A6E /* TravApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E6F8A4B25B440892DC9677 /* TravApp.swift */; };
+		BA61FC3A67154D3FB4379A72 /* ExperienceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17E096DED5A54853BC25399A /* ExperienceDetailView.swift */; };
+		5AACC79B18B44EA891FBF6B3 /* CityPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E794FC05D2664C9AAAC7B154 /* CityPageView.swift */; };
+		A918A9EDBC4E475399F878FF /* CityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39CE5CA1E5C9417CBF6E98A0 /* CityViewModel.swift */; };
+		DDCA2C1874A9403DBA0A0150 /* EarthGlobeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F10A0A9C5684D13BD3B9BF8 /* EarthGlobeController.swift */; };
+		662658751D5744C4824979B8 /* EarthGlobeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A31AE020CFEB4511A16E49E9 /* EarthGlobeRenderer.swift */; };
+		4471FBD864E94E03B448A4B0 /* EarthGlobeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52B7E6A8F912449E8BCC2CCE /* EarthGlobeView.swift */; };
+		97366ACD8AF8400EB8AC896F /* EarthSunPosition.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF9960D8427B4F95A1C426B8 /* EarthSunPosition.swift */; };
+		4F74844EC7E044F89EB831E0 /* GlobeLandingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7681F8407CFB4C86AF9DD330 /* GlobeLandingView.swift */; };
+		780EE4863FE0451081FCBD9D /* GlobeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F591E88F61EF4737B2D7D7B8 /* GlobeViewModel.swift */; };
+		F1986924026E487191DB1D8E /* AuthSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8030AE8F9A54F7DA59061C9 /* AuthSheetView.swift */; };
+		E6888FCE0E734087B26A6E2C /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8504B0C4FAF0439AB0EB2AB5 /* ProfileView.swift */; };
+		D6759BDEF8B24A44823FB801 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9D789CF333594AE0B2D8A18E /* Assets.xcassets */; };
+		10474AB917424CD0AD7A2340 /* earth_day.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 496BA6B3143F4D3DB499E304 /* earth_day.jpg */; };
+		8BA97A58085D4264B2E48D5F /* earth_night.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 718377C590AA4881A90EFC95 /* earth_night.jpg */; };
+		E31D4C4EC40745EF83652795 /* stars.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 5E6CEE48FF0B498FB69AAB83 /* stars.jpg */; };
+		A1B2C3D4E5F6478990ABCDEF /* earth-topology.png in Resources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7488990ABCDE1 /* earth-topology.png */; };
+		C3D4E5F6A7B8488990ABCDE2 /* clouds.jpg in Resources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9488990ABCDEF /* clouds.jpg */; };
+		E5F6A7B8C9D0488990ABCDEF /* night-sky.png in Resources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E1488990ABCDEF /* night-sky.png */; };
+/* End PBXBuildFile section */
+/* Begin PBXFileReference section */
+		5214E298F515465C8669751B /* AsyncContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncContentView.swift; sourceTree = "<group>"; };
+		97FB1FAE08B1495C952EA4C6 /* AvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarView.swift; sourceTree = "<group>"; };
+		3A46AA5C500644F89A7A8FFD /* ExperienceCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperienceCard.swift; sourceTree = "<group>"; };
+		22D7B624DAAF4F4AA1F44A7F /* PrimaryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryButton.swift; sourceTree = "<group>"; };
+		06CAAC7E093049558C61768C /* RoutePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePreview.swift; sourceTree = "<group>"; };
+		9989CC2CCE5A4311865A3993 /* StatPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatPill.swift; sourceTree = "<group>"; };
+		E7BECECB35284C65AD16C0BC /* TravTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravTheme.swift; sourceTree = "<group>"; };
+		95CEF1A3A1C74205A47D2D6D /* MockData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockData.swift; sourceTree = "<group>"; };
+		B26BA97D662C4CA8849CBA1E /* MockRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockRepositories.swift; sourceTree = "<group>"; };
+		C0BA082CA18B4C8FA2514428 /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
+		4762DCE38F22479AB6D818E6 /* RepositoryProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProtocols.swift; sourceTree = "<group>"; };
+		495A3A8B9C6E42DFB539E0D3 /* City.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = City.swift; sourceTree = "<group>"; };
+		1468F8B546604199BB6747BD /* Enums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Enums.swift; sourceTree = "<group>"; };
+		BCB1B49407444C75B6389332 /* Experience.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Experience.swift; sourceTree = "<group>"; };
+		1ECA72ADC07B4172BD8D8F12 /* Profile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Profile.swift; sourceTree = "<group>"; };
+		10CE54D2D476419EB5E371A9 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		672FB6BB7F77428D976B3870 /* RootCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootCoordinator.swift; sourceTree = "<group>"; };
+		11E6F8A4B25B440892DC9677 /* TravApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravApp.swift; sourceTree = "<group>"; };
+		17E096DED5A54853BC25399A /* ExperienceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperienceDetailView.swift; sourceTree = "<group>"; };
+		E794FC05D2664C9AAAC7B154 /* CityPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityPageView.swift; sourceTree = "<group>"; };
+		39CE5CA1E5C9417CBF6E98A0 /* CityViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityViewModel.swift; sourceTree = "<group>"; };
+		4F10A0A9C5684D13BD3B9BF8 /* EarthGlobeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarthGlobeController.swift; sourceTree = "<group>"; };
+		A31AE020CFEB4511A16E49E9 /* EarthGlobeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarthGlobeRenderer.swift; sourceTree = "<group>"; };
+		52B7E6A8F912449E8BCC2CCE /* EarthGlobeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarthGlobeView.swift; sourceTree = "<group>"; };
+		AF9960D8427B4F95A1C426B8 /* EarthSunPosition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarthSunPosition.swift; sourceTree = "<group>"; };
+		7681F8407CFB4C86AF9DD330 /* GlobeLandingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobeLandingView.swift; sourceTree = "<group>"; };
+		F591E88F61EF4737B2D7D7B8 /* GlobeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobeViewModel.swift; sourceTree = "<group>"; };
+		F8030AE8F9A54F7DA59061C9 /* AuthSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSheetView.swift; sourceTree = "<group>"; };
+		8504B0C4FAF0439AB0EB2AB5 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		9D789CF333594AE0B2D8A18E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		496BA6B3143F4D3DB499E304 /* earth_day.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = earth_day.jpg; sourceTree = "<group>"; };
+		718377C590AA4881A90EFC95 /* earth_night.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = earth_night.jpg; sourceTree = "<group>"; };
+		5E6CEE48FF0B498FB69AAB83 /* stars.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = stars.jpg; sourceTree = "<group>"; };
+		B2C3D4E5F6A7488990ABCDE1 /* earth-topology.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "earth-topology.png"; sourceTree = "<group>"; };
+		D4E5F6A7B8C9488990ABCDEF /* clouds.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = clouds.jpg; sourceTree = "<group>"; };
+		F6A7B8C9D0E1488990ABCDEF /* night-sky.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "night-sky.png"; sourceTree = "<group>"; };
+		BD9E5A3AE82F4CCFAC62711F /* Trav.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Trav.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+/* Begin PBXGroup section */
+		BCD444C71B544645AC29F880 = { isa = PBXGroup; children = (AAA7ADE17355474BA8763D6C, 33C6F8867D4D4AD38351242A); sourceTree = "<group>"; };
+		33C6F8867D4D4AD38351242A = { isa = PBXGroup; children = (BD9E5A3AE82F4CCFAC62711F); name = Products; sourceTree = "<group>"; };
+		CD95DE90710446E3883A9995 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				10CE54D2D476419EB5E371A9 /* AppEnvironment.swift */,
+				672FB6BB7F77428D976B3870 /* RootCoordinator.swift */,
+				11E6F8A4B25B440892DC9677 /* TravApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		0D44F052A0CF46B087D408D4 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				0746C6E3D6624237BD93F26C /* Mock */,
+				E58854D817814045B4E38829 /* Models */,
+				FD5A6136203647699A6FBC3D /* Navigation */,
+				F355E1538A38407891DE6CD0 /* Repositories */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		0746C6E3D6624237BD93F26C /* Mock */ = {
+			isa = PBXGroup;
+			children = (
+				95CEF1A3A1C74205A47D2D6D /* MockData.swift */,
+				B26BA97D662C4CA8849CBA1E /* MockRepositories.swift */,
+			);
+			path = Mock;
+			sourceTree = "<group>";
+		};
+		E58854D817814045B4E38829 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				495A3A8B9C6E42DFB539E0D3 /* City.swift */,
+				1468F8B546604199BB6747BD /* Enums.swift */,
+				BCB1B49407444C75B6389332 /* Experience.swift */,
+				1ECA72ADC07B4172BD8D8F12 /* Profile.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		FD5A6136203647699A6FBC3D /* Navigation */ = {
+			isa = PBXGroup;
+			children = (
+				C0BA082CA18B4C8FA2514428 /* AppRouter.swift */,
+			);
+			path = Navigation;
+			sourceTree = "<group>";
+		};
+		F355E1538A38407891DE6CD0 /* Repositories */ = {
+			isa = PBXGroup;
+			children = (
+				4762DCE38F22479AB6D818E6 /* RepositoryProtocols.swift */,
+			);
+			path = Repositories;
+			sourceTree = "<group>";
+		};
+		7369B80F07D64E68B6B88A84 /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				EABFC990A934468CA103D258 /* Components */,
+				04B53CA9076B4F90AB92E594 /* Theme */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		EABFC990A934468CA103D258 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				5214E298F515465C8669751B /* AsyncContentView.swift */,
+				97FB1FAE08B1495C952EA4C6 /* AvatarView.swift */,
+				3A46AA5C500644F89A7A8FFD /* ExperienceCard.swift */,
+				22D7B624DAAF4F4AA1F44A7F /* PrimaryButton.swift */,
+				06CAAC7E093049558C61768C /* RoutePreview.swift */,
+				9989CC2CCE5A4311865A3993 /* StatPill.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		04B53CA9076B4F90AB92E594 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				E7BECECB35284C65AD16C0BC /* TravTheme.swift */,
+			);
+			path = Theme;
+			sourceTree = "<group>";
+		};
+		8DEF62D69CBC4A4DAC6F1A6A /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				7B71258A09134D26B465176C /* Auth */,
+				2FD3BCE95DEC4AA78DBE7EC5 /* City */,
+				3135ACFAA51B427A80B50DBA /* Experience */,
+				8FC45DD7329E4045852F9C15 /* Globe */,
+				BF002BE61CD74981A2F62551 /* Profile */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		7B71258A09134D26B465176C /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				F8030AE8F9A54F7DA59061C9 /* AuthSheetView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		2FD3BCE95DEC4AA78DBE7EC5 /* City */ = {
+			isa = PBXGroup;
+			children = (
+				E794FC05D2664C9AAAC7B154 /* CityPageView.swift */,
+				39CE5CA1E5C9417CBF6E98A0 /* CityViewModel.swift */,
+			);
+			path = City;
+			sourceTree = "<group>";
+		};
+		3135ACFAA51B427A80B50DBA /* Experience */ = {
+			isa = PBXGroup;
+			children = (
+				17E096DED5A54853BC25399A /* ExperienceDetailView.swift */,
+			);
+			path = Experience;
+			sourceTree = "<group>";
+		};
+		8FC45DD7329E4045852F9C15 /* Globe */ = {
+			isa = PBXGroup;
+			children = (
+				4F10A0A9C5684D13BD3B9BF8 /* EarthGlobeController.swift */,
+				A31AE020CFEB4511A16E49E9 /* EarthGlobeRenderer.swift */,
+				52B7E6A8F912449E8BCC2CCE /* EarthGlobeView.swift */,
+				AF9960D8427B4F95A1C426B8 /* EarthSunPosition.swift */,
+				7681F8407CFB4C86AF9DD330 /* GlobeLandingView.swift */,
+				F591E88F61EF4737B2D7D7B8 /* GlobeViewModel.swift */,
+			);
+			path = Globe;
+			sourceTree = "<group>";
+		};
+		BF002BE61CD74981A2F62551 /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				8504B0C4FAF0439AB0EB2AB5 /* ProfileView.swift */,
+			);
+			path = Profile;
+			sourceTree = "<group>";
+		};
+		D80EF0443C9F4083B79FAADB /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				9D789CF333594AE0B2D8A18E /* Assets.xcassets */,
+				F0231A4780D341A6B36005FD /* Textures */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		F0231A4780D341A6B36005FD /* Textures */ = {
+			isa = PBXGroup;
+			children = (
+				496BA6B3143F4D3DB499E304 /* earth_day.jpg */,
+				718377C590AA4881A90EFC95 /* earth_night.jpg */,
+				B2C3D4E5F6A7488990ABCDE1 /* earth-topology.png */,
+				D4E5F6A7B8C9488990ABCDEF /* clouds.jpg */,
+				F6A7B8C9D0E1488990ABCDEF /* night-sky.png */,
+				5E6CEE48FF0B498FB69AAB83 /* stars.jpg */,
+			);
+			path = Textures;
+			sourceTree = "<group>";
+		};
+		AAA7ADE17355474BA8763D6C /* Trav */ = {
+			isa = PBXGroup;
+			children = (
+				CD95DE90710446E3883A9995 /* App */,
+				0D44F052A0CF46B087D408D4 /* Core */,
+				7369B80F07D64E68B6B88A84 /* DesignSystem */,
+				8DEF62D69CBC4A4DAC6F1A6A /* Features */,
+				D80EF0443C9F4083B79FAADB /* Resources */,
+			);
+			path = Trav;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+/* Begin PBXNativeTarget section */
+		40FD064DD5B24DDB98F3FD40 = { isa = PBXNativeTarget; buildConfigurationList = 26AF8B02E5884B0FA3FE361E; buildPhases = (0D3A43BB8DE344498096CC3D, 9BF928AEEE4A4BDF8948EAFF); name = Trav; productReference = BD9E5A3AE82F4CCFAC62711F; productType = "com.apple.product-type.application"; };
+/* End PBXNativeTarget section */
+/* Begin PBXProject section */
+		8EE9E87005B5405E967E67D1 = { isa = PBXProject; buildConfigurationList = 90669BD110A34D31A1FE54C8; mainGroup = BCD444C71B544645AC29F880; productRefGroup = 33C6F8867D4D4AD38351242A; targets = (40FD064DD5B24DDB98F3FD40); };
+/* End PBXProject section */
+/* Begin PBXResourcesBuildPhase section */
+		9BF928AEEE4A4BDF8948EAFF = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (				D6759BDEF8B24A44823FB801 /* Assets.xcassets in Resources */,
+				10474AB917424CD0AD7A2340 /* earth_day.jpg in Resources */,
+				8BA97A58085D4264B2E48D5F /* earth_night.jpg in Resources */,
+				A1B2C3D4E5F6478990ABCDEF /* earth-topology.png in Resources */,
+				C3D4E5F6A7B8488990ABCDE2 /* clouds.jpg in Resources */,
+				E5F6A7B8C9D0488990ABCDEF /* night-sky.png in Resources */,
+				E31D4C4EC40745EF83652795 /* stars.jpg in Resources */,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+/* Begin PBXSourcesBuildPhase section */
+		0D3A43BB8DE344498096CC3D = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (				FAEEC631BDED43D580C242D5 /* AsyncContentView.swift in Sources */,
+				46A179BD4874465B8AC6B21E /* AvatarView.swift in Sources */,
+				E5BE68835328407E9AA51B15 /* ExperienceCard.swift in Sources */,
+				014352908D96491BA4E04437 /* PrimaryButton.swift in Sources */,
+				96B0986901994F2DBFB620C8 /* RoutePreview.swift in Sources */,
+				1081907320D844448603E8A7 /* StatPill.swift in Sources */,
+				F05EC542AE7646348C0BADEA /* TravTheme.swift in Sources */,
+				5C86BAE105404C02AD5D6696 /* MockData.swift in Sources */,
+				4B0CBB095FB74753BB541641 /* MockRepositories.swift in Sources */,
+				58C7207A898B4216A3F3341B /* AppRouter.swift in Sources */,
+				0A139D20BECF4AB8AA14CC31 /* RepositoryProtocols.swift in Sources */,
+				DFF1B5277CE74DFFADA18AF0 /* City.swift in Sources */,
+				482C3B63F39346109D16B1EE /* Enums.swift in Sources */,
+				DA6E2C6FB17F46A5B6B7D9B6 /* Experience.swift in Sources */,
+				8B190362ECF6427BB5B10288 /* Profile.swift in Sources */,
+				2D9C4391DE9B4203970F202E /* AppEnvironment.swift in Sources */,
+				876F04B073464336BA929541 /* RootCoordinator.swift in Sources */,
+				8DB0861862E74A70A9F34A6E /* TravApp.swift in Sources */,
+				BA61FC3A67154D3FB4379A72 /* ExperienceDetailView.swift in Sources */,
+				5AACC79B18B44EA891FBF6B3 /* CityPageView.swift in Sources */,
+				A918A9EDBC4E475399F878FF /* CityViewModel.swift in Sources */,
+				DDCA2C1874A9403DBA0A0150 /* EarthGlobeController.swift in Sources */,
+				662658751D5744C4824979B8 /* EarthGlobeRenderer.swift in Sources */,
+				4471FBD864E94E03B448A4B0 /* EarthGlobeView.swift in Sources */,
+				97366ACD8AF8400EB8AC896F /* EarthSunPosition.swift in Sources */,
+				4F74844EC7E044F89EB831E0 /* GlobeLandingView.swift in Sources */,
+				780EE4863FE0451081FCBD9D /* GlobeViewModel.swift in Sources */,
+				F1986924026E487191DB1D8E /* AuthSheetView.swift in Sources */,
+				E6888FCE0E734087B26A6E2C /* ProfileView.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+/* Begin XCBuildConfiguration section */
+		7A2C10DACCAE4528B4765FF7 = { isa = XCBuildConfiguration; buildSettings = { IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 6.0; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };
+		578B5C25D946444CA979CC42 = { isa = XCBuildConfiguration; buildSettings = { IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 6.0; }; name = Release; };
+		2E535288D36A46C99A51161E = { isa = XCBuildConfiguration; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Trav/Resources/Info.plist; PRODUCT_BUNDLE_IDENTIFIER = com.trav.app; PRODUCT_NAME = Trav; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
+		114920F2225D48D987834508 = { isa = XCBuildConfiguration; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Trav/Resources/Info.plist; PRODUCT_BUNDLE_IDENTIFIER = com.trav.app; PRODUCT_NAME = Trav; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Release; };
+/* End XCBuildConfiguration section */
+/* Begin XCConfigurationList section */
+		90669BD110A34D31A1FE54C8 = { isa = XCConfigurationList; buildConfigurations = (7A2C10DACCAE4528B4765FF7, 578B5C25D946444CA979CC42); defaultConfigurationName = Release; };
+		26AF8B02E5884B0FA3FE361E = { isa = XCConfigurationList; buildConfigurations = (2E535288D36A46C99A51161E, 114920F2225D48D987834508); defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	}; rootObject = 8EE9E87005B5405E967E67D1; }
