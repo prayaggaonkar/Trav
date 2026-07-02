@@ -2,13 +2,17 @@ import SwiftUI
 
 enum TravTab: String, CaseIterable {
     case explore = "Explore"
+    case search = "Search"
     case create = "Create"
+    case rankings = "Rankings"
     case profile = "Profile"
 
     var systemImage: String {
         switch self {
         case .explore: "globe"
+        case .search: "magnifyingglass"
         case .create: "plus.circle"
+        case .rankings: "crown"
         case .profile: "person.circle"
         }
     }
@@ -29,6 +33,8 @@ struct RootCoordinator: View {
                 switch activeTab {
                 case .explore:
                     GlobeLandingView()
+                case .search:
+                    SearchView()
                 case .create:
                     if session.isAuthenticated {
                         CreateExperienceView()
@@ -39,6 +45,8 @@ struct RootCoordinator: View {
                             imageName: "plus.circle.fill"
                         )
                     }
+                case .rankings:
+                    RankingsView()
                 case .profile:
                     if let currentUser = session.currentUser {
                         ProfileView(username: currentUser.username, showDismissButton: false)
@@ -78,24 +86,35 @@ struct RootCoordinator: View {
                     }
                 } label: {
                     Image(systemName: tab.systemImage)
-                        .font(.system(size: 22, weight: activeTab == tab ? .semibold : .medium))
+                        .font(.system(size: 26, weight: activeTab == tab ? .semibold : .medium))
                         .foregroundStyle(activeTab == tab ? TravColors.accent : .primary.opacity(0.6))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 8)
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 4)
-        .background(.ultraThinMaterial)
-        .clipShape(Capsule())
-        .shadow(color: .black.opacity(0.15), radius: 10, y: 5)
+        .padding(.vertical, 8)
+        .frame(width: 330)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.07))
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+        )
+        .shadow(color: .black.opacity(0.4), radius: 16, x: 0, y: 8)
         .overlay(
             Capsule()
-                .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                .stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0.3), .white.opacity(0.1)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
         )
-        .padding(.horizontal, 32)
         .environment(\.colorScheme, .dark)
     }
 
@@ -157,6 +176,48 @@ private struct UnauthenticatedPlaceholderView: View {
                 .padding(.horizontal, 32)
             }
             .padding(.bottom, 60)
+        }
+    }
+}
+
+private struct SearchView: View {
+    var body: some View {
+        ZStack {
+            TravColors.surface.ignoresSafeArea()
+            VStack(spacing: TravSpacing.md) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 64))
+                    .foregroundStyle(TravColors.accent)
+                Text("Search Experiences")
+                    .font(TravTypography.displayMedium())
+                    .foregroundStyle(TravColors.primary)
+                Text("Find your next adventure by city, creator, or topic.")
+                    .font(TravTypography.bodyMedium())
+                    .foregroundStyle(TravColors.muted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
+        }
+    }
+}
+
+private struct RankingsView: View {
+    var body: some View {
+        ZStack {
+            TravColors.surface.ignoresSafeArea()
+            VStack(spacing: TravSpacing.md) {
+                Image(systemName: "crown")
+                    .font(.system(size: 64))
+                    .foregroundStyle(TravColors.accent)
+                Text("Rankings")
+                    .font(TravTypography.displayMedium())
+                    .foregroundStyle(TravColors.primary)
+                Text("See top-rated experiences and popular creators.")
+                    .font(TravTypography.bodyMedium())
+                    .foregroundStyle(TravColors.muted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
         }
     }
 }
