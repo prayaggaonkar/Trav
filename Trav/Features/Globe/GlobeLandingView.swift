@@ -20,6 +20,7 @@ struct GlobeLandingView: View {
                 VStack {
                     header
                     Spacer()
+                        .allowsHitTesting(false)
                     bottomCTA
                 }
                 .padding(.horizontal, TravSpacing.screenHorizontal)

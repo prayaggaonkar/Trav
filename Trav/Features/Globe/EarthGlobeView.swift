@@ -4,22 +4,23 @@ import SwiftUI
 struct EarthGlobeView: UIViewRepresentable {
     let controller: EarthGlobeController
 
-    func makeUIView(context: Context) -> SCNView {
-        let view = SCNView(frame: .zero, options: [:])
+    func makeUIView(context: Context) -> GlobeSCNView {
+        let view = GlobeSCNView(frame: .zero, options: [:])
         configure(view)
         context.coordinator.attach(to: view)
         return view
     }
 
-    func updateUIView(_ uiView: SCNView, context: Context) {
+    func updateUIView(_ uiView: GlobeSCNView, context: Context) {
         configure(uiView)
     }
 
-    private func configure(_ view: SCNView) {
+    private func configure(_ view: GlobeSCNView) {
         view.scene = controller.renderer.scene
         view.pointOfView = controller.renderer.cameraNode
         view.backgroundColor = .black
         view.isOpaque = true
+        view.isMultipleTouchEnabled = true
         view.antialiasingMode = .multisampling4X
         view.preferredFramesPerSecond = 60
         view.isPlaying = true
@@ -33,48 +34,117 @@ struct EarthGlobeView: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject {
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         private let controller: EarthGlobeController
-        private var lastPanPoint: CGPoint = .zero
-        private weak var view: SCNView?
+        private weak var view: GlobeSCNView?
 
         init(controller: EarthGlobeController) {
             self.controller = controller
         }
 
-        func attach(to view: SCNView) {
+        func attach(to view: GlobeSCNView) {
             if self.view === view { return }
             self.view?.gestureRecognizers?.forEach { self.view?.removeGestureRecognizer($0) }
             self.view = view
+            controller.attach(to: view)
+
+            view.onKeyboardZoom = { [weak self] direction in
+                self?.controller.handleKeyboardZoom(direction: direction)
+            }
 
             let pan = UIPanGestureRecognizer(target: self, action: #selector(onPan(_:)))
             pan.maximumNumberOfTouches = 1
+            pan.delegate = self
             view.addGestureRecognizer(pan)
 
             let pinch = UIPinchGestureRecognizer(target: self, action: #selector(onPinch(_:)))
+            pinch.delegate = self
             view.addGestureRecognizer(pinch)
 
             let tap = UITapGestureRecognizer(target: self, action: #selector(onTap(_:)))
             view.addGestureRecognizer(tap)
+
+            view.becomeFirstResponder()
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            gestureRecognizer is UIPinchGestureRecognizer || otherGestureRecognizer is UIPinchGestureRecognizer
         }
 
         @objc func onPan(_ gesture: UIPanGestureRecognizer) {
-            let translation = gesture.translation(in: gesture.view)
-            if gesture.state == .began { lastPanPoint = .zero }
-            let delta = CGPoint(x: translation.x - lastPanPoint.x, y: translation.y - lastPanPoint.y)
-            controller.handlePan(translation: delta, state: gesture.state)
-            lastPanPoint = translation
-            if gesture.state == .ended || gesture.state == .cancelled { lastPanPoint = .zero }
+            guard let view = gesture.view else { return }
+            controller.handlePan(at: gesture.location(in: view), state: gesture.state)
         }
 
         @objc func onPinch(_ gesture: UIPinchGestureRecognizer) {
             controller.handlePinch(scale: gesture.scale, state: gesture.state)
-            gesture.scale = 1
         }
 
         @objc func onTap(_ gesture: UITapGestureRecognizer) {
-            guard let view = gesture.view else { return }
+            guard let view = gesture.view as? GlobeSCNView else { return }
+            view.becomeFirstResponder()
             controller.handleTap(at: gesture.location(in: view))
         }
+    }
+}
+
+/// SCNView with keyboard and scroll-wheel zoom for Simulator testing.
+final class GlobeSCNView: SCNView {
+    var onKeyboardZoom: ((Int) -> Void)?
+
+    override var canBecomeFirstResponder: Bool { true }
+
+    override var keyCommands: [UIKeyCommand]? {
+        [
+            UIKeyCommand(input: "+", modifierFlags: [], action: #selector(zoomIn)),
+            UIKeyCommand(input: "=", modifierFlags: [], action: #selector(zoomIn)),
+            UIKeyCommand(input: "-", modifierFlags: [], action: #selector(zoomOut)),
+            UIKeyCommand(
+                input: UIKeyCommand.inputUpArrow,
+                modifierFlags: [],
+                action: #selector(zoomIn)
+            ),
+            UIKeyCommand(
+                input: UIKeyCommand.inputDownArrow,
+                modifierFlags: [],
+                action: #selector(zoomOut)
+            ),
+        ]
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        becomeFirstResponder()
+    }
+
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        var handled = false
+        for press in presses {
+            guard let key = press.key else { continue }
+            switch key.charactersIgnoringModifiers {
+            case "+", "=":
+                onKeyboardZoom?(1)
+                handled = true
+            case "-":
+                onKeyboardZoom?(-1)
+                handled = true
+            default:
+                break
+            }
+        }
+        if !handled {
+            super.pressesBegan(presses, with: event)
+        }
+    }
+
+    @objc private func zoomIn() {
+        onKeyboardZoom?(1)
+    }
+
+    @objc private func zoomOut() {
+        onKeyboardZoom?(-1)
     }
 }

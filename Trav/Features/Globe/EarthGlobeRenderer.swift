@@ -14,15 +14,30 @@ final class EarthGlobeRenderer {
 
     private var cityMarkers: [EarthCityMarker] = []
     private var sunDirection = EarthSunPosition.direction()
+    private var orientation = simd_quatf(angle: 0, axis: SIMD3(0, 1, 0))
 
     var onCitySelected: ((City) -> Void)?
 
-    var cameraDistance: Float = 2.75 {
+    /// Default / maximum zoom-out distance (full globe in view).
+    static let maxZoomOutDistance: Float = 5.0
+    /// Minimum zoom-in for 2K textures without visible upscaling blur.
+    static let maxZoomInDistance: Float = 2.2
+
+    var cameraDistance: Float = maxZoomOutDistance {
         didSet { updateCameraPosition() }
     }
 
-    let minCameraDistance: Float = 2.0
-    let maxCameraDistance: Float = 4.5
+    var minCameraDistance: Float { Self.maxZoomInDistance }
+    var maxCameraDistance: Float { Self.maxZoomOutDistance }
+
+    func setCameraDistance(_ distance: Float) {
+        cameraDistance = max(minCameraDistance, min(maxCameraDistance, distance))
+    }
+
+    /// Multiplicative zoom step for keyboard / discrete controls.
+    func adjustZoom(by factor: Float) {
+        setCameraDistance(cameraDistance * factor)
+    }
 
     init() {
         buildScene()
@@ -38,30 +53,69 @@ final class EarthGlobeRenderer {
         }
     }
 
-    func rotateEarth(deltaX: Float, deltaY: Float) {
-        earthNode.eulerAngles.y += deltaX
-        earthNode.eulerAngles.x = clamp(
-            earthNode.eulerAngles.x + deltaY,
-            min: -Float.pi / 2.5,
-            max: Float.pi / 2.5
-        )
+    var currentOrientation: simd_quatf { orientation }
+
+    func setOrientation(_ newOrientation: simd_quatf) {
+        var q = simd_normalize(newOrientation)
+        // Keep quaternion on the same hyper-hemisphere for smooth interpolation.
+        if simd_dot(q.vector, orientation.vector) < 0 {
+            q = -q
+        }
+        orientation = q
+        applyOrientation()
+    }
+
+    /// Applies a small inertial spin after the user lifts their finger.
+    func applyMomentum(_ delta: simd_quatf) {
+        orientation = simd_normalize(shortestPath(delta) * orientation)
+        applyOrientation()
+    }
+
+    /// One frame of grab-and-drag rotation; composes smoothly frame-to-frame.
+    func applyDragDelta(from previousWorld: SIMD3<Float>, to targetWorld: SIMD3<Float>) {
+        let delta = shortestRotation(from: previousWorld, to: targetWorld)
+        var next = simd_normalize(delta * orientation)
+        if simd_dot(next.vector, orientation.vector) < 0 {
+            next = -next
+        }
+        orientation = next
+        applyOrientation()
+    }
+
+    func shortestRotationForMomentum(from previousWorld: SIMD3<Float>, to targetWorld: SIMD3<Float>) -> simd_quatf {
+        shortestRotation(from: previousWorld, to: targetWorld)
+    }
+
+    /// World-space unit direction under a screen point on the virtual trackball.
+    func worldDirectionOnSphere(from point: CGPoint, in view: SCNView) -> SIMD3<Float> {
+        let cameraDirection = trackballDirectionInCameraSpace(from: point, in: view)
+        return transformDirectionToWorld(cameraDirection, in: view)
     }
 
     func applyIdleRotation(speed: Float) {
-        earthNode.eulerAngles.y += speed
+        orientation = simd_quatf(angle: speed, axis: SIMD3(0, 1, 0)) * orientation
+        applyOrientation()
     }
 
     func flyTo(city: City, completion: (() -> Void)? = nil) {
         let lat = Float(city.latitude * .pi / 180)
         let lon = Float(city.longitude * .pi / 180)
+        let cityDirection = simd_normalize(SIMD3(
+            cos(lat) * cos(lon),
+            sin(lat),
+            cos(lat) * sin(lon)
+        ))
+        var targetOrientation = simd_quatf(from: cityDirection, to: SIMD3(0, 0, 1))
+        targetOrientation = simd_quatf(angle: lat * 0.25, axis: SIMD3(1, 0, 0)) * targetOrientation
 
         SCNTransaction.begin()
         SCNTransaction.animationDuration = 1.1
         SCNTransaction.animationTimingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
         SCNTransaction.completionBlock = completion
 
-        earthNode.eulerAngles = SCNVector3(lat * 0.75, -lon, 0)
-        cameraDistance = 2.2
+        orientation = targetOrientation
+        applyOrientation()
+        cameraDistance = 3.2
         SCNTransaction.commit()
     }
 
@@ -86,11 +140,13 @@ final class EarthGlobeRenderer {
         scene.background.contents = loadImage(named: "stars")
 
         buildEarth()
+        buildNorthCloudVeil()
         buildAtmosphere()
         buildLights()
         buildCamera()
 
-        earthNode.eulerAngles = SCNVector3(-0.15, -1.2, 0)
+        orientation = orientationFromEuler(x: -0.15, y: -1.2, z: 0)
+        applyOrientation()
 
         scene.rootNode.addChildNode(earthNode)
         scene.rootNode.addChildNode(cameraNode)
@@ -113,6 +169,29 @@ final class EarthGlobeRenderer {
 
         geometry.materials = [material]
         earthNode.geometry = geometry
+    }
+
+    /// Faint cloud veil over the geographic north cap to soften the equirectangular pole artifact.
+    private func buildNorthCloudVeil() {
+        let geometry = SCNSphere(radius: 1.017)
+        geometry.segmentCount = 128
+
+        let material = SCNMaterial()
+        material.diffuse.contents = loadImage(named: "clouds")
+        material.diffuse.wrapS = .repeat
+        material.diffuse.wrapT = .clamp
+        material.diffuse.magnificationFilter = .linear
+        material.diffuse.minificationFilter = .linear
+        material.lightingModel = .constant
+        material.isDoubleSided = false
+        material.cullMode = .back
+        material.blendMode = .alpha
+        material.writesToDepthBuffer = false
+        material.readsFromDepthBuffer = true
+        material.shaderModifiers = [.fragment: Self.northCloudVeilShader]
+
+        geometry.materials = [material]
+        earthNode.addChildNode(SCNNode(geometry: geometry))
     }
 
     /// Soft atmospheric shell — no custom shaders.
@@ -152,10 +231,9 @@ final class EarthGlobeRenderer {
         let camera = SCNCamera()
         camera.zNear = 0.05
         camera.zFar = 100
-        camera.fieldOfView = 38
-        camera.wantsDepthOfField = true
-        camera.focusDistance = 2.5
-        camera.fStop = 20
+        camera.fieldOfView = 40
+        // Keep the full globe sharp at all zoom levels (fixed DOF was blurring close views).
+        camera.wantsDepthOfField = false
         cameraNode.camera = camera
         updateCameraPosition()
     }
@@ -175,6 +253,77 @@ final class EarthGlobeRenderer {
         Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.updateSunLightPosition() }
         }
+    }
+
+    private func applyOrientation() {
+        earthNode.simdOrientation = orientation
+    }
+
+    /// Shoemake arcball in camera space — single continuous projection (no ray/hybrid switching).
+    private func trackballDirectionInCameraSpace(from point: CGPoint, in view: SCNView) -> SIMD3<Float> {
+        let width = max(Float(view.bounds.width), 1)
+        let height = max(Float(view.bounds.height), 1)
+        let x = 2 * Float(point.x) / width - 1
+        let y = 1 - 2 * Float(point.y) / height
+
+        let lengthSquared = x * x + y * y
+        if lengthSquared <= 1 {
+            let z = sqrt(max(0, 1 - lengthSquared))
+            return simd_normalize(SIMD3(x, y, z))
+        }
+
+        // Rim: project onto equator of the virtual ball (smooth continuation past the disk edge).
+        let length = sqrt(lengthSquared)
+        return simd_normalize(SIMD3(x / length, y / length, 0))
+    }
+
+    private func transformDirectionToWorld(_ direction: SIMD3<Float>, in view: SCNView) -> SIMD3<Float> {
+        guard let pointOfView = view.pointOfView else { return direction }
+        let rotation = simd_quatf(pointOfView.simdWorldTransform)
+        return simd_normalize(simd_act(rotation, direction))
+    }
+
+    /// Shortest-path rotation between two directions; handles near-opposite vectors stably.
+    private func shortestRotation(from a: SIMD3<Float>, to b: SIMD3<Float>) -> simd_quatf {
+        let from = simd_normalize(a)
+        let to = simd_normalize(b)
+        let cosine = simd_dot(from, to)
+
+        if cosine >= 0.999999 {
+            return simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+        }
+        if cosine <= -0.999999 {
+            var axis = simd_cross(from, SIMD3(0, 0, 1))
+            if simd_length_squared(axis) < 1e-8 {
+                axis = simd_cross(from, SIMD3(0, 1, 0))
+            }
+            return simd_quatf(angle: .pi, axis: simd_normalize(axis))
+        }
+
+        return simd_normalize(simd_quatf(from: from, to: to))
+    }
+
+    private func shortestPath(_ q: simd_quatf) -> simd_quatf {
+        simd_dot(q.vector, orientation.vector) < 0 ? -q : q
+    }
+
+    /// Geographic mask + luminance from clouds.jpg; only affects the northern cap.
+    private static let northCloudVeilShader = """
+    #pragma body
+    float north = clamp(_geometry.normal.y, 0.0, 1.0);
+    float region = smoothstep(0.86, 0.985, north);
+    float density = dot(_output.color.rgb, float3(0.333));
+    density = smoothstep(0.12, 0.72, density);
+    float alpha = density * region * 0.44;
+    _output.color = float4(0.96, 0.98, 1.0, alpha);
+    """
+
+    /// SceneKit applies euler angles in X → Y → Z order on the node pivot.
+    private func orientationFromEuler(x: Float, y: Float, z: Float) -> simd_quatf {
+        let qx = simd_quatf(angle: x, axis: SIMD3(1, 0, 0))
+        let qy = simd_quatf(angle: y, axis: SIMD3(0, 1, 0))
+        let qz = simd_quatf(angle: z, axis: SIMD3(0, 0, 1))
+        return qz * qy * qx
     }
 
     private func loadImage(named name: String) -> UIImage {
@@ -198,10 +347,6 @@ final class EarthGlobeRenderer {
             if dist < 48, best == nil || dist < best!.1 { best = (marker, dist) }
         }
         return best?.0
-    }
-
-    private func clamp(_ value: Float, min: Float, max: Float) -> Float {
-        Swift.max(min, Swift.min(max, value))
     }
 }
 

@@ -1,4 +1,5 @@
 import SceneKit
+import simd
 import UIKit
 
 /// Manages gesture input, momentum, and idle auto-rotation for the globe.
@@ -9,13 +10,17 @@ final class EarthGlobeController: NSObject {
     private weak var sceneView: SCNView?
     private nonisolated(unsafe) var tickTimer: Timer?
 
-    private var velocityX: Float = 0
-    private var velocityY: Float = 0
     private var lastInteractionTime: CFTimeInterval = 0
+    private var isDragging = false
+    private var dragAnchorWorld = SIMD3<Float>(0, 0, 1)
+    private var lastDragWorld = SIMD3<Float>(0, 0, 1)
+    private var momentum = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+    private var pinchStartDistance: Float?
 
     private let autoRotateSpeed: Float = 0.004
     private let idleDelay: CFTimeInterval = 2.5
     private let friction: Float = 0.94
+    private let keyboardZoomFactor: Float = 1.12
 
     var isAnimatingFlyTo = false
 
@@ -33,26 +38,57 @@ final class EarthGlobeController: NSObject {
         sceneView = view
     }
 
-    func handlePan(translation: CGPoint, state: UIGestureRecognizer.State) {
-        guard !isAnimatingFlyTo else { return }
+    func handlePan(at location: CGPoint, state: UIGestureRecognizer.State) {
+        guard !isAnimatingFlyTo, let sceneView else { return }
 
-        let sensitivity: Float = 0.004
-        let deltaX = Float(translation.x) * sensitivity
-        let deltaY = Float(translation.y) * sensitivity
+        switch state {
+        case .began:
+            isDragging = true
+            momentum = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+            dragAnchorWorld = renderer.worldDirectionOnSphere(from: location, in: sceneView)
+            lastDragWorld = dragAnchorWorld
+            lastInteractionTime = CACurrentMediaTime()
 
-        renderer.rotateEarth(deltaX: deltaX, deltaY: -deltaY)
-        velocityX = deltaX
-        velocityY = -deltaY
-        lastInteractionTime = CACurrentMediaTime()
+        case .changed:
+            guard isDragging else { return }
+            let targetWorld = renderer.worldDirectionOnSphere(from: location, in: sceneView)
+            renderer.applyDragDelta(from: lastDragWorld, to: targetWorld)
+            momentum = renderer.shortestRotationForMomentum(from: lastDragWorld, to: targetWorld)
+            lastDragWorld = targetWorld
+            lastInteractionTime = CACurrentMediaTime()
+
+        case .ended, .cancelled:
+            isDragging = false
+            lastInteractionTime = CACurrentMediaTime()
+
+        default:
+            break
+        }
     }
 
     func handlePinch(scale: CGFloat, state: UIGestureRecognizer.State) {
-        guard !isAnimatingFlyTo, state == .changed else { return }
-        let newDistance = renderer.cameraDistance / Float(scale)
-        renderer.cameraDistance = max(
-            renderer.minCameraDistance,
-            min(renderer.maxCameraDistance, newDistance)
-        )
+        guard !isAnimatingFlyTo else { return }
+
+        switch state {
+        case .began:
+            pinchStartDistance = renderer.cameraDistance
+            lastInteractionTime = CACurrentMediaTime()
+        case .changed:
+            guard let start = pinchStartDistance else { return }
+            renderer.setCameraDistance(start / Float(scale))
+            lastInteractionTime = CACurrentMediaTime()
+        case .ended, .cancelled:
+            pinchStartDistance = nil
+            lastInteractionTime = CACurrentMediaTime()
+        default:
+            break
+        }
+    }
+
+    func handleKeyboardZoom(direction: Int) {
+        guard !isAnimatingFlyTo else { return }
+        let factor = direction > 0 ? 1 / keyboardZoomFactor : keyboardZoomFactor
+        renderer.adjustZoom(by: factor)
         lastInteractionTime = CACurrentMediaTime()
     }
 
@@ -66,8 +102,8 @@ final class EarthGlobeController: NSObject {
 
     func flyTo(city: City, completion: (() -> Void)? = nil) {
         isAnimatingFlyTo = true
-        velocityX = 0
-        velocityY = 0
+        isDragging = false
+        momentum = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
         renderer.flyTo(city: city) { [weak self] in
             self?.isAnimatingFlyTo = false
             completion?()
@@ -81,17 +117,27 @@ final class EarthGlobeController: NSObject {
     }
 
     private func tick() {
-        guard !isAnimatingFlyTo else { return }
+        guard !isAnimatingFlyTo, !isDragging else { return }
 
         let now = CACurrentMediaTime()
         let isIdle = (now - lastInteractionTime) > idleDelay
+        let momentumAngle = 2 * acos(min(1, abs(momentum.real)))
 
-        if abs(velocityX) > 0.0001 || abs(velocityY) > 0.0001 {
-            renderer.rotateEarth(deltaX: velocityX, deltaY: velocityY)
-            velocityX *= friction
-            velocityY *= friction
-            if abs(velocityX) < 0.0001 { velocityX = 0 }
-            if abs(velocityY) < 0.0001 { velocityY = 0 }
+        if momentumAngle > 0.00005 {
+            renderer.applyMomentum(momentum)
+            let dampedAngle = momentumAngle * friction
+            if dampedAngle > 0.00005 {
+                let axisLength = simd_length(momentum.imag)
+                if axisLength > 0.00001 {
+                    let axis = momentum.imag / axisLength
+                    momentum = simd_quatf(angle: dampedAngle, axis: axis)
+                } else {
+                    momentum = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+                }
+            } else {
+                momentum = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+            }
+            lastInteractionTime = now
         } else if isIdle {
             renderer.applyIdleRotation(speed: autoRotateSpeed)
         }
