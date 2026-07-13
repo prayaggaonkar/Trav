@@ -9,6 +9,10 @@ struct TravApp: App {
             RootCoordinator()
                 .injectAppEnvironment(environment)
                 .preferredColorScheme(.dark)
+                .task { await environment.observeAuthState() }
+                .onOpenURL { url in
+                    SupabaseManager.handle(url)
+                }
         }
     }
 }

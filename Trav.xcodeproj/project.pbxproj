@@ -40,6 +40,14 @@
 		A1B2C3D4E5F6478990ABCDEF /* earth-topology.png in Resources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7488990ABCDE1 /* earth-topology.png */; };
 		C3D4E5F6A7B8488990ABCDE2 /* clouds.jpg in Resources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9488990ABCDEF /* clouds.jpg */; };
 		E5F6A7B8C9D0488990ABCDEF /* night-sky.png in Resources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E1488990ABCDEF /* night-sky.png */; };
+		AC10E298F515465C8669B002 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC10E298F515465C8669B001 /* SupabaseManager.swift */; };
+		AC10E298F515465C8669B004 /* SupabaseAuthRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */; };
+		AC10E298F515465C8669B009 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = AC10E298F515465C8669B008 /* Supabase */; };
+		AC10E298F515465C8669B00C /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = AC10E298F515465C8669B00B /* Auth */; };
+		AC10E298F515465C8669B00E /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = AC10E298F515465C8669B00D /* Functions */; };
+		AC10E298F515465C8669B010 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = AC10E298F515465C8669B00F /* PostgREST */; };
+		AC10E298F515465C8669B012 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = AC10E298F515465C8669B011 /* Realtime */; };
+		AC10E298F515465C8669B014 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = AC10E298F515465C8669B013 /* Storage */; };
 /* End PBXBuildFile section */
 /* Begin PBXFileReference section */
 		5214E298F515465C8669751B /* AsyncContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncContentView.swift; sourceTree = "<group>"; };
@@ -81,6 +89,9 @@
 		D4E5F6A7B8C9488990ABCDEF /* clouds.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = clouds.jpg; sourceTree = "<group>"; };
 		F6A7B8C9D0E1488990ABCDEF /* night-sky.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "night-sky.png"; sourceTree = "<group>"; };
 		BD9E5A3AE82F4CCFAC62711F /* Trav.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Trav.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AC10E298F515465C8669B001 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
+		AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseAuthRepository.swift; sourceTree = "<group>"; };
+		AC10E298F515465C8669B006 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 /* Begin PBXGroup section */
 		BCD444C71B544645AC29F880 = { isa = PBXGroup; children = (AAA7ADE17355474BA8763D6C, 33C6F8867D4D4AD38351242A); sourceTree = "<group>"; };
@@ -102,6 +113,7 @@
 				E58854D817814045B4E38829 /* Models */,
 				FD5A6136203647699A6FBC3D /* Navigation */,
 				F355E1538A38407891DE6CD0 /* Repositories */,
+				AC10E298F515465C8669B005 /* Services */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -138,8 +150,17 @@
 			isa = PBXGroup;
 			children = (
 				4762DCE38F22479AB6D818E6 /* RepositoryProtocols.swift */,
+				AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */,
 			);
 			path = Repositories;
+			sourceTree = "<group>";
+		};
+		AC10E298F515465C8669B005 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				AC10E298F515465C8669B001 /* SupabaseManager.swift */,
+			);
+			path = Services;
 			sourceTree = "<group>";
 		};
 		7369B80F07D64E68B6B88A84 /* DesignSystem */ = {
@@ -245,6 +266,7 @@
 			children = (
 				9D789CF333594AE0B2D8A18E /* Assets.xcassets */,
 				F0231A4780D341A6B36005FD /* Textures */,
+				AC10E298F515465C8669B006 /* Secrets.xcconfig */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -275,11 +297,30 @@
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
+/* Begin PBXFrameworksBuildPhase section */
+		AC10E298F515465C8669B00A = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (
+				AC10E298F515465C8669B009 /* Supabase in Frameworks */,
+				AC10E298F515465C8669B00C /* Auth in Frameworks */,
+				AC10E298F515465C8669B00E /* Functions in Frameworks */,
+				AC10E298F515465C8669B010 /* PostgREST in Frameworks */,
+				AC10E298F515465C8669B012 /* Realtime in Frameworks */,
+				AC10E298F515465C8669B014 /* Storage in Frameworks */,
+			); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
 /* Begin PBXNativeTarget section */
-		40FD064DD5B24DDB98F3FD40 = { isa = PBXNativeTarget; buildConfigurationList = 26AF8B02E5884B0FA3FE361E; buildPhases = (0D3A43BB8DE344498096CC3D, 9BF928AEEE4A4BDF8948EAFF); name = Trav; productReference = BD9E5A3AE82F4CCFAC62711F; productType = "com.apple.product-type.application"; };
+		40FD064DD5B24DDB98F3FD40 = { isa = PBXNativeTarget; buildConfigurationList = 26AF8B02E5884B0FA3FE361E; buildPhases = (0D3A43BB8DE344498096CC3D, AC10E298F515465C8669B00A, 9BF928AEEE4A4BDF8948EAFF); name = Trav; packageProductDependencies = (
+			AC10E298F515465C8669B008 /* Supabase */,
+			AC10E298F515465C8669B00B /* Auth */,
+			AC10E298F515465C8669B00D /* Functions */,
+			AC10E298F515465C8669B00F /* PostgREST */,
+			AC10E298F515465C8669B011 /* Realtime */,
+			AC10E298F515465C8669B013 /* Storage */,
+		); productReference = BD9E5A3AE82F4CCFAC62711F; productType = "com.apple.product-type.application"; };
 /* End PBXNativeTarget section */
 /* Begin PBXProject section */
-		8EE9E87005B5405E967E67D1 = { isa = PBXProject; buildConfigurationList = 90669BD110A34D31A1FE54C8; mainGroup = BCD444C71B544645AC29F880; productRefGroup = 33C6F8867D4D4AD38351242A; targets = (40FD064DD5B24DDB98F3FD40); };
+		8EE9E87005B5405E967E67D1 = { isa = PBXProject; buildConfigurationList = 90669BD110A34D31A1FE54C8; mainGroup = BCD444C71B544645AC29F880; packageReferences = (
+			AC10E298F515465C8669B007 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+		); productRefGroup = 33C6F8867D4D4AD38351242A; targets = (40FD064DD5B24DDB98F3FD40); };
 /* End PBXProject section */
 /* Begin PBXResourcesBuildPhase section */
 		9BF928AEEE4A4BDF8948EAFF = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (				D6759BDEF8B24A44823FB801 /* Assets.xcassets in Resources */,
@@ -321,14 +362,58 @@
 				780EE4863FE0451081FCBD9D /* GlobeViewModel.swift in Sources */,
 				F1986924026E487191DB1D8E /* AuthSheetView.swift in Sources */,
 				E6888FCE0E734087B26A6E2C /* ProfileView.swift in Sources */,
-				C7EAD1EAE5A54853BC25399B /* CreateExperienceView.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+				C7EAD1EAE5A54853BC25399B /* CreateExperienceView.swift in Sources */,
+				AC10E298F515465C8669B002 /* SupabaseManager.swift in Sources */,
+				AC10E298F515465C8669B004 /* SupabaseAuthRepository.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 /* Begin XCBuildConfiguration section */
-		7A2C10DACCAE4528B4765FF7 = { isa = XCBuildConfiguration; buildSettings = { IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 6.0; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };
-		578B5C25D946444CA979CC42 = { isa = XCBuildConfiguration; buildSettings = { IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 6.0; }; name = Release; };
-		2E535288D36A46C99A51161E = { isa = XCBuildConfiguration; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Trav/Resources/Info.plist; PRODUCT_BUNDLE_IDENTIFIER = com.trav.app; PRODUCT_NAME = Trav; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
-		114920F2225D48D987834508 = { isa = XCBuildConfiguration; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Trav/Resources/Info.plist; PRODUCT_BUNDLE_IDENTIFIER = com.trav.app; PRODUCT_NAME = Trav; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Release; };
+		7A2C10DACCAE4528B4765FF7 = { isa = XCBuildConfiguration; buildSettings = { IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 6.0; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; ONLY_ACTIVE_ARCH = YES; "EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64; }; name = Debug; };
+		578B5C25D946444CA979CC42 = { isa = XCBuildConfiguration; buildSettings = { IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 6.0; "EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64; }; name = Release; };
+		2E535288D36A46C99A51161E = { isa = XCBuildConfiguration; baseConfigurationReference = AC10E298F515465C8669B006 /* Secrets.xcconfig */; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Trav/Resources/Info.plist; PRODUCT_BUNDLE_IDENTIFIER = com.trav.app; PRODUCT_NAME = Trav; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
+		114920F2225D48D987834508 = { isa = XCBuildConfiguration; baseConfigurationReference = AC10E298F515465C8669B006 /* Secrets.xcconfig */; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Trav/Resources/Info.plist; PRODUCT_BUNDLE_IDENTIFIER = com.trav.app; PRODUCT_NAME = Trav; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Release; };
 /* End XCBuildConfiguration section */
+/* Begin XCRemoteSwiftPackageReference section */
+		AC10E298F515465C8669B007 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+/* Begin XCSwiftPackageProductDependency section */
+		AC10E298F515465C8669B008 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AC10E298F515465C8669B007 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+		AC10E298F515465C8669B00B /* Auth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AC10E298F515465C8669B007 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Auth;
+		};
+		AC10E298F515465C8669B00D /* Functions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AC10E298F515465C8669B007 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Functions;
+		};
+		AC10E298F515465C8669B00F /* PostgREST */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AC10E298F515465C8669B007 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = PostgREST;
+		};
+		AC10E298F515465C8669B011 /* Realtime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AC10E298F515465C8669B007 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Realtime;
+		};
+		AC10E298F515465C8669B013 /* Storage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AC10E298F515465C8669B007 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Storage;
+		};
+/* End XCSwiftPackageProductDependency section */
 /* Begin XCConfigurationList section */
 		90669BD110A34D31A1FE54C8 = { isa = XCConfigurationList; buildConfigurations = (7A2C10DACCAE4528B4765FF7, 578B5C25D946444CA979CC42); defaultConfigurationName = Release; };
 		26AF8B02E5884B0FA3FE361E = { isa = XCConfigurationList; buildConfigurations = (2E535288D36A46C99A51161E, 114920F2225D48D987834508); defaultConfigurationName = Release; };

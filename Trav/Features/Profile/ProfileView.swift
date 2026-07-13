@@ -1,10 +1,18 @@
 import SwiftUI
 
 struct ProfileView: View {
+    @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
+    @Environment(SessionStore.self) private var session
 
     let username: String
     var showDismissButton: Bool = true
+
+    @State private var isSigningOut = false
+
+    private var isOwnProfile: Bool {
+        session.currentUser?.username == username
+    }
 
     var body: some View {
         NavigationStack {
@@ -26,6 +34,13 @@ struct ProfileView: View {
 
                     statsPlaceholder
                         .travAppear(delay: 0.12)
+
+                    if isOwnProfile {
+                        SecondaryButton("Sign Out", icon: "arrow.right.square") {
+                            Task { await signOut() }
+                        }
+                        .travAppear(delay: 0.18)
+                    }
                 }
                 .padding(.horizontal, TravSpacing.screenHorizontal)
                 .padding(.top, TravSpacing.xl)
@@ -63,5 +78,15 @@ struct ProfileView: View {
         .padding(.vertical, TravSpacing.md)
         .background(TravColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+    }
+
+    private func signOut() async {
+        guard !isSigningOut else { return }
+        isSigningOut = true
+        defer { isSigningOut = false }
+
+        try? await environment.auth.signOut()
+        session.currentUser = nil
+        session.phase = .unauthenticated
     }
 }

@@ -16,4 +16,10 @@ protocol AuthRepository: Sendable {
     func signUp(email: String, password: String) async throws
     func signOut() async throws
     func resetPassword(email: String) async throws
+    func signInWithGoogle() async throws -> Profile
+
+    /// Emits the signed-in profile whenever the auth session changes, starting with the
+    /// current session (or `nil`) as soon as the stream is created. Used to restore and
+    /// keep `SessionStore` in sync across app launches, sign-outs, and token refreshes.
+    func authStateChanges() -> AsyncStream<Profile?>
 }

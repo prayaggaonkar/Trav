@@ -54,6 +54,17 @@ struct MockAuthRepository: AuthRepository {
     func signOut() async throws {}
 
     func resetPassword(email: String) async throws {}
+
+    func signInWithGoogle() async throws -> Profile {
+        try await signIn(email: "demo@trav.app", password: "")
+    }
+
+    func authStateChanges() -> AsyncStream<Profile?> {
+        AsyncStream { continuation in
+            continuation.yield(nil)
+            continuation.finish()
+        }
+    }
 }
 
 enum RepositoryError: LocalizedError {

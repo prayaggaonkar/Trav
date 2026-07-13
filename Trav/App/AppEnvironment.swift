@@ -8,15 +8,26 @@ struct AppConfiguration: Sendable {
     var supabaseAnonKey: String?
     var googleClientID: String?
 
+    /// Custom URL scheme used to receive OAuth and email-link callbacks from Supabase Auth.
+    /// Must be registered under `CFBundleURLTypes` in Info.plist.
+    static let oauthRedirectURL = URL(string: "trav://auth-callback")
+
     static let current: AppConfiguration = {
         let bundle = Bundle.main
         let urlString = bundle.object(forInfoDictionaryKey: "SUPABASE_URL") as? String
         let key = bundle.object(forInfoDictionaryKey: "SUPABASE_ANON_KEY") as? String
         let googleID = bundle.object(forInfoDictionaryKey: "GOOGLE_CLIENT_ID") as? String
-        let hasBackend = urlString.flatMap(URL.init(string:)) != nil && key?.isEmpty == false
+
+        // A URL with no host (e.g. "https:" — which happens if "//" gets swallowed as an
+        // .xcconfig comment) is not usable; treat it the same as a missing URL.
+        let supabaseURL = urlString
+            .flatMap(URL.init(string:))
+            .flatMap { $0.host?.isEmpty == false ? $0 : nil }
+
+        let hasBackend = supabaseURL != nil && key?.isEmpty == false
         return AppConfiguration(
             useMockBackend: !hasBackend,
-            supabaseURL: urlString.flatMap(URL.init(string:)),
+            supabaseURL: supabaseURL,
             supabaseAnonKey: key,
             googleClientID: googleID
         )
@@ -60,9 +71,24 @@ final class AppEnvironment {
             session: session,
             cities: MockCityRepository(),
             experiences: MockExperienceRepository(),
-            auth: MockAuthRepository()
+            auth: config.useMockBackend ? MockAuthRepository() : SupabaseAuthRepository()
         )
     }()
+
+    /// Restores any persisted Supabase session and keeps `SessionStore` in sync with
+    /// subsequent sign-in, sign-out, and token-refresh events. Call once at app launch;
+    /// the underlying stream lives for the lifetime of the app.
+    func observeAuthState() async {
+        guard !configuration.useMockBackend else {
+            session.phase = .unauthenticated
+            return
+        }
+
+        for await profile in auth.authStateChanges() {
+            session.currentUser = profile
+            session.phase = profile != nil ? .authenticated : .unauthenticated
+        }
+    }
 }
 
 extension View {

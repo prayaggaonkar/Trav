@@ -41,7 +41,9 @@ struct AuthSheetView: View {
                     }
                     .travAppear(delay: 0.15)
 
-                    SecondaryButton("Continue with Google", icon: "globe") {}
+                    SecondaryButton("Continue with Google", icon: "globe") {
+                        Task { await signInWithGoogle() }
+                    }
                         .travAppear(delay: 0.2)
 
                     footerLinks
@@ -138,6 +140,21 @@ struct AuthSheetView: View {
                 try await environment.auth.signUp(email: email, password: password)
                 session.phase = .onboarding
             }
+            router.dismissAuth()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func signInWithGoogle() async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            let profile = try await environment.auth.signInWithGoogle()
+            session.currentUser = profile
+            session.phase = .authenticated
             router.dismissAuth()
         } catch {
             errorMessage = error.localizedDescription
