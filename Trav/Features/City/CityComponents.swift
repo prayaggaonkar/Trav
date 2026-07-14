@@ -13,7 +13,7 @@ struct CitySearchBar: View {
     var body: some View {
         HStack(spacing: TravSpacing.sm) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(TravColors.muted)
                 .accessibilityHidden(true)
 
@@ -45,10 +45,6 @@ struct CitySearchBar: View {
         .frame(maxWidth: .infinity)
         .background(TravColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: TravRadius.xl, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: TravRadius.xl, style: .continuous)
-                .strokeBorder(TravColors.border.opacity(0.55), lineWidth: 1)
-        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(placeholder)
     }
@@ -76,20 +72,20 @@ struct FeaturedExperienceCard: View {
 
             LinearGradient(
                 colors: [
-                    .black.opacity(0.15),
-                    .black.opacity(0.45),
-                    .black.opacity(0.88)
+                    .black.opacity(0.1),
+                    .black.opacity(0.4),
+                    .black.opacity(0.85)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
 
-            VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            VStack(alignment: .leading, spacing: TravSpacing.xs) {
                 Text("Featured")
                     .font(TravTypography.labelMedium())
-                    .tracking(0.8)
+                    .tracking(0.6)
                     .textCase(.uppercase)
-                    .foregroundStyle(.white.opacity(0.75))
+                    .foregroundStyle(.white.opacity(0.7))
                     .lineLimit(1)
 
                 Text(experience.title)
@@ -100,20 +96,27 @@ struct FeaturedExperienceCard: View {
                     .minimumScaleFactor(0.88)
                     .fixedSize(horizontal: false, vertical: true)
 
-                creatorChip
+                Button {
+                    onCreatorTap?()
+                } label: {
+                    Text(experience.creator.displayName)
+                        .font(TravTypography.caption())
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+                .disabled(onCreatorTap == nil)
 
                 Text("\(TravFormatters.duration(experience.durationMinutes)) · \(experience.costLabel)")
-                    .font(TravTypography.labelMedium())
-                    .foregroundStyle(.white.opacity(0.8))
+                    .font(TravTypography.caption())
+                    .foregroundStyle(.white.opacity(0.75))
+                    .lineLimit(1)
+
+                Text("\(TravFormatters.count(experience.completionCount)) completed · \(TravFormatters.count(experience.saveCount + (isSaved ? 1 : 0))) saved")
+                    .font(TravTypography.caption())
+                    .foregroundStyle(.white.opacity(0.7))
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
-
-                TravSocialProofRow(
-                    saveCount: experience.saveCount + (isSaved ? 1 : 0),
-                    completionCount: experience.completionCount,
-                    isSaved: isSaved,
-                    style: .onDark
-                )
 
                 RoutePreview(
                     stops: experience.stops,
@@ -121,20 +124,20 @@ struct FeaturedExperienceCard: View {
                     compact: true,
                     style: .editorial
                 )
+                .padding(.top, TravSpacing.xxs)
             }
             .padding(TravSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: TravSpacing.xs) {
-                TravGlassIconButton(
-                    systemName: isLiked ? "heart.fill" : "heart",
-                    tint: isLiked ? TravColors.accent : .white
-                ) { onLike?() }
-                TravGlassIconButton(
+                CityCardActionButton(
                     systemName: isSaved ? "bookmark.fill" : "bookmark",
-                    tint: isSaved ? TravColors.accent : .white
+                    isActive: isSaved
                 ) { onSave?() }
-                TravGlassIconButton(systemName: "square.and.arrow.up") { onShare?() }
+                CityCardActionButton(
+                    systemName: "square.and.arrow.up",
+                    isActive: false
+                ) { onShare?() }
             }
             .padding(TravSpacing.sm)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
@@ -142,49 +145,12 @@ struct FeaturedExperienceCard: View {
         .frame(height: TravLayout.featuredCardHeight)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-        }
         .contentShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
         .onTapGesture(perform: onTap)
-        .travCardShadow()
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("Featured experience \(experience.title)")
         .accessibilityAction(named: "Open") { onTap() }
-    }
-
-    private var creatorChip: some View {
-        Button {
-            onCreatorTap?()
-        } label: {
-            HStack(spacing: TravSpacing.xs) {
-                AvatarView(url: experience.creator.avatarURL, size: 24)
-                Text(experience.creator.displayName)
-                    .font(TravTypography.caption())
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.9)
-                if experience.creator.isVerified {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(TravColors.accent)
-                        .accessibilityHidden(true)
-                }
-            }
-            .padding(.trailing, TravSpacing.sm)
-            .padding(.vertical, TravSpacing.xxs)
-            .padding(.leading, TravSpacing.xxs)
-            .background {
-                Capsule().fill(.black.opacity(0.35))
-            }
-            .overlay {
-                Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1)
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(onCreatorTap == nil)
     }
 }
 
@@ -197,15 +163,14 @@ struct TrendingCreatorsSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
             Text("Trending Creators")
-                .font(TravTypography.titleLarge())
+                .font(TravTypography.titleMedium())
                 .foregroundStyle(TravColors.primary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.9)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, TravSpacing.screenHorizontal)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: TravSpacing.sm) {
+                HStack(spacing: TravSpacing.md) {
                     ForEach(creators) { creator in
                         Button {
                             onSelect(creator)
@@ -216,7 +181,6 @@ struct TrendingCreatorsSection: View {
                     }
                 }
                 .padding(.horizontal, TravSpacing.screenHorizontal)
-                .padding(.vertical, TravSpacing.xxs)
             }
         }
     }
@@ -228,17 +192,6 @@ private struct TrendingCreatorCard: View {
     var body: some View {
         VStack(spacing: TravSpacing.xs) {
             AvatarView(url: creator.avatarURL, size: 56)
-                .overlay {
-                    Circle()
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [TravColors.accent.opacity(0.9), .white.opacity(0.2)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1.5
-                        )
-                }
 
             Text(creator.displayName)
                 .font(TravTypography.labelMedium())
@@ -247,25 +200,36 @@ private struct TrendingCreatorCard: View {
                 .minimumScaleFactor(0.8)
                 .multilineTextAlignment(.center)
 
-            Text("@\(creator.username)")
+            Text("\(TravFormatters.count(creator.followerCount)) followers")
                 .font(TravTypography.caption())
                 .foregroundStyle(TravColors.muted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .multilineTextAlignment(.center)
-
-            Text("\(TravFormatters.count(creator.followerCount)) followers")
-                .font(TravTypography.caption())
-                .foregroundStyle(TravColors.muted.opacity(0.9))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .multilineTextAlignment(.center)
         }
-        .padding(.horizontal, TravSpacing.xxs)
         .frame(width: TravLayout.creatorCardWidth)
         .clipped()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(creator.displayName), \(creator.followerCount) followers")
+    }
+}
+
+// MARK: - Compact card actions
+
+struct CityCardActionButton: View {
+    let systemName: String
+    var isActive = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(isActive ? TravColors.accent : .white)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(.black.opacity(0.45)))
+        }
+        .buttonStyle(TravPressButtonStyle(scale: 0.9))
     }
 }
 
@@ -275,25 +239,25 @@ struct CityBackButton: View {
     let action: () -> Void
     var prominent = true
 
+    private let size: CGFloat = 36
+
     var body: some View {
         Button(action: action) {
             Image(systemName: "chevron.left")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(prominent ? .white : TravColors.primary)
-                .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
-                .background {
-                    Circle()
-                        .fill(prominent ? Color.black.opacity(0.55) : TravColors.surfaceElevated)
-                }
-                .overlay {
-                    Circle()
-                        .strokeBorder(
-                            prominent ? Color.white.opacity(0.75) : TravColors.border,
-                            lineWidth: 1.5
-                        )
-                }
+                .frame(width: size, height: size)
+                .background(
+                    Circle().fill(
+                        prominent
+                            ? Color.black.opacity(0.5)
+                            : TravColors.surfaceElevated
+                    )
+                )
         }
-        .buttonStyle(TravPressButtonStyle(scale: 0.94))
+        .buttonStyle(.plain)
+        .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
+        .contentShape(Circle())
         .accessibilityLabel("Back to globe")
     }
 }

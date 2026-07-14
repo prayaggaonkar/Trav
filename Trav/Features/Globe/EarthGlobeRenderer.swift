@@ -319,7 +319,6 @@ private struct EarthCityMarker {
     let city: City
     let node: SCNNode
 
-    private static let warmGold = UIColor(red: 1.0, green: 0.82, blue: 0.18, alpha: 1)
     private static let glowTexture = makeGlowTexture()
 
     init(city: City) {
@@ -333,23 +332,13 @@ private struct EarthCityMarker {
         root.position = position
         root.look(at: SCNVector3(position.x * 2, position.y * 2, position.z * 2))
 
-        // Soft light spill on nearby terrain — reads as shine, not a flat sticker.
-        let shine = SCNNode()
-        shine.light = SCNLight()
-        shine.light?.type = .omni
-        shine.light?.color = Self.warmGold
-        shine.light?.intensity = 90
-        shine.light?.attenuationStartDistance = 0.008
-        shine.light?.attenuationEndDistance = 0.13
-        shine.light?.attenuationFalloffExponent = 2
-        root.addChildNode(shine)
-
-        let markerSize: CGFloat = 0.028
+        // Soft cool-white pin — no omni spill lights (those painted yellow across the globe).
+        let markerSize: CGFloat = 0.022
         let glow = SCNPlane(width: markerSize, height: markerSize)
         let glowMat = SCNMaterial()
         glowMat.diffuse.contents = Self.glowTexture
         glowMat.emission.contents = Self.glowTexture
-        glowMat.emission.intensity = 0.85
+        glowMat.emission.intensity = 0.7
         glowMat.lightingModel = .constant
         glowMat.blendMode = .add
         glowMat.isDoubleSided = true
@@ -362,22 +351,13 @@ private struct EarthCityMarker {
         root.addChildNode(glowNode)
 
         let pulse = CABasicAnimation(keyPath: "opacity")
-        pulse.fromValue = 0.78
+        pulse.fromValue = 0.72
         pulse.toValue = 1.0
-        pulse.duration = 2.2
+        pulse.duration = 2.4
         pulse.autoreverses = true
         pulse.repeatCount = .infinity
         pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
         glowNode.addAnimation(pulse, forKey: "pulse")
-
-        let lightPulse = CABasicAnimation(keyPath: "light.intensity")
-        lightPulse.fromValue = 72
-        lightPulse.toValue = 125
-        lightPulse.duration = 2.2
-        lightPulse.autoreverses = true
-        lightPulse.repeatCount = .infinity
-        lightPulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        shine.addAnimation(lightPulse, forKey: "lightPulse")
 
         self.node = root
     }
@@ -386,7 +366,7 @@ private struct EarthCityMarker {
         hitNode === node || node.childNodes.contains(hitNode)
     }
 
-    /// Gaussian amber glow — feathered to the plane corners so no hard disc edge.
+    /// Soft cool-white gaussian — feathered so markers read as clean lights, not amber blobs.
     private static func makeGlowTexture() -> UIImage {
         let size = 256
         let center = Double(size - 1) / 2
@@ -397,12 +377,12 @@ private struct EarthCityMarker {
             for x in 0..<size {
                 let dx = (Double(x) - center) / cornerRadius
                 let dy = (Double(y) - center) / cornerRadius
-                let falloff = exp(-(dx * dx + dy * dy) * 3.8)
-                let alpha = falloff * 0.68
+                let falloff = exp(-(dx * dx + dy * dy) * 4.2)
+                let alpha = falloff * 0.55
                 let idx = (y * size + x) * 4
-                pixels[idx] = UInt8(min(255, 255 * alpha * 1.0))       // warm R
-                pixels[idx + 1] = UInt8(min(255, 255 * alpha * 0.82)) // G
-                pixels[idx + 2] = UInt8(min(255, 255 * alpha * 0.18)) // B
+                pixels[idx] = UInt8(min(255, 255 * alpha * 0.85))     // R
+                pixels[idx + 1] = UInt8(min(255, 255 * alpha * 0.92)) // G
+                pixels[idx + 2] = UInt8(min(255, 255 * alpha * 1.0))  // B
                 pixels[idx + 3] = UInt8(min(255, 255 * alpha))
             }
         }

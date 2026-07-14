@@ -54,13 +54,13 @@ enum TravLayout {
     static let heroCityHeightMin: CGFloat = 280
     static let heroExperienceHeight: CGFloat = 360
     static let cardImageHeight: CGFloat = 220
-    static let feedCardImageHeight: CGFloat = 260
-    static let featuredCardHeight: CGFloat = 300
-    static let citySearchHeight: CGFloat = 52
-    static let creatorCardWidth: CGFloat = 100
-    static let glassIconSize: CGFloat = 34
-    static let sectionSpacing: CGFloat = TravSpacing.xl
-    static let cardContentSpacing: CGFloat = TravSpacing.sm
+    static let feedCardImageHeight: CGFloat = 220
+    static let featuredCardHeight: CGFloat = 280
+    static let citySearchHeight: CGFloat = 48
+    static let creatorCardWidth: CGFloat = 96
+    static let glassIconSize: CGFloat = 32
+    static let sectionSpacing: CGFloat = TravSpacing.lg
+    static let cardContentSpacing: CGFloat = TravSpacing.xs
 }
 
 enum TravIcon {

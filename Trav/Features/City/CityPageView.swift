@@ -13,12 +13,12 @@ struct CityPageView: View {
     }
 
     private var showsNavTitle: Bool {
-        scrollOffset > heroHeight - 96
+        scrollOffset > heroHeight - 88
     }
 
     var body: some View {
         NavigationStack {
-            ZStack {
+            ZStack(alignment: .topLeading) {
                 TravColors.surface.ignoresSafeArea()
 
                 switch viewModel.phase {
@@ -37,15 +37,16 @@ struct CityPageView: View {
                         Task { await viewModel.load(using: environment) }
                     }
                 }
+
+                // Overlay back control — avoids iOS toolbar glass creating a second circle.
+                CityBackButton(action: {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    router.dismiss()
+                }, prominent: !showsNavTitle)
+                .padding(.leading, TravSpacing.screenHorizontal)
+                .safeAreaPadding(.top, TravSpacing.xs)
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    CityBackButton(action: {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        router.dismiss()
-                    }, prominent: !showsNavTitle)
-                }
-
                 ToolbarItem(placement: .principal) {
                     if case let .loaded(content) = viewModel.phase, showsNavTitle {
                         Text(content.city.name)
@@ -53,7 +54,7 @@ struct CityPageView: View {
                             .foregroundStyle(TravColors.primary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                            .transition(.opacity)
                     }
                 }
             }
@@ -84,7 +85,7 @@ struct CityPageView: View {
             let resolvedHero = Self.resolvedHeroHeight(for: geometry.size.height)
 
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: TravSpacing.lg) {
                     Color.clear
                         .frame(height: 0)
                         .onAppear { heroHeight = resolvedHero }
@@ -102,40 +103,32 @@ struct CityPageView: View {
 
                     heroSection(content.city, height: resolvedHero)
                         .frame(width: geometry.size.width)
+                        .padding(.bottom, -TravSpacing.lg)
                         .travAppear()
 
-                    VStack(alignment: .leading, spacing: TravSpacing.lg) {
-                        CitySearchBar(text: $viewModel.searchQuery, cityName: content.city.name)
-                            .travAppear(delay: 0.05)
+                    CitySearchBar(text: $viewModel.searchQuery, cityName: content.city.name)
+                        .padding(.horizontal, TravSpacing.screenHorizontal)
+                        .travAppear(delay: 0.05)
 
-                        if let featured = content.featured, viewModel.searchQuery.isEmpty {
-                            featuredSection(featured, cityName: content.city.name)
-                                .travAppear(delay: 0.08)
-                        }
+                    if let featured = content.featured, viewModel.searchQuery.isEmpty {
+                        featuredSection(featured, cityName: content.city.name)
+                            .padding(.horizontal, TravSpacing.screenHorizontal)
+                            .travAppear(delay: 0.08)
                     }
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
-                    .padding(.top, TravSpacing.lg)
-                    .frame(width: geometry.size.width, alignment: .leading)
 
                     if !content.creators.isEmpty, viewModel.searchQuery.isEmpty {
                         TrendingCreatorsSection(creators: content.creators) { creator in
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             router.openProfile(creator.username)
                         }
-                        .padding(.top, TravSpacing.lg)
                         .travAppear(delay: 0.11)
                     }
 
                     feedSection(feed, cityName: content.city.name)
                         .padding(.horizontal, TravSpacing.screenHorizontal)
-                        .padding(.top, TravSpacing.lg)
-                        .frame(width: geometry.size.width, alignment: .leading)
                         .travAppear(delay: 0.14)
-
-                    Color.clear
-                        .frame(height: TravSpacing.xxl)
-                        .safeAreaPadding(.bottom, TravSpacing.sm)
                 }
+                .padding(.bottom, TravSpacing.lg)
                 .frame(maxWidth: geometry.size.width, alignment: .leading)
             }
             .coordinateSpace(name: "cityScroll")
@@ -157,16 +150,16 @@ struct CityPageView: View {
 
             LinearGradient(
                 colors: [
-                    .black.opacity(0.25),
+                    .black.opacity(0.2),
                     .clear,
-                    .black.opacity(0.55),
-                    .black.opacity(0.9)
+                    .black.opacity(0.5),
+                    .black.opacity(0.88)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
 
-            VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            VStack(alignment: .leading, spacing: TravSpacing.xs) {
                 Text(city.locationLabel)
                     .font(TravTypography.displayLarge())
                     .foregroundStyle(.white)
@@ -175,22 +168,15 @@ struct CityPageView: View {
                     .minimumScaleFactor(0.78)
                     .fixedSize(horizontal: false, vertical: true)
 
-                VStack(alignment: .leading, spacing: TravSpacing.xxs) {
-                    Text("\(TravFormatters.groupedCount(city.experienceCount)) Experiences")
-                        .font(TravTypography.titleMedium())
-                        .foregroundStyle(.white.opacity(0.92))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                    Text("\(TravFormatters.groupedCount(city.creatorCount)) Creators")
-                        .font(TravTypography.bodyMedium())
-                        .foregroundStyle(.white.opacity(0.78))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                }
+                Text("\(TravFormatters.groupedCount(city.experienceCount)) experiences · \(TravFormatters.groupedCount(city.creatorCount)) creators")
+                    .font(TravTypography.bodyMedium())
+                    .foregroundStyle(.white.opacity(0.82))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, TravSpacing.screenHorizontal)
-            .padding(.bottom, TravSpacing.xl)
+            .padding(.bottom, TravSpacing.lg)
         }
         .frame(height: height)
         .frame(maxWidth: .infinity)
@@ -222,23 +208,11 @@ struct CityPageView: View {
 
     @ViewBuilder
     private func feedSection(_ feed: [ExperienceSummary], cityName: String) -> some View {
-        VStack(alignment: .leading, spacing: TravSpacing.md) {
-            HStack(alignment: .firstTextBaseline, spacing: TravSpacing.sm) {
-                Text(viewModel.searchQuery.isEmpty ? "Experiences" : "Results")
-                    .font(TravTypography.titleLarge())
-                    .foregroundStyle(TravColors.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.9)
-
-                Spacer(minLength: TravSpacing.sm)
-
-                if !feed.isEmpty {
-                    Text("\(feed.count)")
-                        .font(TravTypography.labelMedium())
-                        .foregroundStyle(TravColors.muted)
-                        .lineLimit(1)
-                }
-            }
+        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            Text(viewModel.searchQuery.isEmpty ? "Experiences" : "Results")
+                .font(TravTypography.titleMedium())
+                .foregroundStyle(TravColors.primary)
+                .lineLimit(1)
 
             if feed.isEmpty {
                 Text(viewModel.searchQuery.isEmpty
@@ -246,7 +220,6 @@ struct CityPageView: View {
                     : "No experiences match your search.")
                     .font(TravTypography.bodyMedium())
                     .foregroundStyle(TravColors.muted)
-                    .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 LazyVStack(spacing: TravSpacing.md) {

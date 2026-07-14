@@ -18,52 +18,49 @@ struct RoutePreview: View {
             }
         }
 
-        var connectorColor: Color {
-            switch self {
-            case .standard: TravColors.muted.opacity(0.55)
-            case .onDark: .white.opacity(0.45)
-            case .editorial: .white.opacity(0.55)
-            }
-        }
-
         var moreColor: Color {
             switch self {
             case .standard: TravColors.muted
             case .onDark, .editorial: .white.opacity(0.65)
             }
         }
+
+        var separatorColor: Color {
+            switch self {
+            case .standard: TravColors.muted.opacity(0.45)
+            case .onDark, .editorial: .white.opacity(0.4)
+            }
+        }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? TravSpacing.xxs / 2 : TravSpacing.xxs) {
-            ForEach(Array(visibleStops.enumerated()), id: \.element.id) { index, stop in
-                HStack(spacing: TravSpacing.xs) {
-                    Text(stop.emoji ?? "📍")
-                        .font(.system(size: emojiSize))
+        // Horizontal route chips — cleaner and less symbol-heavy than a vertical ↓ list.
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: TravSpacing.xs) {
+                ForEach(Array(visibleStops.enumerated()), id: \.element.id) { index, stop in
+                    HStack(spacing: TravSpacing.xxs) {
+                        if let emoji = stop.emoji {
+                            Text(emoji)
+                                .font(.system(size: compact ? 11 : 13))
+                        }
+                        Text(stop.name)
+                            .font(compact ? TravTypography.caption() : TravTypography.labelMedium())
+                            .foregroundStyle(style.titleColor)
+                            .lineLimit(1)
+                    }
 
-                    Text(stop.name)
-                        .font(nameFont)
-                        .foregroundStyle(style.titleColor)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.9)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if index < visibleStops.count - 1 {
+                        Text("·")
+                            .font(TravTypography.caption())
+                            .foregroundStyle(style.separatorColor)
+                    }
                 }
 
-                if index < visibleStops.count - 1 {
-                    Text("↓")
-                        .font(.system(size: connectorSize, weight: .medium))
-                        .foregroundStyle(style.connectorColor)
-                        .padding(.leading, compact ? TravSpacing.xxs : TravSpacing.xs)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                if stops.count > maxVisibleStops {
+                    Text("+\(stops.count - maxVisibleStops)")
+                        .font(TravTypography.caption())
+                        .foregroundStyle(style.moreColor)
                 }
-            }
-
-            if stops.count > maxVisibleStops {
-                Text("+\(stops.count - maxVisibleStops) more")
-                    .font(TravTypography.caption())
-                    .foregroundStyle(style.moreColor)
-                    .padding(.leading, TravSpacing.xs)
-                    .lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -71,27 +68,6 @@ struct RoutePreview: View {
 
     private var visibleStops: [StopPreview] {
         Array(stops.prefix(maxVisibleStops))
-    }
-
-    private var emojiSize: CGFloat {
-        switch style {
-        case .editorial: 16
-        case .standard, .onDark: compact ? 12 : 14
-        }
-    }
-
-    private var connectorSize: CGFloat {
-        switch style {
-        case .editorial: 13
-        case .standard, .onDark: compact ? 10 : 12
-        }
-    }
-
-    private var nameFont: Font {
-        switch style {
-        case .editorial: TravTypography.labelMedium()
-        case .standard, .onDark: compact ? TravTypography.caption() : TravTypography.labelMedium()
-        }
     }
 }
 
