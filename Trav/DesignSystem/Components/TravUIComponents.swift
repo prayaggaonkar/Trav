@@ -367,27 +367,44 @@ struct CityPageSkeleton: View {
         ScrollView {
             VStack(alignment: .leading, spacing: TravSpacing.lg) {
                 SkeletonView(height: TravLayout.heroCityHeight, cornerRadius: 0)
-                VStack(alignment: .leading, spacing: TravSpacing.sm) {
-                    SkeletonView(height: 22, cornerRadius: TravRadius.sm)
-                        .padding(.horizontal, TravSpacing.screenHorizontal)
-                    SkeletonView(height: TravLayout.featuredCardHeight, cornerRadius: TravRadius.lg)
-                        .padding(.horizontal, TravSpacing.screenHorizontal)
-                }
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: TravSpacing.md) {
-                    ForEach(0..<4, id: \.self) { _ in
-                        VStack(spacing: TravSpacing.sm) {
-                            SkeletonView(height: TravLayout.cardImageHeight, cornerRadius: TravRadius.md)
-                            SkeletonView(height: 14)
-                            SkeletonView(height: 12)
+
+                SkeletonView(height: TravLayout.citySearchHeight, cornerRadius: TravRadius.xl)
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+
+                SkeletonView(height: TravLayout.featuredCardHeight, cornerRadius: TravRadius.xl)
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: TravSpacing.md) {
+                        ForEach(0..<4, id: \.self) { _ in
+                            VStack(spacing: TravSpacing.xs) {
+                                SkeletonView(height: 64, cornerRadius: 32)
+                                    .frame(width: 64)
+                                SkeletonView(height: 12, cornerRadius: TravRadius.sm)
+                                SkeletonView(height: 10, cornerRadius: TravRadius.sm)
+                            }
+                            .frame(width: TravLayout.creatorCardWidth)
                         }
-                        .padding(TravSpacing.sm)
-                        .background(TravColors.surfaceElevated.opacity(0.5))
-                        .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
                     }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
                 }
-                .padding(.horizontal, TravSpacing.screenHorizontal)
+
+                ForEach(0..<3, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: TravSpacing.sm) {
+                        SkeletonView(height: TravLayout.feedCardImageHeight, cornerRadius: TravRadius.lg)
+                        SkeletonView(height: 22, cornerRadius: TravRadius.sm)
+                        SkeletonView(height: 14, cornerRadius: TravRadius.sm)
+                        SkeletonView(height: 48, cornerRadius: TravRadius.md)
+                    }
+                    .padding(TravSpacing.sm)
+                    .background(TravColors.surfaceElevated.opacity(0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                }
             }
+            .padding(.bottom, TravSpacing.xxl)
         }
+        .ignoresSafeArea(edges: .top)
     }
 }
 

@@ -15,6 +15,14 @@ struct City: Identifiable, Codable, Sendable, Hashable {
     var coordinate: (latitude: Double, longitude: Double) {
         (latitude, longitude)
     }
+
+    var countryName: String {
+        Locale.current.localizedString(forRegionCode: countryCode) ?? countryCode
+    }
+
+    var locationLabel: String {
+        "\(name), \(countryName)"
+    }
 }
 
 struct CitySummary: Identifiable, Codable, Sendable, Hashable {

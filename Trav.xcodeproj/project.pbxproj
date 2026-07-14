@@ -98,6 +98,7 @@
 		3A46AA5C500644F89A7A8FFD /* ExperienceCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperienceCard.swift; sourceTree = "<group>"; };
 		4762DCE38F22479AB6D818E6 /* RepositoryProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProtocols.swift; sourceTree = "<group>"; };
 		495A3A8B9C6E42DFB539E0D3 /* City.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = City.swift; sourceTree = "<group>"; };
+		F7A1B2C3D4E5461789ABCD00 /* CityComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityComponents.swift; sourceTree = "<group>"; };
 		496BA6B3143F4D3DB499E304 /* earth_day.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = earth_day.jpg; sourceTree = "<group>"; };
 		3A46AA5C500644F89A7A8FFD /* ExperienceCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperienceCard.swift; sourceTree = "<group>"; };
 		4762DCE38F22479AB6D818E6 /* RepositoryProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProtocols.swift; sourceTree = "<group>"; };
@@ -210,6 +211,7 @@
 		2FD3BCE95DEC4AA78DBE7EC5 /* City */ = {
 			isa = PBXGroup;
 			children = (
+				F7A1B2C3D4E5461789ABCD00 /* CityComponents.swift */,
 				E794FC05D2664C9AAAC7B154 /* CityPageView.swift */,
 				39CE5CA1E5C9417CBF6E98A0 /* CityViewModel.swift */,
 				E794FC05D2664C9AAAC7B154 /* CityPageView.swift */,
@@ -608,6 +610,7 @@
 				BA61FC3A67154D3FB4379A72 /* ExperienceDetailView.swift in Sources */,
 				5AACC79B18B44EA891FBF6B3 /* CityPageView.swift in Sources */,
 				A918A9EDBC4E475399F878FF /* CityViewModel.swift in Sources */,
+				F7A1B2C3D4E5461789ABCDEF /* CityComponents.swift in Sources */,
 				DDCA2C1874A9403DBA0A0150 /* EarthGlobeController.swift in Sources */,
 				662658751D5744C4824979B8 /* EarthGlobeRenderer.swift in Sources */,
 				4471FBD864E94E03B448A4B0 /* EarthGlobeView.swift in Sources */,

@@ -22,7 +22,38 @@ enum MockData {
             displayName: "Sam Okafor",
             avatarURL: URL(string: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop"),
             isVerified: true
+        ),
+        ProfileSummary(
+            id: UUID(uuidString: "A1000004-0000-0000-0000-000000000004")!,
+            username: "yuki.tanaka",
+            displayName: "Yuki Tanaka",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop"),
+            isVerified: true
+        ),
+        ProfileSummary(
+            id: UUID(uuidString: "A1000005-0000-0000-0000-000000000005")!,
+            username: "kenji.mori",
+            displayName: "Kenji Mori",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop"),
+            isVerified: false
+        ),
+        ProfileSummary(
+            id: UUID(uuidString: "A1000006-0000-0000-0000-000000000006")!,
+            username: "aiko.sato",
+            displayName: "Aiko Sato",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop"),
+            isVerified: true
         )
+    ]
+
+    /// Follower counts keyed by creator id for trending city rows.
+    static let creatorFollowerCounts: [UUID: Int] = [
+        creators[0].id: 48_200,
+        creators[1].id: 19_840,
+        creators[2].id: 31_450,
+        creators[3].id: 62_100,
+        creators[4].id: 12_780,
+        creators[5].id: 27_300
     ]
 
     static let cities: [City] = [
@@ -47,8 +78,8 @@ enum MockData {
             longitude: 139.6503,
             heroImageURL: URL(string: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1200&q=80"),
             timezone: "Asia/Tokyo",
-            experienceCount: 1204,
-            creatorCount: 489
+            experienceCount: 12_493,
+            creatorCount: 4_291
         ),
         City(
             id: UUID(uuidString: "C1000003-0000-0000-0000-000000000003")!,
@@ -133,8 +164,10 @@ enum MockData {
             creator: creators[0],
             durationMinutes: 180,
             costLevel: .moderate,
-            saveCount: 1240,
-            completionCount: 387,
+            estimatedCostUSD: 35,
+            saveCount: 8_231,
+            likeCount: 4_102,
+            completionCount: 1_482,
             stops: [
                 StopPreview(id: UUID(), name: "Blue Bottle", emoji: "☕"),
                 StopPreview(id: UUID(), name: "City Lights Books", emoji: "📚"),
@@ -143,14 +176,16 @@ enum MockData {
             ]
         ),
         ExperienceSummary(
-            id: UUID(uuidString: "E1000002-0000-0000-000000000002")!,
+            id: UUID(uuidString: "E1000002-0000-0000-0000-000000000002")!,
             cityID: cities[0].id,
             title: "Golden Hour Rooftop Trail",
             coverImageURL: URL(string: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80"),
             creator: creators[1],
             durationMinutes: 240,
             costLevel: .budget,
+            estimatedCostUSD: 18,
             saveCount: 892,
+            likeCount: 640,
             completionCount: 256,
             stops: [
                 StopPreview(id: UUID(), name: "Salesforce Park", emoji: "🏙️"),
@@ -167,7 +202,9 @@ enum MockData {
             creator: creators[2],
             durationMinutes: 120,
             costLevel: .free,
-            saveCount: 2103,
+            estimatedCostUSD: 0,
+            saveCount: 2_103,
+            likeCount: 1_540,
             completionCount: 612,
             stops: [
                 StopPreview(id: UUID(), name: "Clarion Alley", emoji: "🎨"),
@@ -180,19 +217,126 @@ enum MockData {
             cityID: cities[1].id,
             title: "Shibuya to Shinjuku Night Walk",
             coverImageURL: URL(string: "https://images.unsplash.com/photo-1542051841857-5f90071e7989?w=800&q=80"),
-            creator: creators[0],
-            durationMinutes: 300,
+            creator: creators[3],
+            durationMinutes: 270,
             costLevel: .moderate,
-            saveCount: 3421,
-            completionCount: 891,
+            estimatedCostUSD: 42,
+            saveCount: 9_841,
+            likeCount: 6_220,
+            completionCount: 2_104,
             stops: [
                 StopPreview(id: UUID(), name: "Shibuya Crossing", emoji: "🚶"),
-                StopPreview(id: UUID(), name: "Omoide Yokocho", emoji: "🍢"),
-                StopPreview(id: UUID(), name: "Golden Gai", emoji: "🏮"),
-                StopPreview(id: UUID(), name: "Kabukicho", emoji: "🌃")
+                StopPreview(id: UUID(), name: "Bookstore Café", emoji: "📚"),
+                StopPreview(id: UUID(), name: "Ramen Alley", emoji: "🍜"),
+                StopPreview(id: UUID(), name: "Shinjuku Viewpoint", emoji: "🌃")
+            ]
+        ),
+        ExperienceSummary(
+            id: UUID(uuidString: "E1000005-0000-0000-0000-000000000005")!,
+            cityID: cities[1].id,
+            title: "Yanaka Quiet Morning Ritual",
+            coverImageURL: URL(string: "https://images.unsplash.com/photo-1524413840807-0c3cb6fa808d?w=800&q=80"),
+            creator: creators[4],
+            durationMinutes: 150,
+            costLevel: .budget,
+            estimatedCostUSD: 22,
+            saveCount: 4_560,
+            likeCount: 2_890,
+            completionCount: 980,
+            stops: [
+                StopPreview(id: UUID(), name: "Nezu Shrine", emoji: "⛩️"),
+                StopPreview(id: UUID(), name: "Kissaten", emoji: "☕"),
+                StopPreview(id: UUID(), name: "Yanaka Ginza", emoji: "🛍️"),
+                StopPreview(id: UUID(), name: "Temple Garden", emoji: "🎋")
+            ]
+        ),
+        ExperienceSummary(
+            id: UUID(uuidString: "E1000006-0000-0000-0000-000000000006")!,
+            cityID: cities[1].id,
+            title: "Shimokitazawa Vintage Loop",
+            coverImageURL: URL(string: "https://images.unsplash.com/photo-1554797589-7241bb691973?w=800&q=80"),
+            creator: creators[5],
+            durationMinutes: 210,
+            costLevel: .moderate,
+            estimatedCostUSD: 55,
+            saveCount: 3_210,
+            likeCount: 1_980,
+            completionCount: 744,
+            stops: [
+                StopPreview(id: UUID(), name: "Record Shop", emoji: "🎧"),
+                StopPreview(id: UUID(), name: "Vintage Thrift", emoji: "👗"),
+                StopPreview(id: UUID(), name: "Curry House", emoji: "🍛"),
+                StopPreview(id: UUID(), name: "Sunset Bridge", emoji: "🌉")
+            ]
+        ),
+        ExperienceSummary(
+            id: UUID(uuidString: "E1000007-0000-0000-0000-000000000007")!,
+            cityID: cities[1].id,
+            title: "Asakusa Temple & Street Food",
+            coverImageURL: URL(string: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800&q=80"),
+            creator: creators[0],
+            durationMinutes: 180,
+            costLevel: .budget,
+            estimatedCostUSD: 28,
+            saveCount: 6_720,
+            likeCount: 3_410,
+            completionCount: 1_650,
+            stops: [
+                StopPreview(id: UUID(), name: "Senso-ji", emoji: "🏮"),
+                StopPreview(id: UUID(), name: "Nakamise Street", emoji: "🍡"),
+                StopPreview(id: UUID(), name: "Sumida River", emoji: "🚤"),
+                StopPreview(id: UUID(), name: "Skytree View", emoji: "🗼")
+            ]
+        ),
+        ExperienceSummary(
+            id: UUID(uuidString: "E1000008-0000-0000-0000-000000000008")!,
+            cityID: cities[2].id,
+            title: "Left Bank Café Afternoon",
+            coverImageURL: URL(string: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&q=80"),
+            creator: creators[2],
+            durationMinutes: 200,
+            costLevel: .moderate,
+            estimatedCostUSD: 48,
+            saveCount: 2_840,
+            likeCount: 1_620,
+            completionCount: 530,
+            stops: [
+                StopPreview(id: UUID(), name: "Shakespeare & Co", emoji: "📚"),
+                StopPreview(id: UUID(), name: "Café de Flore", emoji: "☕"),
+                StopPreview(id: UUID(), name: "Jardin du Luxembourg", emoji: "🌳"),
+                StopPreview(id: UUID(), name: "Seine Sunset", emoji: "🌅")
             ]
         )
     ]
+
+    static func profile(for summary: ProfileSummary) -> Profile {
+        Profile(
+            id: summary.id,
+            username: summary.username,
+            displayName: summary.displayName,
+            bio: "Mapping favorite corners of the city.",
+            avatarURL: summary.avatarURL,
+            homeCityID: cities[1].id,
+            followerCount: creatorFollowerCounts[summary.id] ?? 1_200,
+            followingCount: 280,
+            experienceCount: 12,
+            completionCount: 44,
+            isVerified: summary.isVerified
+        )
+    }
+
+    static func trendingCreators(for cityID: UUID) -> [Profile] {
+        let creatorIDs = Set(experiences.filter { $0.cityID == cityID }.map(\.creator.id))
+        let matched = creators
+            .filter { creatorIDs.contains($0.id) }
+            .map(profile(for:))
+            .sorted { $0.followerCount > $1.followerCount }
+
+        if !matched.isEmpty { return matched }
+
+        // Fallback so empty cities still show a compact creators strip in demos.
+        return Array(creators.prefix(4).map(profile(for:)))
+    }
 
     static func fullExperience(for summary: ExperienceSummary) -> Experience {
         Experience(
@@ -204,11 +348,11 @@ enum MockData {
             coverImageURL: summary.coverImageURL,
             durationMinutes: summary.durationMinutes,
             costLevel: summary.costLevel,
-            estimatedCostUSD: 45,
+            estimatedCostUSD: summary.estimatedCostUSD ?? 45,
             transportMode: .walking,
             totalDistanceMeters: 4200,
             saveCount: summary.saveCount,
-            likeCount: summary.saveCount / 2,
+            likeCount: summary.likeCount,
             completionCount: summary.completionCount,
             commentCount: 48,
             isPublished: true,

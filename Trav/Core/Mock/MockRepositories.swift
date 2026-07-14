@@ -16,6 +16,10 @@ struct MockCityRepository: CityRepository {
     func fetchFeaturedExperience(cityID: UUID) async throws -> ExperienceSummary? {
         MockData.experiences.first { $0.cityID == cityID }
     }
+
+    func fetchTrendingCreators(cityID: UUID) async throws -> [Profile] {
+        MockData.trendingCreators(for: cityID)
+    }
 }
 
 struct MockExperienceRepository: ExperienceRepository {
@@ -34,19 +38,7 @@ struct MockExperienceRepository: ExperienceRepository {
 
 struct MockAuthRepository: AuthRepository {
     func signIn(email: String, password: String) async throws -> Profile {
-        Profile(
-            id: MockData.creators[0].id,
-            username: MockData.creators[0].username,
-            displayName: MockData.creators[0].displayName,
-            bio: "Exploring cities one experience at a time.",
-            avatarURL: MockData.creators[0].avatarURL,
-            homeCityID: MockData.cities[0].id,
-            followerCount: 1240,
-            followingCount: 342,
-            experienceCount: 18,
-            completionCount: 67,
-            isVerified: true
-        )
+        MockData.profile(for: MockData.creators[0])
     }
 
     func signUp(email: String, password: String) async throws {}

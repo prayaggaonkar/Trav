@@ -48,10 +48,13 @@ enum TravLayout {
     static let buttonHeight: CGFloat = 52
     static let minTouchTarget: CGFloat = 44
     static let tabBarIconSize: CGFloat = 22
-    static let heroCityHeight: CGFloat = 320
+    static let heroCityHeight: CGFloat = 380
     static let heroExperienceHeight: CGFloat = 360
-    static let cardImageHeight: CGFloat = 160
-    static let featuredCardHeight: CGFloat = 200
+    static let cardImageHeight: CGFloat = 220
+    static let feedCardImageHeight: CGFloat = 280
+    static let featuredCardHeight: CGFloat = 360
+    static let citySearchHeight: CGFloat = 48
+    static let creatorCardWidth: CGFloat = 112
 }
 
 enum TravIcon {
@@ -106,6 +109,19 @@ enum TravFormatters {
     }
 
     static func count(_ count: Int) -> String {
-        count >= 1000 ? String(format: "%.1fk", Double(count) / 1000) : "\(count)"
+        if count >= 1_000_000 {
+            return String(format: "%.1fM", Double(count) / 1_000_000)
+        }
+        if count >= 1000 {
+            let value = Double(count) / 1000
+            return value.truncatingRemainder(dividingBy: 1) == 0
+                ? String(format: "%.0fk", value)
+                : String(format: "%.1fk", value)
+        }
+        return "\(count)"
+    }
+
+    static func groupedCount(_ count: Int) -> String {
+        count.formatted(.number.grouping(.automatic))
     }
 }

@@ -41,9 +41,19 @@ struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
     var creator: ProfileSummary
     var durationMinutes: Int
     var costLevel: CostLevel
+    var estimatedCostUSD: Decimal?
     var saveCount: Int
+    var likeCount: Int
     var completionCount: Int
     var stops: [StopPreview]
+
+    var costLabel: String {
+        if let estimatedCostUSD {
+            let dollars = NSDecimalNumber(decimal: estimatedCostUSD).intValue
+            return dollars == 0 ? "Free" : "$\(dollars)"
+        }
+        return costLevel.displayName
+    }
 }
 
 struct StopPreview: Identifiable, Codable, Sendable, Hashable {
