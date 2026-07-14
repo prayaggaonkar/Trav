@@ -52,6 +52,7 @@ struct ExperienceDetailView: View {
                     .travAppear(delay: 0.18)
             }
             .padding(.bottom, TravSpacing.xxl)
+            .safeAreaPadding(.bottom, TravSpacing.sm)
         }
         .ignoresSafeArea(edges: .top)
     }
@@ -63,14 +64,21 @@ struct ExperienceDetailView: View {
                 Text(experience.title)
                     .font(TravTypography.displayMedium())
                     .foregroundStyle(.white)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: TravSpacing.xs) {
                     AvatarView(url: experience.creator.avatarURL, size: 32)
                     Text(experience.creator.displayName)
                         .font(TravTypography.bodyMedium())
                         .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.9)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -108,11 +116,14 @@ struct ExperienceDetailView: View {
             Text(experience.description)
                 .font(TravTypography.bodyMedium())
                 .foregroundStyle(TravColors.muted)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
 
             RoutePreview(stops: experience.stops.map {
                 StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji)
             })
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, TravSpacing.screenHorizontal)
         .padding(.bottom, TravSpacing.xl)
     }
@@ -158,35 +169,53 @@ private struct StopTimelineRow: View {
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                HStack(spacing: TravSpacing.xxs) {
+                HStack(alignment: .firstTextBaseline, spacing: TravSpacing.xxs) {
                     if let emoji = stop.emoji { Text(emoji) }
                     Text(stop.name)
                         .font(TravTypography.titleMedium())
                         .foregroundStyle(TravColors.primary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.9)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Text(stop.description)
                     .font(TravTypography.bodyMedium())
                     .foregroundStyle(TravColors.muted)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let notes = stop.creatorNotes {
                     Text(notes)
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.accent)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                         .padding(TravSpacing.sm)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .background(TravColors.accentSoft)
                         .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
                 }
 
-                HStack(spacing: TravSpacing.sm) {
-                    if let time = stop.recommendedTime {
-                        Label(time, systemImage: "sun.max")
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: TravSpacing.sm) {
+                        if let time = stop.recommendedTime {
+                            Label(time, systemImage: "sun.max")
+                        }
+                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
                     }
-                    Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
+                    VStack(alignment: .leading, spacing: TravSpacing.xxs) {
+                        if let time = stop.recommendedTime {
+                            Label(time, systemImage: "sun.max")
+                        }
+                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
+                    }
                 }
                 .font(TravTypography.caption())
                 .foregroundStyle(TravColors.muted)
+                .lineLimit(1)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
     }

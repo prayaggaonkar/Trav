@@ -16,6 +16,10 @@ struct PrimaryButton: View {
                     Text(title)
                         .font(TravTypography.titleMedium())
                         .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, TravSpacing.sm)
                 }
             }
             .frame(maxWidth: .infinity)

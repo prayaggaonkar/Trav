@@ -35,6 +35,8 @@ enum TravSpacing {
     static let hero: CGFloat = 64
     static let screenHorizontal: CGFloat = 20
     static let tabBarBottom: CGFloat = 8
+    /// Extra inset so card shadows stay inside the screen.
+    static let cardShadowGutter: CGFloat = 4
 }
 
 enum TravRadius {
@@ -49,12 +51,16 @@ enum TravLayout {
     static let minTouchTarget: CGFloat = 44
     static let tabBarIconSize: CGFloat = 22
     static let heroCityHeight: CGFloat = 380
+    static let heroCityHeightMin: CGFloat = 280
     static let heroExperienceHeight: CGFloat = 360
     static let cardImageHeight: CGFloat = 220
-    static let feedCardImageHeight: CGFloat = 280
-    static let featuredCardHeight: CGFloat = 360
-    static let citySearchHeight: CGFloat = 48
-    static let creatorCardWidth: CGFloat = 112
+    static let feedCardImageHeight: CGFloat = 260
+    static let featuredCardHeight: CGFloat = 300
+    static let citySearchHeight: CGFloat = 52
+    static let creatorCardWidth: CGFloat = 100
+    static let glassIconSize: CGFloat = 34
+    static let sectionSpacing: CGFloat = TravSpacing.xl
+    static let cardContentSpacing: CGFloat = TravSpacing.sm
 }
 
 enum TravIcon {

@@ -33,6 +33,9 @@ struct AuthSheetView: View {
                         Text(errorMessage)
                             .font(TravTypography.caption())
                             .foregroundStyle(TravColors.error)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
 
@@ -49,9 +52,10 @@ struct AuthSheetView: View {
                     footerLinks
                         .travAppear(delay: 0.25)
                 }
-                .padding(TravSpacing.screenHorizontal)
+                .padding(.horizontal, TravSpacing.screenHorizontal)
                 .padding(.top, TravSpacing.md)
                 .padding(.bottom, TravSpacing.xl)
+                .safeAreaPadding(.bottom, TravSpacing.sm)
             }
             .travScreenBackground()
             .navigationBarTitleDisplayMode(.inline)
@@ -71,10 +75,14 @@ struct AuthSheetView: View {
             Text("Welcome to Trav")
                 .font(TravTypography.displayMedium())
                 .foregroundStyle(TravColors.primary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.9)
             Text("Discover real experiences from real people.")
                 .font(TravTypography.bodyMedium())
                 .foregroundStyle(TravColors.muted)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var modePicker: some View {
@@ -117,6 +125,7 @@ struct AuthSheetView: View {
                 .font(TravTypography.caption())
                 .foregroundStyle(TravColors.muted)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
     }

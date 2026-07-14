@@ -46,9 +46,12 @@ struct CreateExperienceView: View {
                     Text("Create Experience")
                         .font(TravTypography.displayMedium())
                         .foregroundStyle(TravColors.primary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.9)
                     Text("Map your favorite stops and share them with the world.")
                         .font(TravTypography.bodyMedium())
                         .foregroundStyle(TravColors.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.top, TravSpacing.md)
                 .travAppear()
@@ -82,7 +85,9 @@ struct CreateExperienceView: View {
                                 }
                             }
                         }
+                        .padding(.horizontal, TravSpacing.screenHorizontal)
                     }
+                    .padding(.horizontal, -TravSpacing.screenHorizontal)
                 }
                 .travAppear(delay: 0.1)
 
@@ -96,7 +101,9 @@ struct CreateExperienceView: View {
                                         Text(stop.name)
                                             .font(TravTypography.bodyMedium())
                                             .foregroundStyle(TravColors.primary)
-                                        Spacer()
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.9)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
                                         Button {
                                             withAnimation(TravAnimation.quick) {
                                                 stops.removeAll { $0.id == stop.id }
@@ -105,7 +112,9 @@ struct CreateExperienceView: View {
                                             Image(systemName: "minus.circle.fill")
                                                 .foregroundStyle(TravColors.error.opacity(0.85))
                                                 .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
+                                                .contentShape(Rectangle())
                                         }
+                                        .accessibilityLabel("Remove \(stop.name)")
                                     }
                                     .padding(TravSpacing.md)
                                     .background(TravColors.surfaceElevated)
@@ -159,13 +168,14 @@ struct CreateExperienceView: View {
                 .travAppear(delay: 0.2)
             }
             .padding(.horizontal, TravSpacing.screenHorizontal)
-            .padding(.bottom, TravSpacing.lg)
+            .padding(.bottom, TravSpacing.xl)
+            .safeAreaPadding(.bottom, TravSpacing.sm)
         }
     }
 
     private var successView: some View {
         VStack(spacing: TravSpacing.xl) {
-            Spacer()
+            Spacer(minLength: TravSpacing.lg)
 
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 72))
@@ -176,20 +186,23 @@ struct CreateExperienceView: View {
                 Text("Experience Published!")
                     .font(TravTypography.displayMedium())
                     .foregroundStyle(TravColors.primary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.9)
                 Text("Your itinerary \"\(title)\" is now live on the globe of \(selectedCity?.name ?? "the world")!")
                     .font(TravTypography.bodyMedium())
                     .foregroundStyle(TravColors.muted)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, TravSpacing.xl)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             PrimaryButton(title: "Create Another") {
                 resetForm()
             }
-            .padding(.horizontal, TravSpacing.xl)
 
-            Spacer()
+            Spacer(minLength: TravSpacing.lg)
         }
+        .padding(.horizontal, TravSpacing.screenHorizontal)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 

@@ -10,6 +10,8 @@ struct StatPill: View {
                 .font(.system(size: TravIcon.sm - 3, weight: .medium))
             Text(value)
                 .font(TravTypography.caption())
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
         }
         .foregroundStyle(TravColors.muted)
         .padding(.horizontal, TravSpacing.xs)

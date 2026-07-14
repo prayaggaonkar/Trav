@@ -35,7 +35,7 @@ struct RoutePreview: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 2 : 4) {
+        VStack(alignment: .leading, spacing: compact ? TravSpacing.xxs / 2 : TravSpacing.xxs) {
             ForEach(Array(visibleStops.enumerated()), id: \.element.id) { index, stop in
                 HStack(spacing: TravSpacing.xs) {
                     Text(stop.emoji ?? "📍")
@@ -45,16 +45,16 @@ struct RoutePreview: View {
                         .font(nameFont)
                         .foregroundStyle(style.titleColor)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 if index < visibleStops.count - 1 {
-                    HStack(spacing: 0) {
-                        Text("↓")
-                            .font(.system(size: connectorSize, weight: .medium))
-                            .foregroundStyle(style.connectorColor)
-                            .padding(.leading, compact ? 4 : 6)
-                        Spacer(minLength: 0)
-                    }
+                    Text("↓")
+                        .font(.system(size: connectorSize, weight: .medium))
+                        .foregroundStyle(style.connectorColor)
+                        .padding(.leading, compact ? TravSpacing.xxs : TravSpacing.xs)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
 
@@ -63,8 +63,10 @@ struct RoutePreview: View {
                     .font(TravTypography.caption())
                     .foregroundStyle(style.moreColor)
                     .padding(.leading, TravSpacing.xs)
+                    .lineLimit(1)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var visibleStops: [StopPreview] {

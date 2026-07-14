@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct GlobeLandingView: View {
     @Environment(AppEnvironment.self) private var environment
@@ -26,23 +25,20 @@ struct GlobeLandingView: View {
             .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                Color.clear
-                    .frame(height: topOverlayPadding)
-                    .allowsHitTesting(false)
-
                 header
-                    .offset(y: -20)
+                    .padding(.top, TravSpacing.sm)
 
                 Spacer(minLength: 0)
                     .allowsHitTesting(false)
 
                 bottomCTA
+                    .padding(.bottom, TravSpacing.md)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.horizontal, TravSpacing.screenHorizontal)
-            .padding(.bottom, 100)
+            .safeAreaPadding(.top, TravSpacing.xs)
+            .safeAreaPadding(.bottom, TravSpacing.xs)
         }
-        .onAppear(perform: refreshTopOverlayPadding)
         .task {
             guard viewModel == nil else { return }
             let vm = GlobeViewModel(
@@ -57,55 +53,63 @@ struct GlobeLandingView: View {
         }
     }
 
-    private func refreshTopOverlayPadding() {
-        let safeTop = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first(where: \.isKeyWindow)?
-            .safeAreaInsets.top ?? 59
-        topOverlayPadding = safeTop + Self.headerTopInset
-    }
-
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .top, spacing: TravSpacing.md) {
+            VStack(alignment: .leading, spacing: TravSpacing.xxs) {
                 Text("Trav")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+
                 Text("What should you do today?")
                     .font(TravTypography.bodyMedium())
                     .foregroundStyle(.white.opacity(0.75))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.9)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
+
             if !session.isAuthenticated {
                 Button { showOnboarding = true } label: {
                     Text("Sign In")
                         .font(TravTypography.labelMedium())
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .lineLimit(1)
+                        .padding(.horizontal, TravSpacing.md)
+                        .frame(minHeight: TravLayout.minTouchTarget)
                         .background(.white.opacity(0.15))
                         .clipShape(Capsule())
                 }
+                .buttonStyle(TravPressButtonStyle(scale: 0.96))
+                .accessibilityLabel("Sign In")
             }
         }
     }
 
     private var bottomCTA: some View {
-        VStack(spacing: TravSpacing.sm) {
+        VStack(alignment: .leading, spacing: TravSpacing.sm) {
             if case let .loaded(cities) = viewModel?.loadState {
                 Text("Tap a glowing city to explore")
                     .font(TravTypography.labelMedium())
                     .foregroundStyle(.white.opacity(0.6))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.9)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: TravSpacing.sm) {
                         ForEach(cities.prefix(6)) { city in
                             CityChip(city: city) { viewModel?.selectCity(city) }
                         }
                     }
+                    .padding(.vertical, TravSpacing.xxs)
                 }
             } else if case .loading = viewModel?.loadState {
-                ProgressView().tint(.white)
+                ProgressView()
+                    .tint(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, TravSpacing.sm)
             }
         }
     }
@@ -117,15 +121,22 @@ private struct CityChip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
-                Circle().fill(TravColors.accent).frame(width: 6, height: 6)
-                Text(city.name).font(TravTypography.labelMedium()).foregroundStyle(.white)
+            HStack(spacing: TravSpacing.xs) {
+                Circle()
+                    .fill(TravColors.accent)
+                    .frame(width: 6, height: 6)
+                Text(city.name)
+                    .font(TravTypography.labelMedium())
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, TravSpacing.sm + TravSpacing.xxs)
+            .frame(minHeight: 36)
             .background(Color.white.opacity(0.12))
             .clipShape(Capsule())
+            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TravPressButtonStyle(scale: 0.96))
+        .accessibilityLabel(city.name)
     }
 }

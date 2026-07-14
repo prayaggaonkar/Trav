@@ -18,32 +18,25 @@ struct CityPageView: View {
 
     var body: some View {
         NavigationStack {
-            GeometryReader { geometry in
-                let computedHero = max(TravLayout.heroCityHeight, geometry.size.height * 0.36)
+            ZStack {
+                TravColors.surface.ignoresSafeArea()
 
-                Group {
-                    switch viewModel.phase {
-                    case .loading:
-                        CityPageSkeleton()
-                    case .empty:
-                        EmptyStateView(
-                            icon: "map",
-                            title: "No Experiences Yet",
-                            description: "This city doesn't have any published experiences. Check back soon."
-                        )
-                    case let .loaded(content):
-                        loadedContent(content, heroHeight: computedHero)
-                            .onAppear { heroHeight = computedHero }
-                            .onChange(of: computedHero) { _, newValue in
-                                heroHeight = newValue
-                            }
-                    case let .failed(error):
-                        ErrorStateView(message: error.localizedDescription) {
-                            Task { await viewModel.load(using: environment) }
-                        }
+                switch viewModel.phase {
+                case .loading:
+                    CityPageSkeleton()
+                case .empty:
+                    EmptyStateView(
+                        icon: "map",
+                        title: "No Experiences Yet",
+                        description: "This city doesn't have any published experiences. Check back soon."
+                    )
+                case let .loaded(content):
+                    loadedContent(content)
+                case let .failed(error):
+                    ErrorStateView(message: error.localizedDescription) {
+                        Task { await viewModel.load(using: environment) }
                     }
                 }
-                .travScreenBackground()
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -58,12 +51,14 @@ struct CityPageView: View {
                         Text(content.city.name)
                             .font(TravTypography.titleMedium())
                             .foregroundStyle(TravColors.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
                 }
             }
             .toolbarBackground(showsNavTitle ? .visible : .hidden, for: .navigationBar)
-            .toolbarBackground(TravColors.surface.opacity(0.92), for: .navigationBar)
+            .toolbarBackground(TravColors.surface.opacity(0.94), for: .navigationBar)
             .animation(TravAnimation.quick, value: showsNavTitle)
         }
         .sheet(item: $sharePayload) { payload in
@@ -74,55 +69,85 @@ struct CityPageView: View {
         }
     }
 
+    private static func resolvedHeroHeight(for screenHeight: CGFloat) -> CGFloat {
+        min(
+            TravLayout.heroCityHeight,
+            max(TravLayout.heroCityHeightMin, screenHeight * 0.34)
+        )
+    }
+
     @ViewBuilder
-    private func loadedContent(_ content: CityViewModel.Content, heroHeight: CGFloat) -> some View {
+    private func loadedContent(_ content: CityViewModel.Content) -> some View {
         let feed = viewModel.filteredFeed(from: content)
 
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                GeometryReader { proxy in
+        GeometryReader { geometry in
+            let resolvedHero = Self.resolvedHeroHeight(for: geometry.size.height)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
                     Color.clear
-                        .preference(
-                            key: CityScrollOffsetKey.self,
-                            value: -proxy.frame(in: .named("cityScroll")).minY
-                        )
-                }
-                .frame(height: 0)
+                        .frame(height: 0)
+                        .onAppear { heroHeight = resolvedHero }
+                        .onChange(of: resolvedHero) { _, newValue in
+                            heroHeight = newValue
+                        }
+                        .background {
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: CityScrollOffsetKey.self,
+                                    value: -proxy.frame(in: .named("cityScroll")).minY
+                                )
+                            }
+                        }
 
-                heroSection(content.city, height: heroHeight)
-                    .travAppear()
+                    heroSection(content.city, height: resolvedHero)
+                        .frame(width: geometry.size.width)
+                        .travAppear()
 
-                VStack(alignment: .leading, spacing: TravSpacing.xl) {
-                    CitySearchBar(text: $viewModel.searchQuery, cityName: content.city.name)
-                        .padding(.horizontal, TravSpacing.screenHorizontal)
-                        .travAppear(delay: 0.05)
+                    VStack(alignment: .leading, spacing: TravSpacing.lg) {
+                        CitySearchBar(text: $viewModel.searchQuery, cityName: content.city.name)
+                            .travAppear(delay: 0.05)
 
-                    if let featured = content.featured, viewModel.searchQuery.isEmpty {
-                        featuredSection(featured, cityName: content.city.name)
-                            .travAppear(delay: 0.08)
+                        if let featured = content.featured, viewModel.searchQuery.isEmpty {
+                            featuredSection(featured, cityName: content.city.name)
+                                .travAppear(delay: 0.08)
+                        }
                     }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                    .padding(.top, TravSpacing.lg)
+                    .frame(width: geometry.size.width, alignment: .leading)
 
                     if !content.creators.isEmpty, viewModel.searchQuery.isEmpty {
                         TrendingCreatorsSection(creators: content.creators) { creator in
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             router.openProfile(creator.username)
                         }
+                        .padding(.top, TravSpacing.lg)
                         .travAppear(delay: 0.11)
                     }
 
                     feedSection(feed, cityName: content.city.name)
+                        .padding(.horizontal, TravSpacing.screenHorizontal)
+                        .padding(.top, TravSpacing.lg)
+                        .frame(width: geometry.size.width, alignment: .leading)
                         .travAppear(delay: 0.14)
+
+                    Color.clear
+                        .frame(height: TravSpacing.xxl)
+                        .safeAreaPadding(.bottom, TravSpacing.sm)
                 }
-                .padding(.top, TravSpacing.lg)
-                .padding(.bottom, TravSpacing.xxl)
+                .frame(maxWidth: geometry.size.width, alignment: .leading)
             }
+            .coordinateSpace(name: "cityScroll")
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .clipped()
+            .ignoresSafeArea(edges: .top)
+            .onPreferenceChange(CityScrollOffsetKey.self) { value in
+                scrollOffset = value
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .onAppear { heroHeight = resolvedHero }
         }
-        .coordinateSpace(name: "cityScroll")
-        .ignoresSafeArea(edges: .top)
-        .onPreferenceChange(CityScrollOffsetKey.self) { value in
-            scrollOffset = value
-        }
-        .scrollDismissesKeyboard(.interactively)
     }
 
     @ViewBuilder
@@ -132,10 +157,10 @@ struct CityPageView: View {
 
             LinearGradient(
                 colors: [
-                    .black.opacity(0.15),
+                    .black.opacity(0.25),
                     .clear,
                     .black.opacity(0.55),
-                    .black.opacity(0.88)
+                    .black.opacity(0.9)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -145,17 +170,25 @@ struct CityPageView: View {
                 Text(city.locationLabel)
                     .font(TravTypography.displayLarge())
                     .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.35), radius: 8, y: 2)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.78)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 VStack(alignment: .leading, spacing: TravSpacing.xxs) {
                     Text("\(TravFormatters.groupedCount(city.experienceCount)) Experiences")
                         .font(TravTypography.titleMedium())
                         .foregroundStyle(.white.opacity(0.92))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                     Text("\(TravFormatters.groupedCount(city.creatorCount)) Creators")
                         .font(TravTypography.bodyMedium())
                         .foregroundStyle(.white.opacity(0.78))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, TravSpacing.screenHorizontal)
             .padding(.bottom, TravSpacing.xl)
         }
@@ -166,47 +199,46 @@ struct CityPageView: View {
 
     @ViewBuilder
     private func featuredSection(_ featured: ExperienceSummary, cityName: String) -> some View {
-        VStack(alignment: .leading, spacing: TravSpacing.sm) {
-            FeaturedExperienceCard(
-                experience: featured,
-                isSaved: viewModel.isSaved(featured.id),
-                isLiked: viewModel.isLiked(featured.id),
-                onTap: {
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    router.openExperience(featured.id)
-                },
-                onCreatorTap: {
-                    router.openProfile(featured.creator.username)
-                },
-                onSave: { viewModel.toggleSave(for: featured.id) },
-                onLike: { viewModel.toggleLike(for: featured.id) },
-                onShare: {
-                    sharePayload = SharePayload(
-                        text: viewModel.shareText(for: featured, cityName: cityName)
-                    )
-                }
-            )
-            .padding(.horizontal, TravSpacing.screenHorizontal)
-        }
+        FeaturedExperienceCard(
+            experience: featured,
+            isSaved: viewModel.isSaved(featured.id),
+            isLiked: viewModel.isLiked(featured.id),
+            onTap: {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                router.openExperience(featured.id)
+            },
+            onCreatorTap: {
+                router.openProfile(featured.creator.username)
+            },
+            onSave: { viewModel.toggleSave(for: featured.id) },
+            onLike: { viewModel.toggleLike(for: featured.id) },
+            onShare: {
+                sharePayload = SharePayload(
+                    text: viewModel.shareText(for: featured, cityName: cityName)
+                )
+            }
+        )
     }
 
     @ViewBuilder
     private func feedSection(_ feed: [ExperienceSummary], cityName: String) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-            HStack {
+            HStack(alignment: .firstTextBaseline, spacing: TravSpacing.sm) {
                 Text(viewModel.searchQuery.isEmpty ? "Experiences" : "Results")
                     .font(TravTypography.titleLarge())
                     .foregroundStyle(TravColors.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
 
-                Spacer()
+                Spacer(minLength: TravSpacing.sm)
 
                 if !feed.isEmpty {
                     Text("\(feed.count)")
                         .font(TravTypography.labelMedium())
                         .foregroundStyle(TravColors.muted)
+                        .lineLimit(1)
                 }
             }
-            .padding(.horizontal, TravSpacing.screenHorizontal)
 
             if feed.isEmpty {
                 Text(viewModel.searchQuery.isEmpty
@@ -214,10 +246,10 @@ struct CityPageView: View {
                     : "No experiences match your search.")
                     .font(TravTypography.bodyMedium())
                     .foregroundStyle(TravColors.muted)
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
-                    .padding(.top, TravSpacing.sm)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
-                LazyVStack(spacing: TravSpacing.lg) {
+                LazyVStack(spacing: TravSpacing.md) {
                     ForEach(Array(feed.enumerated()), id: \.element.id) { index, experience in
                         ExperienceCard(
                             experience: experience,
@@ -238,12 +270,12 @@ struct CityPageView: View {
                                 )
                             }
                         )
-                        .padding(.horizontal, TravSpacing.screenHorizontal)
                         .travAppear(delay: Double(min(index, 6)) * 0.04)
                     }
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

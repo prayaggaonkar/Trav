@@ -58,8 +58,14 @@ struct DismissButton: View {
                 .font(.system(size: TravIcon.sm, weight: .semibold))
                 .foregroundStyle(TravColors.primary)
                 .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
-                .background(TravColors.surfaceElevated)
-                .clipShape(Circle())
+                .background(
+                    Circle()
+                        .fill(TravColors.surfaceElevated)
+                )
+                .overlay {
+                    Circle()
+                        .strokeBorder(TravColors.border, lineWidth: 1.5)
+                }
         }
         .buttonStyle(TravPressButtonStyle(scale: 0.94))
         .accessibilityLabel("Close")
@@ -133,6 +139,8 @@ struct SelectionChip: View {
             Text(title)
                 .font(TravTypography.labelMedium())
                 .foregroundStyle(isSelected ? .white : TravColors.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
                 .padding(.horizontal, TravSpacing.md)
                 .frame(minHeight: TravLayout.minTouchTarget)
                 .background(isSelected ? TravColors.accent : TravColors.surfaceElevated)
@@ -144,6 +152,105 @@ struct SelectionChip: View {
         }
         .buttonStyle(TravPressButtonStyle(scale: 0.96))
         .animation(TravAnimation.quick, value: isSelected)
+    }
+}
+
+// MARK: - Glass Icon Button
+
+struct TravGlassIconButton: View {
+    let systemName: String
+    var tint: Color = .white
+    var material = true
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: TravLayout.glassIconSize, height: TravLayout.glassIconSize)
+                .background {
+                    ZStack {
+                        if material {
+                            Circle().fill(.black.opacity(0.5))
+                            Circle().fill(.ultraThinMaterial)
+                        } else {
+                            Circle().fill(TravColors.surfaceElevated)
+                        }
+                    }
+                }
+                .overlay {
+                    Circle().strokeBorder(
+                        material ? .white.opacity(0.55) : TravColors.border,
+                        lineWidth: 1.25
+                    )
+                }
+        }
+        .buttonStyle(TravPressButtonStyle(scale: 0.9))
+        .frame(width: TravLayout.glassIconSize, height: TravLayout.glassIconSize)
+    }
+}
+
+// MARK: - Social Proof
+
+struct TravSocialProofRow: View {
+    let saveCount: Int
+    let completionCount: Int
+    var isSaved: Bool = false
+    var style: Style = .standard
+
+    enum Style {
+        case standard
+        case onDark
+
+        var saveColor: Color {
+            switch self {
+            case .standard: TravColors.muted
+            case .onDark: .white.opacity(0.78)
+            }
+        }
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: TravSpacing.md) {
+                saveLabel
+                completionLabel
+            }
+            VStack(alignment: .leading, spacing: TravSpacing.xxs) {
+                saveLabel
+                completionLabel
+            }
+        }
+    }
+
+    private var saveLabel: some View {
+        Label {
+            Text("\(TravFormatters.count(saveCount)) Saved")
+                .font(TravTypography.caption())
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        } icon: {
+            Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(style.saveColor)
+        .labelStyle(.titleAndIcon)
+    }
+
+    private var completionLabel: some View {
+        Label {
+            Text("\(TravFormatters.count(completionCount)) Completed")
+                .font(TravTypography.labelMedium())
+                .fontWeight(.semibold)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        } icon: {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 12, weight: .semibold))
+        }
+        .foregroundStyle(TravColors.success)
+        .labelStyle(.titleAndIcon)
     }
 }
 
@@ -174,22 +281,23 @@ struct EmptyStateView: View {
                     .font(TravTypography.displayMedium())
                     .foregroundStyle(TravColors.primary)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text(description)
                     .font(TravTypography.bodyMedium())
                     .foregroundStyle(TravColors.muted)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, TravSpacing.xl)
 
             if let actionTitle, let action {
                 PrimaryButton(title: actionTitle, action: action)
-                    .padding(.horizontal, TravSpacing.xl)
                     .padding(.top, TravSpacing.sm)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, TravSpacing.screenHorizontal)
+        .padding(.vertical, TravSpacing.lg)
         .onAppear {
             withAnimation(TravAnimation.enter) { appeared = true }
         }
@@ -210,10 +318,12 @@ struct ErrorStateView: View {
                 .font(TravTypography.bodyMedium())
                 .foregroundStyle(TravColors.muted)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
 
             PrimaryButton(title: "Try Again", action: retry)
         }
-        .padding(TravSpacing.screenHorizontal)
+        .padding(.horizontal, TravSpacing.screenHorizontal)
+        .padding(.vertical, TravSpacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -226,31 +336,36 @@ struct RemoteImage: View {
     var cornerRadius: CGFloat = TravRadius.md
 
     var body: some View {
-        Group {
-            if let url {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().scaledToFill()
-                    case .failure:
-                        placeholder
-                    case .empty:
-                        placeholder.overlay { ProgressView().tint(TravColors.muted) }
-                    @unknown default:
-                        placeholder
-                    }
-                }
-            } else {
-                placeholder
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(TravColors.surfaceElevated)
+            .frame(height: height)
+            .frame(maxWidth: .infinity)
+            .overlay {
+                imageContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-        }
-        .frame(height: height)
-        .frame(maxWidth: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .clipped()
     }
 
-    private var placeholder: some View {
-        Rectangle().fill(TravColors.surfaceElevated)
+    @ViewBuilder
+    private var imageContent: some View {
+        if let url {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    EmptyView()
+                case .empty:
+                    ProgressView().tint(TravColors.muted)
+                @unknown default:
+                    EmptyView()
+                }
+            }
+        }
     }
 }
 
@@ -271,7 +386,8 @@ struct HeroImageHeader<Overlay: View>: View {
             .frame(height: height)
 
             overlay()
-                .padding(TravSpacing.screenHorizontal)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, TravSpacing.screenHorizontal)
                 .padding(.bottom, TravSpacing.lg)
         }
         .frame(height: height)
@@ -365,42 +481,45 @@ struct TravActionButton: View {
 struct CityPageSkeleton: View {
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: TravSpacing.lg) {
-                SkeletonView(height: TravLayout.heroCityHeight, cornerRadius: 0)
+            VStack(alignment: .leading, spacing: TravLayout.sectionSpacing) {
+                SkeletonView(height: TravLayout.heroCityHeightMin, cornerRadius: 0)
 
-                SkeletonView(height: TravLayout.citySearchHeight, cornerRadius: TravRadius.xl)
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                VStack(alignment: .leading, spacing: TravLayout.sectionSpacing) {
+                    SkeletonView(height: TravLayout.citySearchHeight, cornerRadius: TravRadius.xl)
+                        .padding(.horizontal, TravSpacing.screenHorizontal)
 
-                SkeletonView(height: TravLayout.featuredCardHeight, cornerRadius: TravRadius.xl)
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                    SkeletonView(height: TravLayout.featuredCardHeight, cornerRadius: TravRadius.xl)
+                        .padding(.horizontal, TravSpacing.screenHorizontal)
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: TravSpacing.md) {
-                        ForEach(0..<4, id: \.self) { _ in
-                            VStack(spacing: TravSpacing.xs) {
-                                SkeletonView(height: 64, cornerRadius: 32)
-                                    .frame(width: 64)
-                                SkeletonView(height: 12, cornerRadius: TravRadius.sm)
-                                SkeletonView(height: 10, cornerRadius: TravRadius.sm)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: TravSpacing.md) {
+                            ForEach(0..<4, id: \.self) { _ in
+                                VStack(spacing: TravSpacing.xs) {
+                                    SkeletonView(height: 64, cornerRadius: 32)
+                                        .frame(width: 64)
+                                    SkeletonView(height: 12, cornerRadius: TravRadius.sm)
+                                    SkeletonView(height: 10, cornerRadius: TravRadius.sm)
+                                }
+                                .frame(width: TravLayout.creatorCardWidth)
                             }
-                            .frame(width: TravLayout.creatorCardWidth)
                         }
+                        .padding(.horizontal, TravSpacing.screenHorizontal)
                     }
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
-                }
 
-                ForEach(0..<3, id: \.self) { _ in
-                    VStack(alignment: .leading, spacing: TravSpacing.sm) {
-                        SkeletonView(height: TravLayout.feedCardImageHeight, cornerRadius: TravRadius.lg)
-                        SkeletonView(height: 22, cornerRadius: TravRadius.sm)
-                        SkeletonView(height: 14, cornerRadius: TravRadius.sm)
-                        SkeletonView(height: 48, cornerRadius: TravRadius.md)
+                    ForEach(0..<2, id: \.self) { _ in
+                        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+                            SkeletonView(height: TravLayout.feedCardImageHeight, cornerRadius: TravRadius.lg)
+                            SkeletonView(height: 22, cornerRadius: TravRadius.sm)
+                            SkeletonView(height: 14, cornerRadius: TravRadius.sm)
+                            SkeletonView(height: 48, cornerRadius: TravRadius.md)
+                        }
+                        .padding(TravSpacing.md)
+                        .background(TravColors.surfaceElevated.opacity(0.5))
+                        .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
+                        .padding(.horizontal, TravSpacing.screenHorizontal)
                     }
-                    .padding(TravSpacing.sm)
-                    .background(TravColors.surfaceElevated.opacity(0.5))
-                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
                 }
+                .padding(.top, TravSpacing.lg)
             }
             .padding(.bottom, TravSpacing.xxl)
         }
@@ -415,7 +534,7 @@ struct ExperienceDetailSkeleton: View {
                 SkeletonView(height: TravLayout.heroExperienceHeight, cornerRadius: 0)
                 HStack(spacing: TravSpacing.sm) {
                     ForEach(0..<3, id: \.self) { _ in
-                        SkeletonView(height: 52, cornerRadius: TravRadius.md)
+                        SkeletonView(height: TravLayout.buttonHeight, cornerRadius: TravRadius.md)
                     }
                 }
                 .padding(.horizontal, TravSpacing.screenHorizontal)
@@ -424,7 +543,9 @@ struct ExperienceDetailSkeleton: View {
                         .padding(.horizontal, TravSpacing.screenHorizontal)
                 }
             }
+            .padding(.bottom, TravSpacing.xxl)
         }
+        .ignoresSafeArea(edges: .top)
     }
 }
 
@@ -465,6 +586,6 @@ extension View {
 
     func travCardShadow() -> some View {
         let spec = TravShadow.card()
-        return shadow(color: spec.color, radius: spec.radius, y: spec.y)
+        return shadow(color: spec.color.opacity(0.7), radius: min(spec.radius, 8), y: min(spec.y, 3))
     }
 }

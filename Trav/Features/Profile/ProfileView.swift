@@ -25,11 +25,17 @@ struct ProfileView: View {
                         Text("@\(username)")
                             .font(TravTypography.titleLarge())
                             .foregroundStyle(TravColors.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                            .multilineTextAlignment(.center)
 
                         Text("Profile coming in Phase 6")
                             .font(TravTypography.bodyMedium())
                             .foregroundStyle(TravColors.muted)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    .frame(maxWidth: .infinity)
                     .travAppear(delay: 0.06)
 
                     statsPlaceholder
@@ -73,8 +79,12 @@ struct ProfileView: View {
             Text(label)
                 .font(TravTypography.caption())
                 .foregroundStyle(TravColors.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
+        .padding(.horizontal, TravSpacing.xxs)
         .padding(.vertical, TravSpacing.md)
         .background(TravColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
