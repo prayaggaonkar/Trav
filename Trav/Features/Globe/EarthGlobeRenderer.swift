@@ -119,6 +119,19 @@ final class EarthGlobeRenderer {
         SCNTransaction.commit()
     }
 
+    /// Returns the camera to the default wide zoom (full globe in view).
+    func resetZoom(animated: Bool = true) {
+        if animated {
+            SCNTransaction.begin()
+            SCNTransaction.animationDuration = 0.85
+            SCNTransaction.animationTimingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            cameraDistance = Self.maxZoomOutDistance
+            SCNTransaction.commit()
+        } else {
+            cameraDistance = Self.maxZoomOutDistance
+        }
+    }
+
     func handleTap(at point: CGPoint, in view: SCNView) -> Bool {
         let hits = view.hitTest(point, options: [.searchMode: SCNHitTestSearchMode.closest.rawValue])
         for hit in hits {
@@ -137,7 +150,7 @@ final class EarthGlobeRenderer {
     // MARK: - Scene
 
     private func buildScene() {
-        scene.background.contents = loadImage(named: "stars")
+        scene.background.contents = UIColor.clear
 
         buildEarth()
         buildAtmosphere()

@@ -110,6 +110,15 @@ final class EarthGlobeController: NSObject {
         }
     }
 
+    /// Restores the default wide framing after returning from a city.
+    func resetZoom(animated: Bool = true) {
+        isDragging = false
+        pinchStartDistance = nil
+        momentum = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+        renderer.resetZoom(animated: animated)
+        lastInteractionTime = CACurrentMediaTime()
+    }
+
     private func startTickTimer() {
         tickTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }

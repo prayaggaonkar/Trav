@@ -48,4 +48,8 @@ final class GlobeViewModel {
             router?.openCity(city.id)
         }
     }
+
+    func resetZoomAfterReturningHome() {
+        controller.resetZoom(animated: true)
+    }
 }

@@ -18,8 +18,9 @@ struct EarthGlobeView: UIViewRepresentable {
     private func configure(_ view: GlobeSCNView) {
         view.scene = controller.renderer.scene
         view.pointOfView = controller.renderer.cameraNode
-        view.backgroundColor = .black
-        view.isOpaque = true
+        view.backgroundColor = .clear
+        view.isOpaque = false
+        view.layer.isOpaque = false
         view.isMultipleTouchEnabled = true
         view.antialiasingMode = .multisampling4X
         view.preferredFramesPerSecond = 60
