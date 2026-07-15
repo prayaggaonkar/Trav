@@ -33,7 +33,7 @@ struct RootCoordinator: View {
                 TravTabBar(activeTab: $activeTab)
             }
             .sheet(isPresented: $router.isAuthPresented) {
-                AuthSheetView()
+                OnboardingView()
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
                     .presentationCornerRadius(TravRadius.xl)

@@ -7,6 +7,7 @@ struct GlobeLandingView: View {
     @Environment(SessionStore.self) private var session
     @State private var viewModel: GlobeViewModel?
     @State private var topOverlayPadding: CGFloat = 79
+    @State private var showOnboarding = false
 
     /// Extra clearance below the status bar / Dynamic Island.
     private static let headerTopInset: CGFloat = 20
@@ -51,6 +52,9 @@ struct GlobeLandingView: View {
             viewModel = vm
             await vm.loadCities()
         }
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingView()
+        }
     }
 
     private func refreshTopOverlayPadding() {
@@ -74,7 +78,7 @@ struct GlobeLandingView: View {
             }
             Spacer()
             if !session.isAuthenticated {
-                Button { router.presentAuth() } label: {
+                Button { showOnboarding = true } label: {
                     Text("Sign In")
                         .font(TravTypography.labelMedium())
                         .foregroundStyle(.white)
