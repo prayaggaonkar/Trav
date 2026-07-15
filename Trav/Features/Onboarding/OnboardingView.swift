@@ -121,6 +121,10 @@ struct OnboardingBackground: View {
             Color(red: 0.03, green: 0.03, blue: 0.04)
                 .ignoresSafeArea()
             
+            // Subtle Dotted Grid Background
+            DottedGridView()
+                .ignoresSafeArea()
+            
             // Top-right orange glow
             RadialGradient(
                 colors: [TravColors.accent.opacity(0.12), .clear],

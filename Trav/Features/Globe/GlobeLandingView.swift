@@ -58,37 +58,93 @@ struct GlobeLandingView: View {
     }
 
     private var header: some View {
-        ZStack(alignment: .center) {
-            VStack(spacing: TravSpacing.xxs) {
-                Text("TRAV")
-                    .font(.system(size: 32, weight: .black, design: .rounded))
-                    .tracking(12)
-                    .foregroundStyle(TravColors.accent)
-                    .padding(.leading, 12) // Balances the tracking offset on the trailing side
+        HStack(alignment: .center) {
+            // Left Side: Brand Logo and Title
+            HStack(spacing: TravSpacing.sm) {
+                // Violet map pin brand badge
+                ZStack {
+                    Circle()
+                        .fill(TravColors.accent.opacity(0.15))
+                        .frame(width: 46, height: 46)
+                    
+                    Image(systemName: "mappin.circle.fill")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(TravColors.accent)
+                }
                 
-                Text("What's the Move?")
-                    .font(TravTypography.labelMedium())
-                    .foregroundStyle(.white.opacity(0.5))
-                    .lineLimit(1)
-            }
-            
-            if !session.isAuthenticated {
-                HStack {
-                    Spacer()
-                    Button { showOnboarding = true } label: {
-                        Text("Sign In")
-                            .font(TravTypography.labelMedium())
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                            .padding(.horizontal, TravSpacing.md)
-                            .frame(minHeight: TravLayout.minTouchTarget)
-                            .background(.white.opacity(0.15))
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(TravPressButtonStyle(scale: 0.96))
-                    .accessibilityLabel("Sign In")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("TRAV")
+                        .font(.system(size: 22, weight: .black, design: .rounded))
+                        .tracking(3)
+                        .foregroundStyle(.white)
+                    
+                    Text("What's the move?")
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.5))
                 }
             }
+            
+            Spacer()
+            
+            // Right Side: Auth / Profile Action
+            if session.isAuthenticated {
+                Button(action: {
+                    if let username = session.currentUser?.username {
+                        router.presentedRoute = .profile(username)
+                    }
+                }) {
+                    if let avatarURL = session.currentUser?.avatarURL {
+                        AsyncImage(url: avatarURL) { image in
+                            image.resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            defaultAvatar
+                        }
+                        .frame(width: 44, height: 44)
+                        .clipShape(Circle())
+                        .overlay {
+                            Circle().stroke(Color.white.opacity(0.15), lineWidth: 1)
+                        }
+                    } else {
+                        defaultAvatar
+                    }
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.92))
+                .accessibilityLabel("Profile")
+            } else {
+                // Sign In Button
+                Button { showOnboarding = true } label: {
+                    Text("Sign In")
+                        .font(TravTypography.bodyMedium())
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, TravSpacing.lg)
+                        .frame(height: 38)
+                        .background(
+                            Capsule()
+                                .fill(TravColors.accent.opacity(0.15))
+                        )
+                        .overlay {
+                            Capsule()
+                                .stroke(TravColors.accent.opacity(0.3), lineWidth: 1)
+                        }
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.95))
+                .accessibilityLabel("Sign In")
+            }
+        }
+        .padding(.vertical, TravSpacing.sm)
+    }
+
+    private var defaultAvatar: some View {
+        ZStack {
+            Circle()
+                .fill(Color.white.opacity(0.08))
+                .frame(width: 44, height: 44)
+            
+            Image(systemName: "person.fill")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(TravColors.muted)
         }
     }
 
@@ -102,19 +158,58 @@ struct GlobeLandingView: View {
                     .minimumScaleFactor(0.9)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: TravSpacing.sm) {
-                        ForEach(cities.prefix(6)) { city in
-                            CityChip(city: city) { viewModel?.selectCity(city) }
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: TravSpacing.sm) {
+                            let prefixCities = Array(cities.prefix(6))
+                            ForEach(0..<prefixCities.count, id: \.self) { index in
+                                CityChip(city: prefixCities[index]) {
+                                    viewModel?.selectCity(prefixCities[index])
+                                }
+                                .id(index)
+                            }
                         }
+                        .padding(.vertical, TravSpacing.xxs)
                     }
-                    .padding(.vertical, TravSpacing.xxs)
+                    .task {
+                        let count = min(cities.count, 6)
+                        await runAutoScroll(proxy: proxy, count: count)
+                    }
                 }
             } else if case .loading = viewModel?.loadState {
                 ProgressView()
                     .tint(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, TravSpacing.sm)
+            }
+        }
+    }
+
+    private func runAutoScroll(proxy: ScrollViewProxy, count: Int) async {
+        guard count > 1 else { return }
+        
+        var currentIndex = 0
+        var goingForward = true
+        
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            
+            if goingForward {
+                currentIndex += 1
+                if currentIndex >= count {
+                    currentIndex = count - 2
+                    goingForward = false
+                }
+            } else {
+                currentIndex -= 1
+                if currentIndex < 0 {
+                    currentIndex = 1
+                    goingForward = true
+                }
+            }
+            
+            withAnimation(.easeInOut(duration: 1.5)) {
+                proxy.scrollTo(currentIndex, anchor: .center)
             }
         }
     }
@@ -168,10 +263,8 @@ private struct HomeCelestialBackground: View {
                     endRadius: min(size.width, size.height) * 0.55
                 )
 
-                StarFieldCanvas(seed: 42, starCount: 420)
-                // Extra sparse layer of finer dust for depth.
-                StarFieldCanvas(seed: 137, starCount: 180)
-                    .opacity(0.65)
+                // Subtle dotted grid background instead of stars
+                DottedGridView()
             }
             .frame(width: size.width, height: size.height)
         }
@@ -179,75 +272,6 @@ private struct HomeCelestialBackground: View {
     }
 }
 
-private struct StarFieldCanvas: View {
-    let seed: UInt64
-    let starCount: Int
-
-    var body: some View {
-        Canvas { context, size in
-            var rng = SeededGenerator(seed: seed)
-
-            for index in 0..<starCount {
-                let x = CGFloat.random(in: 0...size.width, using: &rng)
-                let y = CGFloat.random(in: 0...size.height, using: &rng)
-
-                // Prefer denser, brighter stars in the upper 60% (darker sky).
-                let verticalBias = 1 - (y / max(size.height, 1))
-                let baseAlpha = Double.random(in: 0.12...0.55, using: &rng) * (0.55 + 0.45 * verticalBias)
-                let radius = CGFloat.random(in: 0.35...1.35, using: &rng)
-                    * (index % 17 == 0 ? 1.7 : 1)
-
-                let coolWhite = Color(
-                    red: 0.86 + Double.random(in: 0...0.1, using: &rng),
-                    green: 0.9 + Double.random(in: 0...0.08, using: &rng),
-                    blue: 1.0,
-                    opacity: min(0.85, baseAlpha)
-                )
-
-                let rect = CGRect(
-                    x: x - radius,
-                    y: y - radius,
-                    width: radius * 2,
-                    height: radius * 2
-                )
-                context.fill(Path(ellipseIn: rect), with: .color(coolWhite))
-
-                // Occasional soft halo on brighter stars.
-                if index % 23 == 0 {
-                    let halo = radius * 2.8
-                    let haloRect = CGRect(
-                        x: x - halo,
-                        y: y - halo,
-                        width: halo * 2,
-                        height: halo * 2
-                    )
-                    context.fill(
-                        Path(ellipseIn: haloRect),
-                        with: .color(coolWhite.opacity(0.12))
-                    )
-                }
-            }
-        }
-        .allowsHitTesting(false)
-    }
-}
-
-/// Deterministic RNG so the starfield doesn’t reshuffle on redraw.
-private struct SeededGenerator: RandomNumberGenerator {
-    private var state: UInt64
-
-    init(seed: UInt64) {
-        state = seed == 0 ? 0xDEAD_BEEF : seed
-    }
-
-    mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
-    }
-}
 
 private struct CityChip: View {
     let city: City

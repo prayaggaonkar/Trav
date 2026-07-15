@@ -589,3 +589,32 @@ extension View {
         return shadow(color: spec.color.opacity(0.7), radius: min(spec.radius, 8), y: min(spec.y, 3))
     }
 }
+
+struct DottedGridView: View {
+    let dotSpacing: CGFloat = 28
+    let dotSize: CGFloat = 2.0
+    
+    var body: some View {
+        Canvas { context, size in
+            let cols = Int(size.width / dotSpacing) + 1
+            let rows = Int(size.height / dotSpacing) + 1
+            
+            for col in 0..<cols {
+                for row in 0..<rows {
+                    let x = CGFloat(col) * dotSpacing
+                    let y = CGFloat(row) * dotSpacing
+                    
+                    let rect = CGRect(
+                        x: x - dotSize / 2,
+                        y: y - dotSize / 2,
+                        width: dotSize,
+                        height: dotSize
+                    )
+                    context.fill(Path(ellipseIn: rect), with: .color(Color.white.opacity(0.12)))
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
