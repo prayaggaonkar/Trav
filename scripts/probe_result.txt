@@ -1,0 +1,15 @@
+n=625 stride=32 texOff=24
+--- axes ---
+-Z xyz=(0.000,0.000,-1.000) uv=(0.000,0.500) lon≈-180.0
+-X xyz=(-1.000,0.000,-0.000) uv=(0.250,0.500) lon≈-90.0
++Z xyz=(-0.000,0.000,1.000) uv=(0.500,0.500) lon≈0.0
++X xyz=(1.000,0.000,0.000) uv=(0.750,0.500) lon≈90.0
+--- formulas ---
+A_sin_cos totalΔ=0.1022 SF:Δ=0.008 Paris:Δ=0.027 Tokyo:Δ=0.023 NYC:Δ=0.021 Sydney:Δ=0.024
+B_neg_both totalΔ=2.5376 SF:Δ=0.495 Paris:Δ=0.514 Tokyo:Δ=0.497 NYC:Δ=0.515 Sydney:Δ=0.517
+C_old_cos totalΔ=1.6265 SF:Δ=0.078 Paris:Δ=0.264 Tokyo:Δ=0.497 NYC:Δ=0.354 Sydney:Δ=0.433
+D_threejs totalΔ=1.3011 SF:Δ=0.258 Paris:Δ=0.264 Tokyo:Δ=0.247 NYC:Δ=0.265 Sydney:Δ=0.267
+E_negx totalΔ=1.2174 SF:Δ=0.328 Paris:Δ=0.027 Tokyo:Δ=0.247 NYC:Δ=0.432 Sydney:Δ=0.183
+F_negz totalΔ=1.4225 SF:Δ=0.175 Paris:Δ=0.514 Tokyo:Δ=0.273 NYC:Δ=0.104 Sydney:Δ=0.357
+G_lonm90 totalΔ=1.3388 SF:Δ=0.245 Paris:Δ=0.277 Tokyo:Δ=0.273 NYC:Δ=0.271 Sydney:Δ=0.274
+H_nlon_sincos totalΔ=1.2174 SF:Δ=0.328 Paris:Δ=0.027 Tokyo:Δ=0.247 NYC:Δ=0.432 Sydney:Δ=0.183

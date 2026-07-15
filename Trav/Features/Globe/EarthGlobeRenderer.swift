@@ -19,7 +19,8 @@ final class EarthGlobeRenderer {
     var onCitySelected: ((City) -> Void)?
 
     /// Default / maximum zoom-out distance (full globe in view).
-    static let maxZoomOutDistance: Float = 5.0
+    /// Default / max zoom-out — 8% closer than 5.0 so the globe reads larger at rest.
+    static let maxZoomOutDistance: Float = 4.63
     /// Minimum zoom-in for 2K textures without visible upscaling blur.
     static let maxZoomInDistance: Float = 2.2
 
@@ -98,13 +99,11 @@ final class EarthGlobeRenderer {
     }
 
     func flyTo(city: City, completion: (() -> Void)? = nil) {
+        let cityDirection = EarthGeo.unitDirection(
+            latitude: city.latitude,
+            longitude: city.longitude
+        )
         let lat = Float(city.latitude * .pi / 180)
-        let lon = Float(city.longitude * .pi / 180)
-        let cityDirection = simd_normalize(SIMD3(
-            cos(lat) * cos(lon),
-            sin(lat),
-            cos(lat) * sin(lon)
-        ))
         var targetOrientation = simd_quatf(from: cityDirection, to: SIMD3(0, 0, 1))
         targetOrientation = simd_quatf(angle: lat * 0.25, axis: SIMD3(1, 0, 0)) * targetOrientation
 
@@ -328,78 +327,238 @@ final class EarthGlobeRenderer {
     }
 }
 
+/// Geographic → SceneKit sphere point for equirectangular Earth textures on `SCNSphere`.
+/// Verified against SCNSphere texcoords: lon 0° → +Z (texture center), lon +90° → +X.
+private enum EarthGeo {
+    static func unitDirection(latitude: Double, longitude: Double) -> SIMD3<Float> {
+        let lat = Float(latitude * .pi / 180)
+        let lon = Float(longitude * .pi / 180)
+        return simd_normalize(SIMD3(
+            cos(lat) * sin(lon),
+            sin(lat),
+            cos(lat) * cos(lon)
+        ))
+    }
+
+    static func position(latitude: Double, longitude: Double, radius: Float) -> SCNVector3 {
+        let d = unitDirection(latitude: latitude, longitude: longitude)
+        return SCNVector3(d.x * radius, d.y * radius, d.z * radius)
+    }
+}
+
 private struct EarthCityMarker {
     let city: City
     let node: SCNNode
 
-    private static let glowTexture = makeGlowTexture()
+    /// Shared timeline so every city breathes and ripples together.
+    private static let timelineOrigin = CACurrentMediaTime()
+    private static let breathPeriod: CFTimeInterval = 2.6
+    private static let ripplePeriod: CFTimeInterval = 3.8
+
+    private static let softGlowTexture = makeSoftGlowTexture()
+    private static let coreTexture = makeCoreTexture()
+    private static let ringTexture = makeRingTexture()
 
     init(city: City) {
         self.city = city
-        let lat = Float(city.latitude * .pi / 180)
-        let lon = Float(city.longitude * .pi / 180)
-        let r: Float = 1.014
-        let position = SCNVector3(r * cos(lat) * cos(lon), r * sin(lat), r * cos(lat) * sin(lon))
+        let position = EarthGeo.position(
+            latitude: city.latitude,
+            longitude: city.longitude,
+            radius: 1.028
+        )
 
         let root = SCNNode()
         root.position = position
-        root.look(at: SCNVector3(position.x * 2, position.y * 2, position.z * 2))
+        root.renderingOrder = 10
 
-        // Soft cool-white pin — no omni spill lights (those painted yellow across the globe).
-        let markerSize: CGFloat = 0.022
-        let glow = SCNPlane(width: markerSize, height: markerSize)
-        let glowMat = SCNMaterial()
-        glowMat.diffuse.contents = Self.glowTexture
-        glowMat.emission.contents = Self.glowTexture
-        glowMat.emission.intensity = 0.7
-        glowMat.lightingModel = .constant
-        glowMat.blendMode = .add
-        glowMat.isDoubleSided = true
-        glowMat.writesToDepthBuffer = false
-        glowMat.readsFromDepthBuffer = true
-        glow.materials = [glowMat]
+        // Billboard group: soft day-readable glow + night sparkle + radar ripple.
+        let billboard = SCNNode()
+        billboard.constraints = [SCNBillboardConstraint()]
+        root.addChildNode(billboard)
 
-        let glowNode = SCNNode(geometry: glow)
-        glowNode.constraints = [SCNBillboardConstraint()]
-        root.addChildNode(glowNode)
+        // Soft halo — alpha blend so it stays visible on bright day land.
+        let haloSize: CGFloat = 0.028
+        let halo = SCNPlane(width: haloSize, height: haloSize)
+        let haloMat = SCNMaterial()
+        haloMat.diffuse.contents = Self.softGlowTexture
+        haloMat.emission.contents = Self.softGlowTexture
+        haloMat.emission.intensity = 0.55
+        haloMat.lightingModel = .constant
+        haloMat.blendMode = .alpha
+        haloMat.isDoubleSided = true
+        haloMat.writesToDepthBuffer = false
+        haloMat.readsFromDepthBuffer = true
+        halo.materials = [haloMat]
+        let haloNode = SCNNode(geometry: halo)
+        haloNode.opacity = 0.92
+        billboard.addChildNode(haloNode)
 
-        let pulse = CABasicAnimation(keyPath: "opacity")
-        pulse.fromValue = 0.72
-        pulse.toValue = 1.0
-        pulse.duration = 2.4
-        pulse.autoreverses = true
-        pulse.repeatCount = .infinity
-        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        glowNode.addAnimation(pulse, forKey: "pulse")
+        // Hot core — additive so it still reads on the night side.
+        let coreSize: CGFloat = 0.014
+        let core = SCNPlane(width: coreSize, height: coreSize)
+        let coreMat = SCNMaterial()
+        coreMat.diffuse.contents = Self.coreTexture
+        coreMat.emission.contents = Self.coreTexture
+        coreMat.emission.intensity = 1.25
+        coreMat.lightingModel = .constant
+        coreMat.blendMode = .add
+        coreMat.isDoubleSided = true
+        coreMat.writesToDepthBuffer = false
+        coreMat.readsFromDepthBuffer = true
+        core.materials = [coreMat]
+        let coreNode = SCNNode(geometry: core)
+        billboard.addChildNode(coreNode)
+
+        // Subtle shared breath (opacity + tiny scale) — premium, not distractingly large.
+        let breathOpacity = CABasicAnimation(keyPath: "opacity")
+        breathOpacity.fromValue = 0.82
+        breathOpacity.toValue = 1.0
+        breathOpacity.duration = Self.breathPeriod / 2
+        breathOpacity.autoreverses = true
+        breathOpacity.repeatCount = .infinity
+        breathOpacity.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        breathOpacity.beginTime = Self.timelineOrigin
+
+        let breathScale = CABasicAnimation(keyPath: "scale")
+        breathScale.fromValue = NSValue(scnVector3: SCNVector3(0.96, 0.96, 0.96))
+        breathScale.toValue = NSValue(scnVector3: SCNVector3(1.05, 1.05, 1.05))
+        breathScale.duration = Self.breathPeriod / 2
+        breathScale.autoreverses = true
+        breathScale.repeatCount = .infinity
+        breathScale.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        breathScale.beginTime = Self.timelineOrigin
+
+        billboard.addAnimation(breathOpacity, forKey: "breathOpacity")
+        billboard.addAnimation(breathScale, forKey: "breathScale")
+
+        // Small radar ripple — expands and fades every few seconds, synced across cities.
+        let ringSize: CGFloat = 0.024
+        let ring = SCNPlane(width: ringSize, height: ringSize)
+        let ringMat = SCNMaterial()
+        ringMat.diffuse.contents = Self.ringTexture
+        ringMat.emission.contents = Self.ringTexture
+        ringMat.emission.intensity = 0.9
+        ringMat.lightingModel = .constant
+        ringMat.blendMode = .add
+        ringMat.isDoubleSided = true
+        ringMat.writesToDepthBuffer = false
+        ringMat.readsFromDepthBuffer = true
+        ring.materials = [ringMat]
+        let ringNode = SCNNode(geometry: ring)
+        ringNode.opacity = 0
+        billboard.addChildNode(ringNode)
+
+        let rippleScale = CAKeyframeAnimation(keyPath: "scale")
+        rippleScale.values = [
+            NSValue(scnVector3: SCNVector3(0.7, 0.7, 0.7)),
+            NSValue(scnVector3: SCNVector3(1.85, 1.85, 1.85)),
+            NSValue(scnVector3: SCNVector3(1.85, 1.85, 1.85))
+        ]
+        rippleScale.keyTimes = [0, 0.58, 1] as [NSNumber]
+        rippleScale.duration = Self.ripplePeriod
+        rippleScale.timingFunctions = [
+            CAMediaTimingFunction(name: .easeOut),
+            CAMediaTimingFunction(name: .linear)
+        ]
+
+        let rippleOpacity = CAKeyframeAnimation(keyPath: "opacity")
+        rippleOpacity.values = [0.42, 0.28, 0, 0] as [NSNumber]
+        rippleOpacity.keyTimes = [0, 0.22, 0.62, 1] as [NSNumber]
+        rippleOpacity.duration = Self.ripplePeriod
+        rippleOpacity.timingFunctions = [
+            CAMediaTimingFunction(name: .easeOut),
+            CAMediaTimingFunction(name: .easeIn),
+            CAMediaTimingFunction(name: .linear)
+        ]
+
+        let ripple = CAAnimationGroup()
+        ripple.animations = [rippleScale, rippleOpacity]
+        ripple.duration = Self.ripplePeriod
+        ripple.repeatCount = .infinity
+        ripple.beginTime = Self.timelineOrigin
+        ripple.isRemovedOnCompletion = false
+        ringNode.addAnimation(ripple, forKey: "ripple")
 
         self.node = root
     }
 
     func contains(_ hitNode: SCNNode) -> Bool {
-        hitNode === node || node.childNodes.contains(hitNode)
+        hitNode === node || node.childNodes.contains { child in
+            hitNode === child || child.childNodes.contains(hitNode)
+        }
     }
 
-    /// Soft cool-white gaussian — feathered so markers read as clean lights, not amber blobs.
-    private static func makeGlowTexture() -> UIImage {
+    // MARK: - Textures (shared, generated once)
+
+    /// Soft cool-white bloom — readable on day land via alpha coverage.
+    private static func makeSoftGlowTexture() -> UIImage {
+        makeRadialTexture(size: 256) { r2 in
+            let bloom = exp(-r2 * 4.8)
+            let core = exp(-r2 * 22.0)
+            let alpha = min(1.0, bloom * 0.48 + core * 0.4)
+            return (0.86, 0.93, 1.0, alpha)
+        }
+    }
+
+    /// Tight additive spark for night-side visibility.
+    private static func makeCoreTexture() -> UIImage {
+        makeRadialTexture(size: 128) { r2 in
+            let core = exp(-r2 * 28.0)
+            let rim = exp(-r2 * 10.0) * 0.35
+            let alpha = min(1.0, core + rim)
+            return (0.92, 0.97, 1.0, alpha)
+        }
+    }
+
+    /// Thin circular ring for the radar ripple.
+    private static func makeRingTexture() -> UIImage {
         let size = 256
         let center = Double(size - 1) / 2
-        let cornerRadius = center * sqrt(2)
+        let outer: Double = 0.46
+        let inner: Double = 0.36
+        var pixels = [UInt8](repeating: 0, count: size * size * 4)
+        for y in 0..<size {
+            for x in 0..<size {
+                let dx = (Double(x) - center) / center
+                let dy = (Double(y) - center) / center
+                let r = (dx * dx + dy * dy).squareRoot()
+                let mid = (outer + inner) * 0.5
+                let half = (outer - inner) * 0.5
+                let ring = max(0.0, 1.0 - abs(r - mid) / half)
+                let alpha = min(1.0, ring * ring * 0.85)
+                let idx = (y * size + x) * 4
+                pixels[idx] = UInt8(min(255, 255 * alpha * 0.88))
+                pixels[idx + 1] = UInt8(min(255, 255 * alpha * 0.95))
+                pixels[idx + 2] = UInt8(min(255, 255 * alpha * 1.0))
+                pixels[idx + 3] = UInt8(min(255, 255 * alpha))
+            }
+        }
+        return image(from: pixels, size: size)
+    }
 
+    private static func makeRadialTexture(
+        size: Int,
+        sample: (_ r2: Double) -> (Double, Double, Double, Double)
+    ) -> UIImage {
+        let center = Double(size - 1) / 2
+        let cornerRadius = center * (2.0).squareRoot()
         var pixels = [UInt8](repeating: 0, count: size * size * 4)
         for y in 0..<size {
             for x in 0..<size {
                 let dx = (Double(x) - center) / cornerRadius
                 let dy = (Double(y) - center) / cornerRadius
-                let falloff = exp(-(dx * dx + dy * dy) * 4.2)
-                let alpha = falloff * 0.55
+                let (r, g, b, a) = sample(dx * dx + dy * dy)
                 let idx = (y * size + x) * 4
-                pixels[idx] = UInt8(min(255, 255 * alpha * 0.85))     // R
-                pixels[idx + 1] = UInt8(min(255, 255 * alpha * 0.92)) // G
-                pixels[idx + 2] = UInt8(min(255, 255 * alpha * 1.0))  // B
-                pixels[idx + 3] = UInt8(min(255, 255 * alpha))
+                pixels[idx] = UInt8(min(255, 255 * r * a))
+                pixels[idx + 1] = UInt8(min(255, 255 * g * a))
+                pixels[idx + 2] = UInt8(min(255, 255 * b * a))
+                pixels[idx + 3] = UInt8(min(255, 255 * a))
             }
         }
+        return image(from: pixels, size: size)
+    }
 
+    private static func image(from pixels: [UInt8], size: Int) -> UIImage {
         let data = Data(pixels)
         guard let provider = CGDataProvider(data: data as CFData),
               let cgImage = CGImage(

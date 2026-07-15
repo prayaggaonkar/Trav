@@ -16,7 +16,8 @@ struct GlobeLandingView: View {
                 if let viewModel {
                     EarthGlobeView(controller: viewModel.controller)
                         .frame(width: geo.size.width, height: geo.size.height * 0.68)
-                        .position(x: geo.size.width * 0.5, y: geo.size.height * 0.40)
+                        // Nudged up ~1/10″ from prior seat for hero balance.
+                        .position(x: geo.size.width * 0.5, y: geo.size.height * 0.48 + 1)
                 }
             }
             .ignoresSafeArea()
