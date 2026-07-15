@@ -57,35 +57,36 @@ struct GlobeLandingView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: TravSpacing.md) {
-            VStack(alignment: .leading, spacing: TravSpacing.xxs) {
-                Text("Trav")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+        ZStack(alignment: .center) {
+            VStack(spacing: TravSpacing.xxs) {
+                Text("TRAV")
+                    .font(.system(size: 32, weight: .black, design: .rounded))
+                    .tracking(12)
+                    .foregroundStyle(TravColors.accent)
+                    .padding(.leading, 12) // Balances the tracking offset on the trailing side
+                
+                Text("What's the Move?")
+                    .font(TravTypography.labelMedium())
+                    .foregroundStyle(.white.opacity(0.5))
                     .lineLimit(1)
-
-                Text("What's the move?")
-                    .font(TravTypography.bodyMedium())
-                    .foregroundStyle(.white.opacity(0.75))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.9)
-                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
+            
             if !session.isAuthenticated {
-                Button { showOnboarding = true } label: {
-                    Text("Sign In")
-                        .font(TravTypography.labelMedium())
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .padding(.horizontal, TravSpacing.md)
-                        .frame(minHeight: TravLayout.minTouchTarget)
-                        .background(.white.opacity(0.15))
-                        .clipShape(Capsule())
+                HStack {
+                    Spacer()
+                    Button { showOnboarding = true } label: {
+                        Text("Sign In")
+                            .font(TravTypography.labelMedium())
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .padding(.horizontal, TravSpacing.md)
+                            .frame(minHeight: TravLayout.minTouchTarget)
+                            .background(.white.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(TravPressButtonStyle(scale: 0.96))
+                    .accessibilityLabel("Sign In")
                 }
-                .buttonStyle(TravPressButtonStyle(scale: 0.96))
-                .accessibilityLabel("Sign In")
             }
         }
     }
