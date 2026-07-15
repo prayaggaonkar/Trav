@@ -79,6 +79,7 @@
 		5E17445D18524D499810CB97 /* LocationContextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F3B3BD892FD499EBF6CB491 /* LocationContextView.swift */; };
 		CDB5A04B20614754B7BF983C /* SocialSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0275CCB1D9D47F88D867749 /* SocialSyncView.swift */; };
 		A3A99B09050B437FB4C39301 /* PremiumTeaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348B18CF00564AB39B38256F /* PremiumTeaseView.swift */; };
+		F7A1B2C3D4E5461789ABCDEF /* CityComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A1B2C3D4E5461789ABCD00 /* CityComponents.swift */; };
 		FAEEC631BDED43D580C242D5 /* AsyncContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5214E298F515465C8669751B /* AsyncContentView.swift */; };
 /* End PBXBuildFile section */
 
