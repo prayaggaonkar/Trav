@@ -13,6 +13,8 @@ create table if not exists public.profiles (
   experience_count integer not null default 0,
   completion_count integer not null default 0,
   is_verified boolean not null default false,
+  selected_vibes text[] not null default '{}',
+  onboarding_location text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

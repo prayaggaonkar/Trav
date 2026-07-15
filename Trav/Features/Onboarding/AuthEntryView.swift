@@ -24,33 +24,20 @@ struct AuthEntryView: View {
             OnboardingBackground()
             
             VStack(alignment: .leading, spacing: 0) {
-                // Header
-                HStack {
-                    Button(action: onDismiss) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(TravColors.primary)
-                            .frame(width: 38, height: 38)
-                            .background(Color.white.opacity(0.08))
-                            .clipShape(Circle())
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, TravSpacing.screenHorizontal)
-                .padding(.top, TravSpacing.md)
+                // Unified Header
+                OnboardingHeaderView(step: nil, showCloseLeft: true, onDismiss: onDismiss)
                 
                 ScrollView {
-                    VStack(alignment: .center, spacing: TravSpacing.lg) {
+                    VStack(alignment: .leading, spacing: TravSpacing.lg) {
                         // Title / Intro visual
-                        VStack(spacing: TravSpacing.xs) {
-                            Text("Welcome to Trav")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                        VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                            Text("WELCOME TO TRAV")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
                                 .tracking(3)
                                 .foregroundStyle(TravColors.accent)
                                 
-                            Text(showEmailForm ? (isSignUpMode ? "Create your crew pass" : "Welcome back, explorer") : "Discover new local spots")
+                            Text(showEmailForm ? (isSignUpMode ? "Create your account" : "Welcome back") : "Discover new local spots")
                                 .font(TravTypography.displayMedium())
-                                .multilineTextAlignment(.center)
                                 .foregroundStyle(TravColors.primary)
                                 .id(showEmailForm ? "form-title-\(isSignUpMode)" : "intro-title")
                         }
@@ -58,12 +45,17 @@ struct AuthEntryView: View {
                         .travAppear()
                         
                         // Local Hangout Polaroid Snapshot Stack
-                        PolaroidStack(isSignUpMode: isSignUpMode, email: email)
-                            .travAppear(delay: 0.05)
+                        HStack {
+                            Spacer()
+                            PolaroidStack(isSignUpMode: isSignUpMode, email: email)
+                            Spacer()
+                        }
+                        .travAppear(delay: 0.05)
                         
                         if isLoading {
                             ProgressView()
                                 .tint(TravColors.accent)
+                                .frame(maxWidth: .infinity)
                                 .frame(height: 100)
                         } else {
                             VStack(spacing: TravSpacing.md) {
@@ -213,7 +205,7 @@ struct AuthEntryView: View {
                                         // Actions
                                         VStack(spacing: TravSpacing.sm) {
                                             PrimaryButton(
-                                                title: isSignUpMode ? "Create Crew Pass" : "Sign In to Crew",
+                                                title: isSignUpMode ? "Create Account" : "Sign In",
                                                 isEnabled: isInputValid,
                                                 action: { Task { await handleAuth() } }
                                             )
@@ -245,6 +237,7 @@ struct AuthEntryView: View {
                             .font(TravTypography.caption())
                             .foregroundStyle(TravColors.muted)
                             .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.top, TravSpacing.xs)
                             .travAppear(delay: 0.25)
                     }
@@ -309,7 +302,7 @@ struct PolaroidStack: View {
                 caption: "🍷 Lounge Vibes / Member Pass",
                 email: email,
                 themeGradient: LinearGradient(
-                    colors: [Color(red: 0.35, green: 0.08, blue: 0.48), Color(red: 0.08, green: 0.04, blue: 0.22)],
+                    colors: [Color(red: 0.48, green: 0.18, blue: 0.95), Color(red: 0.06, green: 0.03, blue: 0.18)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
@@ -326,7 +319,7 @@ struct PolaroidStack: View {
                 caption: "☕️ Cafe Vibes / Crew Pass",
                 email: email,
                 themeGradient: LinearGradient(
-                    colors: [Color(red: 0.92, green: 0.62, blue: 0.22), Color(red: 0.68, green: 0.32, blue: 0.12)],
+                    colors: [Color(red: 0.12, green: 0.58, blue: 0.68), Color(red: 0.25, green: 0.18, blue: 0.55)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )

@@ -12,54 +12,32 @@ struct SocialSyncView: View {
             OnboardingBackground()
             
             VStack(alignment: .leading, spacing: 0) {
-                // Header
-                HStack {
-                    Button(action: onBack) {
-                        HStack(spacing: TravSpacing.xxs) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 14, weight: .semibold))
-                            Text("Back")
-                                .font(TravTypography.bodyMedium())
-                        }
-                        .foregroundStyle(TravColors.primary)
-                        .frame(height: 44)
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, TravSpacing.screenHorizontal)
-                .padding(.top, TravSpacing.md)
+                // Unified Header
+                OnboardingHeaderView(step: 3, onBack: onBack, onSkip: onSkip)
                 
-                // Progress Bar
-                OnboardingProgressBar(currentStep: 3)
-                    .padding(.bottom, TravSpacing.lg)
-
                 ScrollView {
-                    VStack(alignment: .center, spacing: TravSpacing.lg) {
-                        Spacer()
-                            .frame(height: TravSpacing.xs)
-
-                        // Animated Illustration
-                        AvatarCloudView()
-                            .padding(.vertical, TravSpacing.md)
-                            .travAppear()
-
-                        // Content
-                        VStack(alignment: .center, spacing: TravSpacing.md) {
-                            Text("Find where friends hang out")
-                                .font(TravTypography.titleLarge())
+                    VStack(alignment: .leading, spacing: TravSpacing.lg) {
+                        // Title
+                        VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                            Text("Find your friends")
+                                .font(TravTypography.displayMedium())
                                 .foregroundStyle(TravColors.primary)
-                                .multilineTextAlignment(.center)
-
-                            Text("Connect your contacts to see where friends are exploring and get personalized recommendations based on their favorite spots.")
+                            Text("Connect your contacts to see where your crew is hanging out.")
                                 .font(TravTypography.bodyMedium())
                                 .foregroundStyle(TravColors.muted)
-                                .multilineTextAlignment(.center)
-                                .lineSpacing(3)
                         }
+                        .padding(.top, TravSpacing.md)
                         .padding(.horizontal, TravSpacing.screenHorizontal)
-                        .travAppear(delay: 0.1)
+                        .travAppear()
 
-                        Spacer()
+                        // Animated Illustration
+                        HStack {
+                            Spacer()
+                            AvatarCloudView()
+                            Spacer()
+                        }
+                        .padding(.vertical, TravSpacing.md)
+                        .travAppear(delay: 0.05)
                     }
                 }
             }

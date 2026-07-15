@@ -51,6 +51,13 @@ struct MockAuthRepository: AuthRepository {
         try await signIn(email: "demo@trav.app", password: "")
     }
 
+    func saveOnboardingData(userID: UUID, vibes: [String], location: String?) async throws -> Profile {
+        var profile = MockData.profile(for: MockData.creators[0])
+        profile.selectedVibes = vibes
+        profile.onboardingLocation = location
+        return profile
+    }
+
     func authStateChanges() -> AsyncStream<Profile?> {
         AsyncStream { continuation in
             continuation.yield(nil)

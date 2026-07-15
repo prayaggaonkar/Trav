@@ -38,35 +38,9 @@ struct LocationContextView: View {
             OnboardingBackground()
             
             VStack(alignment: .leading, spacing: 0) {
-                // Header
-                HStack {
-                    Button(action: onBack) {
-                        HStack(spacing: TravSpacing.xxs) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 14, weight: .semibold))
-                            Text("Back")
-                                .font(TravTypography.bodyMedium())
-                        }
-                        .foregroundStyle(TravColors.primary)
-                        .frame(height: 44)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: onSkip) {
-                        Text("Skip")
-                            .font(TravTypography.bodyMedium())
-                            .foregroundStyle(TravColors.muted)
-                            .frame(height: 44)
-                    }
-                }
-                .padding(.horizontal, TravSpacing.screenHorizontal)
-                .padding(.top, TravSpacing.md)
+                // Unified Header
+                OnboardingHeaderView(step: 2, onBack: onBack, onSkip: onSkip)
                 
-                // Progress Bar
-                OnboardingProgressBar(currentStep: 2)
-                    .padding(.bottom, TravSpacing.lg)
-
                 ScrollView {
                     VStack(alignment: .leading, spacing: TravSpacing.lg) {
                         // Title
@@ -78,6 +52,7 @@ struct LocationContextView: View {
                                 .font(TravTypography.bodyMedium())
                                 .foregroundStyle(TravColors.muted)
                         }
+                        .padding(.top, TravSpacing.md)
                         .travAppear()
 
                         // Search Bar
@@ -258,7 +233,7 @@ private struct CitySelectionChip: View {
             .background {
                 if isSelected {
                     LinearGradient(
-                        colors: [TravColors.accent, Color(red: 1.0, green: 0.5, blue: 0.28)],
+                        colors: [TravColors.accent, Color(red: 0.45, green: 0.25, blue: 0.95)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

@@ -89,6 +89,26 @@ struct SupabaseAuthRepository: AuthRepository {
         }
         return placeholder.profile
     }
+    
+    func saveOnboardingData(userID: UUID, vibes: [String], location: String?) async throws -> Profile {
+        struct OnboardingUpdate: Codable {
+            let selected_vibes: [String]
+            let onboarding_location: String?
+        }
+        
+        let update = OnboardingUpdate(selected_vibes: vibes, onboarding_location: location)
+        
+        try await client
+            .from("profiles")
+            .update(update)
+            .eq("id", value: userID)
+            .execute()
+            
+        if let row = try await fetchProfileRow(id: userID) {
+            return row.profile
+        }
+        throw NSError(domain: "SupabaseAuthRepository", code: 404, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch updated profile"])
+    }
 
     private func fetchProfileRow(id: UUID) async throws -> ProfileRow? {
         do {
@@ -118,6 +138,8 @@ private struct ProfileRow: Codable {
     var experienceCount: Int
     var completionCount: Int
     var isVerified: Bool
+    var selectedVibes: [String]?
+    var onboardingLocation: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -131,6 +153,8 @@ private struct ProfileRow: Codable {
         case experienceCount = "experience_count"
         case completionCount = "completion_count"
         case isVerified = "is_verified"
+        case selectedVibes = "selected_vibes"
+        case onboardingLocation = "onboarding_location"
     }
 
     var profile: Profile {
@@ -145,7 +169,9 @@ private struct ProfileRow: Codable {
             followingCount: followingCount,
             experienceCount: experienceCount,
             completionCount: completionCount,
-            isVerified: isVerified
+            isVerified: isVerified,
+            selectedVibes: selectedVibes,
+            onboardingLocation: onboardingLocation
         )
     }
 
@@ -163,7 +189,9 @@ private struct ProfileRow: Codable {
             followingCount: 0,
             experienceCount: 0,
             completionCount: 0,
-            isVerified: false
+            isVerified: false,
+            selectedVibes: [],
+            onboardingLocation: nil
         )
     }
 }

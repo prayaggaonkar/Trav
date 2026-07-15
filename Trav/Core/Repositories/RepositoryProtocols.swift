@@ -18,6 +18,7 @@ protocol AuthRepository: Sendable {
     func signOut() async throws
     func resetPassword(email: String) async throws
     func signInWithGoogle() async throws -> Profile
+    func saveOnboardingData(userID: UUID, vibes: [String], location: String?) async throws -> Profile
 
     /// Emits the signed-in profile whenever the auth session changes, starting with the
     /// current session (or `nil`) as soon as the stream is created. Used to restore and

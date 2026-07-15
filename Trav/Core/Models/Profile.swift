@@ -12,6 +12,10 @@ struct Profile: Identifiable, Codable, Sendable, Hashable {
     var experienceCount: Int
     var completionCount: Int
     var isVerified: Bool
+    
+    // Onboarding selections
+    var selectedVibes: [String]?
+    var onboardingLocation: String?
 }
 
 struct ProfileSummary: Identifiable, Codable, Sendable, Hashable {
