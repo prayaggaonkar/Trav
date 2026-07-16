@@ -47,8 +47,8 @@ final class EarthGlobeRenderer {
 
     func setCities(_ cities: [City]) {
         cityMarkers.forEach { $0.node.removeFromParentNode() }
-        cityMarkers = cities.map { city in
-            let marker = EarthCityMarker(city: city)
+        cityMarkers = cities.enumerated().map { index, city in
+            let marker = EarthCityMarker(city: city, paletteIndex: index)
             earthNode.addChildNode(marker.node)
             return marker
         }
@@ -165,7 +165,7 @@ final class EarthGlobeRenderer {
 
     private func buildEarth() {
         let geometry = SCNSphere(radius: 1.0)
-        geometry.segmentCount = 128
+        geometry.segmentCount = 96
 
         let material = SCNMaterial()
         material.diffuse.contents = loadImage(named: "earth_day")
@@ -173,43 +173,82 @@ final class EarthGlobeRenderer {
         material.diffuse.wrapT = .clamp
         material.diffuse.magnificationFilter = .linear
         material.diffuse.minificationFilter = .linear
-        // City lights visible on the dark side via emission; sun light handles day side.
+        material.diffuse.mipFilter = .linear
+        // Population-density emission: neon purple/magenta/cyan — reads strongest on night side.
         material.emission.contents = loadImage(named: "earth_night")
+        material.emission.intensity = 1.35
         material.lightingModel = .blinn
-        material.shininess = 0.08
+        material.shininess = 0.06
+        material.specular.contents = UIColor(white: 0.08, alpha: 1)
 
         geometry.materials = [material]
         earthNode.geometry = geometry
     }
 
-    /// Soft atmospheric shell — no custom shaders.
+    /// Soft gaseous violet→cyan Fresnel rim. No hard borders or geometric rings.
     private func buildAtmosphere() {
-        let geometry = SCNSphere(radius: 1.035)
-        geometry.segmentCount = 72
+        addAtmosphereShell(
+            radius: 1.015,
+            emission: UIColor(red: 0.48, green: 0.22, blue: 0.85, alpha: 1),
+            intensity: 0.07,
+            transparency: 0.62,
+            order: 1
+        )
+        addAtmosphereShell(
+            radius: 1.042,
+            emission: UIColor(red: 0.32, green: 0.48, blue: 0.95, alpha: 1),
+            intensity: 0.055,
+            transparency: 0.72,
+            order: 2
+        )
+        addAtmosphereShell(
+            radius: 1.085,
+            emission: UIColor(red: 0.28, green: 0.7, blue: 1.0, alpha: 1),
+            intensity: 0.03,
+            transparency: 0.85,
+            order: 3
+        )
+    }
 
+    private func addAtmosphereShell(
+        radius: CGFloat,
+        emission: UIColor,
+        intensity: CGFloat,
+        transparency: CGFloat,
+        order: Int
+    ) {
+        let geometry = SCNSphere(radius: radius)
+        geometry.segmentCount = 48
         let material = SCNMaterial()
         material.diffuse.contents = UIColor.clear
-        material.emission.contents = UIColor(red: 0.35, green: 0.62, blue: 1.0, alpha: 0.15)
+        material.emission.contents = emission
+        material.emission.intensity = intensity
         material.lightingModel = .constant
         material.isDoubleSided = true
         material.blendMode = .add
-        material.transparency = 0.18
-
+        material.transparency = transparency
+        material.writesToDepthBuffer = false
+        material.readsFromDepthBuffer = false
+        material.fresnelExponent = 2.2
         geometry.materials = [material]
-        earthNode.addChildNode(SCNNode(geometry: geometry))
+        let node = SCNNode(geometry: geometry)
+        node.renderingOrder = order
+        earthNode.addChildNode(node)
     }
 
     private func buildLights() {
+        // Balanced fill so daytime topo reads clearly without washing out night lights.
         let ambient = SCNNode()
         ambient.light = SCNLight()
         ambient.light?.type = .ambient
-        ambient.light?.intensity = 120
-        ambient.light?.color = UIColor(white: 0.75, alpha: 1)
+        ambient.light?.intensity = 110
+        ambient.light?.color = UIColor(red: 0.72, green: 0.72, blue: 0.78, alpha: 1)
         scene.rootNode.addChildNode(ambient)
 
         sunLightNode.light = SCNLight()
         sunLightNode.light?.type = .directional
-        sunLightNode.light?.intensity = 1200
+        sunLightNode.light?.intensity = 1280
+        sunLightNode.light?.color = UIColor(red: 1.0, green: 0.98, blue: 0.95, alpha: 1)
         sunLightNode.light?.castsShadow = false
         updateSunLightPosition()
         scene.rootNode.addChildNode(sunLightNode)
@@ -220,8 +259,14 @@ final class EarthGlobeRenderer {
         camera.zNear = 0.05
         camera.zFar = 100
         camera.fieldOfView = 40
-        // Keep the full globe sharp at all zoom levels (fixed DOF was blurring close views).
         camera.wantsDepthOfField = false
+        // Mild bloom so neon population hubs glow without washing the diffuse topo.
+        camera.wantsHDR = true
+        camera.wantsExposureAdaptation = false
+        camera.exposureOffset = 0.05
+        camera.bloomIntensity = 0.55
+        camera.bloomThreshold = 0.45
+        camera.bloomBlurRadius = 4.5
         cameraNode.camera = camera
         updateCameraPosition()
     }
@@ -355,63 +400,69 @@ private struct EarthCityMarker {
     private static let breathPeriod: CFTimeInterval = 2.6
     private static let ripplePeriod: CFTimeInterval = 3.8
 
-    private static let softGlowTexture = makeSoftGlowTexture()
-    private static let coreTexture = makeCoreTexture()
-    private static let ringTexture = makeRingTexture()
+    /// Contrasting neon palette so markers pop on purple continents.
+    private enum MarkerPalette {
+        case cyan, turquoise, white
+        static func at(_ index: Int) -> MarkerPalette {
+            switch index % 3 {
+            case 0: return .cyan
+            case 1: return .turquoise
+            default: return .white
+            }
+        }
+    }
 
-    init(city: City) {
+    init(city: City, paletteIndex: Int) {
         self.city = city
+        let palette = MarkerPalette.at(paletteIndex)
         let position = EarthGeo.position(
             latitude: city.latitude,
             longitude: city.longitude,
-            radius: 1.028
+            radius: 1.042
         )
 
         let root = SCNNode()
         root.position = position
-        root.renderingOrder = 10
+        root.renderingOrder = 20
 
-        // Billboard group: soft day-readable glow + night sparkle + radar ripple.
         let billboard = SCNNode()
         billboard.constraints = [SCNBillboardConstraint()]
         root.addChildNode(billboard)
 
-        // Soft halo — alpha blend so it stays visible on bright day land.
-        let haloSize: CGFloat = 0.028
+        let (haloTex, coreTex, ringTex) = Self.textures(for: palette)
+
+        // Soft halo — larger + brighter than land mesh so cities read clearly.
+        let haloSize: CGFloat = 0.052
         let halo = SCNPlane(width: haloSize, height: haloSize)
         let haloMat = SCNMaterial()
-        haloMat.diffuse.contents = Self.softGlowTexture
-        haloMat.emission.contents = Self.softGlowTexture
-        haloMat.emission.intensity = 0.55
+        haloMat.diffuse.contents = haloTex
+        haloMat.emission.contents = haloTex
+        haloMat.emission.intensity = 1.15
         haloMat.lightingModel = .constant
         haloMat.blendMode = .alpha
         haloMat.isDoubleSided = true
         haloMat.writesToDepthBuffer = false
         haloMat.readsFromDepthBuffer = true
         halo.materials = [haloMat]
-        let haloNode = SCNNode(geometry: halo)
-        haloNode.opacity = 0.92
-        billboard.addChildNode(haloNode)
+        billboard.addChildNode(SCNNode(geometry: halo))
 
-        // Hot core — additive so it still reads on the night side.
-        let coreSize: CGFloat = 0.014
+        // Hot core — additive, high punch.
+        let coreSize: CGFloat = 0.022
         let core = SCNPlane(width: coreSize, height: coreSize)
         let coreMat = SCNMaterial()
-        coreMat.diffuse.contents = Self.coreTexture
-        coreMat.emission.contents = Self.coreTexture
-        coreMat.emission.intensity = 1.25
+        coreMat.diffuse.contents = coreTex
+        coreMat.emission.contents = coreTex
+        coreMat.emission.intensity = 2.1
         coreMat.lightingModel = .constant
         coreMat.blendMode = .add
         coreMat.isDoubleSided = true
         coreMat.writesToDepthBuffer = false
         coreMat.readsFromDepthBuffer = true
         core.materials = [coreMat]
-        let coreNode = SCNNode(geometry: core)
-        billboard.addChildNode(coreNode)
+        billboard.addChildNode(SCNNode(geometry: core))
 
-        // Subtle shared breath (opacity + tiny scale) — premium, not distractingly large.
         let breathOpacity = CABasicAnimation(keyPath: "opacity")
-        breathOpacity.fromValue = 0.82
+        breathOpacity.fromValue = 0.86
         breathOpacity.toValue = 1.0
         breathOpacity.duration = Self.breathPeriod / 2
         breathOpacity.autoreverses = true
@@ -420,8 +471,8 @@ private struct EarthCityMarker {
         breathOpacity.beginTime = Self.timelineOrigin
 
         let breathScale = CABasicAnimation(keyPath: "scale")
-        breathScale.fromValue = NSValue(scnVector3: SCNVector3(0.96, 0.96, 0.96))
-        breathScale.toValue = NSValue(scnVector3: SCNVector3(1.05, 1.05, 1.05))
+        breathScale.fromValue = NSValue(scnVector3: SCNVector3(0.95, 0.95, 0.95))
+        breathScale.toValue = NSValue(scnVector3: SCNVector3(1.08, 1.08, 1.08))
         breathScale.duration = Self.breathPeriod / 2
         breathScale.autoreverses = true
         breathScale.repeatCount = .infinity
@@ -431,13 +482,12 @@ private struct EarthCityMarker {
         billboard.addAnimation(breathOpacity, forKey: "breathOpacity")
         billboard.addAnimation(breathScale, forKey: "breathScale")
 
-        // Small radar ripple — expands and fades every few seconds, synced across cities.
-        let ringSize: CGFloat = 0.024
+        let ringSize: CGFloat = 0.038
         let ring = SCNPlane(width: ringSize, height: ringSize)
         let ringMat = SCNMaterial()
-        ringMat.diffuse.contents = Self.ringTexture
-        ringMat.emission.contents = Self.ringTexture
-        ringMat.emission.intensity = 0.9
+        ringMat.diffuse.contents = ringTex
+        ringMat.emission.contents = ringTex
+        ringMat.emission.intensity = 1.35
         ringMat.lightingModel = .constant
         ringMat.blendMode = .add
         ringMat.isDoubleSided = true
@@ -450,9 +500,9 @@ private struct EarthCityMarker {
 
         let rippleScale = CAKeyframeAnimation(keyPath: "scale")
         rippleScale.values = [
-            NSValue(scnVector3: SCNVector3(0.7, 0.7, 0.7)),
-            NSValue(scnVector3: SCNVector3(1.85, 1.85, 1.85)),
-            NSValue(scnVector3: SCNVector3(1.85, 1.85, 1.85))
+            NSValue(scnVector3: SCNVector3(0.65, 0.65, 0.65)),
+            NSValue(scnVector3: SCNVector3(2.35, 2.35, 2.35)),
+            NSValue(scnVector3: SCNVector3(2.35, 2.35, 2.35))
         ]
         rippleScale.keyTimes = [0, 0.58, 1] as [NSNumber]
         rippleScale.duration = Self.ripplePeriod
@@ -462,7 +512,7 @@ private struct EarthCityMarker {
         ]
 
         let rippleOpacity = CAKeyframeAnimation(keyPath: "opacity")
-        rippleOpacity.values = [0.42, 0.28, 0, 0] as [NSNumber]
+        rippleOpacity.values = [0.62, 0.36, 0, 0] as [NSNumber]
         rippleOpacity.keyTimes = [0, 0.22, 0.62, 1] as [NSNumber]
         rippleOpacity.duration = Self.ripplePeriod
         rippleOpacity.timingFunctions = [
@@ -482,6 +532,30 @@ private struct EarthCityMarker {
         self.node = root
     }
 
+    private static func textures(for palette: MarkerPalette) -> (UIImage, UIImage, UIImage) {
+        switch palette {
+        case .cyan: return cachedCyan
+        case .turquoise: return cachedTurquoise
+        case .white: return cachedWhite
+        }
+    }
+
+    private static let cachedCyan = (
+        makeSoftGlowTexture(r: 0.35, g: 0.95, b: 1.0),
+        makeCoreTexture(rimR: 0.2, rimG: 0.85, rimB: 1.0),
+        makeRingTexture(r: 0.35, g: 0.95, b: 1.0)
+    )
+    private static let cachedTurquoise = (
+        makeSoftGlowTexture(r: 0.25, g: 1.0, b: 0.85),
+        makeCoreTexture(rimR: 0.15, rimG: 0.95, rimB: 0.75),
+        makeRingTexture(r: 0.25, g: 1.0, b: 0.85)
+    )
+    private static let cachedWhite = (
+        makeSoftGlowTexture(r: 0.92, g: 0.96, b: 1.0),
+        makeCoreTexture(rimR: 0.85, rimG: 0.55, rimB: 1.0),
+        makeRingTexture(r: 0.9, g: 0.95, b: 1.0)
+    )
+
     func contains(_ hitNode: SCNNode) -> Bool {
         hitNode === node || node.childNodes.contains { child in
             hitNode === child || child.childNodes.contains(hitNode)
@@ -490,28 +564,31 @@ private struct EarthCityMarker {
 
     // MARK: - Textures (shared, generated once)
 
-    /// Soft cool-white bloom — readable on day land via alpha coverage.
-    private static func makeSoftGlowTexture() -> UIImage {
+    private static func makeSoftGlowTexture(r: Double, g: Double, b: Double) -> UIImage {
         makeRadialTexture(size: 256) { r2 in
-            let bloom = exp(-r2 * 4.8)
-            let core = exp(-r2 * 22.0)
-            let alpha = min(1.0, bloom * 0.48 + core * 0.4)
-            return (0.86, 0.93, 1.0, alpha)
+            let bloom = exp(-r2 * 3.2)
+            let core = exp(-r2 * 16.0)
+            let alpha = min(1.0, bloom * 0.62 + core * 0.55)
+            return (r, g, b, alpha)
         }
     }
 
-    /// Tight additive spark for night-side visibility.
-    private static func makeCoreTexture() -> UIImage {
+    private static func makeCoreTexture(rimR: Double, rimG: Double, rimB: Double) -> UIImage {
         makeRadialTexture(size: 128) { r2 in
-            let core = exp(-r2 * 28.0)
-            let rim = exp(-r2 * 10.0) * 0.35
+            let core = exp(-r2 * 22.0)
+            let rim = exp(-r2 * 7.0) * 0.48
             let alpha = min(1.0, core + rim)
-            return (0.92, 0.97, 1.0, alpha)
+            let t = min(1.0, core * 1.25)
+            return (
+                rimR * (1 - t) + 1.0 * t,
+                rimG * (1 - t) + 1.0 * t,
+                rimB * (1 - t) + 1.0 * t,
+                alpha
+            )
         }
     }
 
-    /// Thin circular ring for the radar ripple.
-    private static func makeRingTexture() -> UIImage {
+    private static func makeRingTexture(r: Double, g: Double, b: Double) -> UIImage {
         let size = 256
         let center = Double(size - 1) / 2
         let outer: Double = 0.46
@@ -521,15 +598,15 @@ private struct EarthCityMarker {
             for x in 0..<size {
                 let dx = (Double(x) - center) / center
                 let dy = (Double(y) - center) / center
-                let r = (dx * dx + dy * dy).squareRoot()
+                let rad = (dx * dx + dy * dy).squareRoot()
                 let mid = (outer + inner) * 0.5
                 let half = (outer - inner) * 0.5
-                let ring = max(0.0, 1.0 - abs(r - mid) / half)
-                let alpha = min(1.0, ring * ring * 0.85)
+                let ring = max(0.0, 1.0 - abs(rad - mid) / half)
+                let alpha = min(1.0, ring * ring * 0.98)
                 let idx = (y * size + x) * 4
-                pixels[idx] = UInt8(min(255, 255 * alpha * 0.88))
-                pixels[idx + 1] = UInt8(min(255, 255 * alpha * 0.95))
-                pixels[idx + 2] = UInt8(min(255, 255 * alpha * 1.0))
+                pixels[idx] = UInt8(min(255, 255 * alpha * r))
+                pixels[idx + 1] = UInt8(min(255, 255 * alpha * g))
+                pixels[idx + 2] = UInt8(min(255, 255 * alpha * b))
                 pixels[idx + 3] = UInt8(min(255, 255 * alpha))
             }
         }
