@@ -176,7 +176,7 @@ final class EarthGlobeRenderer {
         material.diffuse.mipFilter = .linear
         // Population-density emission: neon purple/magenta/cyan — reads strongest on night side.
         material.emission.contents = loadImage(named: "earth_night")
-        material.emission.intensity = 1.35
+        material.emission.intensity = 1.45
         material.lightingModel = .blinn
         material.shininess = 0.06
         material.specular.contents = UIColor(white: 0.08, alpha: 1)
@@ -264,8 +264,8 @@ final class EarthGlobeRenderer {
         camera.wantsHDR = true
         camera.wantsExposureAdaptation = false
         camera.exposureOffset = 0.05
-        camera.bloomIntensity = 0.55
-        camera.bloomThreshold = 0.45
+        camera.bloomIntensity = 0.35
+        camera.bloomThreshold = 0.5
         camera.bloomBlurRadius = 4.5
         cameraNode.camera = camera
         updateCameraPosition()
@@ -400,21 +400,16 @@ private struct EarthCityMarker {
     private static let breathPeriod: CFTimeInterval = 2.6
     private static let ripplePeriod: CFTimeInterval = 3.8
 
-    /// Contrasting neon palette so markers pop on purple continents.
-    private enum MarkerPalette {
-        case cyan, turquoise, white
-        static func at(_ index: Int) -> MarkerPalette {
-            switch index % 3 {
-            case 0: return .cyan
-            case 1: return .turquoise
-            default: return .white
-            }
-        }
-    }
+    /// Shared white textures for interactive city markers.
+    private static let whiteTextures = (
+        makeSoftGlowTexture(r: 0.95, g: 0.97, b: 1.0),
+        makeCoreTexture(rimR: 0.9, rimG: 0.92, rimB: 1.0),
+        makeRingTexture(r: 0.92, g: 0.95, b: 1.0)
+    )
 
     init(city: City, paletteIndex: Int) {
         self.city = city
-        let palette = MarkerPalette.at(paletteIndex)
+        _ = paletteIndex
         let position = EarthGeo.position(
             latitude: city.latitude,
             longitude: city.longitude,
@@ -429,15 +424,15 @@ private struct EarthCityMarker {
         billboard.constraints = [SCNBillboardConstraint()]
         root.addChildNode(billboard)
 
-        let (haloTex, coreTex, ringTex) = Self.textures(for: palette)
+        let (haloTex, coreTex, ringTex) = Self.whiteTextures
 
-        // Soft halo — larger + brighter than land mesh so cities read clearly.
-        let haloSize: CGFloat = 0.052
+        // Soft white halo — 50% of prior size so markers read crisp vs purple population glow.
+        let haloSize: CGFloat = 0.026
         let halo = SCNPlane(width: haloSize, height: haloSize)
         let haloMat = SCNMaterial()
         haloMat.diffuse.contents = haloTex
         haloMat.emission.contents = haloTex
-        haloMat.emission.intensity = 1.15
+        haloMat.emission.intensity = 1.2
         haloMat.lightingModel = .constant
         haloMat.blendMode = .alpha
         haloMat.isDoubleSided = true
@@ -446,13 +441,13 @@ private struct EarthCityMarker {
         halo.materials = [haloMat]
         billboard.addChildNode(SCNNode(geometry: halo))
 
-        // Hot core — additive, high punch.
-        let coreSize: CGFloat = 0.022
+        // Hot white core.
+        let coreSize: CGFloat = 0.011
         let core = SCNPlane(width: coreSize, height: coreSize)
         let coreMat = SCNMaterial()
         coreMat.diffuse.contents = coreTex
         coreMat.emission.contents = coreTex
-        coreMat.emission.intensity = 2.1
+        coreMat.emission.intensity = 2.2
         coreMat.lightingModel = .constant
         coreMat.blendMode = .add
         coreMat.isDoubleSided = true
@@ -482,7 +477,7 @@ private struct EarthCityMarker {
         billboard.addAnimation(breathOpacity, forKey: "breathOpacity")
         billboard.addAnimation(breathScale, forKey: "breathScale")
 
-        let ringSize: CGFloat = 0.038
+        let ringSize: CGFloat = 0.019
         let ring = SCNPlane(width: ringSize, height: ringSize)
         let ringMat = SCNMaterial()
         ringMat.diffuse.contents = ringTex
@@ -531,30 +526,6 @@ private struct EarthCityMarker {
 
         self.node = root
     }
-
-    private static func textures(for palette: MarkerPalette) -> (UIImage, UIImage, UIImage) {
-        switch palette {
-        case .cyan: return cachedCyan
-        case .turquoise: return cachedTurquoise
-        case .white: return cachedWhite
-        }
-    }
-
-    private static let cachedCyan = (
-        makeSoftGlowTexture(r: 0.35, g: 0.95, b: 1.0),
-        makeCoreTexture(rimR: 0.2, rimG: 0.85, rimB: 1.0),
-        makeRingTexture(r: 0.35, g: 0.95, b: 1.0)
-    )
-    private static let cachedTurquoise = (
-        makeSoftGlowTexture(r: 0.25, g: 1.0, b: 0.85),
-        makeCoreTexture(rimR: 0.15, rimG: 0.95, rimB: 0.75),
-        makeRingTexture(r: 0.25, g: 1.0, b: 0.85)
-    )
-    private static let cachedWhite = (
-        makeSoftGlowTexture(r: 0.92, g: 0.96, b: 1.0),
-        makeCoreTexture(rimR: 0.85, rimG: 0.55, rimB: 1.0),
-        makeRingTexture(r: 0.9, g: 0.95, b: 1.0)
-    )
 
     func contains(_ hitNode: SCNNode) -> Bool {
         hitNode === node || node.childNodes.contains { child in
