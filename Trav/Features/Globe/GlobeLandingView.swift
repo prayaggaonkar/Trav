@@ -225,9 +225,9 @@ struct GlobeLandingView: View {
             RoundedRectangle(cornerRadius: TravRadius.md)
                 .stroke(
                     appearance.isLightMode
-                        ? Color.black.opacity(0.28)
+                        ? Color.black.opacity(0.12)
                         : Color.white.opacity(0.15),
-                    lineWidth: appearance.isLightMode ? 1.5 : 1
+                    lineWidth: 1
                 )
         }
         .padding(.vertical, TravSpacing.xs)
@@ -334,10 +334,10 @@ private struct HomeCelestialBackground: View {
                 if isLight {
                     LinearGradient(
                         stops: [
-                            .init(color: Color(red: 0.58, green: 0.61, blue: 0.72), location: 0),
-                            .init(color: Color(red: 0.52, green: 0.56, blue: 0.68), location: 0.45),
-                            .init(color: Color(red: 0.54, green: 0.53, blue: 0.66), location: 0.78),
-                            .init(color: Color(red: 0.56, green: 0.55, blue: 0.67), location: 1)
+                            .init(color: Color(red: 0.90, green: 0.91, blue: 0.96), location: 0),
+                            .init(color: Color(red: 0.86, green: 0.88, blue: 0.94), location: 0.45),
+                            .init(color: Color(red: 0.87, green: 0.86, blue: 0.93), location: 0.78),
+                            .init(color: Color(red: 0.89, green: 0.88, blue: 0.93), location: 1)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
