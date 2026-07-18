@@ -185,55 +185,71 @@ final class EarthGlobeRenderer {
         earthNode.geometry = geometry
     }
 
-    /// Soft gaseous violet→cyan Fresnel rim. No hard borders or geometric rings.
+    /// Soft purple 2D silhouette halo — a camera-facing ring just outside the globe limb.
+    /// Does not light the Earth surface; only separates the disc from the background.
     private func buildAtmosphere() {
-        addAtmosphereShell(
-            radius: 1.015,
-            emission: UIColor(red: 0.48, green: 0.22, blue: 0.85, alpha: 1),
-            intensity: 0.07,
-            transparency: 0.62,
-            order: 1
-        )
-        addAtmosphereShell(
-            radius: 1.042,
-            emission: UIColor(red: 0.32, green: 0.48, blue: 0.95, alpha: 1),
-            intensity: 0.055,
-            transparency: 0.72,
-            order: 2
-        )
-        addAtmosphereShell(
-            radius: 1.085,
-            emission: UIColor(red: 0.28, green: 0.7, blue: 1.0, alpha: 1),
-            intensity: 0.03,
-            transparency: 0.85,
-            order: 3
-        )
-    }
-
-    private func addAtmosphereShell(
-        radius: CGFloat,
-        emission: UIColor,
-        intensity: CGFloat,
-        transparency: CGFloat,
-        order: Int
-    ) {
-        let geometry = SCNSphere(radius: radius)
-        geometry.segmentCount = 48
+        // 20% shorter than prior 2.70 falloff extent
+        let glowSize: CGFloat = 2.56
+        let plane = SCNPlane(width: glowSize, height: glowSize)
         let material = SCNMaterial()
-        material.diffuse.contents = UIColor.clear
-        material.emission.contents = emission
-        material.emission.intensity = intensity
+        let tex = Self.limbGlowTexture
+        material.diffuse.contents = tex
+        material.emission.contents = tex
+        material.emission.intensity = 0.0225
         material.lightingModel = .constant
         material.isDoubleSided = true
-        material.blendMode = .add
-        material.transparency = transparency
+        // Alpha blend so the soft tail dissolves into the background instead of stacking additively.
+        material.blendMode = .alpha
+        material.transparencyMode = .aOne
         material.writesToDepthBuffer = false
-        material.readsFromDepthBuffer = false
-        material.fresnelExponent = 2.2
-        geometry.materials = [material]
-        let node = SCNNode(geometry: geometry)
-        node.renderingOrder = order
-        earthNode.addChildNode(node)
+        material.readsFromDepthBuffer = true
+        plane.materials = [material]
+
+        let glow = SCNNode(geometry: plane)
+        glow.constraints = [SCNBillboardConstraint()]
+        glow.renderingOrder = -1
+        glow.castsShadow = false
+        earthNode.addChildNode(glow)
+    }
+
+    private static let limbGlowTexture = makeLimbGlowTexture()
+
+    /// Annular purple soft-glow: transparent center, soft long falloff that fades into the background.
+    private static func makeLimbGlowTexture() -> UIImage {
+        let dim: CGFloat = 512
+        let size = CGSize(width: dim, height: dim)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        return renderer.image { ctx in
+            let cg = ctx.cgContext
+            let center = CGPoint(x: dim * 0.5, y: dim * 0.5)
+            // glowSize 2.56 → limb (radius 1.0) at 1.0/1.28 ≈ 0.781 of half-extent
+            let half = dim * 0.5
+            let colors = [
+                UIColor(red: 0.72, green: 0.28, blue: 1.0, alpha: 0).cgColor,
+                UIColor(red: 0.78, green: 0.32, blue: 1.0, alpha: 0).cgColor,
+                UIColor(red: 0.80, green: 0.38, blue: 1.0, alpha: 0.0175).cgColor,
+                UIColor(red: 0.62, green: 0.26, blue: 0.98, alpha: 0.009).cgColor,
+                UIColor(red: 0.45, green: 0.16, blue: 0.85, alpha: 0.0035).cgColor,
+                UIColor(red: 0.30, green: 0.10, blue: 0.55, alpha: 0.001).cgColor,
+                UIColor(red: 0.20, green: 0.06, blue: 0.35, alpha: 0).cgColor,
+            ] as CFArray
+            // Peak near limb, then a smooth ease-out into the background
+            let locations: [CGFloat] = [0, 0.76, 0.79, 0.86, 0.92, 0.97, 1.0]
+            guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+                  let gradient = CGGradient(colorsSpace: space, colors: colors, locations: locations)
+            else { return }
+            cg.drawRadialGradient(
+                gradient,
+                startCenter: center,
+                startRadius: 0,
+                endCenter: center,
+                endRadius: half,
+                options: [.drawsAfterEndLocation]
+            )
+        }
     }
 
     private func buildLights() {
@@ -366,7 +382,7 @@ final class EarthGlobeRenderer {
             guard projected.z > 0 else { continue }
             let screen = CGPoint(x: CGFloat(projected.x), y: CGFloat(projected.y))
             let dist = hypot(screen.x - point.x, screen.y - point.y)
-            if dist < 48, best == nil || dist < best!.1 { best = (marker, dist) }
+            if dist < 72, best == nil || dist < best!.1 { best = (marker, dist) }
         }
         return best?.0
     }
@@ -395,25 +411,22 @@ private struct EarthCityMarker {
     let city: City
     let node: SCNNode
 
-    /// Shared timeline so every city breathes and ripples together.
-    private static let timelineOrigin = CACurrentMediaTime()
-    private static let breathPeriod: CFTimeInterval = 2.6
-    private static let ripplePeriod: CFTimeInterval = 3.8
+    /// Classic red map-pin texture (shared across markers).
+    private static let pinTexture = makeMapPinTexture()
 
-    /// Shared white textures for interactive city markers.
-    private static let whiteTextures = (
-        makeSoftGlowTexture(r: 0.95, g: 0.97, b: 1.0),
-        makeCoreTexture(rimR: 0.9, rimG: 0.92, rimB: 1.0),
-        makeRingTexture(r: 0.92, g: 0.95, b: 1.0)
-    )
+    /// Pin size in globe units; tip sits on the surface, head rises toward the camera.
+    /// 100% larger than the initial red-pin sizing (0.034 × 0.048).
+    private static let pinWidth: CGFloat = 0.068
+    private static let pinHeight: CGFloat = 0.096
 
     init(city: City, paletteIndex: Int) {
         self.city = city
         _ = paletteIndex
+        // Tip of the pin is anchored just above the sphere surface at the true lat/lon.
         let position = EarthGeo.position(
             latitude: city.latitude,
             longitude: city.longitude,
-            radius: 1.042
+            radius: 1.006
         )
 
         let root = SCNNode()
@@ -424,105 +437,36 @@ private struct EarthCityMarker {
         billboard.constraints = [SCNBillboardConstraint()]
         root.addChildNode(billboard)
 
-        let (haloTex, coreTex, ringTex) = Self.whiteTextures
+        let pin = SCNPlane(width: Self.pinWidth, height: Self.pinHeight)
+        let pinMat = SCNMaterial()
+        pinMat.diffuse.contents = Self.pinTexture
+        pinMat.emission.contents = Self.pinTexture
+        pinMat.emission.intensity = 0.35
+        pinMat.lightingModel = .constant
+        pinMat.blendMode = .alpha
+        pinMat.isDoubleSided = true
+        pinMat.writesToDepthBuffer = false
+        pinMat.readsFromDepthBuffer = true
+        pinMat.transparencyMode = .aOne
+        pin.materials = [pinMat]
 
-        // Soft white halo — 50% of prior size so markers read crisp vs purple population glow.
-        let haloSize: CGFloat = 0.026
-        let halo = SCNPlane(width: haloSize, height: haloSize)
-        let haloMat = SCNMaterial()
-        haloMat.diffuse.contents = haloTex
-        haloMat.emission.contents = haloTex
-        haloMat.emission.intensity = 1.2
-        haloMat.lightingModel = .constant
-        haloMat.blendMode = .alpha
-        haloMat.isDoubleSided = true
-        haloMat.writesToDepthBuffer = false
-        haloMat.readsFromDepthBuffer = true
-        halo.materials = [haloMat]
-        billboard.addChildNode(SCNNode(geometry: halo))
+        let pinNode = SCNNode(geometry: pin)
+        // Offset so the droplet tip (bottom of the texture) sits at the geo position.
+        pinNode.position = SCNVector3(0, Float(Self.pinHeight) * 0.5, 0)
+        billboard.addChildNode(pinNode)
 
-        // Hot white core.
-        let coreSize: CGFloat = 0.011
-        let core = SCNPlane(width: coreSize, height: coreSize)
-        let coreMat = SCNMaterial()
-        coreMat.diffuse.contents = coreTex
-        coreMat.emission.contents = coreTex
-        coreMat.emission.intensity = 2.2
-        coreMat.lightingModel = .constant
-        coreMat.blendMode = .add
-        coreMat.isDoubleSided = true
-        coreMat.writesToDepthBuffer = false
-        coreMat.readsFromDepthBuffer = true
-        core.materials = [coreMat]
-        billboard.addChildNode(SCNNode(geometry: core))
-
-        let breathOpacity = CABasicAnimation(keyPath: "opacity")
-        breathOpacity.fromValue = 0.86
-        breathOpacity.toValue = 1.0
-        breathOpacity.duration = Self.breathPeriod / 2
-        breathOpacity.autoreverses = true
-        breathOpacity.repeatCount = .infinity
-        breathOpacity.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        breathOpacity.beginTime = Self.timelineOrigin
-
-        let breathScale = CABasicAnimation(keyPath: "scale")
-        breathScale.fromValue = NSValue(scnVector3: SCNVector3(0.95, 0.95, 0.95))
-        breathScale.toValue = NSValue(scnVector3: SCNVector3(1.08, 1.08, 1.08))
-        breathScale.duration = Self.breathPeriod / 2
-        breathScale.autoreverses = true
-        breathScale.repeatCount = .infinity
-        breathScale.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        breathScale.beginTime = Self.timelineOrigin
-
-        billboard.addAnimation(breathOpacity, forKey: "breathOpacity")
-        billboard.addAnimation(breathScale, forKey: "breathScale")
-
-        let ringSize: CGFloat = 0.019
-        let ring = SCNPlane(width: ringSize, height: ringSize)
-        let ringMat = SCNMaterial()
-        ringMat.diffuse.contents = ringTex
-        ringMat.emission.contents = ringTex
-        ringMat.emission.intensity = 1.35
-        ringMat.lightingModel = .constant
-        ringMat.blendMode = .add
-        ringMat.isDoubleSided = true
-        ringMat.writesToDepthBuffer = false
-        ringMat.readsFromDepthBuffer = true
-        ring.materials = [ringMat]
-        let ringNode = SCNNode(geometry: ring)
-        ringNode.opacity = 0
-        billboard.addChildNode(ringNode)
-
-        let rippleScale = CAKeyframeAnimation(keyPath: "scale")
-        rippleScale.values = [
-            NSValue(scnVector3: SCNVector3(0.65, 0.65, 0.65)),
-            NSValue(scnVector3: SCNVector3(2.35, 2.35, 2.35)),
-            NSValue(scnVector3: SCNVector3(2.35, 2.35, 2.35))
-        ]
-        rippleScale.keyTimes = [0, 0.58, 1] as [NSNumber]
-        rippleScale.duration = Self.ripplePeriod
-        rippleScale.timingFunctions = [
-            CAMediaTimingFunction(name: .easeOut),
-            CAMediaTimingFunction(name: .linear)
-        ]
-
-        let rippleOpacity = CAKeyframeAnimation(keyPath: "opacity")
-        rippleOpacity.values = [0.62, 0.36, 0, 0] as [NSNumber]
-        rippleOpacity.keyTimes = [0, 0.22, 0.62, 1] as [NSNumber]
-        rippleOpacity.duration = Self.ripplePeriod
-        rippleOpacity.timingFunctions = [
-            CAMediaTimingFunction(name: .easeOut),
-            CAMediaTimingFunction(name: .easeIn),
-            CAMediaTimingFunction(name: .linear)
-        ]
-
-        let ripple = CAAnimationGroup()
-        ripple.animations = [rippleScale, rippleOpacity]
-        ripple.duration = Self.ripplePeriod
-        ripple.repeatCount = .infinity
-        ripple.beginTime = Self.timelineOrigin
-        ripple.isRemovedOnCompletion = false
-        ringNode.addAnimation(ripple, forKey: "ripple")
+        // Invisible larger hit target for easier taps.
+        let hitPlane = SCNPlane(width: Self.pinWidth * 1.8, height: Self.pinHeight * 1.4)
+        let hitMat = SCNMaterial()
+        hitMat.diffuse.contents = UIColor(white: 1, alpha: 0.01)
+        hitMat.lightingModel = .constant
+        hitMat.blendMode = .alpha
+        hitMat.writesToDepthBuffer = false
+        hitMat.readsFromDepthBuffer = false
+        hitPlane.materials = [hitMat]
+        let hitNode = SCNNode(geometry: hitPlane)
+        hitNode.position = SCNVector3(0, Float(Self.pinHeight) * 0.45, 0.001)
+        billboard.addChildNode(hitNode)
 
         self.node = root
     }
@@ -535,95 +479,63 @@ private struct EarthCityMarker {
 
     // MARK: - Textures (shared, generated once)
 
-    private static func makeSoftGlowTexture(r: Double, g: Double, b: Double) -> UIImage {
-        makeRadialTexture(size: 256) { r2 in
-            let bloom = exp(-r2 * 3.2)
-            let core = exp(-r2 * 16.0)
-            let alpha = min(1.0, bloom * 0.62 + core * 0.55)
-            return (r, g, b, alpha)
-        }
-    }
+    /// Traditional red upside-down droplet / map pin with a white center disc.
+    private static func makeMapPinTexture() -> UIImage {
+        let size = CGSize(width: 128, height: 180)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        return renderer.image { ctx in
+            let cg = ctx.cgContext
+            let red = UIColor(red: 0.90, green: 0.18, blue: 0.18, alpha: 1)
 
-    private static func makeCoreTexture(rimR: Double, rimG: Double, rimB: Double) -> UIImage {
-        makeRadialTexture(size: 128) { r2 in
-            let core = exp(-r2 * 22.0)
-            let rim = exp(-r2 * 7.0) * 0.48
-            let alpha = min(1.0, core + rim)
-            let t = min(1.0, core * 1.25)
-            return (
-                rimR * (1 - t) + 1.0 * t,
-                rimG * (1 - t) + 1.0 * t,
-                rimB * (1 - t) + 1.0 * t,
-                alpha
+            let cx = size.width * 0.5
+            let headRadius = size.width * 0.34
+            let headCenter = CGPoint(x: cx, y: size.height * 0.34)
+            let tip = CGPoint(x: cx, y: size.height * 0.96)
+            let flankY = headCenter.y + headRadius * 0.2
+            let flankHalf = headRadius * 0.82
+
+            let pin = UIBezierPath()
+            // Pointed tip + flanks that tuck under the circular head.
+            pin.move(to: tip)
+            pin.addLine(to: CGPoint(x: cx - flankHalf, y: flankY))
+            pin.addLine(to: CGPoint(x: cx + flankHalf, y: flankY))
+            pin.close()
+            // Circular head.
+            pin.append(
+                UIBezierPath(
+                    ovalIn: CGRect(
+                        x: headCenter.x - headRadius,
+                        y: headCenter.y - headRadius,
+                        width: headRadius * 2,
+                        height: headRadius * 2
+                    )
+                )
             )
-        }
-    }
 
-    private static func makeRingTexture(r: Double, g: Double, b: Double) -> UIImage {
-        let size = 256
-        let center = Double(size - 1) / 2
-        let outer: Double = 0.46
-        let inner: Double = 0.36
-        var pixels = [UInt8](repeating: 0, count: size * size * 4)
-        for y in 0..<size {
-            for x in 0..<size {
-                let dx = (Double(x) - center) / center
-                let dy = (Double(y) - center) / center
-                let rad = (dx * dx + dy * dy).squareRoot()
-                let mid = (outer + inner) * 0.5
-                let half = (outer - inner) * 0.5
-                let ring = max(0.0, 1.0 - abs(rad - mid) / half)
-                let alpha = min(1.0, ring * ring * 0.98)
-                let idx = (y * size + x) * 4
-                pixels[idx] = UInt8(min(255, 255 * alpha * r))
-                pixels[idx + 1] = UInt8(min(255, 255 * alpha * g))
-                pixels[idx + 2] = UInt8(min(255, 255 * alpha * b))
-                pixels[idx + 3] = UInt8(min(255, 255 * alpha))
-            }
-        }
-        return image(from: pixels, size: size)
-    }
+            cg.saveGState()
+            cg.setShadow(
+                offset: CGSize(width: 0, height: 2),
+                blur: 5,
+                color: UIColor.black.withAlphaComponent(0.4).cgColor
+            )
+            red.setFill()
+            pin.fill()
+            cg.restoreGState()
 
-    private static func makeRadialTexture(
-        size: Int,
-        sample: (_ r2: Double) -> (Double, Double, Double, Double)
-    ) -> UIImage {
-        let center = Double(size - 1) / 2
-        let cornerRadius = center * (2.0).squareRoot()
-        var pixels = [UInt8](repeating: 0, count: size * size * 4)
-        for y in 0..<size {
-            for x in 0..<size {
-                let dx = (Double(x) - center) / cornerRadius
-                let dy = (Double(y) - center) / cornerRadius
-                let (r, g, b, a) = sample(dx * dx + dy * dy)
-                let idx = (y * size + x) * 4
-                pixels[idx] = UInt8(min(255, 255 * r * a))
-                pixels[idx + 1] = UInt8(min(255, 255 * g * a))
-                pixels[idx + 2] = UInt8(min(255, 255 * b * a))
-                pixels[idx + 3] = UInt8(min(255, 255 * a))
-            }
+            let discRadius = headRadius * 0.36
+            let disc = UIBezierPath(
+                ovalIn: CGRect(
+                    x: headCenter.x - discRadius,
+                    y: headCenter.y - discRadius,
+                    width: discRadius * 2,
+                    height: discRadius * 2
+                )
+            )
+            UIColor.white.setFill()
+            disc.fill()
         }
-        return image(from: pixels, size: size)
-    }
-
-    private static func image(from pixels: [UInt8], size: Int) -> UIImage {
-        let data = Data(pixels)
-        guard let provider = CGDataProvider(data: data as CFData),
-              let cgImage = CGImage(
-                  width: size,
-                  height: size,
-                  bitsPerComponent: 8,
-                  bitsPerPixel: 32,
-                  bytesPerRow: size * 4,
-                  space: CGColorSpaceCreateDeviceRGB(),
-                  bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
-                  provider: provider,
-                  decode: nil,
-                  shouldInterpolate: true,
-                  intent: .defaultIntent
-              ) else {
-            return UIImage()
-        }
-        return UIImage(cgImage: cgImage)
     }
 }

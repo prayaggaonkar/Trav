@@ -218,7 +218,7 @@ struct GlobeLandingView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, TravSpacing.md)
                 } else {
-                    Text("Tap a glowing city to explore")
+                    Text("Tap a city pin to explore")
                         .font(TravTypography.labelMedium())
                         .foregroundStyle(.white.opacity(0.6))
                         .lineLimit(2)
