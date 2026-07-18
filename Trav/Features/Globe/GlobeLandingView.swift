@@ -151,7 +151,7 @@ struct GlobeLandingView: View {
     private var bottomCTA: some View {
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
             if case let .loaded(cities) = viewModel?.loadState {
-                Text("Tap a glowing city to explore")
+                Text("Tap a city pin to explore")
                     .font(TravTypography.labelMedium())
                     .foregroundStyle(.white.opacity(0.6))
                     .lineLimit(2)
