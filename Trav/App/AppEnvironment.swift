@@ -70,7 +70,7 @@ final class AppEnvironment {
             router: router,
             session: session,
             cities: MockCityRepository(),
-            experiences: MockExperienceRepository(),
+            experiences: config.useMockBackend ? MockExperienceRepository() : SupabaseExperienceRepository(),
             auth: config.useMockBackend ? MockAuthRepository() : SupabaseAuthRepository()
         )
     }()
