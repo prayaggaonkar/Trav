@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct CreateExperienceView: View {
     @Environment(AppEnvironment.self) private var environment
@@ -7,6 +8,9 @@ struct CreateExperienceView: View {
     @State private var title = ""
     @State private var description = ""
     @State private var selectedCity: City?
+    @State private var selectedItem: PhotosPickerItem? = nil
+    @State private var selectedImageData: Data? = nil
+    @State private var selectedUIImage: UIImage? = nil
     @State private var cities: [City] = []
     @State private var stops: [StopPreview] = []
     @State private var newStopName = ""
@@ -49,12 +53,19 @@ struct CreateExperienceView: View {
     private var formContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TravSpacing.lg) {
-                VStack(alignment: .leading, spacing: TravSpacing.xxs) {
-                    Text("Create Experience")
-                        .font(TravTypography.displayMedium())
-                        .foregroundStyle(TravColors.primary)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.9)
+                VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("CREATE EXPERIENCE")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .tracking(2.5)
+                            .foregroundStyle(TravColors.accent)
+                        
+                        Text("New Route")
+                            .font(TravTypography.displayMedium())
+                            .foregroundStyle(TravColors.primary)
+                            .lineLimit(1)
+                    }
+                    
                     Text("Map your favorite stops and share them with the world.")
                         .font(TravTypography.bodyMedium())
                         .foregroundStyle(TravColors.muted)
@@ -79,6 +90,67 @@ struct CreateExperienceView: View {
                     }
                 }
                 .travAppear(delay: 0.05)
+
+                TravFormSection(title: "Cover Photo") {
+                    VStack(alignment: .center, spacing: TravSpacing.sm) {
+                        PhotosPicker(selection: $selectedItem, matching: .images) {
+                            if let selectedUIImage {
+                                Image(uiImage: selectedUIImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(height: 180)
+                                    .frame(maxWidth: .infinity)
+                                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: TravRadius.md)
+                                            .stroke(TravColors.primary.opacity(0.15), lineWidth: 1)
+                                    )
+                                    .overlay(
+                                        Text("Change Cover Photo")
+                                            .font(TravTypography.labelMedium())
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, TravSpacing.md)
+                                            .padding(.vertical, TravSpacing.xs)
+                                            .background(.black.opacity(0.58))
+                                            .clipShape(Capsule())
+                                    )
+                            } else {
+                                VStack(spacing: TravSpacing.xs) {
+                                    Image(systemName: "photo.badge.plus")
+                                        .font(.system(size: 28))
+                                        .foregroundStyle(TravColors.accent)
+                                    Text("Add Cover Photo")
+                                        .font(TravTypography.labelMedium())
+                                        .foregroundStyle(TravColors.primary)
+                                    Text("Upload an image of a place you visited")
+                                        .font(TravTypography.caption())
+                                        .foregroundStyle(TravColors.muted)
+                                }
+                                .frame(height: 140)
+                                .frame(maxWidth: .infinity)
+                                .background(TravColors.surfaceElevated)
+                                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: TravRadius.md)
+                                        .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                                        .foregroundStyle(TravColors.primary.opacity(0.15))
+                                )
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .onChange(of: selectedItem) { _, newItem in
+                        Task {
+                            if let newItem {
+                                if let data = try? await newItem.loadTransferable(type: Data.self) {
+                                    selectedImageData = data
+                                    selectedUIImage = UIImage(data: data)
+                                }
+                            }
+                        }
+                    }
+                }
+                .travAppear(delay: 0.08)
 
                 TravFormSection(title: "Destination City") {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -251,7 +323,8 @@ struct CreateExperienceView: View {
                     description: description,
                     cityID: selectedCity.id,
                     creatorID: creatorID,
-                    stops: stops
+                    stops: stops,
+                    imageData: selectedImageData
                 )
 
                 await MainActor.run {
@@ -273,6 +346,9 @@ struct CreateExperienceView: View {
     private func resetForm() {
         title = ""
         description = ""
+        selectedItem = nil
+        selectedImageData = nil
+        selectedUIImage = nil
         selectedCity = nil
         stops = []
         showSuccess = false

@@ -3,6 +3,7 @@ import SwiftUI
 struct CityPageView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
+    @Environment(SessionStore.self) private var session
     @State private var viewModel: CityViewModel
     @State private var scrollOffset: CGFloat = 0
     @State private var sharePayload: SharePayload?
@@ -68,6 +69,11 @@ struct CityPageView: View {
         .task {
             await viewModel.load(using: environment)
         }
+        .onChange(of: session.currentUser) { _, _ in
+            Task {
+                await viewModel.load(using: environment)
+            }
+        }
     }
 
     private static func resolvedHeroHeight(for screenHeight: CGFloat) -> CGFloat {
@@ -101,32 +107,22 @@ struct CityPageView: View {
                             }
                         }
 
-                    heroSection(content.city, height: resolvedHero)
+                    let experiencesCount = feed.count
+                    let creatorsCount = Set(feed.map { $0.creator.id }).count
+
+                    heroSection(
+                        content.city,
+                        experiencesCount: experiencesCount,
+                        creatorsCount: creatorsCount,
+                        height: resolvedHero
+                    )
                         .frame(width: geometry.size.width)
                         .padding(.bottom, -TravSpacing.lg)
                         .travAppear()
 
-                    CitySearchBar(text: $viewModel.searchQuery, cityName: content.city.name)
-                        .padding(.horizontal, TravSpacing.screenHorizontal)
-                        .travAppear(delay: 0.05)
-
-                    if let featured = content.featured, viewModel.searchQuery.isEmpty {
-                        featuredSection(featured, cityName: content.city.name)
-                            .padding(.horizontal, TravSpacing.screenHorizontal)
-                            .travAppear(delay: 0.08)
-                    }
-
-                    if !content.creators.isEmpty, viewModel.searchQuery.isEmpty {
-                        TrendingCreatorsSection(creators: content.creators) { creator in
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            router.openProfile(creator.username)
-                        }
-                        .travAppear(delay: 0.11)
-                    }
-
                     feedSection(feed, cityName: content.city.name)
                         .padding(.horizontal, TravSpacing.screenHorizontal)
-                        .travAppear(delay: 0.14)
+                        .travAppear(delay: 0.08)
                 }
                 .padding(.bottom, TravSpacing.lg)
                 .frame(maxWidth: geometry.size.width, alignment: .leading)
@@ -144,7 +140,12 @@ struct CityPageView: View {
     }
 
     @ViewBuilder
-    private func heroSection(_ city: City, height: CGFloat) -> some View {
+    private func heroSection(
+        _ city: City,
+        experiencesCount: Int,
+        creatorsCount: Int,
+        height: CGFloat
+    ) -> some View {
         ZStack(alignment: .bottomLeading) {
             RemoteImage(url: city.heroImageURL, height: height, cornerRadius: 0)
 
@@ -168,7 +169,7 @@ struct CityPageView: View {
                     .minimumScaleFactor(0.78)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("\(TravFormatters.groupedCount(city.experienceCount)) experiences · \(TravFormatters.groupedCount(city.creatorCount)) creators")
+                Text("\(TravFormatters.groupedCount(experiencesCount)) experiences · \(TravFormatters.groupedCount(creatorsCount)) creators")
                     .font(TravTypography.bodyMedium())
                     .foregroundStyle(.white.opacity(0.82))
                     .lineLimit(1)
@@ -224,8 +225,11 @@ struct CityPageView: View {
             } else {
                 LazyVStack(spacing: TravSpacing.md) {
                     ForEach(Array(feed.enumerated()), id: \.element.id) { index, experience in
-                        ExperienceCard(
+                        let isUserCreated = session.currentUser?.id == experience.creator.id
+                        let badgeText = isUserCreated ? "Created by Me" : ""
+                        HeroExperienceCard(
                             experience: experience,
+                            badgeText: badgeText,
                             isSaved: viewModel.isSaved(experience.id),
                             isLiked: viewModel.isLiked(experience.id),
                             onTap: {

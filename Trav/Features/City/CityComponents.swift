@@ -52,8 +52,9 @@ struct CitySearchBar: View {
 
 // MARK: - Featured
 
-struct FeaturedExperienceCard: View {
+struct HeroExperienceCard: View {
     let experience: ExperienceSummary
+    let badgeText: String
     var isSaved: Bool = false
     var isLiked: Bool = false
     var onTap: () -> Void
@@ -63,34 +64,47 @@ struct FeaturedExperienceCard: View {
     var onShare: (() -> Void)? = nil
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            RemoteImage(
-                url: experience.coverImageURL,
-                height: TravLayout.featuredCardHeight,
-                cornerRadius: 0
-            )
+        let hasImage = experience.coverImageURL != nil
+        let titleColor = hasImage ? Color.white : TravColors.primary
+        let creatorColor = hasImage ? Color.white.opacity(0.85) : TravColors.muted
+        let badgeColor = hasImage ? Color.white.opacity(0.7) : TravColors.accent
 
-            LinearGradient(
-                colors: [
-                    .black.opacity(0.1),
-                    .black.opacity(0.4),
-                    .black.opacity(0.85)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+        ZStack(alignment: .bottomLeading) {
+            if let imageURL = experience.coverImageURL {
+                RemoteImage(
+                    url: imageURL,
+                    height: 180,
+                    cornerRadius: TravRadius.lg
+                )
+                
+                LinearGradient(
+                    colors: [
+                        .black.opacity(0.15),
+                        .black.opacity(0.45),
+                        .black.opacity(0.85)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            } else {
+                RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                    .fill(TravColors.surfaceElevated)
+                    .frame(height: 180)
+            }
 
             VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                Text("Featured")
-                    .font(TravTypography.labelMedium())
-                    .tracking(0.6)
-                    .textCase(.uppercase)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .lineLimit(1)
+                if !badgeText.isEmpty {
+                    Text(badgeText)
+                        .font(TravTypography.labelMedium())
+                        .tracking(0.6)
+                        .textCase(.uppercase)
+                        .foregroundStyle(badgeColor)
+                        .lineLimit(1)
+                }
 
                 Text(experience.title)
                     .font(TravTypography.titleLarge())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(titleColor)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
                     .minimumScaleFactor(0.88)
@@ -99,32 +113,22 @@ struct FeaturedExperienceCard: View {
                 Button {
                     onCreatorTap?()
                 } label: {
-                    Text(experience.creator.displayName)
+                    Text("by \(experience.creator.displayName)")
                         .font(TravTypography.caption())
-                        .foregroundStyle(.white.opacity(0.85))
+                        .foregroundStyle(creatorColor)
                         .lineLimit(1)
                 }
                 .buttonStyle(.plain)
                 .disabled(onCreatorTap == nil)
 
-                Text("\(TravFormatters.duration(experience.durationMinutes)) · \(experience.costLabel)")
-                    .font(TravTypography.caption())
-                    .foregroundStyle(.white.opacity(0.75))
-                    .lineLimit(1)
-
-                Text("\(TravFormatters.count(experience.completionCount)) completed · \(TravFormatters.count(experience.saveCount + (isSaved ? 1 : 0))) saved")
-                    .font(TravTypography.caption())
-                    .foregroundStyle(.white.opacity(0.7))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
+                Spacer(minLength: TravSpacing.xs)
 
                 RoutePreview(
                     stops: experience.stops,
-                    maxVisibleStops: 3,
+                    maxVisibleStops: 4,
                     compact: true,
                     style: .editorial
                 )
-                .padding(.top, TravSpacing.xxs)
             }
             .padding(TravSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -142,15 +146,65 @@ struct FeaturedExperienceCard: View {
             .padding(TravSpacing.sm)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }
-        .frame(height: TravLayout.featuredCardHeight)
+        .frame(height: 180)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
         .onTapGesture(perform: onTap)
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("Featured experience \(experience.title)")
+        .accessibilityLabel("\(badgeText) experience \(experience.title)")
         .accessibilityAction(named: "Open") { onTap() }
+    }
+}
+
+struct FeaturedExperienceCard: View {
+    let experience: ExperienceSummary
+    var isSaved: Bool = false
+    var isLiked: Bool = false
+    var onTap: () -> Void
+    var onCreatorTap: (() -> Void)? = nil
+    var onSave: (() -> Void)? = nil
+    var onLike: (() -> Void)? = nil
+    var onShare: (() -> Void)? = nil
+
+    var body: some View {
+        HeroExperienceCard(
+            experience: experience,
+            badgeText: "Featured",
+            isSaved: isSaved,
+            isLiked: isLiked,
+            onTap: onTap,
+            onCreatorTap: onCreatorTap,
+            onSave: onSave,
+            onLike: onLike,
+            onShare: onShare
+        )
+    }
+}
+
+struct UserCreatedExperienceCard: View {
+    let experience: ExperienceSummary
+    var isSaved: Bool = false
+    var isLiked: Bool = false
+    var onTap: () -> Void
+    var onCreatorTap: (() -> Void)? = nil
+    var onSave: (() -> Void)? = nil
+    var onLike: (() -> Void)? = nil
+    var onShare: (() -> Void)? = nil
+
+    var body: some View {
+        HeroExperienceCard(
+            experience: experience,
+            badgeText: "Created by Me",
+            isSaved: isSaved,
+            isLiked: isLiked,
+            onTap: onTap,
+            onCreatorTap: onCreatorTap,
+            onSave: onSave,
+            onLike: onLike,
+            onShare: onShare
+        )
     }
 }
 

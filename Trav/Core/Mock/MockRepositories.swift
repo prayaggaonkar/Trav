@@ -40,10 +40,15 @@ struct MockExperienceRepository: ExperienceRepository {
         description: String,
         cityID: UUID,
         creatorID: UUID,
-        stops: [StopPreview]
+        stops: [StopPreview],
+        imageData: Data?
     ) async throws {
         print("--- MockExperienceRepository.publishExperience called (using Mock Backend) ---")
         try await Task.sleep(for: .milliseconds(500))
+    }
+
+    func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary] {
+        MockData.experiences.filter { $0.cityID == cityID && $0.creator.id == userID }
     }
 }
 

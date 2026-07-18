@@ -18,17 +18,17 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let description: String
         let city: String
         let stops: [String]
+        let image: String?
         let created_at: Date
     }
 
     private struct DBExperience: Codable {
         let id: UUID
-        let user_id: UUID
         let title: String
         let description: String
         let city: String
         let stops: [String]
-        let created_at: Date
+        let image: String?
     }
 
     private struct DBProfileSummary: Codable {
@@ -54,13 +54,33 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         description: String,
         cityID: UUID,
         creatorID: UUID,
-        stops: [StopPreview]
+        stops: [StopPreview],
+        imageData: Data?
     ) async throws {
         print("--- SupabaseExperienceRepository.publishExperience starting ---")
         let experienceID = UUID()
 
         // Match cityID to a name, or default to "Unknown"
         let cityName = MockData.cities.first(where: { $0.id == cityID })?.name ?? "Unknown"
+
+        var publicURLString: String? = nil
+
+        if let data = imageData {
+            let path = "\(experienceID.uuidString.lowercased())/cover.jpg"
+            print("Uploading cover image to Supabase Storage: path=\(path), size=\(data.count) bytes")
+            
+            _ = try await client.storage
+                .from("experiences")
+                .upload(
+                    path,
+                    data: data,
+                    options: FileOptions(contentType: "image/jpeg")
+                )
+            
+            let publicURL = try client.storage.from("experiences").getPublicURL(path: path)
+            publicURLString = publicURL.absoluteString
+            print("Successfully uploaded cover image to Supabase Storage. Public URL: \(publicURLString ?? "nil")")
+        }
 
         let experienceInsert = DBExperienceInsert(
             id: experienceID,
@@ -69,6 +89,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             description: description,
             city: cityName,
             stops: stops.map { $0.name },
+            image: publicURLString,
             created_at: Date()
         )
 
@@ -93,26 +114,14 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 .execute()
                 .value
 
-            var dbProfile: DBProfileSummary?
-            do {
-                dbProfile = try await client
-                    .from("profiles")
-                    .select("id, username, display_name, avatar_url, is_verified")
-                    .eq("id", value: dbExp.user_id)
-                    .single()
-                    .execute()
-                    .value
-            } catch {}
-
             let creator = ProfileSummary(
-                id: dbProfile?.id ?? dbExp.user_id,
-                username: dbProfile?.username ?? "unknown",
-                displayName: dbProfile?.display_name ?? "Unknown Creator",
-                avatarURL: dbProfile?.avatar_url.flatMap { URL(string: $0) },
-                isVerified: dbProfile?.is_verified ?? false
+                id: UUID(),
+                username: "traveler",
+                displayName: "Traveler",
+                avatarURL: nil,
+                isVerified: false
             )
 
-            // Convert string array to Stop array
             let stops = dbExp.stops.enumerated().map { (index, stopName) in
                 Stop(
                     id: UUID(),
@@ -130,7 +139,6 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 )
             }
 
-            // Find city ID from city name
             let matchedCity = MockData.cities.first(where: { $0.name.localizedCaseInsensitiveCompare(dbExp.city) == .orderedSame })
             let cityID = matchedCity?.id ?? UUID()
 
@@ -140,7 +148,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 creator: creator,
                 title: dbExp.title,
                 description: dbExp.description,
-                coverImageURL: nil,
+                coverImageURL: dbExp.image.flatMap { URL(string: $0) },
                 durationMinutes: stops.count * 30,
                 costLevel: .budget,
                 estimatedCostUSD: nil,
@@ -151,7 +159,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 completionCount: 0,
                 commentCount: 0,
                 isPublished: true,
-                publishedAt: dbExp.created_at,
+                publishedAt: Date(),
                 stops: stops,
                 routeSegments: []
             )
@@ -162,9 +170,11 @@ struct SupabaseExperienceRepository: ExperienceRepository {
     }
 
     func fetchCityFeed(cityID: UUID, page: Int) async throws -> Paginated<ExperienceSummary> {
+        debugLog("SupabaseExperienceRepository.fetchCityFeed started for cityID: \(cityID)")
         do {
             // Find city name from cityID
             let cityName = MockData.cities.first(where: { $0.id == cityID })?.name ?? "Unknown"
+            debugLog("SupabaseExperienceRepository.fetchCityFeed: resolved cityName: \(cityName)")
 
             let dbExps: [DBExperience] = try await client
                 .from("experiences")
@@ -174,27 +184,18 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 .execute()
                 .value
 
+            debugLog("SupabaseExperienceRepository.fetchCityFeed: query returned \(dbExps.count) rows")
+
+            let creator = ProfileSummary(
+                id: UUID(),
+                username: "traveler",
+                displayName: "Traveler",
+                avatarURL: nil,
+                isVerified: false
+            )
+
             var summaries: [ExperienceSummary] = []
             for dbExp in dbExps {
-                var dbProfile: DBProfileSummary?
-                do {
-                    dbProfile = try await client
-                        .from("profiles")
-                        .select("id, username, display_name, avatar_url, is_verified")
-                        .eq("id", value: dbExp.user_id)
-                        .single()
-                        .execute()
-                        .value
-                } catch {}
-
-                let creator = ProfileSummary(
-                    id: dbProfile?.id ?? dbExp.user_id,
-                    username: dbProfile?.username ?? "unknown",
-                    displayName: dbProfile?.display_name ?? "Unknown Creator",
-                    avatarURL: dbProfile?.avatar_url.flatMap { URL(string: $0) },
-                    isVerified: dbProfile?.is_verified ?? false
-                )
-
                 let stopsPreviews = dbExp.stops.map { stopName in
                     StopPreview(id: UUID(), name: stopName, emoji: "📍")
                 }
@@ -203,7 +204,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                     id: dbExp.id,
                     cityID: cityID,
                     title: dbExp.title,
-                    coverImageURL: nil,
+                    coverImageURL: dbExp.image.flatMap { URL(string: $0) },
                     creator: creator,
                     durationMinutes: dbExp.stops.count * 30,
                     costLevel: .budget,
@@ -216,14 +217,60 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 summaries.append(summary)
             }
 
-            if summaries.isEmpty {
-                return try await MockExperienceRepository().fetchCityFeed(cityID: cityID, page: page)
-            }
-
             return Paginated(items: summaries, page: page, hasMore: false)
         } catch {
-            print("Failed to fetch city feed for \(cityID) from Supabase, falling back to mock: \(error)")
-            return try await MockExperienceRepository().fetchCityFeed(cityID: cityID, page: page)
+            debugLog("SupabaseExperienceRepository.fetchCityFeed failed with error: \(error)")
+            return Paginated(items: [], page: page, hasMore: false)
+        }
+    }
+
+    func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary] {
+        do {
+            let cityName = MockData.cities.first(where: { $0.id == cityID })?.name ?? "Unknown"
+
+            let dbExps: [DBExperience] = try await client
+                .from("experiences")
+                .select()
+                .eq("city", value: cityName)
+                .eq("user_id", value: userID)
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+
+            let creator = ProfileSummary(
+                id: userID,
+                username: "traveler",
+                displayName: "Traveler",
+                avatarURL: nil,
+                isVerified: false
+            )
+
+            var summaries: [ExperienceSummary] = []
+            for dbExp in dbExps {
+                let stopsPreviews = dbExp.stops.map { stopName in
+                    StopPreview(id: UUID(), name: stopName, emoji: "📍")
+                }
+
+                let summary = ExperienceSummary(
+                    id: dbExp.id,
+                    cityID: cityID,
+                    title: dbExp.title,
+                    coverImageURL: dbExp.image.flatMap { URL(string: $0) },
+                    creator: creator,
+                    durationMinutes: dbExp.stops.count * 30,
+                    costLevel: .budget,
+                    estimatedCostUSD: nil,
+                    saveCount: 0,
+                    likeCount: 0,
+                    completionCount: 0,
+                    stops: stopsPreviews
+                )
+                summaries.append(summary)
+            }
+            return summaries
+        } catch {
+            print("Failed to fetch user experiences for \(cityID) from Supabase: \(error)")
+            return []
         }
     }
 }

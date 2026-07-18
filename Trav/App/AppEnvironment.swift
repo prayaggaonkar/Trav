@@ -79,12 +79,15 @@ final class AppEnvironment {
     /// subsequent sign-in, sign-out, and token-refresh events. Call once at app launch;
     /// the underlying stream lives for the lifetime of the app.
     func observeAuthState() async {
+        debugLog("AppEnvironment.observeAuthState started")
         guard !configuration.useMockBackend else {
+            debugLog("AppEnvironment.observeAuthState: using mock backend, setting unauthenticated")
             session.phase = .unauthenticated
             return
         }
 
         for await profile in auth.authStateChanges() {
+            debugLog("AppEnvironment.observeAuthState: received profile update: \(profile?.displayName ?? "nil") (\(profile?.id.uuidString ?? "nil"))")
             session.currentUser = profile
             session.phase = profile != nil ? .authenticated : .unauthenticated
         }
