@@ -152,7 +152,6 @@ final class EarthGlobeRenderer {
         scene.background.contents = UIColor.clear
 
         buildEarth()
-        buildAtmosphere()
         buildLights()
         buildCamera()
 
@@ -187,73 +186,6 @@ final class EarthGlobeRenderer {
 
         geometry.materials = [material]
         earthNode.geometry = geometry
-    }
-
-    /// Soft purple 2D silhouette halo — a camera-facing ring just outside the globe limb.
-    /// Does not light the Earth surface; only separates the disc from the background.
-    private func buildAtmosphere() {
-        // 20% shorter than prior 2.70 falloff extent
-        let glowSize: CGFloat = 2.56
-        let plane = SCNPlane(width: glowSize, height: glowSize)
-        let material = SCNMaterial()
-        let tex = Self.limbGlowTexture
-        material.diffuse.contents = tex
-        material.emission.contents = tex
-        material.emission.intensity = 0.01125
-        material.lightingModel = .constant
-        material.isDoubleSided = true
-        // Alpha blend so the soft tail dissolves into the background instead of stacking additively.
-        material.blendMode = .alpha
-        material.transparencyMode = .aOne
-        material.writesToDepthBuffer = false
-        material.readsFromDepthBuffer = true
-        plane.materials = [material]
-
-        let glow = SCNNode(geometry: plane)
-        glow.constraints = [SCNBillboardConstraint()]
-        glow.renderingOrder = -1
-        glow.castsShadow = false
-        earthNode.addChildNode(glow)
-    }
-
-    private static let limbGlowTexture = makeLimbGlowTexture()
-
-    /// Annular purple soft-glow: transparent center, soft long falloff that fades into the background.
-    private static func makeLimbGlowTexture() -> UIImage {
-        let dim: CGFloat = 512
-        let size = CGSize(width: dim, height: dim)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        format.opaque = false
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
-        return renderer.image { ctx in
-            let cg = ctx.cgContext
-            let center = CGPoint(x: dim * 0.5, y: dim * 0.5)
-            // glowSize 2.56 → limb (radius 1.0) at 1.0/1.28 ≈ 0.781 of half-extent
-            let half = dim * 0.5
-            let colors = [
-                UIColor(red: 0.72, green: 0.28, blue: 1.0, alpha: 0).cgColor,
-                UIColor(red: 0.78, green: 0.32, blue: 1.0, alpha: 0).cgColor,
-                UIColor(red: 0.80, green: 0.38, blue: 1.0, alpha: 0.00875).cgColor,
-                UIColor(red: 0.62, green: 0.26, blue: 0.98, alpha: 0.0045).cgColor,
-                UIColor(red: 0.45, green: 0.16, blue: 0.85, alpha: 0.00175).cgColor,
-                UIColor(red: 0.30, green: 0.10, blue: 0.55, alpha: 0.0005).cgColor,
-                UIColor(red: 0.20, green: 0.06, blue: 0.35, alpha: 0).cgColor,
-            ] as CFArray
-            // Peak near limb, then a smooth ease-out into the background
-            let locations: [CGFloat] = [0, 0.76, 0.79, 0.86, 0.92, 0.97, 1.0]
-            guard let space = CGColorSpace(name: CGColorSpace.sRGB),
-                  let gradient = CGGradient(colorsSpace: space, colors: colors, locations: locations)
-            else { return }
-            cg.drawRadialGradient(
-                gradient,
-                startCenter: center,
-                startRadius: 0,
-                endCenter: center,
-                endRadius: half,
-                options: [.drawsAfterEndLocation]
-            )
-        }
     }
 
     private func buildLights() {
