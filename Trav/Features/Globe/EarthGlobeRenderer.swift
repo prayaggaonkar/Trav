@@ -152,7 +152,6 @@ final class EarthGlobeRenderer {
         scene.background.contents = UIColor.clear
 
         buildEarth()
-        buildAtmosphere()
         buildLights()
         buildCamera()
 
@@ -174,100 +173,49 @@ final class EarthGlobeRenderer {
         material.diffuse.magnificationFilter = .linear
         material.diffuse.minificationFilter = .linear
         material.diffuse.mipFilter = .linear
-        // Population-density emission: neon purple/magenta/cyan — reads strongest on night side.
+        // Day texture is intentionally muted; lift diffuse so land/ocean stay readable.
+        material.diffuse.intensity = 1.55
+        // Population-density emission: neon purple — strongest on the night side.
         material.emission.contents = loadImage(named: "earth_night")
         material.emission.intensity = 1.45
         material.lightingModel = .blinn
-        material.shininess = 0.06
-        material.specular.contents = UIColor(white: 0.08, alpha: 1)
+        material.shininess = 0.04
+        material.specular.contents = UIColor(white: 0.06, alpha: 1)
+        // Soften self-shadowing so the night hemisphere still shows continents/oceans.
+        material.ambient.contents = UIColor(white: 0.55, alpha: 1)
 
         geometry.materials = [material]
         earthNode.geometry = geometry
     }
 
-    /// Soft purple 2D silhouette halo — a camera-facing ring just outside the globe limb.
-    /// Does not light the Earth surface; only separates the disc from the background.
-    private func buildAtmosphere() {
-        // 20% shorter than prior 2.70 falloff extent
-        let glowSize: CGFloat = 2.56
-        let plane = SCNPlane(width: glowSize, height: glowSize)
-        let material = SCNMaterial()
-        let tex = Self.limbGlowTexture
-        material.diffuse.contents = tex
-        material.emission.contents = tex
-        material.emission.intensity = 0.0225
-        material.lightingModel = .constant
-        material.isDoubleSided = true
-        // Alpha blend so the soft tail dissolves into the background instead of stacking additively.
-        material.blendMode = .alpha
-        material.transparencyMode = .aOne
-        material.writesToDepthBuffer = false
-        material.readsFromDepthBuffer = true
-        plane.materials = [material]
-
-        let glow = SCNNode(geometry: plane)
-        glow.constraints = [SCNBillboardConstraint()]
-        glow.renderingOrder = -1
-        glow.castsShadow = false
-        earthNode.addChildNode(glow)
-    }
-
-    private static let limbGlowTexture = makeLimbGlowTexture()
-
-    /// Annular purple soft-glow: transparent center, soft long falloff that fades into the background.
-    private static func makeLimbGlowTexture() -> UIImage {
-        let dim: CGFloat = 512
-        let size = CGSize(width: dim, height: dim)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        format.opaque = false
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
-        return renderer.image { ctx in
-            let cg = ctx.cgContext
-            let center = CGPoint(x: dim * 0.5, y: dim * 0.5)
-            // glowSize 2.56 → limb (radius 1.0) at 1.0/1.28 ≈ 0.781 of half-extent
-            let half = dim * 0.5
-            let colors = [
-                UIColor(red: 0.72, green: 0.28, blue: 1.0, alpha: 0).cgColor,
-                UIColor(red: 0.78, green: 0.32, blue: 1.0, alpha: 0).cgColor,
-                UIColor(red: 0.80, green: 0.38, blue: 1.0, alpha: 0.0175).cgColor,
-                UIColor(red: 0.62, green: 0.26, blue: 0.98, alpha: 0.009).cgColor,
-                UIColor(red: 0.45, green: 0.16, blue: 0.85, alpha: 0.0035).cgColor,
-                UIColor(red: 0.30, green: 0.10, blue: 0.55, alpha: 0.001).cgColor,
-                UIColor(red: 0.20, green: 0.06, blue: 0.35, alpha: 0).cgColor,
-            ] as CFArray
-            // Peak near limb, then a smooth ease-out into the background
-            let locations: [CGFloat] = [0, 0.76, 0.79, 0.86, 0.92, 0.97, 1.0]
-            guard let space = CGColorSpace(name: CGColorSpace.sRGB),
-                  let gradient = CGGradient(colorsSpace: space, colors: colors, locations: locations)
-            else { return }
-            cg.drawRadialGradient(
-                gradient,
-                startCenter: center,
-                startRadius: 0,
-                endCenter: center,
-                endRadius: half,
-                options: [.drawsAfterEndLocation]
-            )
-        }
-    }
-
     private func buildLights() {
-        // Balanced fill so daytime topo reads clearly without washing out night lights.
+        // SceneKit's "1.0" lighting scale is ~1000 intensity — keep fill strong enough
+        // that land/ocean remain visible on the night side, not just purple dots.
         let ambient = SCNNode()
         ambient.light = SCNLight()
         ambient.light?.type = .ambient
-        ambient.light?.intensity = 110
-        ambient.light?.color = UIColor(red: 0.72, green: 0.72, blue: 0.78, alpha: 1)
+        ambient.light?.intensity = 620
+        ambient.light?.color = UIColor(red: 0.78, green: 0.80, blue: 0.88, alpha: 1)
         scene.rootNode.addChildNode(ambient)
 
         sunLightNode.light = SCNLight()
         sunLightNode.light?.type = .directional
-        sunLightNode.light?.intensity = 1280
-        sunLightNode.light?.color = UIColor(red: 1.0, green: 0.98, blue: 0.95, alpha: 1)
+        sunLightNode.light?.intensity = 1650
+        sunLightNode.light?.color = UIColor(red: 1.0, green: 0.98, blue: 0.94, alpha: 1)
         sunLightNode.light?.castsShadow = false
         updateSunLightPosition()
         scene.rootNode.addChildNode(sunLightNode)
+
+        // Gentle fill from the camera side so the facing hemisphere never goes black.
+        let fill = SCNNode()
+        fill.light = SCNLight()
+        fill.light?.type = .directional
+        fill.light?.intensity = 380
+        fill.light?.color = UIColor(red: 0.70, green: 0.74, blue: 0.90, alpha: 1)
+        fill.light?.castsShadow = false
+        fill.position = SCNVector3(0, 0.4, 6)
+        fill.look(at: SCNVector3Zero)
+        cameraNode.addChildNode(fill)
     }
 
     private func buildCamera() {
@@ -279,10 +227,10 @@ final class EarthGlobeRenderer {
         // Mild bloom so neon population hubs glow without washing the diffuse topo.
         camera.wantsHDR = true
         camera.wantsExposureAdaptation = false
-        camera.exposureOffset = 0.05
-        camera.bloomIntensity = 0.35
-        camera.bloomThreshold = 0.5
-        camera.bloomBlurRadius = 4.5
+        camera.exposureOffset = 0.35
+        camera.bloomIntensity = 0.28
+        camera.bloomThreshold = 0.55
+        camera.bloomBlurRadius = 4.0
         cameraNode.camera = camera
         updateCameraPosition()
     }
