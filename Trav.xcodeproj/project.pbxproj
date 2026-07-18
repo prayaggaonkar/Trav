@@ -34,6 +34,7 @@
 		A918A9EDBC4E475399F878FF /* CityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39CE5CA1E5C9417CBF6E98A0 /* CityViewModel.swift */; };
 		AC10E298F515465C8669B002 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC10E298F515465C8669B001 /* SupabaseManager.swift */; };
 		AC10E298F515465C8669B004 /* SupabaseAuthRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */; };
+		AC10E298F515465C8669B016 /* SupabaseExperienceRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC10E298F515465C8669B015 /* SupabaseExperienceRepository.swift */; };
 		AC10E298F515465C8669B009 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = AC10E298F515465C8669B008 /* Supabase */; };
 		AC10E298F515465C8669B00C /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = AC10E298F515465C8669B00B /* Auth */; };
 		AC10E298F515465C8669B00E /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = AC10E298F515465C8669B00D /* Functions */; };
@@ -90,6 +91,7 @@
 		A31AE020CFEB4511A16E49E9 /* EarthGlobeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarthGlobeRenderer.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B001 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseAuthRepository.swift; sourceTree = "<group>"; };
+		AC10E298F515465C8669B015 /* SupabaseExperienceRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseExperienceRepository.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B006 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		AF9960D8427B4F95A1C426B8 /* EarthSunPosition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarthSunPosition.swift; sourceTree = "<group>"; };
 		B26BA97D662C4CA8849CBA1E /* MockRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockRepositories.swift; sourceTree = "<group>"; };
@@ -350,6 +352,7 @@
 			children = (
 				4762DCE38F22479AB6D818E6 /* RepositoryProtocols.swift */,
 				AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */,
+				AC10E298F515465C8669B015 /* SupabaseExperienceRepository.swift */,
 			);
 			path = Repositories;
 			sourceTree = "<group>";
@@ -480,6 +483,7 @@
 				C7EAD1EAE5A54853BC25399B /* CreateExperienceView.swift in Sources */,
 				AC10E298F515465C8669B002 /* SupabaseManager.swift in Sources */,
 				AC10E298F515465C8669B004 /* SupabaseAuthRepository.swift in Sources */,
+				AC10E298F515465C8669B016 /* SupabaseExperienceRepository.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

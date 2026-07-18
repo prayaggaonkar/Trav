@@ -14,6 +14,8 @@ struct CreateExperienceView: View {
 
     @State private var isSubmitting = false
     @State private var showSuccess = false
+    @State private var errorMessage: String?
+    @State private var showErrorAlert = false
 
     let emojis = ["📍", "☕", "📚", "🍜", "🌃", "🍕", "🌳", "🏛️", "🍷", "🏖️", "🛍️", "🏨"]
 
@@ -31,6 +33,11 @@ struct CreateExperienceView: View {
             .travScreenBackground()
             .navigationBarTitleDisplayMode(.inline)
             .animation(TravAnimation.enter, value: showSuccess)
+            .alert("Publish Failed", isPresented: $showErrorAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage ?? "An unexpected error occurred. Please try again.")
+            }
             .task {
                 do {
                     cities = try await environment.cities.fetchGlobeCities()
@@ -222,11 +229,43 @@ struct CreateExperienceView: View {
     }
 
     private func submit() {
+        guard let selectedCity = selectedCity else { return }
+
         isSubmitting = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            isSubmitting = false
-            withAnimation(TravAnimation.enter) {
-                showSuccess = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let creatorID: UUID
+                if environment.configuration.useMockBackend {
+                    creatorID = session.currentUser?.id ?? MockData.creators[0].id
+                } else {
+                    guard let userId = session.currentUser?.id else {
+                        throw RepositoryError.unauthorized
+                    }
+                    creatorID = userId
+                }
+
+                try await environment.experiences.publishExperience(
+                    title: title,
+                    description: description,
+                    cityID: selectedCity.id,
+                    creatorID: creatorID,
+                    stops: stops
+                )
+
+                await MainActor.run {
+                    isSubmitting = false
+                    withAnimation(TravAnimation.enter) {
+                        showSuccess = true
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isSubmitting = false
+                    errorMessage = error.localizedDescription
+                    showErrorAlert = true
+                }
             }
         }
     }

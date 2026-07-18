@@ -34,6 +34,17 @@ struct MockExperienceRepository: ExperienceRepository {
         let items = MockData.experiences.filter { $0.cityID == cityID }
         return Paginated(items: items, page: page, hasMore: false)
     }
+
+    func publishExperience(
+        title: String,
+        description: String,
+        cityID: UUID,
+        creatorID: UUID,
+        stops: [StopPreview]
+    ) async throws {
+        print("--- MockExperienceRepository.publishExperience called (using Mock Backend) ---")
+        try await Task.sleep(for: .milliseconds(500))
+    }
 }
 
 struct MockAuthRepository: AuthRepository {
