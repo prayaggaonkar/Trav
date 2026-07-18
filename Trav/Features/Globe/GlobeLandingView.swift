@@ -6,6 +6,7 @@ struct GlobeLandingView: View {
     @Environment(SessionStore.self) private var session
     @State private var viewModel: GlobeViewModel?
     @State private var showOnboarding = false
+    @State private var searchText = ""
 
     var body: some View {
         ZStack {
@@ -25,6 +26,9 @@ struct GlobeLandingView: View {
             VStack(spacing: 0) {
                 header
                     .padding(.top, TravSpacing.sm)
+
+                searchBar
+                    .padding(.horizontal, TravSpacing.xxs)
 
                 Spacer(minLength: 0)
                     .allowsHitTesting(false)
@@ -50,6 +54,19 @@ struct GlobeLandingView: View {
             // When leaving a city (or any modal route) back to home, restore default zoom.
             if previous != nil, current == nil {
                 viewModel?.resetZoomAfterReturningHome()
+            }
+        }
+        .onChange(of: searchText) { oldValue, newValue in
+            if case let .loaded(allCities) = viewModel?.loadState {
+                if newValue.isEmpty {
+                    viewModel?.renderer.setCities(allCities)
+                } else {
+                    let filtered = allCities.filter { city in
+                        city.name.localizedCaseInsensitiveContains(newValue) ||
+                        city.countryName.localizedCaseInsensitiveContains(newValue)
+                    }
+                    viewModel?.renderer.setCities(filtered)
+                }
             }
         }
         .fullScreenCover(isPresented: $showOnboarding) {
@@ -148,32 +165,83 @@ struct GlobeLandingView: View {
         }
     }
 
+    private var searchBar: some View {
+        HStack(spacing: TravSpacing.sm) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(TravColors.muted)
+            
+            TextField("Search spots, cities, creators...", text: $searchText)
+                .font(TravTypography.bodyMedium())
+                .foregroundStyle(.white)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+            
+            if !searchText.isEmpty {
+                Button(action: {
+                    withAnimation {
+                        searchText = ""
+                    }
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(TravColors.muted)
+                }
+            }
+        }
+        .padding(.horizontal, TravSpacing.md)
+        .frame(height: 44)
+        .background(
+            RoundedRectangle(cornerRadius: TravRadius.md)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: TravRadius.md)
+                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+        }
+        .padding(.vertical, TravSpacing.xs)
+    }
+
     private var bottomCTA: some View {
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
             if case let .loaded(cities) = viewModel?.loadState {
-                Text("Tap a glowing city to explore")
-                    .font(TravTypography.labelMedium())
-                    .foregroundStyle(.white.opacity(0.6))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.9)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                let filtered = cities.filter { city in
+                    searchText.isEmpty ||
+                    city.name.localizedCaseInsensitiveContains(searchText) ||
+                    city.countryName.localizedCaseInsensitiveContains(searchText)
+                }
 
-                ScrollViewReader { proxy in
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: TravSpacing.sm) {
-                            let prefixCities = Array(cities.prefix(6))
-                            ForEach(0..<prefixCities.count, id: \.self) { index in
-                                CityChip(city: prefixCities[index]) {
-                                    viewModel?.selectCity(prefixCities[index])
+                if filtered.isEmpty {
+                    Text("No matching cities found")
+                        .font(TravTypography.bodyMedium())
+                        .foregroundStyle(.white.opacity(0.4))
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, TravSpacing.md)
+                } else {
+                    Text("Tap a glowing city to explore")
+                        .font(TravTypography.labelMedium())
+                        .foregroundStyle(.white.opacity(0.6))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: TravSpacing.sm) {
+                                let prefixCities = Array(filtered.prefix(6))
+                                ForEach(0..<prefixCities.count, id: \.self) { index in
+                                    CityChip(city: prefixCities[index]) {
+                                        viewModel?.selectCity(prefixCities[index])
+                                    }
+                                    .id(index)
                                 }
-                                .id(index)
                             }
+                            .padding(.vertical, TravSpacing.xxs)
                         }
-                        .padding(.vertical, TravSpacing.xxs)
-                    }
-                    .task {
-                        let count = min(cities.count, 6)
-                        await runAutoScroll(proxy: proxy, count: count)
+                        .task {
+                            let count = min(filtered.count, 6)
+                            await runAutoScroll(proxy: proxy, count: count)
+                        }
                     }
                 }
             } else if case .loading = viewModel?.loadState {
