@@ -36,10 +36,36 @@ struct AppConfiguration: Sendable {
 
 @Observable
 @MainActor
+final class AppearanceStore {
+    private static let storageKey = "trav.appearance.mode"
+
+    /// Persisted appearance: `"dark"` (default) or `"light"`.
+    var modeRaw: String {
+        didSet { UserDefaults.standard.set(modeRaw, forKey: Self.storageKey) }
+    }
+
+    init() {
+        modeRaw = UserDefaults.standard.string(forKey: Self.storageKey) ?? "dark"
+    }
+
+    var preferredColorScheme: ColorScheme? {
+        modeRaw == "light" ? .light : .dark
+    }
+
+    var isLightMode: Bool { modeRaw == "light" }
+
+    func toggle() {
+        modeRaw = isLightMode ? "dark" : "light"
+    }
+}
+
+@Observable
+@MainActor
 final class AppEnvironment {
     let configuration: AppConfiguration
     let router: AppRouter
     let session: SessionStore
+    let appearance: AppearanceStore
     let cities: any CityRepository
     let experiences: any ExperienceRepository
     let auth: any AuthRepository
@@ -48,6 +74,7 @@ final class AppEnvironment {
         configuration: AppConfiguration,
         router: AppRouter,
         session: SessionStore,
+        appearance: AppearanceStore = AppearanceStore(),
         cities: any CityRepository,
         experiences: any ExperienceRepository,
         auth: any AuthRepository
@@ -55,6 +82,7 @@ final class AppEnvironment {
         self.configuration = configuration
         self.router = router
         self.session = session
+        self.appearance = appearance
         self.cities = cities
         self.experiences = experiences
         self.auth = auth
@@ -69,6 +97,7 @@ final class AppEnvironment {
             configuration: config,
             router: router,
             session: session,
+            appearance: AppearanceStore(),
             cities: MockCityRepository(),
             experiences: config.useMockBackend ? MockExperienceRepository() : SupabaseExperienceRepository(),
             auth: config.useMockBackend ? MockAuthRepository() : SupabaseAuthRepository()
@@ -100,5 +129,6 @@ extension View {
             .environment(environment)
             .environment(environment.router)
             .environment(environment.session)
+            .environment(environment.appearance)
     }
 }

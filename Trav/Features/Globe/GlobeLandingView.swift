@@ -4,12 +4,14 @@ struct GlobeLandingView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
+    @Environment(AppearanceStore.self) private var appearance
     @State private var viewModel: GlobeViewModel?
     @State private var showOnboarding = false
     @State private var searchText = ""
 
     var body: some View {
         ZStack {
+            // Sky behind the globe follows light/dark; the SceneKit globe itself stays unchanged.
             HomeCelestialBackground()
                 .ignoresSafeArea()
 
@@ -19,6 +21,8 @@ struct GlobeLandingView: View {
                         .frame(width: geo.size.width, height: geo.size.height * 0.68)
                         // Nudged up ~1/10″ from prior seat for hero balance.
                         .position(x: geo.size.width * 0.5, y: geo.size.height * 0.48 + 1)
+                        // SceneKit only — do not put this on a parent or it forces the whole screen dark.
+                        .preferredColorScheme(.dark)
                 }
             }
             .ignoresSafeArea()
@@ -48,7 +52,11 @@ struct GlobeLandingView: View {
                 router: environment.router
             )
             viewModel = vm
+            vm.controller.renderer.setDaytimeLook(appearance.isLightMode)
             await vm.loadCities()
+        }
+        .onChange(of: appearance.isLightMode) { _, isLight in
+            viewModel?.controller.renderer.setDaytimeLook(isLight)
         }
         .onChange(of: router.presentedRoute) { previous, current in
             // When leaving a city (or any modal route) back to home, restore default zoom.
@@ -78,29 +86,41 @@ struct GlobeLandingView: View {
         HStack(alignment: .center) {
             // Left Side: Brand Logo and Title
             HStack(spacing: TravSpacing.sm) {
-                // Violet map pin brand badge
-                ZStack {
-                    Circle()
-                        .fill(TravColors.accent.opacity(0.15))
-                        .frame(width: 46, height: 46)
-                    
-                    Image(systemName: "mappin.circle.fill")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(TravColors.accent)
+                // Tap pin to toggle light / dark mode (globe appearance unchanged).
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        appearance.toggle()
+                    }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(TravColors.accent.opacity(0.15))
+                            .frame(width: 46, height: 46)
+
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundStyle(TravColors.accent)
+                    }
                 }
-                
+                .buttonStyle(TravPressButtonStyle(scale: 0.92))
+                .accessibilityLabel(appearance.isLightMode ? "Switch to dark mode" : "Switch to light mode")
+                .accessibilityHint("Toggles app appearance. Daytime land/ocean texture in light mode; purple network stays the same.")
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text("TRAV")
                         .font(.system(size: 22, weight: .black, design: .rounded))
                         .tracking(3)
-                        .foregroundStyle(.white)
-                    
+                        .foregroundStyle(appearance.isLightMode ? Color.black : .white)
+
                     Text("What's the move?")
                         .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(
+                            appearance.isLightMode
+                                ? Color.black.opacity(0.55)
+                                : .white.opacity(0.5)
+                        )
                 }
-            }
-            
+            }            
             Spacer()
             
             // Right Side: Auth / Profile Action
@@ -120,7 +140,12 @@ struct GlobeLandingView: View {
                         .frame(width: 44, height: 44)
                         .clipShape(Circle())
                         .overlay {
-                            Circle().stroke(Color.white.opacity(0.15), lineWidth: 1)
+                            Circle().stroke(
+                                appearance.isLightMode
+                                    ? Color.black.opacity(0.12)
+                                    : Color.white.opacity(0.15),
+                                lineWidth: 1
+                            )
                         }
                     } else {
                         defaultAvatar
@@ -134,12 +159,12 @@ struct GlobeLandingView: View {
                     Text("Sign In")
                         .font(TravTypography.bodyMedium())
                         .fontWeight(.bold)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(appearance.isLightMode ? Color.black : .white)
                         .padding(.horizontal, TravSpacing.lg)
                         .frame(height: 38)
                         .background(
                             Capsule()
-                                .fill(TravColors.accent.opacity(0.15))
+                                .fill(TravColors.accent.opacity(appearance.isLightMode ? 0.12 : 0.15))
                         )
                         .overlay {
                             Capsule()
@@ -156,7 +181,7 @@ struct GlobeLandingView: View {
     private var defaultAvatar: some View {
         ZStack {
             Circle()
-                .fill(Color.white.opacity(0.08))
+                .fill(appearance.isLightMode ? Color.black.opacity(0.06) : Color.white.opacity(0.08))
                 .frame(width: 44, height: 44)
             
             Image(systemName: "person.fill")
@@ -170,13 +195,13 @@ struct GlobeLandingView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(TravColors.muted)
-            
+
             TextField("Search spots, cities, creators...", text: $searchText)
                 .font(TravTypography.bodyMedium())
-                .foregroundStyle(.white)
+                .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
-            
+
             if !searchText.isEmpty {
                 Button(action: {
                     withAnimation {
@@ -194,10 +219,16 @@ struct GlobeLandingView: View {
         .background(
             RoundedRectangle(cornerRadius: TravRadius.md)
                 .fill(.ultraThinMaterial)
+                .environment(\.colorScheme, appearance.isLightMode ? .light : .dark)
         )
         .overlay {
             RoundedRectangle(cornerRadius: TravRadius.md)
-                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                .stroke(
+                    appearance.isLightMode
+                        ? Color.black.opacity(0.28)
+                        : Color.white.opacity(0.15),
+                    lineWidth: appearance.isLightMode ? 1.5 : 1
+                )
         }
         .padding(.vertical, TravSpacing.xs)
     }
@@ -214,13 +245,17 @@ struct GlobeLandingView: View {
                 if filtered.isEmpty {
                     Text("No matching cities found")
                         .font(TravTypography.bodyMedium())
-                        .foregroundStyle(.white.opacity(0.4))
+                        .foregroundStyle(TravColors.muted)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, TravSpacing.md)
                 } else {
                     Text("Tap a city pin to explore")
                         .font(TravTypography.labelMedium())
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(
+                            appearance.isLightMode
+                                ? Color.black.opacity(0.55)
+                                : .white.opacity(0.6)
+                        )
                         .lineLimit(2)
                         .minimumScaleFactor(0.9)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -230,7 +265,7 @@ struct GlobeLandingView: View {
                             HStack(spacing: TravSpacing.sm) {
                                 let prefixCities = Array(filtered.prefix(6))
                                 ForEach(0..<prefixCities.count, id: \.self) { index in
-                                    CityChip(city: prefixCities[index]) {
+                                    CityChip(city: prefixCities[index], isLightMode: appearance.isLightMode) {
                                         viewModel?.selectCity(prefixCities[index])
                                     }
                                     .id(index)
@@ -246,7 +281,7 @@ struct GlobeLandingView: View {
                 }
             } else if case .loading = viewModel?.loadState {
                 ProgressView()
-                    .tint(.white)
+                    .tint(appearance.isLightMode ? TravColors.accent : .white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, TravSpacing.sm)
             }
@@ -283,55 +318,91 @@ struct GlobeLandingView: View {
     }
 }
 
-// MARK: - Celestial night backdrop
+// MARK: - Celestial backdrop
 
-/// Darker night-sky gradient with a soft galactic haze and a procedural star field.
-/// Inspired by a deep indigo→violet starfield — not a pasted photo asset.
+/// Sky behind the globe — night indigo in dark mode, soft daylight wash in light mode.
+/// The SceneKit globe textures/lights are unchanged.
 private struct HomeCelestialBackground: View {
+    @Environment(AppearanceStore.self) private var appearance
+
     var body: some View {
         GeometryReader { geo in
             let size = geo.size
+            let isLight = appearance.isLightMode
 
             ZStack {
-                // Base vertical wash: near-black navy → deep indigo → muted plum.
-                LinearGradient(
-                    stops: [
-                        .init(color: Color(red: 0.012, green: 0.014, blue: 0.035), location: 0),
-                        .init(color: Color(red: 0.03, green: 0.035, blue: 0.08), location: 0.42),
-                        .init(color: Color(red: 0.055, green: 0.045, blue: 0.11), location: 0.78),
-                        .init(color: Color(red: 0.07, green: 0.055, blue: 0.13), location: 1)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                if isLight {
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color(red: 0.58, green: 0.61, blue: 0.72), location: 0),
+                            .init(color: Color(red: 0.52, green: 0.56, blue: 0.68), location: 0.45),
+                            .init(color: Color(red: 0.54, green: 0.53, blue: 0.66), location: 0.78),
+                            .init(color: Color(red: 0.56, green: 0.55, blue: 0.67), location: 1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
 
-                // Soft central haze — faint Milky Way band, kept dark.
-                EllipticalGradient(
-                    colors: [
-                        Color(red: 0.22, green: 0.18, blue: 0.36).opacity(0.22),
-                        Color(red: 0.12, green: 0.1, blue: 0.22).opacity(0.1),
-                        .clear
-                    ],
-                    center: .center,
-                    startRadiusFraction: 0.05,
-                    endRadiusFraction: 0.72
-                )
-                .scaleEffect(x: 0.55, y: 1.15)
-                .blur(radius: 28)
-                .opacity(0.85)
+                    EllipticalGradient(
+                        colors: [
+                            Color(red: 0.42, green: 0.40, blue: 0.68).opacity(0.20),
+                            Color(red: 0.46, green: 0.50, blue: 0.74).opacity(0.08),
+                            .clear
+                        ],
+                        center: .center,
+                        startRadiusFraction: 0.05,
+                        endRadiusFraction: 0.72
+                    )
+                    .scaleEffect(x: 0.55, y: 1.15)
+                    .blur(radius: 28)
+                    .opacity(0.8)
 
-                // Slight secondary bloom toward the lower third.
-                RadialGradient(
-                    colors: [
-                        Color(red: 0.2, green: 0.14, blue: 0.32).opacity(0.16),
-                        .clear
-                    ],
-                    center: UnitPoint(x: 0.5, y: 0.78),
-                    startRadius: 0,
-                    endRadius: min(size.width, size.height) * 0.55
-                )
+                    RadialGradient(
+                        colors: [
+                            TravColors.accent.opacity(0.06),
+                            .clear
+                        ],
+                        center: UnitPoint(x: 0.5, y: 0.78),
+                        startRadius: 0,
+                        endRadius: min(size.width, size.height) * 0.55
+                    )
+                } else {
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color(red: 0.012, green: 0.014, blue: 0.035), location: 0),
+                            .init(color: Color(red: 0.03, green: 0.035, blue: 0.08), location: 0.42),
+                            .init(color: Color(red: 0.055, green: 0.045, blue: 0.11), location: 0.78),
+                            .init(color: Color(red: 0.07, green: 0.055, blue: 0.13), location: 1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
 
-                // Subtle dotted grid background instead of stars
+                    EllipticalGradient(
+                        colors: [
+                            Color(red: 0.22, green: 0.18, blue: 0.36).opacity(0.22),
+                            Color(red: 0.12, green: 0.1, blue: 0.22).opacity(0.1),
+                            .clear
+                        ],
+                        center: .center,
+                        startRadiusFraction: 0.05,
+                        endRadiusFraction: 0.72
+                    )
+                    .scaleEffect(x: 0.55, y: 1.15)
+                    .blur(radius: 28)
+                    .opacity(0.85)
+
+                    RadialGradient(
+                        colors: [
+                            Color(red: 0.2, green: 0.14, blue: 0.32).opacity(0.16),
+                            .clear
+                        ],
+                        center: UnitPoint(x: 0.5, y: 0.78),
+                        startRadius: 0,
+                        endRadius: min(size.width, size.height) * 0.55
+                    )
+                }
+
                 DottedGridView()
             }
             .frame(width: size.width, height: size.height)
@@ -343,6 +414,7 @@ private struct HomeCelestialBackground: View {
 
 private struct CityChip: View {
     let city: City
+    var isLightMode: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -353,13 +425,22 @@ private struct CityChip: View {
                     .frame(width: 6, height: 6)
                 Text(city.name)
                     .font(TravTypography.labelMedium())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(isLightMode ? Color.black : .white)
                     .lineLimit(1)
             }
             .padding(.horizontal, TravSpacing.sm + TravSpacing.xxs)
             .frame(minHeight: 36)
-            .background(Color.white.opacity(0.12))
+            .background(
+                isLightMode
+                    ? TravColors.surfaceElevated.opacity(0.95)
+                    : Color.white.opacity(0.12)
+            )
             .clipShape(Capsule())
+            .overlay {
+                if isLightMode {
+                    Capsule().stroke(Color.black.opacity(0.18), lineWidth: 1)
+                }
+            }
             .contentShape(Capsule())
         }
         .buttonStyle(TravPressButtonStyle(scale: 0.96))

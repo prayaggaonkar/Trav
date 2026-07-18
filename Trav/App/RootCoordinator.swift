@@ -22,15 +22,18 @@ struct RootCoordinator: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
+    @Environment(AppearanceStore.self) private var appearance
 
     @State private var activeTab: TravTab = .explore
+    @State private var tabBarBackdrop: TabBarBackdrop = .dark
 
     var body: some View {
         @Bindable var router = router
 
         tabContent
+            .onPreferenceChange(TabBarBackdropPreferenceKey.self) { tabBarBackdrop = $0 }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                TravTabBar(activeTab: $activeTab)
+                TravTabBar(activeTab: $activeTab, backdrop: tabBarBackdrop)
             }
             .sheet(isPresented: $router.isAuthPresented) {
                 OnboardingView()
@@ -44,6 +47,25 @@ struct RootCoordinator: View {
             }
             .animation(TravAnimation.modal, value: router.presentedRoute?.id)
             .animation(TravAnimation.tab, value: activeTab)
+            .onAppear {
+                tabBarBackdrop = defaultBackdrop(for: activeTab)
+            }
+            .onChange(of: activeTab) { _, tab in
+                // Reset to a safe default until the new tab reports its backdrop.
+                tabBarBackdrop = defaultBackdrop(for: tab)
+            }
+    }
+
+    private func defaultBackdrop(for tab: TravTab) -> TabBarBackdrop {
+        switch tab {
+        case .feed:
+            // Feed cards are dark image tiles — keep bar readable over them.
+            return .dark
+        case .explore:
+            return appearance.isLightMode ? .light : .dark
+        case .create, .rankings, .profile:
+            return appearance.isLightMode ? .light : .dark
+        }
     }
 
     @ViewBuilder
@@ -52,29 +74,35 @@ struct RootCoordinator: View {
             switch activeTab {
             case .explore:
                 GlobeLandingView()
+                    .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
             case .feed:
                 FeedView()
             case .create:
                 if session.isAuthenticated {
                     CreateExperienceView()
+                        .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
                 } else {
                     UnauthenticatedPlaceholderView(
                         title: "Create Experience",
                         description: "Sign in to document your journeys, add custom stops, and publish your own experiences.",
                         imageName: "plus.circle.fill"
                     )
+                    .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
                 }
             case .rankings:
                 RankingsView()
+                    .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
             case .profile:
                 if let currentUser = session.currentUser {
                     ProfileView(username: currentUser.username, showDismissButton: false)
+                        .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
                 } else {
                     UnauthenticatedPlaceholderView(
                         title: "Travel Profile",
                         description: "Sign in to track completed experiences, save favorites, and connect with other travelers.",
                         imageName: "person.circle.fill"
                     )
+                    .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
                 }
             }
         }
@@ -82,7 +110,6 @@ struct RootCoordinator: View {
         .id(activeTab)
         .transition(.opacity.combined(with: .scale(scale: 0.98)))
     }
-
     @ViewBuilder
     private func routeDestination(for route: TravRoute) -> some View {
         switch route {
@@ -134,6 +161,7 @@ struct FeedView: View {
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
     @Environment(AppEnvironment.self) private var environment
+    @Environment(AppearanceStore.self) private var appearance
 
     @State private var feedItems: [ExperienceSummary] = []
     @State private var isLoading = false
@@ -193,9 +221,17 @@ struct FeedView: View {
                 }
             }
         }
+        // Dark image cards need dark chrome; empty/loading follow app appearance.
+        .tabBarBackdrop(feedTabBarBackdrop)
         .task {
             await loadFeed()
         }
+    }
+
+    private var feedTabBarBackdrop: TabBarBackdrop {
+        let showingCards = !isLoading && errorMessage == nil && !filteredFeed.isEmpty
+        if showingCards { return .dark }
+        return appearance.isLightMode ? .light : .dark
     }
 
     private var filteredFeed: [ExperienceSummary] {
@@ -260,7 +296,7 @@ struct FeedView: View {
                 
                 Text("Hangout Feed")
                     .font(TravTypography.displayMedium())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
             }
             
             Spacer()
@@ -359,25 +395,27 @@ struct FeedView: View {
 
 // Subview: Feed Card
 private struct FeedCardView: View {
+    @Environment(AppearanceStore.self) private var appearance
+
     let experience: ExperienceSummary
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 0) {
-                // Cover Image
+                // Cover Image — overlays stay light-on-dark for contrast on photos
                 ZStack(alignment: .bottomLeading) {
                     if let coverURL = experience.coverImageURL {
                         AsyncImage(url: coverURL) { image in
                             image.resizable()
                                  .aspectRatio(contentMode: .fill)
                         } placeholder: {
-                            Color.white.opacity(0.05)
+                            (appearance.isLightMode ? Color.black : Color.white).opacity(0.06)
                         }
                         .frame(height: 200)
                         .clipped()
                     } else {
-                        Color.white.opacity(0.05)
+                        (appearance.isLightMode ? Color.black : Color.white).opacity(0.06)
                             .frame(height: 200)
                     }
                     
@@ -430,25 +468,36 @@ private struct FeedCardView: View {
                 .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg))
                 .overlay {
                     RoundedRectangle(cornerRadius: TravRadius.lg)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        .stroke(
+                            appearance.isLightMode ? Color.black.opacity(0.1) : Color.white.opacity(0.08),
+                            lineWidth: 1
+                        )
                 }
                 
-                // Content Description
+                // Titles sit on the page background — black in light mode
                 VStack(alignment: .leading, spacing: 4) {
                     Text(experience.title)
                         .font(TravTypography.titleMedium())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
                         .lineLimit(1)
                     
                     if !experience.stops.isEmpty {
                         Text(experience.stops.map { "\($0.emoji ?? "📍") \($0.name)" }.joined(separator: "   "))
                             .font(TravTypography.caption())
-                            .foregroundStyle(TravColors.muted)
+                            .foregroundStyle(
+                                appearance.isLightMode
+                                    ? Color.black.opacity(0.55)
+                                    : TravColors.muted
+                            )
                             .lineLimit(1)
                     } else {
                         Text("Explore local spots and neighborhood favorites.")
                             .font(TravTypography.caption())
-                            .foregroundStyle(TravColors.muted)
+                            .foregroundStyle(
+                                appearance.isLightMode
+                                    ? Color.black.opacity(0.55)
+                                    : TravColors.muted
+                            )
                             .lineLimit(1)
                     }
                 }
