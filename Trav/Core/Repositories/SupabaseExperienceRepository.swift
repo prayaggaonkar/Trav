@@ -31,6 +31,26 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let created_at: Date
     }
 
+    private struct DBPlace: Codable {
+        let id: String
+        let name: String
+        let basic_category: String
+        let latitude: Double
+        let longitude: Double
+        let stops: [String]?
+    }
+
+    private struct DBStop: Codable {
+        let id: UUID
+        let name: String
+        let emoji: String?
+        let description: String
+        let latitude: Double
+        let longitude: Double
+        let place_id: String?
+        let orderIndex: Int
+    }
+
     private struct DBProfileSummary: Codable {
         let id: UUID
         let username: String
@@ -85,64 +105,76 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
     func fetchExperience(id: UUID) async throws -> Experience {
         do {
-            let dbExp: DBExperience = try await client
-                .from("experiences")
+            let idStr = id.uuidString.lowercased()
+            
+            let dbPlace: DBPlace = try await client
+                .from("places")
                 .select()
-                .eq("id", value: id)
+                .eq("id", value: idStr)
                 .single()
                 .execute()
                 .value
 
-            var dbProfile: DBProfileSummary?
-            do {
-                dbProfile = try await client
-                    .from("profiles")
-                    .select("id, username, display_name, avatar_url, is_verified")
-                    .eq("id", value: dbExp.user_id)
-                    .single()
-                    .execute()
-                    .value
-            } catch {}
-
-            let creator = ProfileSummary(
-                id: dbProfile?.id ?? dbExp.user_id,
-                username: dbProfile?.username ?? "unknown",
-                displayName: dbProfile?.display_name ?? "Unknown Creator",
-                avatarURL: dbProfile?.avatar_url.flatMap { URL(string: $0) },
-                isVerified: dbProfile?.is_verified ?? false
+            let recCreator = ProfileSummary(
+                id: UUID(),
+                username: "rec_by_trav",
+                displayName: "Rec by Trav",
+                avatarURL: nil,
+                isVerified: true
             )
 
-            // Convert string array to Stop array
-            let stops = dbExp.stops.enumerated().map { (index, stopName) in
-                Stop(
+            let stops: [Stop]
+            if let stopsArray = dbPlace.stops, !stopsArray.isEmpty {
+                stops = stopsArray.compactMap { stopStr in
+                    guard let data = stopStr.data(using: .utf8),
+                          let dbStop = try? JSONDecoder().decode(DBStop.self, from: data) else {
+                        return nil
+                    }
+                    return Stop(
+                        id: dbStop.id,
+                        orderIndex: dbStop.orderIndex,
+                        name: dbStop.name,
+                        description: dbStop.description,
+                        creatorNotes: nil,
+                        latitude: dbStop.latitude,
+                        longitude: dbStop.longitude,
+                        placeID: dbStop.place_id,
+                        recommendedTime: nil,
+                        durationMinutes: 30,
+                        emoji: dbStop.emoji,
+                        media: []
+                    )
+                }
+            } else {
+                let stop = Stop(
                     id: UUID(),
-                    orderIndex: index,
-                    name: stopName,
-                    description: "",
+                    orderIndex: 0,
+                    name: dbPlace.name,
+                    description: "Curated hangout spot.",
                     creatorNotes: nil,
-                    latitude: 0.0,
-                    longitude: 0.0,
-                    placeID: nil,
+                    latitude: dbPlace.latitude,
+                    longitude: dbPlace.longitude,
+                    placeID: dbPlace.id,
                     recommendedTime: nil,
-                    durationMinutes: 30,
-                    emoji: "📍",
+                    durationMinutes: 45,
+                    emoji: emojiForCategory(dbPlace.basic_category),
                     media: []
                 )
+                stops = [stop]
             }
 
-            // Find city ID from city name
-            let matchedCity = MockData.cities.first(where: { $0.name.localizedCaseInsensitiveCompare(dbExp.city) == .orderedSame })
+            let matchedCity = MockData.cities.first(where: { $0.name.localizedCaseInsensitiveCompare("Berkeley") == .orderedSame })
             let cityID = matchedCity?.id ?? UUID()
 
             return Experience(
-                id: dbExp.id,
+                id: id,
                 cityID: cityID,
-                creator: creator,
-                title: dbExp.title,
-                description: dbExp.description,
-                coverImageURL: nil,
+                creator: recCreator,
+                title: dbPlace.name,
+                description: "Explore local spots and neighborhood favorites curated by Trav.",
+                coverImageURL: defaultCoverForCategory(dbPlace.name),
                 durationMinutes: stops.count * 30,
-                costLevel: .budget,
+                costLevel: .moderate,
                 estimatedCostUSD: nil,
                 transportMode: .walking,
                 totalDistanceMeters: 0,
@@ -151,12 +183,12 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 completionCount: 0,
                 commentCount: 0,
                 isPublished: true,
-                publishedAt: dbExp.created_at,
+                publishedAt: Date(),
                 stops: stops,
                 routeSegments: []
             )
         } catch {
-            print("Failed to fetch experience \(id) from Supabase, falling back to mock: \(error)")
+            print("Failed to fetch experience \(id) from Supabase places, falling back to mock: \(error)")
             return try await MockExperienceRepository().fetchExperience(id: id)
         }
     }
@@ -225,5 +257,50 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             print("Failed to fetch city feed for \(cityID) from Supabase, falling back to mock: \(error)")
             return try await MockExperienceRepository().fetchCityFeed(cityID: cityID, page: page)
         }
+    }
+
+    // MARK: - Helpers for Places mapping
+
+    private func defaultCoverForCategory(_ text: String) -> URL? {
+        let textLower = text.lowercased()
+        if textLower.contains("bar") || textLower.contains("pub") || textLower.contains("drink") || textLower.contains("lounge") {
+            return URL(string: "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&q=80")
+        }
+        if textLower.contains("coffee") || textLower.contains("cafe") || textLower.contains("brew") || textLower.contains("espresso") {
+            return URL(string: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&q=80")
+        }
+        if textLower.contains("shop") || textLower.contains("store") || textLower.contains("market") || textLower.contains("vintage") {
+            return URL(string: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&q=80")
+        }
+        if textLower.contains("hike") || textLower.contains("trail") || textLower.contains("mountain") || textLower.contains("climb") {
+            return URL(string: "https://images.unsplash.com/photo-1501555088652-021faa106b9b?w=800&q=80")
+        }
+        if textLower.contains("park") || textLower.contains("garden") || textLower.contains("lawn") || textLower.contains("field") {
+            return URL(string: "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=80")
+        }
+        if textLower.contains("view") || textLower.contains("sunset") || textLower.contains("scenic") || textLower.contains("vista") {
+            return URL(string: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&q=80")
+        }
+        if textLower.contains("museum") || textLower.contains("art") || textLower.contains("gallery") {
+            return URL(string: "https://images.unsplash.com/photo-1545987796-200677ee1011?w=800&q=80")
+        }
+        if textLower.contains("book") || textLower.contains("read") || textLower.contains("library") {
+            return URL(string: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?w=800&q=80")
+        }
+        return URL(string: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80")
+    }
+
+    private func emojiForCategory(_ category: String) -> String {
+        let emojis: [String: String] = [
+            "bar": "🍻",
+            "shopping": "🛍️",
+            "vintage_store": "🧥",
+            "hiking_trail": "🥾",
+            "park": "🌳",
+            "scenic_viewpoint": "🌅",
+            "museum": "🖼️",
+            "bookstore": "📚"
+        ]
+        return emojis[category.lowercased()] ?? "📍"
     }
 }

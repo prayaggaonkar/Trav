@@ -10,6 +10,9 @@ import overturemaps
 import ssl
 import time
 import random
+import json
+import uuid
+import math
 from duckduckgo_search import DDGS
 
 # Bypass SSL certificate verification for macOS environments facing missing local issuer certificates
@@ -71,6 +74,133 @@ def fetch_image_urls(query, limit=3):
     except Exception as e:
         print(f"   ⚠️ Warning: Failed to fetch images for '{query}': {e}")
     return []
+
+def emoji_for_category(category):
+    emojis = {
+        "bar": "🍻",
+        "shopping": "🛍️",
+        "vintage_store": "🧥",
+        "hiking_trail": "🥾",
+        "park": "🌳",
+        "scenic_viewpoint": "🌅",
+        "museum": "🖼️",
+        "bookstore": "📚",
+        "cafe": "☕"
+    }
+    return emojis.get(category.lower(), "📍")
+
+def get_or_create_system_profile(supabase: Client):
+    try:
+        res = supabase.table("profiles").select("id").eq("username", "rec_by_trav").execute()
+        if res.data and len(res.data) > 0:
+            return res.data[0]["id"]
+    except Exception as e:
+        print(f"   ⚠️ Warning checking profiles: {e}")
+        
+    system_id = str(uuid.uuid4())
+    try:
+        res = supabase.table("profiles").select("id").limit(1).execute()
+        if res.data and len(res.data) > 0:
+            return res.data[0]["id"]
+            
+        profile_data = {
+            "id": system_id,
+            "username": "rec_by_trav",
+            "display_name": "Rec by Trav",
+            "bio": "System recommendation feed.",
+            "is_verified": True
+        }
+        supabase.table("profiles").insert(profile_data).execute()
+        print(f"   ✅ Created system profile: 'rec_by_trav' ({system_id})")
+        return system_id
+    except Exception as e:
+        print(f"   ⚠️ Error creating system profile, using random uuid: {e}")
+        return system_id
+
+def create_itineraries_from_places(places, creator_id):
+    itineraries = []
+    used_ids = set()
+    
+    def get_distance(p1, p2):
+        return math.sqrt((p1["latitude"] - p2["latitude"])**2 + (p1["longitude"] - p2["longitude"])**2)
+        
+    for p1 in places:
+        if p1["id"] in used_ids:
+            continue
+            
+        neighbors = []
+        for p2 in places:
+            if p2["id"] != p1["id"] and p2["id"] not in used_ids:
+                dist = get_distance(p1, p2)
+                if dist < 0.012:
+                    neighbors.append((p2, dist))
+                    
+        neighbors.sort(key=lambda x: x[1])
+        
+        selected_spots = [p1]
+        used_categories = {p1["basic_category"]}
+        
+        for neighbor, dist in neighbors:
+            if len(selected_spots) >= 3:
+                break
+            if neighbor["basic_category"] not in used_categories:
+                selected_spots.append(neighbor)
+                used_categories.add(neighbor["basic_category"])
+                
+        if len(selected_spots) < 2 and neighbors:
+            for neighbor, dist in neighbors:
+                if len(selected_spots) >= 3:
+                    break
+                if neighbor["id"] not in [s["id"] for s in selected_spots]:
+                    selected_spots.append(neighbor)
+                    
+        if len(selected_spots) >= 2:
+            for s in selected_spots:
+                used_ids.add(s["id"])
+                
+            cats = [s["basic_category"] for s in selected_spots]
+            names = [s["name"] for s in selected_spots]
+            
+            title = f"{names[0]} & {names[1]} Outing"
+            description = f"Explore local favorites starting at {names[0]} and visiting {names[1]}."
+            
+            if any(c in ["hiking_trail", "scenic_viewpoint", "park"] for c in cats):
+                title = f"Berkeley Nature Trail: {names[0]}"
+                description = f"A scenic outdoor excursion featuring {', '.join(names)}."
+            elif "cafe" in cats and "bookstore" in cats:
+                title = "Berkeley Books & Brews Walk"
+                description = f"Relax and read! Grab coffee at {names[0]} and browse titles at {names[1]}."
+            elif "bar" in cats:
+                title = "Berkeley Evening Social Trail"
+                description = f"Unwind in town! Stroll between local spots including {names[0]} and {names[1]}."
+            elif "shopping" in cats or "vintage_store" in cats:
+                title = "Telegraph Ave Shopping Tour"
+                description = f"Browse unique stores and local spots starting at {names[0]}."
+                
+            stops_json_list = []
+            for idx, spot in enumerate(selected_spots):
+                stop_data = {
+                    "id": str(uuid.uuid4()),
+                    "name": spot["name"],
+                    "emoji": emoji_for_category(spot["basic_category"]),
+                    "description": f"Curated stop at {spot['name']}",
+                    "latitude": spot["latitude"],
+                    "longitude": spot["longitude"],
+                    "place_id": spot["id"],
+                    "orderIndex": idx
+                }
+                stops_json_list.append(json.dumps(stop_data))
+                
+            itineraries.append({
+                "id": str(uuid.uuid4()),
+                "user_id": creator_id,
+                "title": title,
+                "description": description,
+                "city": "Berkeley",
+                "stops": stops_json_list
+            })
+            
+    return itineraries
 
 def extract_primary_name(names_val):
     if names_val is None:
@@ -193,7 +323,7 @@ def main():
             "basic_category": category_lower,
             "latitude": float(lat),
             "longitude": float(lon),
-            "photo_urls": []
+            "stops": []
         })
         matched_categories_count[category_lower] = matched_categories_count.get(category_lower, 0) + 1
 
@@ -217,25 +347,11 @@ def main():
         print("\nNo places matched the hangout spot logic. Exiting.")
         return
 
-    # 3.5 Fetch Images if requested
-    if args.fetch_images:
-        print(f"\n📸 Fetching image URLs for {len(filtered_places)} hangout spots (this will take a moment due to rate-limiting safety delays)...")
-        for i, place in enumerate(filtered_places):
-            query = f"{place['name']} Berkeley"
-            print(f"   [{i+1}/{len(filtered_places)}] Searching images for: '{query}'...")
-            photo_urls = fetch_image_urls(query, limit=3)
-            place["photo_urls"] = photo_urls
-            if photo_urls:
-                print(f"      Found {len(photo_urls)} image(s)")
-            else:
-                print(f"      No images found")
-
     # 4. Insert into Supabase
     if args.dry_run:
         print("\n📝 Sample filtered records (up to 5):")
         for p in filtered_places[:5]:
-            img_status = f"{len(p['photo_urls'])} image(s)" if args.fetch_images else "images skipped"
-            print(f"   - {p['name']} ({p['basic_category']}) at ({p['latitude']}, {p['longitude']}) [{img_status}]")
+            print(f"   - {p['name']} ({p['basic_category']}) at ({p['latitude']}, {p['longitude']})")
         print("\nDry run completed successfully.")
         return
 
@@ -256,6 +372,38 @@ def main():
             print(f"Error inserting batch: {e}")
             print("Ensure that the 'places' table is created in your database.")
             sys.exit(1)
+            
+    # 5. Generate and Insert Hangout Itineraries into 'places' table
+    print("\n🗺️ Generating custom hangout itineraries from matched places...")
+    system_user_id = get_or_create_system_profile(supabase)
+    itineraries = create_itineraries_from_places(filtered_places, system_user_id)
+    
+    if itineraries:
+        # Convert itineraries to places table format
+        itineraries_places = []
+        for it in itineraries:
+            itineraries_places.append({
+                "id": it["id"],
+                "name": it["title"],
+                "basic_category": "itinerary",
+                "latitude": float(json.loads(it["stops"][0])["latitude"]),
+                "longitude": float(json.loads(it["stops"][0])["longitude"]),
+                "stops": it["stops"]
+            })
+            
+        print(f"🚀 Inserting {len(itineraries_places)} generated itineraries into Supabase 'places' table...")
+        try:
+            # Batched insertion
+            for i in range(0, len(itineraries_places), 50):
+                sub_batch = itineraries_places[i:i+50]
+                supabase.table("places").upsert(sub_batch).execute()
+            print(f"   Successfully inserted/updated {len(itineraries_places)} itineraries in 'places' table!")
+        except Exception as e:
+            print(f"   ⚠️ Warning: Failed to insert itineraries to Supabase places: {e}")
+            print("   Please execute this SQL command in your Supabase dashboard editor first:")
+            print("   ALTER TABLE public.places ADD COLUMN IF NOT EXISTS stops text[] NOT NULL DEFAULT '{}';")
+    else:
+        print("   No itineraries generated (insufficient clustered spots).")
             
     print("🎉 Pipeline finished successfully!")
 

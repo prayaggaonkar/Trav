@@ -203,15 +203,15 @@ struct FeedView: View {
             return feedItems
         }
         
-        let vibeToCategories: [String: [String]] = [
-            "Coffee / Cafes": ["cafe", "coffee", "bookstore"],
-            "Nightlife / Bars": ["bar", "nightlife", "pub", "lounge"],
-            "Hikes / Outdoors": ["hiking_trail", "park", "outdoor", "scenic_viewpoint"],
-            "Scenic Views": ["scenic_viewpoint"],
-            "Local Shopping": ["shopping", "vintage_store"],
-            "Museums / Arts": ["museum", "art_gallery", "gallery"],
-            "Bookstores": ["bookstore"],
-            "Tacos / Casual Bite": ["restaurant", "food", "tacos", "casual_bite"]
+        let vibeToEmojis: [String: [String]] = [
+            "Coffee / Cafes": ["☕"],
+            "Nightlife / Bars": ["🍻"],
+            "Hikes / Outdoors": ["🥾", "🌳", "🌅"],
+            "Scenic Views": ["🌅"],
+            "Local Shopping": ["🛍️", "🧥"],
+            "Museums / Arts": ["🖼️"],
+            "Bookstores": ["📚"],
+            "Tacos / Casual Bite": ["🍕", "🍔", "🌮", "🍽️"]
         ]
         
         let vibeKeywords: [String: [String]] = [
@@ -226,11 +226,13 @@ struct FeedView: View {
         ]
         
         return feedItems.filter { item in
-            // Place category match
-            if let category = item.stops.first?.name.lowercased() {
-                for vibe in selectedVibes {
-                    if let categories = vibeToCategories[vibe], categories.contains(category) {
-                        return true
+            // Stop Emoji match
+            for stop in item.stops {
+                if let emoji = stop.emoji {
+                    for vibe in selectedVibes {
+                        if let emojis = vibeToEmojis[vibe], emojis.contains(emoji) {
+                            return true
+                        }
                     }
                 }
             }
@@ -320,37 +322,70 @@ struct FeedView: View {
                     )
                     
                     self.feedItems = dbPlaces.map { dbPlace in
-                        let coverURL = dbPlace.photo_urls?.first.flatMap { URL(string: $0) }
-                            ?? defaultCoverForCategory(dbPlace.basic_category)
-                        
-                        return ExperienceSummary(
-                            id: UUID(),
-                            cityID: UUID(),
-                            title: dbPlace.name,
-                            coverImageURL: coverURL,
-                            creator: recCreator,
-                            durationMinutes: 45,
-                            costLevel: .budget,
-                            estimatedCostUSD: 0,
-                            saveCount: 0,
-                            likeCount: 0,
-                            completionCount: 0,
-                            stops: [
-                                StopPreview(
-                                    id: UUID(),
-                                    name: dbPlace.basic_category,
-                                    emoji: emojiForCategory(dbPlace.basic_category)
+                        // Check if it is a multi-stop itinerary
+                        if let stopsArray = dbPlace.stops, !stopsArray.isEmpty {
+                            let decodedStops: [StopPreview] = stopsArray.compactMap { stopStr in
+                                guard let data = stopStr.data(using: .utf8),
+                                      let dbStop = try? JSONDecoder().decode(DBStop.self, from: data) else {
+                                    return nil
+                                }
+                                return StopPreview(
+                                    id: dbStop.id,
+                                    name: dbStop.name,
+                                    emoji: dbStop.emoji
                                 )
-                            ]
-                        )
+                            }
+                            
+                            let firstStopName = decodedStops.first?.name ?? "park"
+                            let coverURL = defaultCoverForCategory(firstStopName)
+                            
+                            return ExperienceSummary(
+                                id: UUID(uuidString: dbPlace.id) ?? UUID(),
+                                cityID: UUID(),
+                                title: dbPlace.name,
+                                coverImageURL: coverURL,
+                                creator: recCreator,
+                                durationMinutes: 120,
+                                costLevel: .moderate,
+                                estimatedCostUSD: nil,
+                                saveCount: 0,
+                                likeCount: 0,
+                                completionCount: 0,
+                                stops: decodedStops
+                            )
+                        } else {
+                            // Individual place (single stop experience)
+                            let coverURL = defaultCoverForCategory(dbPlace.name)
+                            let stop = StopPreview(
+                                id: UUID(),
+                                name: dbPlace.name,
+                                emoji: emojiForCategory(dbPlace.basic_category)
+                            )
+                            
+                            return ExperienceSummary(
+                                id: UUID(uuidString: dbPlace.id) ?? UUID(),
+                                cityID: UUID(),
+                                title: dbPlace.name,
+                                coverImageURL: coverURL,
+                                creator: recCreator,
+                                durationMinutes: 45,
+                                costLevel: .budget,
+                                estimatedCostUSD: 0,
+                                saveCount: 0,
+                                likeCount: 0,
+                                completionCount: 0,
+                                stops: [stop]
+                            )
+                        }
                     }
                 }
             } else {
                 loadMockFeed()
             }
         } catch {
-            print("Failed to load Supabase places: \(error), falling back to mock feed.")
-            loadMockFeed()
+            let errMsg = "Failed to load Supabase places: \(error)"
+            print(errMsg)
+            self.errorMessage = errMsg
         }
         
         isLoading = false
@@ -464,18 +499,33 @@ private struct FeedCardView: View {
 
 // Helpers for Places mapping
 
-private func defaultCoverForCategory(_ category: String) -> URL? {
-    let urls: [String: String] = [
-        "bar": "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&q=80",
-        "shopping": "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&q=80",
-        "vintage_store": "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=800&q=80",
-        "hiking_trail": "https://images.unsplash.com/photo-1501555088652-021faa106b9b?w=800&q=80",
-        "park": "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=80",
-        "scenic_viewpoint": "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&q=80",
-        "museum": "https://images.unsplash.com/photo-1545987796-200677ee1011?w=800&q=80",
-        "bookstore": "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?w=800&q=80"
-    ]
-    return URL(string: urls[category.lowercased()] ?? "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80")
+private func defaultCoverForCategory(_ text: String) -> URL? {
+    let textLower = text.lowercased()
+    if textLower.contains("bar") || textLower.contains("pub") || textLower.contains("drink") || textLower.contains("lounge") {
+        return URL(string: "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&q=80")
+    }
+    if textLower.contains("coffee") || textLower.contains("cafe") || textLower.contains("brew") || textLower.contains("espresso") {
+        return URL(string: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&q=80")
+    }
+    if textLower.contains("shop") || textLower.contains("store") || textLower.contains("market") || textLower.contains("vintage") {
+        return URL(string: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&q=80")
+    }
+    if textLower.contains("hike") || textLower.contains("trail") || textLower.contains("mountain") || textLower.contains("climb") {
+        return URL(string: "https://images.unsplash.com/photo-1501555088652-021faa106b9b?w=800&q=80")
+    }
+    if textLower.contains("park") || textLower.contains("garden") || textLower.contains("lawn") || textLower.contains("field") {
+        return URL(string: "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=80")
+    }
+    if textLower.contains("view") || textLower.contains("sunset") || textLower.contains("scenic") || textLower.contains("vista") {
+        return URL(string: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&q=80")
+    }
+    if textLower.contains("museum") || textLower.contains("art") || textLower.contains("gallery") {
+        return URL(string: "https://images.unsplash.com/photo-1545987796-200677ee1011?w=800&q=80")
+    }
+    if textLower.contains("book") || textLower.contains("read") || textLower.contains("library") {
+        return URL(string: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?w=800&q=80")
+    }
+    return URL(string: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80")
 }
 
 private func emojiForCategory(_ category: String) -> String {
@@ -499,5 +549,16 @@ private struct DBPlace: Codable, Identifiable {
     let basic_category: String
     let latitude: Double
     let longitude: Double
-    let photo_urls: [String]?
+    let stops: [String]?
+}
+
+private struct DBStop: Codable {
+    let id: UUID
+    let name: String
+    let emoji: String?
+    let description: String
+    let latitude: Double
+    let longitude: Double
+    let place_id: String?
+    let orderIndex: Int
 }

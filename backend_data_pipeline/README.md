@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS public.places (
   basic_category text NOT NULL,              -- E.g. bar, park, museum, bookstore
   latitude double precision NOT NULL,        -- Latitude coordinate
   longitude double precision NOT NULL,       -- Longitude coordinate
-  photo_urls text[] NOT NULL DEFAULT '{}',   -- Image URLs scraped for visual previews
+  stops text[] NOT NULL DEFAULT '{}',        -- Sequence of JSON stops for itineraries
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
