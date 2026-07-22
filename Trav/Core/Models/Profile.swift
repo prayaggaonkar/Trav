@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 struct Profile: Identifiable, Codable, Sendable, Hashable {
@@ -152,4 +153,29 @@ enum UsernameValidator {
 
 enum ProfileLimits {
     static let pageSize = 20
+    /// Written into `experiences.description` when a feed place is bookmarked so it can
+    /// satisfy the `experience_saves` FK without appearing in the Created tab.
+    static let bookmarkDescriptionSentinel = "__trav_bookmark__"
+}
+
+enum StableUUID {
+    /// Prefers parsing a real UUID; otherwise derives a deterministic id from SHA256
+    /// so feed places keep the same id across launches (required for saves).
+    static func from(_ raw: String) -> UUID {
+        if let uuid = UUID(uuidString: raw) {
+            return uuid
+        }
+
+        let digest = SHA256.hash(data: Data(raw.utf8))
+        var bytes = Array(digest.prefix(16))
+        bytes[6] = (bytes[6] & 0x0F) | 0x50
+        bytes[8] = (bytes[8] & 0x3F) | 0x80
+
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
+    }
 }

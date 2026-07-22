@@ -209,12 +209,12 @@ struct FeedView: View {
     @Environment(SessionStore.self) private var session
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppearanceStore.self) private var appearance
+    @Environment(EngagementStore.self) private var engagement
 
     @State private var feedItems: [ExperienceSummary] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var selectedFilter: FeedFilter = .all
-    @State private var savedPlaceIDs: Set<String> = []
     
     // Quick Planner state
     @State private var draftStops: [StopPreview] = []
@@ -294,27 +294,27 @@ struct FeedView: View {
                     ScrollView {
                         LazyVStack(spacing: TravSpacing.md) {
                             ForEach(filteredFeed) { experience in
-                                FeedCardView(
+                                let isItinerary = experience.stops.count > 1
+                                HeroExperienceCard(
                                     experience: experience,
-                                    isSaved: savedPlaceIDs.contains(experience.id.uuidString.lowercased()),
-                                    onSaveToggle: {
-                                        Task {
-                                            await toggleSave(for: experience)
-                                        }
+                                    badgeText: isItinerary ? "ROUTE" : "SPOT",
+                                    isSaved: engagement.isSaved(experience.id),
+                                    onTap: {
+                                        router.presentedRoute = .experience(experience.id)
                                     },
-                                    onAddToItinerary: {
-                                        withAnimation(.spring()) {
-                                            let stop = StopPreview(
-                                                id: UUID(),
-                                                name: experience.title,
-                                                emoji: experience.stops.first?.emoji ?? "📍"
+                                    onCreatorTap: {
+                                        router.openProfile(experience.creator.username)
+                                    },
+                                    onSave: {
+                                        Task {
+                                            await engagement.toggleSave(
+                                                experienceID: experience.id,
+                                                summary: experience,
+                                                using: environment
                                             )
-                                            draftStops.append(stop)
                                         }
                                     }
-                                ) {
-                                    router.presentedRoute = .experience(experience.id)
-                                }
+                                )
                                 .onDrag {
                                     NSItemProvider(object: experience.id.uuidString as NSString)
                                 }
@@ -461,6 +461,9 @@ struct FeedView: View {
         }
         .tabBarBackdrop(feedTabBarBackdrop)
         .task {
+            if let userID = session.currentUser?.id {
+                await engagement.bootstrap(userID: userID, using: environment)
+            }
             await loadFeed()
         }
     }
@@ -483,44 +486,10 @@ struct FeedView: View {
         case .singleSpots:
             items = items.filter { $0.stops.count <= 1 }
         case .saved:
-            items = items.filter { savedPlaceIDs.contains($0.id.uuidString.lowercased()) }
+            items = items.filter { engagement.isSaved($0.id) }
         }
         
         return items
-    }
-
-    private func toggleSave(for experience: ExperienceSummary) async {
-        guard let currentUser = session.currentUser else {
-            router.presentAuth()
-            return
-        }
-        
-        let placeID = experience.id.uuidString.lowercased()
-        let isSaved = savedPlaceIDs.contains(placeID)
-        
-        do {
-            if let client = SupabaseManager.client {
-                if isSaved {
-                    savedPlaceIDs.remove(placeID)
-                    try await client
-                        .from("saves")
-                        .delete()
-                        .eq("user_id", value: currentUser.id)
-                        .eq("place_id", value: placeID)
-                        .execute()
-                } else {
-                    savedPlaceIDs.insert(placeID)
-                    let record = DBSave(user_id: currentUser.id, place_id: placeID)
-                    try await client
-                        .from("saves")
-                        .insert(record)
-                        .execute()
-                }
-            }
-        } catch {
-            // Keep bookmark updated locally in memory as a resilient fallback
-            print("Failed to toggle bookmark save: \(error). Falling back to in-memory save.")
-        }
     }
 
     private func saveDraftItinerary() async {
@@ -659,26 +628,6 @@ struct FeedView: View {
                     .value) ?? []
                 let profileMap = Dictionary(uniqueKeysWithValues: dbProfiles.map { ($0.id, $0) })
                 
-                // Load saves/bookmarks
-                let dbSaves: [DBSave]
-                if let currentUserID = session.currentUser?.id {
-                    do {
-                        dbSaves = try await client
-                            .from("saves")
-                            .select()
-                            .eq("user_id", value: currentUserID)
-                            .execute()
-                            .value
-                    } catch {
-                        print("Saves table fetch failed: \(error)")
-                        dbSaves = []
-                    }
-                } else {
-                    dbSaves = []
-                }
-                
-                self.savedPlaceIDs = Set(dbSaves.map { $0.place_id.lowercased() })
-                
                 // 1. Map places (System recommendations)
                 let recCreator = ProfileSummary(
                     id: UUID(),
@@ -689,6 +638,7 @@ struct FeedView: View {
                 )
                 
                 let placeItems: [ExperienceSummary] = dbPlaces.map { dbPlace in
+                    let placeID = StableUUID.from(dbPlace.id)
                     if let stopsArray = dbPlace.stops, !stopsArray.isEmpty {
                         let decodedStops: [StopPreview] = stopsArray.compactMap { stopStr in
                             guard let data = stopStr.data(using: .utf8),
@@ -706,7 +656,7 @@ struct FeedView: View {
                         let coverURL = defaultCoverForCategory(firstStopName)
                         
                         return ExperienceSummary(
-                            id: UUID(uuidString: dbPlace.id) ?? UUID(),
+                            id: placeID,
                             cityID: UUID(),
                             title: dbPlace.name,
                             coverImageURL: coverURL,
@@ -728,7 +678,7 @@ struct FeedView: View {
                         )
                         
                         return ExperienceSummary(
-                            id: UUID(uuidString: dbPlace.id) ?? UUID(),
+                            id: placeID,
                             cityID: UUID(),
                             title: dbPlace.name,
                             coverImageURL: coverURL,
@@ -1062,11 +1012,6 @@ private struct DBExperienceInsert: Codable {
     let city: String
     let stops: [String]
     let created_at: Date
-}
-
-private struct DBSave: Codable {
-    let user_id: UUID
-    let place_id: String
 }
 
 private struct DBProfileSummary: Codable {

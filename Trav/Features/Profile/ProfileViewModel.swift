@@ -126,11 +126,16 @@ final class ProfileViewModel {
         // Own-profile saved/completed tabs should reflect engagement immediately.
         guard let profile, environment.session.currentUser?.id == profile.id else { return }
 
-        if loadedTabs.contains(.saved) {
+        if loadedTabs.contains(.saved) || selectedTab == .saved {
             await loadTab(.saved, using: environment, reset: true)
+        } else {
+            // Force a fresh fetch the next time Saved is opened.
+            loadedTabs.remove(.saved)
         }
-        if loadedTabs.contains(.completed) {
+        if loadedTabs.contains(.completed) || selectedTab == .completed {
             await loadTab(.completed, using: environment, reset: true)
+        } else {
+            loadedTabs.remove(.completed)
         }
     }
 
@@ -164,6 +169,13 @@ final class ProfileViewModel {
         engagement.applyUpdatedProfile(updated, session: session)
     }
 
+    /// Swipe-to-unsave from the Saved tab (own profile only).
+    func unsave(_ experience: ExperienceSummary, using environment: AppEnvironment) async {
+        guard let profile, environment.session.currentUser?.id == profile.id else { return }
+        saved.removeAll { $0.id == experience.id }
+        await environment.engagement.unsave(experienceID: experience.id, using: environment)
+    }
+
     // MARK: - Private
 
     private func loadTab(_ tab: ProfileContentTab, using environment: AppEnvironment, reset: Bool) async {
@@ -182,23 +194,30 @@ final class ProfileViewModel {
             case .saved:
                 let page = reset ? 0 : savedPage + 1
                 let result = try await environment.profiles.fetchSavedExperiences(userID: profile.id, page: page)
-                // Filter through engagement store for instant unsaves on own profile.
-                let items: [ExperienceSummary]
+                var items = result.items
+
                 if environment.session.currentUser?.id == profile.id {
-                    items = result.items.filter { environment.engagement.isSaved($0.id) || reset == false }
-                    // Prefer store as source of truth after first page.
-                    if reset {
-                        saved = result.items.filter { environment.engagement.isSaved($0.id) || environment.engagement.savedExperienceIDs.isEmpty }
-                        if !environment.engagement.savedExperienceIDs.isEmpty {
-                            saved = result.items.filter { environment.engagement.isSaved($0.id) }
-                        } else {
-                            saved = result.items
-                        }
-                    } else {
-                        saved += items
+                    let store = environment.engagement
+                    if !store.savedExperienceIDs.isEmpty {
+                        items = items.filter { store.isSaved($0.id) }
                     }
+                    let present = Set(items.map(\.id))
+                    let optimistic = store.savedExperienceIDs
+                        .subtracting(present)
+                        .compactMap { store.cachedSummary(for: $0) }
+
+                    if reset {
+                        saved = optimistic + items
+                    } else {
+                        var seen = Set(saved.map(\.id))
+                        for item in optimistic + items where seen.insert(item.id).inserted {
+                            saved.append(item)
+                        }
+                    }
+                } else if reset {
+                    saved = items
                 } else {
-                    saved = reset ? result.items : saved + result.items
+                    saved += items
                 }
                 savedPage = page
                 savedHasMore = result.hasMore

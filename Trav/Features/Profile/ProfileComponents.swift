@@ -142,36 +142,41 @@ struct ProfileEditButton: View {
 struct ProfileExperienceCard: View {
     let experience: ExperienceSummary
     var completedAt: Date? = nil
-    var onTap: () -> Void
+    /// When `nil`, the row is display-only (parent owns tap / swipe handling).
+    var onTap: (() -> Void)? = nil
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(alignment: .center, spacing: TravSpacing.md) {
-                RemoteImage(
-                    url: experience.coverImageURL,
-                    height: 72,
-                    cornerRadius: 10
-                )
-                .frame(width: 72, height: 72)
+        let row = HStack(alignment: .center, spacing: TravSpacing.md) {
+            RemoteImage(
+                url: experience.coverImageURL,
+                height: 72,
+                cornerRadius: 10
+            )
+            .frame(width: 72, height: 72)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(experience.title)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(TravColors.primary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(experience.title)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TravColors.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
 
-                    Text(metaLine)
-                        .font(.system(size: 12, weight: .regular, design: .rounded))
-                        .foregroundStyle(TravColors.muted)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Text(metaLine)
+                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                    .foregroundStyle(TravColors.muted)
+                    .lineLimit(1)
             }
-            .padding(.vertical, TravSpacing.sm)
-            .contentShape(Rectangle())
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(TravPressButtonStyle(scale: 0.99))
+        .padding(.vertical, TravSpacing.sm)
+        .contentShape(Rectangle())
+
+        if let onTap {
+            Button(action: onTap) { row }
+                .buttonStyle(TravPressButtonStyle(scale: 0.99))
+        } else {
+            row
+        }
     }
 
     private var metaLine: String {
@@ -187,6 +192,123 @@ struct ProfileExperienceCard: View {
     private var cityLabel: String {
         if let name = experience.cityName, !name.isEmpty { return name }
         return MockData.cities.first(where: { $0.id == experience.cityID })?.name ?? experience.displayCityName
+    }
+}
+
+// MARK: - Swipe to unsave
+
+/// Swipe right→left to reveal Unsave. Opening the experience requires a clean tap
+/// with no swipe. Partial swipe parks on the Unsave button; full swipe deletes.
+struct SwipeToUnsaveRow<Content: View>: View {
+    var onUnsave: () -> Void
+    var onOpen: () -> Void
+    @ViewBuilder var content: () -> Content
+
+    @State private var offset: CGFloat = 0
+    @State private var dragOriginOffset: CGFloat = 0
+    @State private var isHorizontalDrag = false
+    @State private var suppressOpen = false
+
+    private let actionWidth: CGFloat = 88
+    private let fullSwipeDistance: CGFloat = 150
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            Button(action: commitUnsave) {
+                VStack(spacing: 6) {
+                    Image(systemName: "bookmark.slash.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                    Text("Unsave")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                }
+                .foregroundStyle(.white)
+                .frame(width: actionWidth)
+                .frame(maxHeight: .infinity)
+                .background(TravColors.error)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(offset < -4 ? 1 : 0)
+            .accessibilityLabel("Unsave experience")
+
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(TravColors.surface)
+                .offset(x: offset)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    // Only a clean tap opens — never after a swipe gesture.
+                    guard !suppressOpen, !isHorizontalDrag else { return }
+                    if offset < -8 {
+                        withAnimation(TravAnimation.quick) { offset = 0 }
+                    } else {
+                        onOpen()
+                    }
+                }
+                .gesture(rowGesture)
+        }
+        .clipped()
+    }
+
+    private var rowGesture: some Gesture {
+        DragGesture(minimumDistance: 12, coordinateSpace: .local)
+            .onChanged { value in
+                let dx = value.translation.width
+                let dy = value.translation.height
+
+                if !isHorizontalDrag {
+                    let isHorizontal = abs(dx) > abs(dy) * 1.15
+                    let openingLeft = dx < 0
+                    let closingRight = dx > 0 && offset < -4
+
+                    if isHorizontal && (openingLeft || closingRight) {
+                        isHorizontalDrag = true
+                        suppressOpen = true
+                        dragOriginOffset = offset
+                    } else {
+                        return
+                    }
+                }
+
+                guard isHorizontalDrag else { return }
+                offset = min(0, max(dragOriginOffset + dx, -fullSwipeDistance))
+            }
+            .onEnded { value in
+                let wasSwipe = isHorizontalDrag
+                let predicted = value.predictedEndTranslation.width
+
+                defer {
+                    isHorizontalDrag = false
+                    if wasSwipe {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            suppressOpen = false
+                        }
+                    }
+                }
+
+                guard wasSwipe else { return }
+
+                // Full-swipe delete only past a clear threshold — peeking must not delete.
+                let shouldDelete =
+                    offset <= -(actionWidth + 36)
+                    || (predicted < -fullSwipeDistance && offset < -actionWidth * 0.9)
+
+                if shouldDelete {
+                    commitUnsave()
+                } else if offset < -actionWidth * 0.35 {
+                    withAnimation(TravAnimation.quick) { offset = -actionWidth }
+                } else {
+                    withAnimation(TravAnimation.quick) { offset = 0 }
+                }
+            }
+    }
+
+    private func commitUnsave() {
+        withAnimation(TravAnimation.quick) {
+            offset = -420
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        onUnsave()
     }
 }
 

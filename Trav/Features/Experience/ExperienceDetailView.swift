@@ -93,10 +93,30 @@ struct ExperienceDetailView: View {
     private func actionBar(_ experience: Experience) -> some View {
         let isSaved = engagement.isSaved(experience.id)
         let isCompleted = engagement.isCompleted(experience.id)
+        let summary = ExperienceSummary(
+            id: experience.id,
+            cityID: experience.cityID,
+            title: experience.title,
+            coverImageURL: experience.coverImageURL,
+            creator: experience.creator,
+            durationMinutes: experience.durationMinutes,
+            costLevel: experience.costLevel,
+            estimatedCostUSD: experience.estimatedCostUSD,
+            saveCount: experience.saveCount,
+            likeCount: experience.likeCount,
+            completionCount: experience.completionCount,
+            stops: experience.stops.map { StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji) }
+        )
 
         return HStack(spacing: TravSpacing.sm) {
             Button {
-                Task { await engagement.toggleSave(experienceID: experience.id, using: environment) }
+                Task {
+                    await engagement.toggleSave(
+                        experienceID: experience.id,
+                        summary: summary,
+                        using: environment
+                    )
+                }
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: isSaved ? "bookmark.fill" : "bookmark")

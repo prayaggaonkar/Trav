@@ -166,19 +166,23 @@ struct HeroExperienceCard: View {
             .padding(TravSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Top-Right Action Controls
+            // Top-Right Action Controls — above the card tap target so Save never
+            // competes with the parent onTapGesture.
             HStack(spacing: TravSpacing.xs) {
                 CityCardActionButton(
                     systemName: isSaved ? "bookmark.fill" : "bookmark",
                     isActive: isSaved
                 ) { onSave?() }
-                CityCardActionButton(
-                    systemName: "square.and.arrow.up",
-                    isActive: false
-                ) { onShare?() }
+                if onShare != nil {
+                    CityCardActionButton(
+                        systemName: "square.and.arrow.up",
+                        isActive: false
+                    ) { onShare?() }
+                }
             }
             .padding(TravSpacing.sm)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            .zIndex(2)
         }
         .frame(height: 200)
         .frame(maxWidth: .infinity)
@@ -321,7 +325,9 @@ struct CityCardActionButton: View {
                 .frame(width: 32, height: 32)
                 .background(Circle().fill(.black.opacity(0.45)))
         }
-        .buttonStyle(TravPressButtonStyle(scale: 0.9))
+        .buttonStyle(.borderless)
+        .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
+        .contentShape(Rectangle())
     }
 }
 

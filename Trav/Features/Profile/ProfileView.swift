@@ -249,7 +249,13 @@ struct ProfileView: View {
                         description: "Save experiences to revisit them later."
                     )
                 } else {
-                    experienceList(viewModel.saved)
+                    ForEach(Array(viewModel.saved.enumerated()), id: \.element.id) { index, experience in
+                        savedExperienceRow(
+                            experience: experience,
+                            index: index,
+                            isLast: experience.id == viewModel.saved.last?.id
+                        )
+                    }
                 }
 
             case .completed:
@@ -278,6 +284,7 @@ struct ProfileView: View {
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
         .animation(TravAnimation.quick, value: viewModel.selectedTab)
+        .animation(TravAnimation.quick, value: viewModel.saved.map(\.id))
     }
 
     @ViewBuilder
@@ -289,6 +296,48 @@ struct ProfileView: View {
                 index: index,
                 isLast: experience.id == items.last?.id
             )
+        }
+    }
+
+    @ViewBuilder
+    private func savedExperienceRow(
+        experience: ExperienceSummary,
+        index: Int,
+        isLast: Bool
+    ) -> some View {
+        Group {
+            if isOwnProfile {
+                SwipeToUnsaveRow(
+                    onUnsave: {
+                        Task { await viewModel.unsave(experience, using: environment) }
+                    },
+                    onOpen: {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        router.openExperience(experience.id)
+                    }
+                ) {
+                    ProfileExperienceCard(experience: experience)
+                }
+            } else {
+                ProfileExperienceCard(experience: experience) {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    router.openExperience(experience.id)
+                }
+            }
+        }
+        .travAppear(delay: Double(min(index, 5)) * 0.03)
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                Rectangle()
+                    .fill(TravColors.border.opacity(0.4))
+                    .frame(height: 0.5)
+                    .padding(.leading, 72 + TravSpacing.md)
+            }
+        }
+        .onAppear {
+            if isLast {
+                Task { await viewModel.loadMoreIfNeeded(using: environment) }
+            }
         }
     }
 

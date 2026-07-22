@@ -8,6 +8,8 @@ actor MockSocialState {
     private var follows: Set<FollowEdge> = []
     private var saves: Set<SaveEdge> = []
     private var completions: [CompletionEdge] = []
+    /// Extra summaries (e.g. bookmarked feed places) not present in MockData.experiences.
+    private var bookmarkedSummaries: [UUID: ExperienceSummary] = [:]
     private var didSeed = false
 
     struct FollowEdge: Hashable, Sendable {
@@ -222,10 +224,29 @@ actor MockSocialState {
         return completions.contains { $0.userID == userID && $0.experienceID == experienceID }
     }
 
+    func ensureExperienceExists(for summary: ExperienceSummary, ownerID: UUID) {
+        seedIfNeeded()
+        if MockData.experiences.contains(where: { $0.id == summary.id }) { return }
+        if bookmarkedSummaries[summary.id] != nil { return }
+        var copy = summary
+        // Keep creator as the bookmarking user for mock ownership checks.
+        copy.creator = ProfileSummary(
+            id: ownerID,
+            username: copy.creator.username,
+            displayName: copy.creator.displayName,
+            avatarURL: copy.creator.avatarURL,
+            isVerified: copy.creator.isVerified
+        )
+        bookmarkedSummaries[summary.id] = copy
+    }
+
     func savedExperiences(userID: UUID) -> [ExperienceSummary] {
         seedIfNeeded()
         let ids = savedIDs(of: userID)
-        return MockData.experiences.filter { ids.contains($0.id) }
+        let fromMock = MockData.experiences.filter { ids.contains($0.id) }
+        let fromBookmarks = ids.compactMap { bookmarkedSummaries[$0] }
+        var seen = Set<UUID>()
+        return (fromBookmarks + fromMock).filter { seen.insert($0.id).inserted }
     }
 
     func completedExperiences(userID: UUID) -> [CompletedExperienceItem] {
