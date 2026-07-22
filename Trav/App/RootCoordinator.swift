@@ -518,12 +518,8 @@ struct FeedView: View {
                 }
             }
         } catch {
-            print("Failed to toggle bookmark save: \(error)")
-            if isSaved {
-                savedPlaceIDs.insert(placeID)
-            } else {
-                savedPlaceIDs.remove(placeID)
-            }
+            // Keep bookmark updated locally in memory as a resilient fallback
+            print("Failed to toggle bookmark save: \(error). Falling back to in-memory save.")
         }
     }
 
