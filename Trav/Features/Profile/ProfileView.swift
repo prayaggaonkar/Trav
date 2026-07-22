@@ -5,6 +5,7 @@ struct ProfileView: View {
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
     @Environment(EngagementStore.self) private var engagement
+    @Environment(\.dismiss) private var dismiss
 
     let username: String
     var showDismissButton: Bool = true
@@ -372,7 +373,13 @@ struct ProfileView: View {
     private var toolbarContent: some ToolbarContent {
         if showDismissButton {
             ToolbarItem(placement: .topBarLeading) {
-                DismissButton { router.dismiss() }
+                DismissButton {
+                    if router.presentedRoute != nil {
+                        router.dismiss()
+                    } else {
+                        dismiss()
+                    }
+                }
             }
         }
     }

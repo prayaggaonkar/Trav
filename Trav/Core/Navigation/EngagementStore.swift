@@ -54,6 +54,18 @@ final class EngagementStore {
         bump()
     }
 
+    func seedSavedIDs(_ ids: [UUID]) {
+        for id in ids {
+            savedExperienceIDs.insert(id)
+        }
+        bump()
+    }
+
+    func refreshBootstrap(userID: UUID, using environment: AppEnvironment) async {
+        bootstrappedUserID = nil
+        await bootstrap(userID: userID, using: environment)
+    }
+
     func bootstrap(userID: UUID, using environment: AppEnvironment) async {
         if bootstrappedUserID == userID { return }
         if let bootstrapTask {

@@ -32,6 +32,7 @@ struct FollowListView: View {
     @State private var isLoadingMore = false
     @State private var error: Error?
     @State private var searchTask: Task<Void, Never>?
+    @State private var selectedUsernameForProfile: String?
 
     var body: some View {
         NavigationStack {
@@ -69,10 +70,7 @@ struct FollowListView: View {
                                 user: user,
                                 isFollowing: isFollowingUser,
                                 onTap: {
-                                    dismiss()
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                                        router.openProfile(user.username)
-                                    }
+                                    selectedUsernameForProfile = user.username
                                 },
                                 onFollowToggle: session.currentUser?.id == user.id ? nil : {
                                     Task { await toggleFollow(user, isCurrentlyFollowing: isFollowingUser) }
@@ -116,6 +114,12 @@ struct FollowListView: View {
                     guard !Task.isCancelled else { return }
                     await reload(reset: true)
                 }
+            }
+            .sheet(item: Binding(
+                get: { selectedUsernameForProfile.map { ProfileSheetItem(username: $0) } },
+                set: { selectedUsernameForProfile = $0?.username }
+            )) { item in
+                ProfileView(username: item.username, showDismissButton: true)
             }
         }
         .task { await reload(reset: true) }
@@ -186,4 +190,9 @@ struct FollowListView: View {
         )
         _ = await engagement.toggleFollow(target: stub, isCurrentlyFollowing: isCurrentlyFollowing, using: environment)
     }
+}
+
+private struct ProfileSheetItem: Identifiable {
+    let username: String
+    var id: String { username }
 }

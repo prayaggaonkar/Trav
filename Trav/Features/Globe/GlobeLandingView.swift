@@ -40,7 +40,7 @@ struct GlobeLandingView: View {
                     .padding(.horizontal, TravSpacing.xxs)
 
                 if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    userSearchResultsOverlay
+                    searchResultsOverlay
                         .padding(.horizontal, TravSpacing.xxs)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
@@ -270,44 +270,113 @@ struct GlobeLandingView: View {
         .padding(.vertical, TravSpacing.xs)
     }
 
-    private var userSearchResultsOverlay: some View {
-        VStack(alignment: .leading, spacing: TravSpacing.xs) {
-            HStack {
-                Text("CREATORS & USERS")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(appearance.isLightMode ? Color.black.opacity(0.55) : Color.white.opacity(0.6))
+    private var matchingCities: [City] {
+        guard case let .loaded(allCities) = viewModel?.loadState else { return [] }
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        return allCities.filter { city in
+            city.name.localizedCaseInsensitiveContains(trimmed) ||
+            city.countryName.localizedCaseInsensitiveContains(trimmed)
+        }
+    }
 
-                Spacer()
+    private var searchResultsOverlay: some View {
+        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            // MARK: - Cities Section
+            if !matchingCities.isEmpty {
+                VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                    Text("CITIES")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .tracking(1.2)
+                        .foregroundStyle(appearance.isLightMode ? Color.black.opacity(0.55) : Color.white.opacity(0.6))
+                        .padding(.horizontal, TravSpacing.xs)
 
-                if isSearchingUsers {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                        .tint(appearance.isLightMode ? TravColors.accent : .white)
+                    VStack(spacing: 6) {
+                        ForEach(matchingCities.prefix(4)) { city in
+                            Button {
+                                searchText = ""
+                                userSearchResults = []
+                                viewModel?.selectCity(city)
+                            } label: {
+                                HStack(spacing: TravSpacing.sm) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(TravColors.accent.opacity(0.15))
+                                            .frame(width: 32, height: 32)
+
+                                        Image(systemName: "mappin.circle.fill")
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundStyle(TravColors.accent)
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(city.name)
+                                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
+
+                                        Text(city.countryName)
+                                            .font(.system(size: 12, weight: .regular, design: .rounded))
+                                            .foregroundStyle(TravColors.muted)
+                                    }
+
+                                    Spacer()
+
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundStyle(TravColors.muted.opacity(0.6))
+                                }
+                                .padding(.horizontal, TravSpacing.sm)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous)
+                                        .fill(appearance.isLightMode ? Color.white.opacity(0.85) : Color.white.opacity(0.08))
+                                )
+                            }
+                            .buttonStyle(TravPressButtonStyle(scale: 0.98))
+                        }
+                    }
                 }
             }
-            .padding(.horizontal, TravSpacing.xs)
 
-            if userSearchResults.isEmpty && !isSearchingUsers {
-                Text("No users found matching '\(searchText)'")
-                    .font(TravTypography.caption())
-                    .foregroundStyle(TravColors.muted)
-                    .padding(.horizontal, TravSpacing.xs)
-                    .padding(.vertical, 4)
-            } else {
-                VStack(spacing: 6) {
-                    ForEach(userSearchResults.prefix(4)) { user in
-                        GlobeUserSearchResultRow(user: user) {
-                            searchText = ""
-                            userSearchResults = []
-                            router.openProfile(user.username)
-                        }
-                        .padding(.horizontal, TravSpacing.sm)
+            // MARK: - Creators & Users Section
+            VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                HStack {
+                    Text("CREATORS & USERS")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .tracking(1.2)
+                        .foregroundStyle(appearance.isLightMode ? Color.black.opacity(0.55) : Color.white.opacity(0.6))
+
+                    Spacer()
+
+                    if isSearchingUsers {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .tint(appearance.isLightMode ? TravColors.accent : .white)
+                    }
+                }
+                .padding(.horizontal, TravSpacing.xs)
+
+                if userSearchResults.isEmpty && !isSearchingUsers && matchingCities.isEmpty {
+                    Text("No matching cities or users found for '\(searchText)'")
+                        .font(TravTypography.caption())
+                        .foregroundStyle(TravColors.muted)
+                        .padding(.horizontal, TravSpacing.xs)
                         .padding(.vertical, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous)
-                                .fill(appearance.isLightMode ? Color.white.opacity(0.85) : Color.white.opacity(0.08))
-                        )
+                } else if !userSearchResults.isEmpty {
+                    VStack(spacing: 6) {
+                        ForEach(userSearchResults.prefix(4)) { user in
+                            GlobeUserSearchResultRow(user: user) {
+                                searchText = ""
+                                userSearchResults = []
+                                router.openProfile(user.username)
+                            }
+                            .padding(.horizontal, TravSpacing.sm)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous)
+                                    .fill(appearance.isLightMode ? Color.white.opacity(0.85) : Color.white.opacity(0.08))
+                            )
+                        }
                     }
                 }
             }

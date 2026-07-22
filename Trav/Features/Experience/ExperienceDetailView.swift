@@ -31,10 +31,10 @@ struct ExperienceDetailView: View {
             }
         }
         .task {
-            await load()
             if let userID = environment.session.currentUser?.id {
-                await engagement.bootstrap(userID: userID, using: environment)
+                await engagement.refreshBootstrap(userID: userID, using: environment)
             }
+            await load()
         }
     }
 

@@ -12,9 +12,9 @@ struct SupabaseEngagementRepository: EngagementRepository {
     func fetchSavedIDs(userID: UUID) async throws -> Set<UUID> {
         var ids = Set<UUID>()
 
-        struct ExperienceSaveRow: Decodable { let experience_id: UUID }
-        if let rows: [ExperienceSaveRow] = try? await client
-            .from("experience_saves")
+        struct SaveRow: Decodable { let experience_id: UUID }
+        if let rows: [SaveRow] = try? await client
+            .from("saved_experiences")
             .select("experience_id")
             .eq("user_id", value: userID.uuidString.lowercased())
             .execute()
@@ -22,17 +22,13 @@ struct SupabaseEngagementRepository: EngagementRepository {
             ids.formUnion(rows.map(\.experience_id))
         }
 
-        // Legacy feed bookmarks (`saves.place_id`) — keep reading so older rows still count.
-        struct LegacySaveRow: Decodable { let place_id: String }
-        if let legacy: [LegacySaveRow] = try? await client
-            .from("saves")
-            .select("place_id")
+        if let rows: [SaveRow] = try? await client
+            .from("experience_saves")
+            .select("experience_id")
             .eq("user_id", value: userID.uuidString.lowercased())
             .execute()
             .value {
-            for row in legacy {
-                ids.insert(StableUUID.from(row.place_id))
-            }
+            ids.formUnion(rows.map(\.experience_id))
         }
 
         return ids
@@ -84,58 +80,39 @@ struct SupabaseEngagementRepository: EngagementRepository {
         let currentlySaved = try await isSaved(userID: userID, experienceID: experienceID)
 
         if currentlySaved {
-            _ = try? await client
-                .from("experience_saves")
-                .delete()
-                .eq("user_id", value: user)
-                .eq("experience_id", value: experience)
-                .execute()
-            _ = try? await client
-                .from("saves")
-                .delete()
-                .eq("user_id", value: user)
-                .eq("place_id", value: experience)
-                .execute()
+            try await unsave(userID: userID, experienceID: experienceID)
             return false
         }
 
-        var persisted = false
-
-        struct ExperienceSaveInsert: Encodable {
+        struct SaveInsert: Encodable {
             let user_id: String
             let experience_id: String
         }
+
+        var persisted = false
         do {
             try await client
-                .from("experience_saves")
+                .from("saved_experiences")
                 .upsert(
-                    ExperienceSaveInsert(user_id: user, experience_id: experience),
+                    SaveInsert(user_id: user, experience_id: experience),
                     onConflict: "user_id,experience_id"
                 )
                 .execute()
             persisted = true
         } catch {
-            print("experience_saves upsert failed: \(error)")
+            print("saved_experiences upsert notice: \(error)")
         }
 
-        // Always dual-write legacy `saves` so bookmarks persist even if experience_saves
-        // is missing / blocked by RLS.
-        struct LegacySaveInsert: Encodable {
-            let user_id: String
-            let place_id: String
-        }
         do {
             try await client
-                .from("saves")
+                .from("experience_saves")
                 .upsert(
-                    LegacySaveInsert(user_id: user, place_id: experience),
-                    onConflict: "user_id,place_id"
+                    SaveInsert(user_id: user, experience_id: experience),
+                    onConflict: "user_id,experience_id"
                 )
                 .execute()
             persisted = true
-        } catch {
-            print("legacy saves upsert failed: \(error)")
-        }
+        } catch {}
 
         guard persisted else {
             throw EngagementPersistenceError.saveFailed
@@ -147,16 +124,16 @@ struct SupabaseEngagementRepository: EngagementRepository {
         let user = userID.uuidString.lowercased()
         let experience = experienceID.uuidString.lowercased()
         _ = try? await client
-            .from("experience_saves")
+            .from("saved_experiences")
             .delete()
             .eq("user_id", value: user)
             .eq("experience_id", value: experience)
             .execute()
         _ = try? await client
-            .from("saves")
+            .from("experience_saves")
             .delete()
             .eq("user_id", value: user)
-            .eq("place_id", value: experience)
+            .eq("experience_id", value: experience)
             .execute()
     }
 
