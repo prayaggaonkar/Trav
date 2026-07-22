@@ -11,10 +11,18 @@ final class EarthGlobeRenderer {
     private(set) var earthNode = SCNNode()
     private(set) var cameraNode = SCNNode()
     private var sunLightNode = SCNNode()
+    private var ambientLightNode = SCNNode()
+    private var fillLightNode = SCNNode()
 
     private var cityMarkers: [EarthCityMarker] = []
     private var sunDirection = EarthSunPosition.direction()
     private var orientation = simd_quatf(angle: 0, axis: SIMD3(0, 1, 0))
+    private var usesDaytimeLook = false
+
+    /// Dark-mode land/ocean diffuse.
+    private var earthDayTexture: UIImage!
+    /// Light-mode daytime land/ocean diffuse (recolored oceans/land). Purple emission unchanged.
+    private var earthDayLightTexture: UIImage!
 
     var onCitySelected: ((City) -> Void)?
 
@@ -38,6 +46,17 @@ final class EarthGlobeRenderer {
     /// Multiplicative zoom step for keyboard / discrete controls.
     func adjustZoom(by factor: Float) {
         setCameraDistance(cameraDistance * factor)
+    }
+
+    /// Light mode only: swap to the daytime land/ocean texture and dial down diffuse
+    /// intensity so it isn't overly bright. Texture file, lights, and purple emission unchanged.
+    func setDaytimeLook(_ enabled: Bool) {
+        guard usesDaytimeLook != enabled else { return }
+        usesDaytimeLook = enabled
+        let material = earthNode.geometry?.firstMaterial
+        material?.diffuse.contents = enabled ? earthDayLightTexture : earthDayTexture
+        // Same texture assets; only the diffuse gain changes in light mode.
+        material?.diffuse.intensity = enabled ? 0.8 : 1.55
     }
 
     init() {
@@ -166,8 +185,11 @@ final class EarthGlobeRenderer {
         let geometry = SCNSphere(radius: 1.0)
         geometry.segmentCount = 96
 
+        earthDayTexture = loadImage(named: "earth_day")
+        earthDayLightTexture = loadImage(named: "earth_day_light")
+
         let material = SCNMaterial()
-        material.diffuse.contents = loadImage(named: "earth_day")
+        material.diffuse.contents = earthDayTexture
         material.diffuse.wrapS = .repeat
         material.diffuse.wrapT = .clamp
         material.diffuse.magnificationFilter = .linear
@@ -176,6 +198,7 @@ final class EarthGlobeRenderer {
         // Day texture is intentionally muted; lift diffuse so land/ocean stay readable.
         material.diffuse.intensity = 1.55
         // Population-density emission: neon purple — strongest on the night side.
+        // Never retuned when swapping the daytime diffuse texture.
         material.emission.contents = loadImage(named: "earth_night")
         material.emission.intensity = 1.45
         material.lightingModel = .blinn
@@ -191,12 +214,12 @@ final class EarthGlobeRenderer {
     private func buildLights() {
         // SceneKit's "1.0" lighting scale is ~1000 intensity — keep fill strong enough
         // that land/ocean remain visible on the night side, not just purple dots.
-        let ambient = SCNNode()
-        ambient.light = SCNLight()
-        ambient.light?.type = .ambient
-        ambient.light?.intensity = 620
-        ambient.light?.color = UIColor(red: 0.78, green: 0.80, blue: 0.88, alpha: 1)
-        scene.rootNode.addChildNode(ambient)
+        // Lights stay fixed across appearance; only the diffuse texture swaps in light mode.
+        ambientLightNode.light = SCNLight()
+        ambientLightNode.light?.type = .ambient
+        ambientLightNode.light?.intensity = 620
+        ambientLightNode.light?.color = UIColor(red: 0.78, green: 0.80, blue: 0.88, alpha: 1)
+        scene.rootNode.addChildNode(ambientLightNode)
 
         sunLightNode.light = SCNLight()
         sunLightNode.light?.type = .directional
@@ -207,15 +230,14 @@ final class EarthGlobeRenderer {
         scene.rootNode.addChildNode(sunLightNode)
 
         // Gentle fill from the camera side so the facing hemisphere never goes black.
-        let fill = SCNNode()
-        fill.light = SCNLight()
-        fill.light?.type = .directional
-        fill.light?.intensity = 380
-        fill.light?.color = UIColor(red: 0.70, green: 0.74, blue: 0.90, alpha: 1)
-        fill.light?.castsShadow = false
-        fill.position = SCNVector3(0, 0.4, 6)
-        fill.look(at: SCNVector3Zero)
-        cameraNode.addChildNode(fill)
+        fillLightNode.light = SCNLight()
+        fillLightNode.light?.type = .directional
+        fillLightNode.light?.intensity = 380
+        fillLightNode.light?.color = UIColor(red: 0.70, green: 0.74, blue: 0.90, alpha: 1)
+        fillLightNode.light?.castsShadow = false
+        fillLightNode.position = SCNVector3(0, 0.4, 6)
+        fillLightNode.look(at: SCNVector3Zero)
+        cameraNode.addChildNode(fillLightNode)
     }
 
     private func buildCamera() {

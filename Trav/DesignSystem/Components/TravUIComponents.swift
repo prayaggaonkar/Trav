@@ -400,6 +400,15 @@ struct HeroImageHeader<Overlay: View>: View {
 
 struct TravTabBar: View {
     @Binding var activeTab: TravTab
+    /// Independent of app appearance — driven by content behind the bar.
+    var backdrop: TabBarBackdrop = .dark
+    @Environment(AppearanceStore.self) private var appearance
+
+    /// In light mode always use light chrome + black labels, even over dark feed cards.
+    private var isDarkChrome: Bool {
+        if appearance.isLightMode { return false }
+        return backdrop == .dark
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -417,7 +426,7 @@ struct TravTabBar: View {
                         Text(tab.rawValue)
                             .font(TravTypography.tabLabel())
                     }
-                    .foregroundStyle(activeTab == tab ? TravColors.accent : TravColors.muted)
+                    .foregroundStyle(tabForeground(isSelected: activeTab == tab))
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: TravLayout.minTouchTarget)
                     .contentShape(Rectangle())
@@ -431,22 +440,66 @@ struct TravTabBar: View {
         .padding(.vertical, TravSpacing.xs)
         .background {
             Capsule()
-                .fill(.ultraThinMaterial)
+                .fill(.regularMaterial)
+                .overlay {
+                    Capsule()
+                        .fill(
+                            isDarkChrome
+                                ? Color.black.opacity(0.28)
+                                : Color.white.opacity(appearance.isLightMode ? 0.72 : 0.35)
+                        )
+                }
                 .overlay {
                     Capsule()
                         .stroke(
                             LinearGradient(
-                                colors: [.white.opacity(0.28), .white.opacity(0.08)],
+                                colors: isDarkChrome
+                                    ? [.white.opacity(0.28), .white.opacity(0.08)]
+                                    : [Color.black.opacity(0.18), Color.black.opacity(0.08)],
                                 startPoint: .top,
                                 endPoint: .bottom
                             ),
                             lineWidth: 1
                         )
                 }
-                .shadow(color: TravShadow.elevated().color, radius: TravShadow.elevated().radius, y: TravShadow.elevated().y)
+                .shadow(
+                    color: TravShadow.elevated().color.opacity(isDarkChrome ? 1 : 0.45),
+                    radius: TravShadow.elevated().radius,
+                    y: TravShadow.elevated().y
+                )
+                .environment(\.colorScheme, isDarkChrome ? .dark : .light)
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
         .padding(.bottom, TravSpacing.tabBarBottom)
+        .animation(.easeInOut(duration: 0.22), value: backdrop)
+        .animation(.easeInOut(duration: 0.22), value: appearance.isLightMode)
+    }
+
+    private func tabForeground(isSelected: Bool) -> Color {
+        if isSelected { return TravColors.accent }
+        if appearance.isLightMode { return TravColors.muted }
+        return isDarkChrome ? Color.white.opacity(0.62) : TravColors.muted
+    }
+}
+
+/// Whether content under the floating tab bar is visually dark or light.
+enum TabBarBackdrop: String, Equatable {
+    case light
+    case dark
+}
+
+struct TabBarBackdropPreferenceKey: PreferenceKey {
+    static let defaultValue: TabBarBackdrop = .dark
+
+    static func reduce(value: inout TabBarBackdrop, nextValue: () -> TabBarBackdrop) {
+        value = nextValue()
+    }
+}
+
+extension View {
+    /// Reports the visual backdrop under the tab bar so chrome can adapt independently.
+    func tabBarBackdrop(_ backdrop: TabBarBackdrop) -> some View {
+        preference(key: TabBarBackdropPreferenceKey.self, value: backdrop)
     }
 }
 
@@ -591,26 +644,30 @@ extension View {
 }
 
 struct DottedGridView: View {
-    let dotSpacing: CGFloat = 28
-    let dotSize: CGFloat = 2.0
-    
+    @Environment(AppearanceStore.self) private var appearance
+    var dotSpacing: CGFloat = 28
+    var dotSize: CGFloat = 2.0
+
     var body: some View {
         Canvas { context, size in
             let cols = Int(size.width / dotSpacing) + 1
             let rows = Int(size.height / dotSpacing) + 1
-            
+            let fill = appearance.isLightMode
+                ? Color.black.opacity(0.08)
+                : Color.white.opacity(0.12)
+
             for col in 0..<cols {
                 for row in 0..<rows {
                     let x = CGFloat(col) * dotSpacing
                     let y = CGFloat(row) * dotSpacing
-                    
+
                     let rect = CGRect(
                         x: x - dotSize / 2,
                         y: y - dotSize / 2,
                         width: dotSize,
                         height: dotSize
                     )
-                    context.fill(Path(ellipseIn: rect), with: .color(Color.white.opacity(0.12)))
+                    context.fill(Path(ellipseIn: rect), with: .color(fill))
                 }
             }
         }

@@ -10,6 +10,7 @@
 		014352908D96491BA4E04437 /* PrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22D7B624DAAF4F4AA1F44A7F /* PrimaryButton.swift */; };
 		0A139D20BECF4AB8AA14CC31 /* RepositoryProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4762DCE38F22479AB6D818E6 /* RepositoryProtocols.swift */; };
 		10474AB917424CD0AD7A2340 /* earth_day.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 496BA6B3143F4D3DB499E304 /* earth_day.jpg */; };
+		E4A7C1D0B2F84E6A9C3D5E71 /* earth_day_light.jpg in Resources */ = {isa = PBXBuildFile; fileRef = E4A7C1D0B2F84E6A9C3D5E70 /* earth_day_light.jpg */; };
 		1081907320D844448603E8A7 /* StatPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9989CC2CCE5A4311865A3993 /* StatPill.swift */; };
 		2D9C4391DE9B4203970F202E /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10CE54D2D476419EB5E371A9 /* AppEnvironment.swift */; };
 		4471FBD864E94E03B448A4B0 /* EarthGlobeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52B7E6A8F912449E8BCC2CCE /* EarthGlobeView.swift */; };
@@ -76,6 +77,7 @@
 		4762DCE38F22479AB6D818E6 /* RepositoryProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProtocols.swift; sourceTree = "<group>"; };
 		495A3A8B9C6E42DFB539E0D3 /* City.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = City.swift; sourceTree = "<group>"; };
 		496BA6B3143F4D3DB499E304 /* earth_day.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = earth_day.jpg; sourceTree = "<group>"; };
+		E4A7C1D0B2F84E6A9C3D5E70 /* earth_day_light.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = earth_day_light.jpg; sourceTree = "<group>"; };
 		4F10A0A9C5684D13BD3B9BF8 /* EarthGlobeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarthGlobeController.swift; sourceTree = "<group>"; };
 		5214E298F515465C8669751B /* AsyncContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncContentView.swift; sourceTree = "<group>"; };
 		52B7E6A8F912449E8BCC2CCE /* EarthGlobeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarthGlobeView.swift; sourceTree = "<group>"; };
@@ -338,6 +340,7 @@
 			isa = PBXGroup;
 			children = (
 				496BA6B3143F4D3DB499E304 /* earth_day.jpg */,
+				E4A7C1D0B2F84E6A9C3D5E70 /* earth_day_light.jpg */,
 				718377C590AA4881A90EFC95 /* earth_night.jpg */,
 				B2C3D4E5F6A7488990ABCDE1 /* earth-topology.png */,
 				D4E5F6A7B8C9488990ABCDEF /* clouds.jpg */,
@@ -428,6 +431,7 @@
 			files = (
 				D6759BDEF8B24A44823FB801 /* Assets.xcassets in Resources */,
 				10474AB917424CD0AD7A2340 /* earth_day.jpg in Resources */,
+				E4A7C1D0B2F84E6A9C3D5E71 /* earth_day_light.jpg in Resources */,
 				8BA97A58085D4264B2E48D5F /* earth_night.jpg in Resources */,
 				A1B2C3D4E5F6478990ABCDEF /* earth-topology.png in Resources */,
 				C3D4E5F6A7B8488990ABCDE2 /* clouds.jpg in Resources */,

@@ -2,6 +2,25 @@ import Foundation
 import Observation
 import UIKit
 
+func debugLog(_ message: String) {
+    let logFile = URL(fileURLWithPath: "/Users/vinay23/Documents/Trav/debug.log")
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+    let timestamp = formatter.string(from: Date())
+    let logLine = "[\(timestamp)] \(message)\n"
+    if let data = logLine.data(using: .utf8) {
+        if FileManager.default.fileExists(atPath: logFile.path) {
+            if let fileHandle = try? FileHandle(forWritingTo: logFile) {
+                fileHandle.seekToEndOfFile()
+                fileHandle.write(data)
+                try? fileHandle.close()
+            }
+        } else {
+            try? logLine.write(to: logFile, atomically: true, encoding: .utf8)
+        }
+    }
+}
+
 @Observable
 @MainActor
 final class CityViewModel {
@@ -30,6 +49,7 @@ final class CityViewModel {
     }
 
     func load(using environment: AppEnvironment) async {
+        debugLog("CityViewModel.load started for cityID: \(cityID)")
         phase = .loading
         do {
             async let city = environment.cities.fetchCity(id: cityID)
@@ -44,7 +64,9 @@ final class CityViewModel {
                 creators: try await creators
             )
             phase = content.feed.isEmpty && content.featured == nil ? .empty : .loaded(content)
+            debugLog("CityViewModel.load completed successfully, phase set to loaded")
         } catch {
+            debugLog("CityViewModel.load failed with error: \(error)")
             phase = .failed(error)
         }
     }
