@@ -10,6 +10,7 @@ final class EngagementStore {
     private(set) var savedExperienceIDs: Set<UUID> = []
     private(set) var completedExperienceIDs: Set<UUID> = []
     private(set) var followingUserIDs: Set<UUID> = []
+    private(set) var unfollowedUserIDs: Set<UUID> = []
     /// Latest known profiles keyed by id — refreshed after edits / follows.
     private(set) var profileCache: [UUID: Profile] = [:]
     private(set) var profileCacheByUsername: [String: Profile] = [:]
@@ -22,9 +23,23 @@ final class EngagementStore {
         savedExperienceIDs = []
         completedExperienceIDs = []
         followingUserIDs = []
+        unfollowedUserIDs = []
         profileCache = [:]
         profileCacheByUsername = [:]
         bootstrappedUserID = nil
+        bump()
+    }
+
+    func hasExplicitlyUnfollowed(_ userID: UUID) -> Bool {
+        unfollowedUserIDs.contains(userID)
+    }
+
+    func seedFollowingIDs(_ ids: [UUID]) {
+        for id in ids {
+            if !unfollowedUserIDs.contains(id) {
+                followingUserIDs.insert(id)
+            }
+        }
         bump()
     }
 
@@ -149,18 +164,19 @@ final class EngagementStore {
     }
 
     @discardableResult
-    func toggleFollow(target: Profile, using environment: AppEnvironment) async -> Bool {
+    func toggleFollow(target: Profile, isCurrentlyFollowing: Bool? = nil, using environment: AppEnvironment) async -> Bool {
         guard let followerID = environment.session.currentUser?.id else {
             environment.router.presentAuth()
             return false
         }
         guard followerID != target.id else { return false }
 
-        let wasFollowing = followingUserIDs.contains(target.id)
+        let wasFollowing = isCurrentlyFollowing ?? (followingUserIDs.contains(target.id) || (target.isFollowing ?? false))
         var updatedTarget = target
 
         if wasFollowing {
             followingUserIDs.remove(target.id)
+            unfollowedUserIDs.insert(target.id)
             updatedTarget.followerCount = max(0, updatedTarget.followerCount - 1)
             updatedTarget.isFollowing = false
             if var me = environment.session.currentUser {
@@ -170,6 +186,7 @@ final class EngagementStore {
             }
         } else {
             followingUserIDs.insert(target.id)
+            unfollowedUserIDs.remove(target.id)
             updatedTarget.followerCount += 1
             updatedTarget.isFollowing = true
             if var me = environment.session.currentUser {

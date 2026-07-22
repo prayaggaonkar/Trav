@@ -36,6 +36,7 @@ protocol ProfileRepository: Sendable {
     func uploadAvatar(userID: UUID, imageData: Data) async throws -> URL
     func fetchFollowers(userID: UUID, query: String?, page: Int) async throws -> Paginated<ProfileSummary>
     func fetchFollowing(userID: UUID, query: String?, page: Int) async throws -> Paginated<ProfileSummary>
+    func searchUsers(query: String) async throws -> [ProfileSummary]
     func isFollowing(followerID: UUID, followingID: UUID) async throws -> Bool
     func follow(followerID: UUID, followingID: UUID) async throws
     func unfollow(followerID: UUID, followingID: UUID) async throws

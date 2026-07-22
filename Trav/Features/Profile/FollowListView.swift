@@ -55,11 +55,19 @@ struct FollowListView: View {
                 } else {
                     List {
                         ForEach(filteredUsers) { user in
+                            let isFollowingUser: Bool? = {
+                                guard let currentUserID = session.currentUser?.id else { return nil }
+                                if currentUserID == user.id { return nil }
+                                if mode == .following && profile.id == currentUserID {
+                                    // In own following list, if not explicitly unfollowed in session, default to true
+                                    return engagement.isFollowing(user.id) || !engagement.hasExplicitlyUnfollowed(user.id)
+                                }
+                                return engagement.isFollowing(user.id)
+                            }()
+
                             ProfileUserRow(
                                 user: user,
-                                isFollowing: session.currentUser?.id == user.id
-                                    ? nil
-                                    : engagement.isFollowing(user.id),
+                                isFollowing: isFollowingUser,
                                 onTap: {
                                     dismiss()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
@@ -67,7 +75,7 @@ struct FollowListView: View {
                                     }
                                 },
                                 onFollowToggle: session.currentUser?.id == user.id ? nil : {
-                                    Task { await toggleFollow(user) }
+                                    Task { await toggleFollow(user, isCurrentlyFollowing: isFollowingUser) }
                                 }
                             )
                             .listRowBackground(TravColors.surface)
@@ -139,6 +147,9 @@ struct FollowListView: View {
                     page: page
                 )
             }
+            if mode == .following && profile.id == session.currentUser?.id {
+                engagement.seedFollowingIDs(result.items.map(\.id))
+            }
             users = reset ? result.items : users + result.items
             hasMore = result.hasMore
             error = nil
@@ -155,7 +166,7 @@ struct FollowListView: View {
         await reload(reset: false)
     }
 
-    private func toggleFollow(_ user: ProfileSummary) async {
+    private func toggleFollow(_ user: ProfileSummary, isCurrentlyFollowing: Bool?) async {
         let stub = Profile(
             id: user.id,
             username: user.username,
@@ -171,8 +182,8 @@ struct FollowListView: View {
             isVerified: user.isVerified,
             selectedVibes: nil,
             onboardingLocation: nil,
-            isFollowing: engagement.isFollowing(user.id)
+            isFollowing: isCurrentlyFollowing ?? engagement.isFollowing(user.id)
         )
-        _ = await engagement.toggleFollow(target: stub, using: environment)
+        _ = await engagement.toggleFollow(target: stub, isCurrentlyFollowing: isCurrentlyFollowing, using: environment)
     }
 }

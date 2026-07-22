@@ -5,9 +5,14 @@ struct GlobeLandingView: View {
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
     @Environment(AppearanceStore.self) private var appearance
+    @Environment(EngagementStore.self) private var engagement
+
     @State private var viewModel: GlobeViewModel?
     @State private var showOnboarding = false
     @State private var searchText = ""
+    @State private var userSearchResults: [ProfileSummary] = []
+    @State private var isSearchingUsers = false
+    @State private var userSearchTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -34,6 +39,12 @@ struct GlobeLandingView: View {
                 searchBar
                     .padding(.horizontal, TravSpacing.xxs)
 
+                if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    userSearchResultsOverlay
+                        .padding(.horizontal, TravSpacing.xxs)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 Spacer(minLength: 0)
                     .allowsHitTesting(false)
 
@@ -55,6 +66,11 @@ struct GlobeLandingView: View {
             vm.controller.renderer.setDaytimeLook(appearance.isLightMode)
             await vm.loadCities()
         }
+        .task(id: session.currentUser?.id) {
+            if let userID = session.currentUser?.id {
+                await engagement.bootstrap(userID: userID, using: environment)
+            }
+        }
         .onChange(of: appearance.isLightMode) { _, isLight in
             viewModel?.controller.renderer.setDaytimeLook(isLight)
         }
@@ -64,7 +80,28 @@ struct GlobeLandingView: View {
                 viewModel?.resetZoomAfterReturningHome()
             }
         }
-        .onChange(of: searchText) { oldValue, newValue in
+        .onChange(of: searchText) { _, newValue in
+            userSearchTask?.cancel()
+            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                userSearchResults = []
+                isSearchingUsers = false
+            } else {
+                isSearchingUsers = true
+                userSearchTask = Task {
+                    try? await Task.sleep(for: .milliseconds(250))
+                    guard !Task.isCancelled else { return }
+                    if let currentUserID = session.currentUser?.id {
+                        await engagement.bootstrap(userID: currentUserID, using: environment)
+                    }
+                    let results = (try? await environment.profiles.searchUsers(query: trimmed)) ?? []
+                    if !Task.isCancelled {
+                        userSearchResults = results
+                        isSearchingUsers = false
+                    }
+                }
+            }
+
             if case let .loaded(allCities) = viewModel?.loadState {
                 if newValue.isEmpty {
                     viewModel?.renderer.setCities(allCities)
@@ -230,6 +267,61 @@ struct GlobeLandingView: View {
                     lineWidth: 1
                 )
         }
+        .padding(.vertical, TravSpacing.xs)
+    }
+
+    private var userSearchResultsOverlay: some View {
+        VStack(alignment: .leading, spacing: TravSpacing.xs) {
+            HStack {
+                Text("CREATORS & USERS")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .tracking(1.2)
+                    .foregroundStyle(appearance.isLightMode ? Color.black.opacity(0.55) : Color.white.opacity(0.6))
+
+                Spacer()
+
+                if isSearchingUsers {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .tint(appearance.isLightMode ? TravColors.accent : .white)
+                }
+            }
+            .padding(.horizontal, TravSpacing.xs)
+
+            if userSearchResults.isEmpty && !isSearchingUsers {
+                Text("No users found matching '\(searchText)'")
+                    .font(TravTypography.caption())
+                    .foregroundStyle(TravColors.muted)
+                    .padding(.horizontal, TravSpacing.xs)
+                    .padding(.vertical, 4)
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(userSearchResults.prefix(4)) { user in
+                        GlobeUserSearchResultRow(user: user) {
+                            searchText = ""
+                            userSearchResults = []
+                            router.openProfile(user.username)
+                        }
+                        .padding(.horizontal, TravSpacing.sm)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous)
+                                .fill(appearance.isLightMode ? Color.white.opacity(0.85) : Color.white.opacity(0.08))
+                        )
+                    }
+                }
+            }
+        }
+        .padding(TravSpacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .environment(\.colorScheme, appearance.isLightMode ? .light : .dark)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                .stroke(appearance.isLightMode ? Color.black.opacity(0.1) : Color.white.opacity(0.12), lineWidth: 1)
+        )
         .padding(.vertical, TravSpacing.xs)
     }
 
@@ -445,5 +537,51 @@ private struct CityChip: View {
         }
         .buttonStyle(TravPressButtonStyle(scale: 0.96))
         .accessibilityLabel(city.name)
+    }
+}
+
+private struct GlobeUserSearchResultRow: View {
+    let user: ProfileSummary
+    @Environment(SessionStore.self) private var session
+    @Environment(EngagementStore.self) private var engagement
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(AppRouter.self) private var router
+
+    var onSelect: () -> Void
+
+    private var isFollowing: Bool? {
+        guard let currentUserID = session.currentUser?.id else { return nil }
+        if currentUserID == user.id { return nil }
+        return engagement.isFollowing(user.id)
+    }
+
+    var body: some View {
+        ProfileUserRow(
+            user: user,
+            isFollowing: isFollowing,
+            onTap: onSelect,
+            onFollowToggle: session.currentUser?.id == user.id ? nil : {
+                Task {
+                    let stub = Profile(
+                        id: user.id,
+                        username: user.username,
+                        displayName: user.displayName,
+                        bio: nil,
+                        avatarURL: user.avatarURL,
+                        homeCityID: nil,
+                        homeCityName: nil,
+                        followerCount: 0,
+                        followingCount: 0,
+                        experienceCount: 0,
+                        completionCount: 0,
+                        isVerified: user.isVerified,
+                        selectedVibes: nil,
+                        onboardingLocation: nil,
+                        isFollowing: engagement.isFollowing(user.id)
+                    )
+                    _ = await engagement.toggleFollow(target: stub, using: environment)
+                }
+            }
+        )
     }
 }

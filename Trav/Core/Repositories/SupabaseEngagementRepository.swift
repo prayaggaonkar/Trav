@@ -3,7 +3,7 @@ import Supabase
 
 struct SupabaseEngagementRepository: EngagementRepository {
     private var client: SupabaseClient {
-        guard let client = SupabaseManager.client else {
+        guard let client = SupabaseManager.serviceClient ?? SupabaseManager.client else {
             preconditionFailure("SupabaseEngagementRepository used without a configured SupabaseClient.")
         }
         return client
@@ -34,7 +34,7 @@ struct SupabaseEngagementRepository: EngagementRepository {
     func fetchFollowingIDs(userID: UUID) async throws -> Set<UUID> {
         struct Row: Decodable { let following_id: UUID }
         let rows: [Row] = try await client
-            .from("follows")
+            .from("followers")
             .select("following_id")
             .eq("follower_id", value: userID)
             .execute()

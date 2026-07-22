@@ -136,6 +136,19 @@ struct MockProfileRepository: ProfileRepository {
         return paginate(items, page: page)
     }
 
+    func searchUsers(query: String) async throws -> [ProfileSummary] {
+        try await Task.sleep(for: .milliseconds(120))
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return [] }
+        return MockData.creators.compactMap { creator in
+            let profile = MockData.profile(for: creator)
+            if profile.username.lowercased().contains(q) || profile.displayName.lowercased().contains(q) {
+                return profile.summary
+            }
+            return nil
+        }
+    }
+
     func isFollowing(followerID: UUID, followingID: UUID) async throws -> Bool {
         await MockSocialState.shared.isFollowing(followerID: followerID, followingID: followingID)
     }

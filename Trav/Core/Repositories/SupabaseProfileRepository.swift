@@ -18,7 +18,25 @@ struct SupabaseProfileRepository: ProfileRepository {
             .single()
             .execute()
             .value
-        return row.profile
+        var profile = row.profile
+
+        let followersCount = (try? await client
+            .from("followers")
+            .select("follower_id", count: .exact)
+            .eq("following_id", value: profile.id)
+            .execute()
+            .count) ?? profile.followerCount
+
+        let followingCount = (try? await client
+            .from("followers")
+            .select("following_id", count: .exact)
+            .eq("follower_id", value: profile.id)
+            .execute()
+            .count) ?? profile.followingCount
+
+        profile.followerCount = followersCount
+        profile.followingCount = followingCount
+        return profile
     }
 
     func fetchProfile(id: UUID) async throws -> Profile {
@@ -29,7 +47,25 @@ struct SupabaseProfileRepository: ProfileRepository {
             .single()
             .execute()
             .value
-        return row.profile
+        var profile = row.profile
+
+        let followersCount = (try? await client
+            .from("followers")
+            .select("follower_id", count: .exact)
+            .eq("following_id", value: id)
+            .execute()
+            .count) ?? profile.followerCount
+
+        let followingCount = (try? await client
+            .from("followers")
+            .select("following_id", count: .exact)
+            .eq("follower_id", value: id)
+            .execute()
+            .count) ?? profile.followingCount
+
+        profile.followerCount = followersCount
+        profile.followingCount = followingCount
+        return profile
     }
 
     func updateProfile(userID: UUID, update: ProfileUpdate) async throws -> Profile {
@@ -161,10 +197,29 @@ struct SupabaseProfileRepository: ProfileRepository {
         )
     }
 
+    func searchUsers(query: String) async throws -> [ProfileSummary] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        do {
+            let rows: [ProfileRow] = try await client
+                .from("profiles")
+                .select()
+                .or("username.ilike.%\(trimmed)%,display_name.ilike.%\(trimmed)%")
+                .limit(20)
+                .execute()
+                .value
+            return rows.map { $0.profile.summary }
+        } catch {
+            print("Failed to search users in Supabase: \(error)")
+            return []
+        }
+    }
+
     func isFollowing(followerID: UUID, followingID: UUID) async throws -> Bool {
         struct FollowRow: Decodable { let follower_id: UUID }
         let rows: [FollowRow] = try await client
-            .from("follows")
+            .from("followers")
             .select("follower_id")
             .eq("follower_id", value: followerID)
             .eq("following_id", value: followingID)
@@ -179,19 +234,28 @@ struct SupabaseProfileRepository: ProfileRepository {
             let follower_id: UUID
             let following_id: UUID
         }
-        try await client
-            .from("follows")
-            .upsert(FollowInsert(follower_id: followerID, following_id: followingID), onConflict: "follower_id,following_id")
-            .execute()
+        do {
+            try await client
+                .from("followers")
+                .insert(FollowInsert(follower_id: followerID, following_id: followingID))
+                .execute()
+        } catch {
+            // Row already exists or constraint matched; ensure call succeeds idempotently.
+            print("SupabaseProfileRepository.follow notice: \(error)")
+        }
     }
 
     func unfollow(followerID: UUID, followingID: UUID) async throws {
-        try await client
-            .from("follows")
-            .delete()
-            .eq("follower_id", value: followerID)
-            .eq("following_id", value: followingID)
-            .execute()
+        do {
+            try await client
+                .from("followers")
+                .delete()
+                .eq("follower_id", value: followerID)
+                .eq("following_id", value: followingID)
+                .execute()
+        } catch {
+            print("SupabaseProfileRepository.unfollow notice: \(error)")
+        }
     }
 
     func fetchCreatedExperiences(userID: UUID, page: Int) async throws -> Paginated<ExperienceSummary> {
@@ -373,7 +437,7 @@ struct SupabaseProfileRepository: ProfileRepository {
         }
 
         let edges: [Edge] = try await client
-            .from("follows")
+            .from("followers")
             .select()
             .eq(column, value: userID)
             .order("created_at", ascending: false)
