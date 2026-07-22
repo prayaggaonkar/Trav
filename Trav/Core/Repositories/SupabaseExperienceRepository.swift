@@ -24,6 +24,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
     private struct DBExperience: Codable {
         let id: UUID
+        let user_id: UUID
         let title: String
         let description: String
         let city: String
@@ -128,6 +129,97 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         do {
             let idStr = id.uuidString.lowercased()
             
+            // 1. Try to fetch from experiences table first (User Posts)
+            if let dbExp: DBExperience = try? await client
+                .from("experiences")
+                .select()
+                .eq("id", value: idStr)
+                .single()
+                .execute()
+                .value {
+                
+                // Fetch author's profile details
+                let dbProfile: DBProfileSummary? = try? await client
+                    .from("profiles")
+                    .select("id, username, display_name, avatar_url, is_verified")
+                    .eq("id", value: dbExp.user_id)
+                    .single()
+                    .execute()
+                    .value
+                
+                let userCreator = ProfileSummary(
+                    id: dbExp.user_id,
+                    username: dbProfile?.username ?? "traveler",
+                    displayName: dbProfile?.display_name ?? "Shared by Traveler",
+                    avatarURL: dbProfile?.avatar_url.flatMap { URL(string: $0) },
+                    isVerified: dbProfile?.is_verified ?? false
+                )
+                
+                let stops: [Stop] = dbExp.stops.enumerated().compactMap { (index, stopStr) in
+                    guard let data = stopStr.data(using: .utf8),
+                          let dbStop = try? JSONDecoder().decode(DBStop.self, from: data) else {
+                        // Fallback to name and assign dynamic SF Symbol if plain text string
+                        return Stop(
+                            id: UUID(),
+                            orderIndex: index,
+                            name: stopStr,
+                            description: "Curated hangout stop.",
+                            creatorNotes: nil,
+                            latitude: 0.0,
+                            longitude: 0.0,
+                            placeID: nil,
+                            recommendedTime: nil,
+                            durationMinutes: 30,
+                            emoji: sfSymbolForEmojiOrCategory(stopStr),
+                            media: []
+                        )
+                    }
+                    return Stop(
+                        id: dbStop.id,
+                        orderIndex: dbStop.orderIndex,
+                        name: dbStop.name,
+                        description: dbStop.description,
+                        creatorNotes: nil,
+                        latitude: dbStop.latitude,
+                        longitude: dbStop.longitude,
+                        placeID: dbStop.place_id,
+                        recommendedTime: nil,
+                        durationMinutes: 30,
+                        emoji: dbStop.emoji,
+                        media: []
+                    )
+                }
+                
+                let matchedCity = MockData.cities.first(where: { $0.name.localizedCaseInsensitiveCompare(dbExp.city) == .orderedSame })
+                let cityID = matchedCity?.id ?? UUID()
+                
+                let firstStopName = stops.first?.name ?? "park"
+                let coverURL = dbExp.image.flatMap { URL(string: $0) } ?? defaultCoverForCategory(firstStopName)
+                
+                return Experience(
+                    id: dbExp.id,
+                    cityID: cityID,
+                    creator: userCreator,
+                    title: dbExp.title,
+                    description: dbExp.description,
+                    coverImageURL: coverURL,
+                    durationMinutes: stops.count * 30,
+                    costLevel: .moderate,
+                    estimatedCostUSD: nil,
+                    transportMode: .walking,
+                    totalDistanceMeters: 0,
+                    saveCount: 0,
+                    likeCount: 0,
+                    completionCount: 0,
+                    commentCount: 0,
+                    isPublished: true,
+                    publishedAt: Date(),
+                    stops: stops,
+                    routeSegments: []
+                )
+            }
+            
+            // 2. Otherwise, fallback to public places table (System Recommendations)
             let dbPlace: DBPlace = try await client
                 .from("places")
                 .select()
@@ -135,7 +227,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 .single()
                 .execute()
                 .value
-
+            
             let recCreator = ProfileSummary(
                 id: UUID(),
                 username: "rec_by_trav",
@@ -209,7 +301,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 routeSegments: []
             )
         } catch {
-            print("Failed to fetch experience \(id) from Supabase places, falling back to mock: \(error)")
+            print("Failed to fetch experience \(id) from Supabase, falling back to mock: \(error)")
             return try await MockExperienceRepository().fetchExperience(id: id)
         }
     }
