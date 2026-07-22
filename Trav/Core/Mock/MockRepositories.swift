@@ -220,6 +220,10 @@ struct MockEngagementRepository: EngagementRepository {
     func toggleComplete(userID: UUID, experienceID: UUID) async throws -> Bool {
         await MockSocialState.shared.toggleComplete(userID: userID, experienceID: experienceID)
     }
+
+    func ensureExperienceExists(for summary: ExperienceSummary, ownerID: UUID) async throws {
+        await MockSocialState.shared.ensureExperienceExists(for: summary, ownerID: ownerID)
+    }
 }
 
 enum RepositoryError: LocalizedError {

@@ -111,4 +111,55 @@ struct SupabaseEngagementRepository: EngagementRepository {
             .execute()
         return true
     }
+
+    func ensureExperienceExists(for summary: ExperienceSummary, ownerID: UUID) async throws {
+        struct Existing: Decodable { let id: UUID }
+        let existing: [Existing] = (try? await client
+            .from("experiences")
+            .select("id")
+            .eq("id", value: summary.id)
+            .limit(1)
+            .execute()
+            .value) ?? []
+        if !existing.isEmpty { return }
+
+        struct Insert: Encodable {
+            let id: UUID
+            let user_id: UUID
+            let title: String
+            let description: String
+            let city: String
+            let stops: [String]
+            let image: String?
+            let created_at: Date
+        }
+
+        let insert = Insert(
+            id: summary.id,
+            user_id: ownerID,
+            title: summary.title,
+            description: ProfileLimits.bookmarkDescriptionSentinel,
+            city: summary.displayCityName,
+            stops: summary.stops.map(\.name),
+            image: summary.coverImageURL?.absoluteString,
+            created_at: Date()
+        )
+
+        do {
+            try await client
+                .from("experiences")
+                .insert(insert)
+                .execute()
+        } catch {
+            // Concurrent insert from another device / race — treat as success if the row exists.
+            let again: [Existing] = (try? await client
+                .from("experiences")
+                .select("id")
+                .eq("id", value: summary.id)
+                .limit(1)
+                .execute()
+                .value) ?? []
+            if again.isEmpty { throw error }
+        }
+    }
 }

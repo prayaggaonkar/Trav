@@ -215,6 +215,7 @@ struct SupabaseProfileRepository: ProfileRepository {
             .from("experiences")
             .select()
             .eq("user_id", value: userID)
+            .neq("description", value: ProfileLimits.bookmarkDescriptionSentinel)
             .order("created_at", ascending: false)
             .range(from: from, to: to)
             .execute()

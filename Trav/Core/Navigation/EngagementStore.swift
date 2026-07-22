@@ -3,7 +3,7 @@ import Observation
 import UIKit
 
 /// App-wide engagement + social graph state. Optimistic updates keep City, Experience,
-/// and Profile screens in sync without a restart.
+/// Feed, and Profile screens in sync without a restart.
 @Observable
 @MainActor
 final class EngagementStore {
@@ -13,6 +13,8 @@ final class EngagementStore {
     /// Latest known profiles keyed by id — refreshed after edits / follows.
     private(set) var profileCache: [UUID: Profile] = [:]
     private(set) var profileCacheByUsername: [String: Profile] = [:]
+    /// Cached summaries for optimistic Profile Saved rendering before refetch completes.
+    private(set) var savedSummaries: [UUID: ExperienceSummary] = [:]
     /// Bumped whenever lists or counts change so observing views can refresh.
     private(set) var revision: Int = 0
 
@@ -24,6 +26,7 @@ final class EngagementStore {
         followingUserIDs = []
         profileCache = [:]
         profileCacheByUsername = [:]
+        savedSummaries = [:]
         bootstrappedUserID = nil
         bump()
     }
@@ -54,6 +57,10 @@ final class EngagementStore {
         profileCacheByUsername[username.lowercased()]
     }
 
+    func cachedSummary(for experienceID: UUID) -> ExperienceSummary? {
+        savedSummaries[experienceID]
+    }
+
     func isSaved(_ experienceID: UUID) -> Bool {
         savedExperienceIDs.contains(experienceID)
     }
@@ -67,7 +74,11 @@ final class EngagementStore {
     }
 
     @discardableResult
-    func toggleSave(experienceID: UUID, using environment: AppEnvironment) async -> Bool {
+    func toggleSave(
+        experienceID: UUID,
+        summary: ExperienceSummary? = nil,
+        using environment: AppEnvironment
+    ) async -> Bool {
         guard let userID = environment.session.currentUser?.id else {
             environment.router.presentAuth()
             return false
@@ -76,26 +87,41 @@ final class EngagementStore {
         let wasSaved = savedExperienceIDs.contains(experienceID)
         if wasSaved {
             savedExperienceIDs.remove(experienceID)
+            savedSummaries.removeValue(forKey: experienceID)
         } else {
             savedExperienceIDs.insert(experienceID)
+            if let summary {
+                savedSummaries[experienceID] = summary
+            }
         }
         bump()
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
 
         do {
+            if !wasSaved, let summary {
+                try await environment.engagementRepo.ensureExperienceExists(for: summary, ownerID: userID)
+            }
             let nowSaved = try await environment.engagementRepo.toggleSave(userID: userID, experienceID: experienceID)
             if nowSaved {
                 savedExperienceIDs.insert(experienceID)
+                if let summary {
+                    savedSummaries[experienceID] = summary
+                }
             } else {
                 savedExperienceIDs.remove(experienceID)
+                savedSummaries.removeValue(forKey: experienceID)
             }
             bump()
             return nowSaved
         } catch {
             if wasSaved {
                 savedExperienceIDs.insert(experienceID)
+                if let summary {
+                    savedSummaries[experienceID] = summary
+                }
             } else {
                 savedExperienceIDs.remove(experienceID)
+                savedSummaries.removeValue(forKey: experienceID)
             }
             bump()
             return wasSaved

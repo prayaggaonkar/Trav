@@ -199,7 +199,13 @@ struct CityPageView: View {
                 router.openProfile(featured.creator.username)
             },
             onSave: {
-                Task { await engagement.toggleSave(experienceID: featured.id, using: environment) }
+                Task {
+                    await engagement.toggleSave(
+                        experienceID: featured.id,
+                        summary: featured,
+                        using: environment
+                    )
+                }
             },
             onLike: { viewModel.toggleLike(for: featured.id) },
             onShare: {
@@ -243,7 +249,13 @@ struct CityPageView: View {
                                 router.openProfile(experience.creator.username)
                             },
                             onSave: {
-                                Task { await engagement.toggleSave(experienceID: experience.id, using: environment) }
+                                Task {
+                                    await engagement.toggleSave(
+                                        experienceID: experience.id,
+                                        summary: experience,
+                                        using: environment
+                                    )
+                                }
                             },
                             onLike: { viewModel.toggleLike(for: experience.id) },
                             onShare: {

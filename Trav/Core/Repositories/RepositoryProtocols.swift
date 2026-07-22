@@ -54,4 +54,7 @@ protocol EngagementRepository: Sendable {
     func toggleSave(userID: UUID, experienceID: UUID) async throws -> Bool
     /// Returns the new completed state after toggle.
     func toggleComplete(userID: UUID, experienceID: UUID) async throws -> Bool
+    /// Ensures an `experiences` row exists for `summary.id` so `experience_saves` FK succeeds
+    /// (used when bookmarking feed places that are not already published experiences).
+    func ensureExperienceExists(for summary: ExperienceSummary, ownerID: UUID) async throws
 }
