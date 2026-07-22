@@ -475,24 +475,24 @@ struct FeedView: View {
         // 1. Vibes-based filter (if any are selected in onboarding)
         if let selectedVibes = session.currentUser?.selectedVibes, !selectedVibes.isEmpty {
             let vibeToEmojis: [String: [String]] = [
-                "Coffee / Cafes": ["☕"],
-                "Nightlife / Bars": ["🍻"],
-                "Hikes / Outdoors": ["🥾", "🌳", "🌅"],
-                "Scenic Views": ["🌅"],
-                "Local Shopping": ["🛍️", "🧥"],
-                "Museums / Arts": ["🖼️"],
-                "Bookstores": ["📚"],
-                "Tacos / Casual Bite": ["🍕", "🍔", "🌮", "🍽️"]
+                "☕️ Hidden Cafes": ["☕"],
+                "🌙 Nightlife": ["🍻", "🍷", "🍺"],
+                "🌅 Scenic Views": ["🌅", "🌄"],
+                "🛍️ Vintage Shops": ["🛍️", "🧥", "🛒"],
+                "🎨 Street Art": ["🖼️", "🎨", "🎭"],
+                "🍲 Local Markets": ["🍲", "🥞", "🍳", "🍽️"],
+                "🍷 Rooftop Bars": ["🍷", "🍻", "🍹"],
+                "🥾 Nature Trails": ["🥾", "🌳", "🌲"]
             ]
             let vibeKeywords: [String: [String]] = [
-                "Coffee / Cafes": ["coffee", "cafe", "crawl", "tartine", "bakery", "brew", "espresso", "latte"],
-                "Nightlife / Bars": ["bar", "night", "rooftop", "lounge", "drink", "cocktail", "beer", "club", "wine", "pub"],
-                "Hikes / Outdoors": ["hike", "trail", "park", "nature", "outdoor", "peaks", "walk", "mountain", "forest", "dolores"],
-                "Scenic Views": ["view", "scenic", "peaks", "rooftop", "coit", "sunset", "golden hour", "horizon", "panorama"],
-                "Local Shopping": ["shop", "market", "boutique", "vintage", "ferry", "store", "flea", "craft"],
-                "Museums / Arts": ["museum", "art", "gallery", "mural", "muralist", "exhibit", "sculpture", "painting"],
-                "Bookstores": ["book", "read", "bookstore", "library", "lights", "literature", "novel"],
-                "Tacos / Casual Bite": ["taco", "bite", "food", "bakery", "restaurant", "croissant", "slice", "pizza", "burger", "deli"]
+                "☕️ Hidden Cafes": ["coffee", "cafe", "crawl", "tartine", "bakery", "brew", "espresso", "latte"],
+                "🌙 Nightlife": ["bar", "night", "rooftop", "lounge", "drink", "cocktail", "beer", "club", "wine", "pub"],
+                "🌅 Scenic Views": ["view", "scenic", "peaks", "rooftop", "coit", "sunset", "golden hour", "horizon", "panorama"],
+                "🛍️ Vintage Shops": ["shop", "market", "boutique", "vintage", "ferry", "store", "flea", "craft"],
+                "🎨 Street Art": ["museum", "art", "gallery", "mural", "muralist", "exhibit", "sculpture", "painting"],
+                "🍲 Local Markets": ["market", "food", "taco", "bite", "restaurant", "slice", "pizza", "burger", "deli"],
+                "🍷 Rooftop Bars": ["bar", "rooftop", "drink", "cocktail", "wine", "beer"],
+                "🥾 Nature Trails": ["hike", "trail", "park", "nature", "outdoor", "peaks", "walk", "mountain", "forest"]
             ]
             
             items = items.filter { item in
