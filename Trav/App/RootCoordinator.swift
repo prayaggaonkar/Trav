@@ -700,6 +700,14 @@ struct FeedView: View {
                     .execute()
                     .value
                 
+                // Fetch creators profiles in parallel to resolve shared traveler metadata
+                let dbProfiles: [DBProfileSummary] = (try? await client
+                    .from("profiles")
+                    .select("id, username, display_name, avatar_url, is_verified")
+                    .execute()
+                    .value) ?? []
+                let profileMap = Dictionary(uniqueKeysWithValues: dbProfiles.map { ($0.id, $0) })
+                
                 // Load saves/bookmarks
                 let dbSaves: [DBSave]
                 if let currentUserID = session.currentUser?.id {
@@ -790,8 +798,9 @@ struct FeedView: View {
                     let decodedStops: [StopPreview] = dbExp.stops.compactMap { stopStr in
                         guard let data = stopStr.data(using: .utf8),
                               let dbStop = try? JSONDecoder().decode(DBStop.self, from: data) else {
-                            // Fallback to name if plain text string
-                            return StopPreview(id: UUID(), name: stopStr, emoji: "📍")
+                            // Fallback to name and resolve category emoji dynamically
+                            let stopEmoji = emojiForCategory(stopStr)
+                            return StopPreview(id: UUID(), name: stopStr, emoji: stopEmoji)
                         }
                         return StopPreview(
                             id: dbStop.id,
@@ -800,12 +809,13 @@ struct FeedView: View {
                         )
                     }
                     
+                    let dbProfile = profileMap[dbExp.user_id]
                     let userCreator = ProfileSummary(
                         id: dbExp.user_id,
-                        username: "traveler",
-                        displayName: "Shared by Traveler",
-                        avatarURL: nil,
-                        isVerified: false
+                        username: dbProfile?.username ?? "traveler",
+                        displayName: dbProfile?.display_name ?? "Shared by Traveler",
+                        avatarURL: dbProfile?.avatar_url.flatMap { URL(string: $0) },
+                        isVerified: dbProfile?.is_verified ?? false
                     )
                     
                     let firstStopName = decodedStops.first?.name ?? "park"
@@ -1032,18 +1042,33 @@ private func defaultCoverForCategory(_ text: String) -> URL? {
     return URL(string: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80")
 }
 
-private func emojiForCategory(_ category: String) -> String {
-    let emojis: [String: String] = [
-        "bar": "🍻",
-        "shopping": "🛍️",
-        "vintage_store": "🧥",
-        "hiking_trail": "🥾",
-        "park": "🌳",
-        "scenic_viewpoint": "🌅",
-        "museum": "🖼️",
-        "bookstore": "📚"
-    ]
-    return emojis[category.lowercased()] ?? "📍"
+private func emojiForCategory(_ text: String) -> String {
+    let textLower = text.lowercased()
+    if textLower.contains("bar") || textLower.contains("pub") || textLower.contains("drink") || textLower.contains("lounge") || textLower.contains("nightlife") {
+        return "🍻"
+    }
+    if textLower.contains("coffee") || textLower.contains("cafe") || textLower.contains("brew") || textLower.contains("espresso") {
+        return "☕"
+    }
+    if textLower.contains("shop") || textLower.contains("store") || textLower.contains("market") || textLower.contains("vintage") {
+        return "🛍️"
+    }
+    if textLower.contains("hike") || textLower.contains("trail") || textLower.contains("mountain") || textLower.contains("climb") {
+        return "🥾"
+    }
+    if textLower.contains("park") || textLower.contains("garden") || textLower.contains("lawn") || textLower.contains("field") {
+        return "🌳"
+    }
+    if textLower.contains("view") || textLower.contains("sunset") || textLower.contains("scenic") || textLower.contains("vista") {
+        return "🌅"
+    }
+    if textLower.contains("museum") || textLower.contains("art") || textLower.contains("gallery") {
+        return "🖼️"
+    }
+    if textLower.contains("book") || textLower.contains("read") || textLower.contains("library") {
+        return "📚"
+    }
+    return "📍"
 }
 
 // Database representation struct for Overture Places
@@ -1089,4 +1114,20 @@ private struct DBExperienceInsert: Codable {
 private struct DBSave: Codable {
     let user_id: UUID
     let place_id: String
+}
+
+private struct DBProfileSummary: Codable {
+    let id: UUID
+    let username: String
+    let display_name: String
+    let avatar_url: String?
+    let is_verified: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case username
+        case display_name = "display_name"
+        case avatar_url = "avatar_url"
+        case is_verified = "is_verified"
+    }
 }
