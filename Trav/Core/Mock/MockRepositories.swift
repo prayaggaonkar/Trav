@@ -217,6 +217,12 @@ struct MockEngagementRepository: EngagementRepository {
         await MockSocialState.shared.toggleSave(userID: userID, experienceID: experienceID)
     }
 
+    func unsave(userID: UUID, experienceID: UUID) async throws {
+        if await MockSocialState.shared.isSaved(userID: userID, experienceID: experienceID) {
+            _ = await MockSocialState.shared.toggleSave(userID: userID, experienceID: experienceID)
+        }
+    }
+
     func toggleComplete(userID: UUID, experienceID: UUID) async throws -> Bool {
         await MockSocialState.shared.toggleComplete(userID: userID, experienceID: experienceID)
     }

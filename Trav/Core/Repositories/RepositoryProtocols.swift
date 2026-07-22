@@ -52,6 +52,8 @@ protocol EngagementRepository: Sendable {
     func isCompleted(userID: UUID, experienceID: UUID) async throws -> Bool
     /// Returns the new saved state after toggle.
     func toggleSave(userID: UUID, experienceID: UUID) async throws -> Bool
+    /// Always removes the bookmark for this user (no-op if already unsaved).
+    func unsave(userID: UUID, experienceID: UUID) async throws
     /// Returns the new completed state after toggle.
     func toggleComplete(userID: UUID, experienceID: UUID) async throws -> Bool
     /// Ensures an `experiences` row exists for `summary.id` so `experience_saves` FK succeeds

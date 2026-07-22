@@ -149,6 +149,29 @@ final class EngagementStore {
         }
     }
 
+    /// Always removes a bookmark (used by Profile Saved swipe-to-unsave).
+    func unsave(experienceID: UUID, using environment: AppEnvironment) async {
+        guard let userID = environment.session.currentUser?.id else {
+            environment.router.presentAuth()
+            return
+        }
+        guard !inFlightSaveIDs.contains(experienceID) else { return }
+        inFlightSaveIDs.insert(experienceID)
+        defer { inFlightSaveIDs.remove(experienceID) }
+
+        applyLocalSaveState(experienceID: experienceID, saved: false, summary: nil)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+
+        do {
+            try await environment.engagementRepo.unsave(userID: userID, experienceID: experienceID)
+            lastSaveError = nil
+        } catch {
+            print("EngagementStore.unsave error: \(error)")
+            lastSaveError = error.localizedDescription
+            // Keep local unsaved — swipe already removed from the list.
+        }
+    }
+
     @discardableResult
     func toggleComplete(experienceID: UUID, using environment: AppEnvironment) async -> Bool {
         guard let userID = environment.session.currentUser?.id else {

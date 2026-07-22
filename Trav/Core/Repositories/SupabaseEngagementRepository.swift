@@ -143,6 +143,23 @@ struct SupabaseEngagementRepository: EngagementRepository {
         return true
     }
 
+    func unsave(userID: UUID, experienceID: UUID) async throws {
+        let user = userID.uuidString.lowercased()
+        let experience = experienceID.uuidString.lowercased()
+        _ = try? await client
+            .from("experience_saves")
+            .delete()
+            .eq("user_id", value: user)
+            .eq("experience_id", value: experience)
+            .execute()
+        _ = try? await client
+            .from("saves")
+            .delete()
+            .eq("user_id", value: user)
+            .eq("place_id", value: experience)
+            .execute()
+    }
+
     func toggleComplete(userID: UUID, experienceID: UUID) async throws -> Bool {
         let user = userID.uuidString.lowercased()
         let experience = experienceID.uuidString.lowercased()

@@ -169,6 +169,13 @@ final class ProfileViewModel {
         engagement.applyUpdatedProfile(updated, session: session)
     }
 
+    /// Swipe-to-unsave from the Saved tab (own profile only).
+    func unsave(_ experience: ExperienceSummary, using environment: AppEnvironment) async {
+        guard let profile, environment.session.currentUser?.id == profile.id else { return }
+        saved.removeAll { $0.id == experience.id }
+        await environment.engagement.unsave(experienceID: experience.id, using: environment)
+    }
+
     // MARK: - Private
 
     private func loadTab(_ tab: ProfileContentTab, using environment: AppEnvironment, reset: Bool) async {
