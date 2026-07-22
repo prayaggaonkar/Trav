@@ -3,6 +3,7 @@ import SwiftUI
 struct ExperienceDetailView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
+    @Environment(EngagementStore.self) private var engagement
     @State private var experience: Experience?
     @State private var isLoading = true
     @State private var error: Error?
@@ -29,7 +30,12 @@ struct ExperienceDetailView: View {
                 }
             }
         }
-        .task { await load() }
+        .task {
+            await load()
+            if let userID = environment.session.currentUser?.id {
+                await engagement.bootstrap(userID: userID, using: environment)
+            }
+        }
     }
 
     @ViewBuilder
@@ -39,7 +45,7 @@ struct ExperienceDetailView: View {
                 hero(experience)
                     .travAppear()
 
-                actionBar
+                actionBar(experience)
                     .travAppear(delay: 0.06)
 
                 overviewSection(experience)
@@ -66,28 +72,36 @@ struct ExperienceDetailView: View {
                     .minimumScaleFactor(0.85)
                     .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: TravSpacing.xs) {
-                    AvatarView(url: experience.creator.avatarURL, size: 32)
-                    Text(experience.creator.displayName)
-                        .font(TravTypography.bodyMedium())
-                        .foregroundStyle(.white.opacity(0.9))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.9)
+                Button {
+                    router.openProfile(experience.creator.username)
+                } label: {
+                    HStack(spacing: TravSpacing.xs) {
+                        AvatarView(url: experience.creator.avatarURL, size: 32)
+                        Text(experience.creator.displayName)
+                            .font(TravTypography.bodyMedium())
+                            .foregroundStyle(.white.opacity(0.9))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.9)
+                    }
                 }
+                .buttonStyle(.plain)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    private var actionBar: some View {
-        HStack(spacing: TravSpacing.sm) {
+    private func actionBar(_ experience: Experience) -> some View {
+        let isSaved = engagement.isSaved(experience.id)
+        let isCompleted = engagement.isCompleted(experience.id)
+
+        return HStack(spacing: TravSpacing.sm) {
             Button {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                Task { await engagement.toggleSave(experienceID: experience.id, using: environment) }
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "bookmark")
+                    Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 14, weight: .semibold))
-                    Text("Save")
+                    Text(isSaved ? "Saved" : "Save")
                         .font(TravTypography.labelMedium())
                         .fontWeight(.semibold)
                 }
@@ -103,12 +117,12 @@ struct ExperienceDetailView: View {
             .buttonStyle(TravPressButtonStyle())
 
             Button {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Task { await engagement.toggleComplete(experienceID: experience.id, using: environment) }
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
+                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "checkmark.circle")
                         .font(.system(size: 15, weight: .bold))
-                    Text("Complete")
+                    Text(isCompleted ? "Completed" : "Complete")
                         .font(TravTypography.labelMedium())
                         .fontWeight(.bold)
                 }
@@ -143,6 +157,8 @@ struct ExperienceDetailView: View {
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
         .padding(.vertical, TravSpacing.md)
+        .animation(TravAnimation.quick, value: isSaved)
+        .animation(TravAnimation.quick, value: isCompleted)
     }
 
     @ViewBuilder

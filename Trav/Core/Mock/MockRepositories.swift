@@ -54,7 +54,8 @@ struct MockExperienceRepository: ExperienceRepository {
 
 struct MockAuthRepository: AuthRepository {
     func signIn(email: String, password: String) async throws -> Profile {
-        MockData.profile(for: MockData.creators[0])
+        let profile = try await MockSocialState.shared.profile(id: MockData.creators[0].id)
+        return profile
     }
 
     func signUp(email: String, password: String) async throws {}
@@ -68,9 +69,11 @@ struct MockAuthRepository: AuthRepository {
     }
 
     func saveOnboardingData(userID: UUID, vibes: [String], location: String?) async throws -> Profile {
-        var profile = MockData.profile(for: MockData.creators[0])
+        var profile = try await MockSocialState.shared.profile(id: userID)
         profile.selectedVibes = vibes
         profile.onboardingLocation = location
+        profile.homeCityName = location
+        await MockSocialState.shared.upsert(profile)
         return profile
     }
 
@@ -79,6 +82,143 @@ struct MockAuthRepository: AuthRepository {
             continuation.yield(nil)
             continuation.finish()
         }
+    }
+}
+
+struct MockProfileRepository: ProfileRepository {
+    func fetchProfile(username: String) async throws -> Profile {
+        try await Task.sleep(for: .milliseconds(180))
+        return try await MockSocialState.shared.profile(username: username)
+    }
+
+    func fetchProfile(id: UUID) async throws -> Profile {
+        try await Task.sleep(for: .milliseconds(120))
+        return try await MockSocialState.shared.profile(id: id)
+    }
+
+    func updateProfile(userID: UUID, update: ProfileUpdate) async throws -> Profile {
+        try await Task.sleep(for: .milliseconds(250))
+        return try await MockSocialState.shared.update(userID: userID, update: update)
+    }
+
+    func checkUsernameAvailability(_ username: String, excludingUserID: UUID?) async throws -> UsernameAvailability {
+        try await Task.sleep(for: .milliseconds(200))
+        return await MockSocialState.shared.isUsernameAvailable(username, excludingUserID: excludingUserID)
+    }
+
+    func uploadAvatar(userID: UUID, imageData: Data) async throws -> URL {
+        try await Task.sleep(for: .milliseconds(300))
+        // Mock: pretend we uploaded and return a deterministic placeholder.
+        return URL(string: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop")!
+    }
+
+    func fetchFollowers(userID: UUID, query: String?, page: Int) async throws -> Paginated<ProfileSummary> {
+        try await Task.sleep(for: .milliseconds(150))
+        var items = await MockSocialState.shared.followers(of: userID)
+        if let query, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let q = query.lowercased()
+            items = items.filter {
+                $0.username.lowercased().contains(q) || $0.displayName.lowercased().contains(q)
+            }
+        }
+        return paginate(items, page: page)
+    }
+
+    func fetchFollowing(userID: UUID, query: String?, page: Int) async throws -> Paginated<ProfileSummary> {
+        try await Task.sleep(for: .milliseconds(150))
+        var items = await MockSocialState.shared.following(of: userID)
+        if let query, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let q = query.lowercased()
+            items = items.filter {
+                $0.username.lowercased().contains(q) || $0.displayName.lowercased().contains(q)
+            }
+        }
+        return paginate(items, page: page)
+    }
+
+    func isFollowing(followerID: UUID, followingID: UUID) async throws -> Bool {
+        await MockSocialState.shared.isFollowing(followerID: followerID, followingID: followingID)
+    }
+
+    func follow(followerID: UUID, followingID: UUID) async throws {
+        try await MockSocialState.shared.follow(followerID: followerID, followingID: followingID)
+    }
+
+    func unfollow(followerID: UUID, followingID: UUID) async throws {
+        await MockSocialState.shared.unfollow(followerID: followerID, followingID: followingID)
+    }
+
+    func fetchCreatedExperiences(userID: UUID, page: Int) async throws -> Paginated<ExperienceSummary> {
+        try await Task.sleep(for: .milliseconds(160))
+        let items = await MockSocialState.shared.createdExperiences(userID: userID).map { summary in
+            var copy = summary
+            copy.cityName = MockData.cities.first(where: { $0.id == summary.cityID })?.name
+            return copy
+        }
+        return paginate(items, page: page)
+    }
+
+    func fetchSavedExperiences(userID: UUID, page: Int) async throws -> Paginated<ExperienceSummary> {
+        try await Task.sleep(for: .milliseconds(160))
+        let items = await MockSocialState.shared.savedExperiences(userID: userID).map { summary in
+            var copy = summary
+            copy.cityName = MockData.cities.first(where: { $0.id == summary.cityID })?.name
+            return copy
+        }
+        return paginate(items, page: page)
+    }
+
+    func fetchCompletedExperiences(userID: UUID, page: Int) async throws -> Paginated<CompletedExperienceItem> {
+        try await Task.sleep(for: .milliseconds(160))
+        let items = await MockSocialState.shared.completedExperiences(userID: userID).map { item in
+            var copy = item
+            var experience = copy.experience
+            experience.cityName = MockData.cities.first(where: { $0.id == experience.cityID })?.name
+            copy.experience = experience
+            return copy
+        }
+        return paginate(items, page: page)
+    }
+
+    private func paginate<T: Sendable>(_ items: [T], page: Int) -> Paginated<T> {
+        let size = ProfileLimits.pageSize
+        let start = page * size
+        guard start < items.count else {
+            return Paginated(items: [], page: page, hasMore: false)
+        }
+        let end = min(start + size, items.count)
+        let slice = Array(items[start..<end])
+        return Paginated(items: slice, page: page, hasMore: end < items.count)
+    }
+}
+
+struct MockEngagementRepository: EngagementRepository {
+    func fetchSavedIDs(userID: UUID) async throws -> Set<UUID> {
+        await MockSocialState.shared.savedIDs(of: userID)
+    }
+
+    func fetchCompletedIDs(userID: UUID) async throws -> Set<UUID> {
+        await MockSocialState.shared.completedIDs(of: userID)
+    }
+
+    func fetchFollowingIDs(userID: UUID) async throws -> Set<UUID> {
+        await MockSocialState.shared.followingIDs(of: userID)
+    }
+
+    func isSaved(userID: UUID, experienceID: UUID) async throws -> Bool {
+        await MockSocialState.shared.isSaved(userID: userID, experienceID: experienceID)
+    }
+
+    func isCompleted(userID: UUID, experienceID: UUID) async throws -> Bool {
+        await MockSocialState.shared.isCompleted(userID: userID, experienceID: experienceID)
+    }
+
+    func toggleSave(userID: UUID, experienceID: UUID) async throws -> Bool {
+        await MockSocialState.shared.toggleSave(userID: userID, experienceID: experienceID)
+    }
+
+    func toggleComplete(userID: UUID, experienceID: UUID) async throws -> Bool {
+        await MockSocialState.shared.toggleComplete(userID: userID, experienceID: experienceID)
     }
 }
 

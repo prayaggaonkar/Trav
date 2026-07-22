@@ -7,15 +7,37 @@ struct Profile: Identifiable, Codable, Sendable, Hashable {
     var bio: String?
     var avatarURL: URL?
     var homeCityID: UUID?
+    /// Display name for home city when the cities table is not joined.
+    var homeCityName: String?
     var followerCount: Int
     var followingCount: Int
     var experienceCount: Int
     var completionCount: Int
     var isVerified: Bool
-    
+
     // Onboarding selections
     var selectedVibes: [String]?
     var onboardingLocation: String?
+
+    /// Populated client-side when viewing another user's profile.
+    var isFollowing: Bool?
+
+    /// Resolved home city label for UI.
+    var homeCityLabel: String? {
+        if let homeCityName, !homeCityName.isEmpty { return homeCityName }
+        if let onboardingLocation, !onboardingLocation.isEmpty { return onboardingLocation }
+        return nil
+    }
+
+    var summary: ProfileSummary {
+        ProfileSummary(
+            id: id,
+            username: username,
+            displayName: displayName,
+            avatarURL: avatarURL,
+            isVerified: isVerified
+        )
+    }
 }
 
 struct ProfileSummary: Identifiable, Codable, Sendable, Hashable {
@@ -24,4 +46,110 @@ struct ProfileSummary: Identifiable, Codable, Sendable, Hashable {
     var displayName: String
     var avatarURL: URL?
     var isVerified: Bool
+}
+
+/// Partial profile update — only non-nil fields are persisted.
+struct ProfileUpdate: Sendable, Equatable {
+    var displayName: String?
+    var username: String?
+    var bio: String?
+    var homeCityName: String?
+    var avatarURL: URL?
+    var clearBio: Bool = false
+    var clearHomeCity: Bool = false
+    var clearAvatar: Bool = false
+
+    var hasChanges: Bool {
+        displayName != nil
+            || username != nil
+            || bio != nil
+            || homeCityName != nil
+            || avatarURL != nil
+            || clearBio
+            || clearHomeCity
+            || clearAvatar
+    }
+}
+
+struct CompletedExperienceItem: Identifiable, Codable, Sendable, Hashable {
+    let id: UUID
+    var experience: ExperienceSummary
+    var completedAt: Date
+    var note: String?
+}
+
+enum ProfileContentTab: String, CaseIterable, Identifiable, Sendable {
+    case created
+    case saved
+    case completed
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .created: "Created"
+        case .saved: "Saved"
+        case .completed: "Completed"
+        }
+    }
+
+    /// Extension point for future tabs (Liked, Drafts, Collections, Achievements, Badges).
+    static var defaultTabs: [ProfileContentTab] { [.created, .saved, .completed] }
+}
+
+enum UsernameAvailability: Equatable, Sendable {
+    case idle
+    case checking
+    case available
+    case unavailable(reason: String)
+    case invalid(reason: String)
+
+    var isSaveAllowed: Bool {
+        switch self {
+        case .available, .idle: true
+        default: false
+        }
+    }
+}
+
+enum UsernameValidator {
+    static let minLength = 3
+    static let maxLength = 30
+    static let displayNameMax = 50
+    static let bioMax = 160
+    static let homeCityMax = 60
+
+    static let reserved: Set<String> = [
+        "admin", "support", "trav", "api", "help", "root", "system",
+        "moderator", "mod", "staff", "official", "null", "undefined",
+        "me", "you", "settings", "edit", "login", "signup", "auth",
+        "www", "about", "privacy", "terms", "status", "billing", "payment"
+    ]
+
+    static func normalize(_ raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    /// Local format validation before hitting the network.
+    static func validateFormat(_ raw: String) -> UsernameAvailability {
+        let value = normalize(raw)
+        if value.count < minLength {
+            return .invalid(reason: "Username must be at least \(minLength) characters.")
+        }
+        if value.count > maxLength {
+            return .invalid(reason: "Username must be \(maxLength) characters or fewer.")
+        }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789._")
+        if value.unicodeScalars.contains(where: { !allowed.contains($0) }) {
+            return .invalid(reason: "Use only letters, numbers, periods, and underscores.")
+        }
+        if reserved.contains(value) {
+            return .invalid(reason: "That username is reserved.")
+        }
+        return .available
+    }
+}
+
+enum ProfileLimits {
+    static let pageSize = 20
 }

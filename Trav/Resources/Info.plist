@@ -60,5 +60,7 @@
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>GOOGLE_CLIENT_ID</key>
 	<string>$(GOOGLE_CLIENT_ID)</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Trav uses your location to suggest nearby cities and experiences.</string>
 </dict>
 </plist>

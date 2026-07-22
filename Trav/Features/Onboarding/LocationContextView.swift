@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct LocationContextView: View {
     @Binding var selectedLocation: String?
@@ -6,27 +7,26 @@ struct LocationContextView: View {
     let onSkip: () -> Void
     let onBack: () -> Void
 
-    @State private var searchText = ""
+    @State private var searchCity: String?
+    @State private var searchSettled = true
+    @State private var isResolvingCurrent = false
+    @State private var locationError: String?
+    @State private var locator = CurrentCityLocator()
 
-    let popularCities = [
-        "🗽 New York",
-        "🗼 Tokyo",
-        "🇪🇸 Barcelona",
-        "🇫🇷 Paris",
-        "🇹🇭 Bangkok",
-        "🇬🇧 London",
-        "🐫 Dubai",
-        "🇳🇱 Amsterdam",
-        "🇸🇬 Singapore",
-        "🐨 Sydney"
-    ]
-
-    var displayedCities: [String] {
-        if searchText.isEmpty {
-            return popularCities
-        } else {
-            return popularCities.filter { $0.localizedCaseInsensitiveContains(searchText) }
-        }
+    private var popularCities: [String] {
+        // Plain city names only — no flags/emojis, no country chrome.
+        [
+            "New York",
+            "Tokyo",
+            "Barcelona",
+            "Paris",
+            "Bangkok",
+            "London",
+            "Dubai",
+            "Amsterdam",
+            "Singapore",
+            "Sydney"
+        ]
     }
 
     var isLocationSelected: Bool {
@@ -36,14 +36,12 @@ struct LocationContextView: View {
     var body: some View {
         ZStack {
             OnboardingBackground()
-            
+
             VStack(alignment: .leading, spacing: 0) {
-                // Unified Header
                 OnboardingHeaderView(step: 2, onBack: onBack, onSkip: onSkip)
-                
+
                 ScrollView {
                     VStack(alignment: .leading, spacing: TravSpacing.lg) {
-                        // Title
                         VStack(alignment: .leading, spacing: TravSpacing.xs) {
                             Text("Where to next?")
                                 .font(TravTypography.displayMedium())
@@ -55,41 +53,40 @@ struct LocationContextView: View {
                         .padding(.top, TravSpacing.md)
                         .travAppear()
 
-                        // Search Bar
-                        HStack(spacing: TravSpacing.sm) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundStyle(TravColors.muted)
-
-                            TextField("Search destination...", text: $searchText)
-                                .font(TravTypography.bodyMedium())
-                                .textInputAutocapitalization(.words)
-                                .foregroundStyle(.white)
-                        }
-                        .padding(TravSpacing.md)
-                        .background(Color.white.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
-                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                        }
-                        .travAppear(delay: 0.08)
-
-                        // Current Location Row
-                        Button(action: {
-                            withAnimation(TravAnimation.quick) {
-                                selectedLocation = "Current Location"
+                        CityAutocompleteField(
+                            title: "",
+                            placeholder: "Search for a city",
+                            selectedCity: $searchCity,
+                            isSettled: $searchSettled,
+                            style: .onboarding
+                        )
+                        .onChange(of: searchCity) { _, newValue in
+                            if let newValue {
+                                withAnimation(TravAnimation.quick) {
+                                    selectedLocation = newValue
+                                }
                             }
-                        }) {
+                        }
+                        .travAppear(delay: 0.06)
+
+                        Button {
+                            Task { await useCurrentLocation() }
+                        } label: {
                             HStack(spacing: TravSpacing.md) {
                                 ZStack {
                                     Circle()
                                         .fill(TravColors.accentSoft)
                                         .frame(width: 36, height: 36)
-                                    
-                                    Image(systemName: "location.fill")
-                                        .font(.system(size: 15, weight: .bold))
-                                        .foregroundStyle(TravColors.accent)
+
+                                    if isResolvingCurrent {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                            .tint(TravColors.accent)
+                                    } else {
+                                        Image(systemName: "location.fill")
+                                            .font(.system(size: 15, weight: .bold))
+                                            .foregroundStyle(TravColors.accent)
+                                    }
                                 }
 
                                 VStack(alignment: .leading, spacing: 2) {
@@ -97,66 +94,70 @@ struct LocationContextView: View {
                                         .font(TravTypography.bodyMedium())
                                         .fontWeight(.semibold)
                                         .foregroundStyle(TravColors.primary)
-                                    Text("Find gems around you right now")
+                                    Text("We’ll resolve your city automatically")
                                         .font(TravTypography.caption())
                                         .foregroundStyle(TravColors.muted)
                                 }
 
                                 Spacer()
 
-                                if selectedLocation == "Current Location" {
+                                if isCurrentLocationSelected {
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(.system(size: 22))
                                         .foregroundStyle(TravColors.accent)
-                                } else {
-                                    Circle()
-                                        .stroke(Color.white.opacity(0.2), lineWidth: 2)
-                                        .frame(width: 22, height: 22)
                                 }
                             }
                             .padding(TravSpacing.md)
-                            .background(Color.white.opacity(selectedLocation == "Current Location" ? 0.08 : 0.04))
+                            .background(Color.white.opacity(isCurrentLocationSelected ? 0.08 : 0.04))
                             .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
                             .overlay {
                                 RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
                                     .stroke(
-                                        selectedLocation == "Current Location" ? TravColors.accent : Color.white.opacity(0.1),
+                                        isCurrentLocationSelected ? TravColors.accent : Color.white.opacity(0.1),
                                         lineWidth: 1
                                     )
                             }
                         }
                         .buttonStyle(TravPressButtonStyle(scale: 0.98))
-                        .travAppear(delay: 0.12)
+                        .disabled(isResolvingCurrent)
+                        .travAppear(delay: 0.1)
 
-                        // Popular Cities Section
+                        if let locationError {
+                            Text(locationError)
+                                .font(TravTypography.caption())
+                                .foregroundStyle(TravColors.error)
+                        }
+
                         VStack(alignment: .leading, spacing: TravSpacing.sm) {
-                            Text("Popular Destinations")
+                            Text("Popular destinations")
                                 .font(TravTypography.titleMedium())
                                 .foregroundStyle(TravColors.primary)
                                 .padding(.bottom, TravSpacing.xxs)
-                            
-                            // 2-column Grid of City Chips
-                            let cities = displayedCities
-                            VStack(spacing: TravSpacing.md) {
-                                ForEach(Array(stride(from: 0, to: cities.count, by: 2)), id: \.self) { index in
-                                    HStack(spacing: TravSpacing.md) {
+
+                            VStack(spacing: TravSpacing.sm) {
+                                ForEach(Array(stride(from: 0, to: popularCities.count, by: 2)), id: \.self) { index in
+                                    HStack(spacing: TravSpacing.sm) {
                                         CitySelectionChip(
-                                            title: cities[index],
-                                            isSelected: selectedLocation == cities[index],
+                                            title: popularCities[index],
+                                            isSelected: selectedLocation == popularCities[index],
                                             action: {
                                                 withAnimation(TravAnimation.quick) {
-                                                    selectedLocation = cities[index]
+                                                    let city = popularCities[index].strippingEmojiAndSymbols()
+                                                    selectedLocation = city
+                                                    searchCity = city
                                                 }
                                             }
                                         )
 
-                                        if index + 1 < cities.count {
+                                        if index + 1 < popularCities.count {
                                             CitySelectionChip(
-                                                title: cities[index + 1],
-                                                isSelected: selectedLocation == cities[index + 1],
+                                                title: popularCities[index + 1],
+                                                isSelected: selectedLocation == popularCities[index + 1],
                                                 action: {
                                                     withAnimation(TravAnimation.quick) {
-                                                        selectedLocation = cities[index + 1]
+                                                        let city = popularCities[index + 1].strippingEmojiAndSymbols()
+                                                        selectedLocation = city
+                                                        searchCity = city
                                                     }
                                                 }
                                             )
@@ -167,34 +168,30 @@ struct LocationContextView: View {
                                 }
                             }
                         }
-                        .travAppear(delay: 0.16)
+                        .travAppear(delay: 0.14)
                     }
                     .padding(.horizontal, TravSpacing.screenHorizontal)
                     .padding(.bottom, 120)
                 }
             }
 
-            // Fixed bottom button
             VStack(spacing: TravSpacing.sm) {
                 PrimaryButton(
                     title: "Continue",
                     isEnabled: isLocationSelected,
                     action: onContinue
                 )
-                .travAppear(delay: 0.2)
 
                 if let location = selectedLocation {
                     Text("Heading to \(location)")
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.muted)
                         .frame(maxWidth: .infinity)
-                        .travAppear(delay: 0.25)
                 } else {
                     Text("Choose where you want to explore")
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.muted)
                         .frame(maxWidth: .infinity)
-                        .travAppear(delay: 0.25)
                 }
             }
             .padding(TravSpacing.screenHorizontal)
@@ -203,6 +200,33 @@ struct LocationContextView: View {
         }
         .ignoresSafeArea(edges: .bottom)
         .navigationBarBackButtonHidden()
+        .onAppear {
+            searchCity = selectedLocation
+        }
+    }
+
+    private var isCurrentLocationSelected: Bool {
+        guard let selectedLocation else { return false }
+        return popularCities.contains(selectedLocation) == false
+            && searchCity == selectedLocation
+            && !isResolvingCurrent
+    }
+
+    private func useCurrentLocation() async {
+        isResolvingCurrent = true
+        locationError = nil
+        defer { isResolvingCurrent = false }
+
+        guard let label = await locator.requestCityLabel() else {
+            locationError = "Couldn't find your city. Try searching instead."
+            return
+        }
+
+        withAnimation(TravAnimation.quick) {
+            selectedLocation = label
+            searchCity = label
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 }
 
@@ -214,13 +238,16 @@ private struct CitySelectionChip: View {
     var body: some View {
         Button(action: action) {
             HStack {
-                Text(title)
+                Text(title.asPlainPlaceName())
                     .font(TravTypography.bodyMedium())
                     .fontWeight(isSelected ? .semibold : .regular)
                     .foregroundStyle(.white)
-                
-                Spacer()
-                
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .multilineTextAlignment(.leading)
+
+                Spacer(minLength: 0)
+
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(.system(size: 12, weight: .bold))
@@ -232,11 +259,7 @@ private struct CitySelectionChip: View {
             .frame(minHeight: 50)
             .background {
                 if isSelected {
-                    LinearGradient(
-                        colors: [TravColors.accent, Color(red: 0.45, green: 0.25, blue: 0.95)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+                    TravColors.accent
                 } else {
                     Color.white.opacity(0.06)
                 }
@@ -244,12 +267,8 @@ private struct CitySelectionChip: View {
             .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
-                    .stroke(
-                        isSelected ? Color.white.opacity(0.15) : Color.white.opacity(0.1),
-                        lineWidth: 1
-                    )
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
             }
-            .shadow(color: isSelected ? TravColors.accent.opacity(0.2) : Color.clear, radius: 8, y: 3)
         }
         .buttonStyle(TravPressButtonStyle(scale: 0.96))
     }
@@ -264,4 +283,3 @@ private struct CitySelectionChip: View {
         onBack: {}
     )
 }
-

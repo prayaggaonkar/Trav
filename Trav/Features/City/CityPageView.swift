@@ -4,6 +4,7 @@ struct CityPageView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
+    @Environment(EngagementStore.self) private var engagement
     @State private var viewModel: CityViewModel
     @State private var scrollOffset: CGFloat = 0
     @State private var sharePayload: SharePayload?
@@ -188,7 +189,7 @@ struct CityPageView: View {
     private func featuredSection(_ featured: ExperienceSummary, cityName: String) -> some View {
         FeaturedExperienceCard(
             experience: featured,
-            isSaved: viewModel.isSaved(featured.id),
+            isSaved: engagement.isSaved(featured.id),
             isLiked: viewModel.isLiked(featured.id),
             onTap: {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -197,7 +198,9 @@ struct CityPageView: View {
             onCreatorTap: {
                 router.openProfile(featured.creator.username)
             },
-            onSave: { viewModel.toggleSave(for: featured.id) },
+            onSave: {
+                Task { await engagement.toggleSave(experienceID: featured.id, using: environment) }
+            },
             onLike: { viewModel.toggleLike(for: featured.id) },
             onShare: {
                 sharePayload = SharePayload(
@@ -230,7 +233,7 @@ struct CityPageView: View {
                         HeroExperienceCard(
                             experience: experience,
                             badgeText: badgeText,
-                            isSaved: viewModel.isSaved(experience.id),
+                            isSaved: engagement.isSaved(experience.id),
                             isLiked: viewModel.isLiked(experience.id),
                             onTap: {
                                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -239,7 +242,9 @@ struct CityPageView: View {
                             onCreatorTap: {
                                 router.openProfile(experience.creator.username)
                             },
-                            onSave: { viewModel.toggleSave(for: experience.id) },
+                            onSave: {
+                                Task { await engagement.toggleSave(experienceID: experience.id, using: environment) }
+                            },
                             onLike: { viewModel.toggleLike(for: experience.id) },
                             onShare: {
                                 sharePayload = SharePayload(

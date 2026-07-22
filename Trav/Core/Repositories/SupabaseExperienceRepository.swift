@@ -362,7 +362,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             var summaries: [ExperienceSummary] = []
             for dbExp in dbExps {
                 let stopsPreviews = dbExp.stops.map { stopName in
-                    StopPreview(id: UUID(), name: stopName, emoji: "📍")
+                    StopPreview(id: UUID(), name: stopName, emoji: nil)
                 }
 
                 let creator = profilesMap[dbExp.user_id] ?? ProfileSummary(
@@ -427,7 +427,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             var summaries: [ExperienceSummary] = []
             for dbExp in dbExps {
                 let stopsPreviews = dbExp.stops.map { stopName in
-                    StopPreview(id: UUID(), name: stopName, emoji: "📍")
+                    StopPreview(id: UUID(), name: stopName, emoji: nil)
                 }
 
                 let summary = ExperienceSummary(

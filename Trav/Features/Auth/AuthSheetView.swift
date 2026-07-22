@@ -145,6 +145,8 @@ struct AuthSheetView: View {
                 let profile = try await environment.auth.signIn(email: email, password: password)
                 session.currentUser = profile
                 session.phase = .authenticated
+                environment.engagement.cache(profile)
+                await environment.engagement.bootstrap(userID: profile.id, using: environment)
             case .signUp:
                 try await environment.auth.signUp(email: email, password: password)
                 session.phase = .onboarding
@@ -164,6 +166,8 @@ struct AuthSheetView: View {
             let profile = try await environment.auth.signInWithGoogle()
             session.currentUser = profile
             session.phase = .authenticated
+            environment.engagement.cache(profile)
+            await environment.engagement.bootstrap(userID: profile.id, using: environment)
             router.dismissAuth()
         } catch {
             errorMessage = error.localizedDescription

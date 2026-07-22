@@ -264,6 +264,8 @@ struct AuthEntryView: View {
                 let profile = try await environment.auth.signIn(email: email, password: password)
                 session.currentUser = profile
                 session.phase = .authenticated
+                environment.engagement.cache(profile)
+                await environment.engagement.bootstrap(userID: profile.id, using: environment)
                 onAuthSuccess(false)
             }
         } catch {
@@ -280,6 +282,8 @@ struct AuthEntryView: View {
             let profile = try await environment.auth.signInWithGoogle()
             session.currentUser = profile
             session.phase = .authenticated
+            environment.engagement.cache(profile)
+            await environment.engagement.bootstrap(userID: profile.id, using: environment)
             onAuthSuccess(true)
         } catch {
             errorMessage = error.localizedDescription

@@ -99,6 +99,8 @@ struct OnboardingView: View {
             )
             session.currentUser = updatedProfile
             session.phase = .authenticated
+            environment.engagement.cache(updatedProfile)
+            await environment.engagement.bootstrap(userID: updatedProfile.id, using: environment)
         } catch {
             print("Failed to save onboarding data: \(error)")
         }

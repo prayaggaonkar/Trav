@@ -14,14 +14,11 @@ struct CreateExperienceView: View {
     @State private var cities: [City] = []
     @State private var stops: [StopPreview] = []
     @State private var newStopName = ""
-    @State private var newStopEmoji = "📍"
 
     @State private var isSubmitting = false
     @State private var showSuccess = false
     @State private var errorMessage: String?
     @State private var showErrorAlert = false
-
-    let emojis = ["📍", "☕", "📚", "🍜", "🌃", "🍕", "🌳", "🏛️", "🍷", "🏖️", "🛍️", "🏨"]
 
     var body: some View {
         NavigationStack {
@@ -205,18 +202,6 @@ struct CreateExperienceView: View {
                         }
 
                         HStack(spacing: TravSpacing.xs) {
-                            Menu {
-                                ForEach(emojis, id: \.self) { emoji in
-                                    Button(emoji) { newStopEmoji = emoji }
-                                }
-                            } label: {
-                                Text(newStopEmoji)
-                                    .font(.title2)
-                                    .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
-                                    .background(TravColors.surfaceElevated)
-                                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
-                            }
-
                             TextField("Add a new stop name...", text: $newStopName)
                                 .font(TravTypography.bodyLarge())
                                 .padding(TravSpacing.md)
@@ -296,9 +281,8 @@ struct CreateExperienceView: View {
     private func addStop() {
         guard !newStopName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         withAnimation(TravAnimation.enter) {
-            stops.append(StopPreview(id: UUID(), name: newStopName, emoji: newStopEmoji))
+            stops.append(StopPreview(id: UUID(), name: newStopName, emoji: nil))
             newStopName = ""
-            newStopEmoji = "📍"
         }
     }
 

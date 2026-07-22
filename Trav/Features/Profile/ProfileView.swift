@@ -4,99 +4,354 @@ struct ProfileView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
+    @Environment(EngagementStore.self) private var engagement
 
     let username: String
     var showDismissButton: Bool = true
 
-    @State private var isSigningOut = false
+    @State private var viewModel: ProfileViewModel
+    @State private var showEditProfile = false
+    @State private var followListMode: FollowListMode?
+    @State private var saveConfirmation = false
+
+    init(username: String, showDismissButton: Bool = true) {
+        self.username = username
+        self.showDismissButton = showDismissButton
+        _viewModel = State(initialValue: ProfileViewModel(username: username))
+    }
 
     private var isOwnProfile: Bool {
-        session.currentUser?.username == username
+        session.currentUser?.username.lowercased() == username.lowercased()
+            || session.currentUser?.id == viewModel.profile?.id
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: TravSpacing.lg) {
-                    AvatarView(url: nil, size: 88)
-                        .travAppear()
-
-                    VStack(spacing: TravSpacing.xs) {
-                        Text("@\(username)")
-                            .font(TravTypography.titleLarge())
-                            .foregroundStyle(TravColors.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                            .multilineTextAlignment(.center)
-
-                        Text("Profile coming in Phase 6")
-                            .font(TravTypography.bodyMedium())
-                            .foregroundStyle(TravColors.muted)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
+            Group {
+                switch viewModel.phase {
+                case .loading:
+                    ProfileSkeleton()
+                case .failed(let error):
+                    ErrorStateView(message: error.localizedDescription) {
+                        Task { await viewModel.load(using: environment) }
                     }
-                    .frame(maxWidth: .infinity)
-                    .travAppear(delay: 0.06)
-
-                    statsPlaceholder
-                        .travAppear(delay: 0.12)
-
-                    if isOwnProfile {
-                        SecondaryButton("Sign Out", icon: "arrow.right.square") {
-                            Task { await signOut() }
-                        }
-                        .travAppear(delay: 0.18)
+                case .loaded:
+                    if let profile = viewModel.profile {
+                        profileScroll(profile)
                     }
                 }
-                .padding(.horizontal, TravSpacing.screenHorizontal)
-                .padding(.top, TravSpacing.xl)
-                .padding(.bottom, TravSpacing.xxl)
             }
             .travScreenBackground()
-            .toolbar {
-                if showDismissButton {
-                    ToolbarItem(placement: .topBarLeading) {
-                        DismissButton { router.dismiss() }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { toolbarContent }
+            .sheet(isPresented: $showEditProfile) {
+                if let profile = viewModel.profile {
+                    EditProfileView(profile: profile) { updated in
+                        viewModel.applyEditedProfile(
+                            updated,
+                            engagement: engagement,
+                            session: session
+                        )
+                        saveConfirmation = true
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
                     }
                 }
+            }
+            .sheet(item: $followListMode) { mode in
+                if let profile = viewModel.profile {
+                    FollowListView(profile: profile, mode: mode)
+                }
+            }
+            .overlay(alignment: .top) {
+                if saveConfirmation {
+                    Text("Profile updated")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(TravColors.primary)
+                        .padding(.horizontal, TravSpacing.md)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                        .padding(.top, TravSpacing.sm)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        .onAppear {
+                            Task {
+                                try? await Task.sleep(for: .seconds(1.6))
+                                withAnimation(TravAnimation.quick) { saveConfirmation = false }
+                            }
+                        }
+                }
+            }
+        }
+        .task {
+            await viewModel.load(using: environment)
+            if let userID = session.currentUser?.id {
+                await engagement.bootstrap(userID: userID, using: environment)
+            }
+        }
+        .task(id: engagement.revision) {
+            await viewModel.syncWithEngagement(engagement, environment: environment)
+        }
+    }
+
+    // MARK: - Content
+
+    @ViewBuilder
+    private func profileScroll(_ profile: Profile) -> some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                if isOwnProfile {
+                    HStack {
+                        Spacer(minLength: 0)
+                        profileMenu
+                    }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                    .padding(.top, TravSpacing.xs)
+                }
+
+                header(profile)
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                    .padding(.top, isOwnProfile ? TravSpacing.sm : TravSpacing.md)
+                    .travAppear()
+
+                ProfileStatsRow(
+                    profile: profile,
+                    onFollowers: {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        followListMode = .followers
+                    },
+                    onFollowing: {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        followListMode = .following
+                    },
+                    onCreated: {
+                        Task { await viewModel.selectTab(.created, using: environment) }
+                    },
+                    onCompleted: {
+                        Task { await viewModel.selectTab(.completed, using: environment) }
+                    }
+                )
+                .padding(.horizontal, TravSpacing.xs)
+                .padding(.top, TravSpacing.lg)
+                .travAppear(delay: 0.05)
+
+                actionRow(profile)
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                    .padding(.top, TravSpacing.md)
+                    .travAppear(delay: 0.08)
+
+                ProfileTabBar(
+                    tabs: ProfileContentTab.defaultTabs,
+                    selection: Binding(
+                        get: { viewModel.selectedTab },
+                        set: { newValue in
+                            Task { await viewModel.selectTab(newValue, using: environment) }
+                        }
+                    ),
+                    onSelect: { tab in
+                        Task { await viewModel.selectTab(tab, using: environment) }
+                    }
+                )
+                .padding(.top, TravSpacing.xl)
+                .travAppear(delay: 0.1)
+
+                tabContent
+                    .padding(.bottom, TravSpacing.xxl + TravSpacing.lg)
+            }
+        }
+        .refreshable {
+            await viewModel.refresh(using: environment)
+        }
+    }
+
+    @ViewBuilder
+    private func header(_ profile: Profile) -> some View {
+        VStack(spacing: TravSpacing.md) {
+            AvatarView(url: profile.avatarURL, size: 88)
+
+            VStack(spacing: 6) {
+                HStack(spacing: 5) {
+                    Text(profile.displayName)
+                        .font(.system(size: 24, weight: .semibold, design: .rounded))
+                        .foregroundStyle(TravColors.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                    if profile.isVerified {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(TravColors.muted)
+                    }
+                }
+
+                Text("@\(profile.username)")
+                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                    .foregroundStyle(TravColors.muted)
+
+                if let bio = profile.bio, !bio.isEmpty {
+                    Text(bio)
+                        .font(.system(size: 14, weight: .regular, design: .rounded))
+                        .foregroundStyle(TravColors.primary.opacity(0.85))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
+                        .padding(.horizontal, TravSpacing.sm)
+                }
+
+                if let city = profile.homeCityLabel {
+                    Text(city)
+                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                        .foregroundStyle(TravColors.muted)
+                        .padding(.top, 2)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private func actionRow(_ profile: Profile) -> some View {
+        if isOwnProfile {
+            HStack {
+                Spacer(minLength: 0)
+                ProfileEditButton(title: "Edit profile") {
+                    showEditProfile = true
+                }
+                Spacer(minLength: 0)
+            }
+        } else {
+            ProfileFollowButton(
+                isFollowing: profile.isFollowing == true || engagement.isFollowing(profile.id),
+                isLoading: viewModel.isFollowLoading
+            ) {
+                Task { await viewModel.toggleFollow(using: environment) }
             }
         }
     }
 
-    private var statsPlaceholder: some View {
-        HStack(spacing: TravSpacing.sm) {
-            profileStat(value: "—", label: "Experiences")
-            profileStat(value: "—", label: "Completed")
-            profileStat(value: "—", label: "Saved")
+    @ViewBuilder
+    private var tabContent: some View {
+        LazyVStack(spacing: 0) {
+            switch viewModel.selectedTab {
+            case .created:
+                if viewModel.created.isEmpty {
+                    ProfileEmptyState(
+                        title: "No experiences yet",
+                        description: "Share your first experience with the community."
+                    )
+                } else {
+                    experienceList(viewModel.created)
+                }
+
+            case .saved:
+                if viewModel.saved.isEmpty {
+                    ProfileEmptyState(
+                        title: "Nothing saved",
+                        description: "Save experiences to revisit them later."
+                    )
+                } else {
+                    experienceList(viewModel.saved)
+                }
+
+            case .completed:
+                if viewModel.completed.isEmpty {
+                    ProfileEmptyState(
+                        title: "No completions yet",
+                        description: "Complete your first experience to start building your journey."
+                    )
+                } else {
+                    ForEach(Array(viewModel.completed.enumerated()), id: \.element.id) { index, item in
+                        experienceRow(
+                            experience: item.experience,
+                            completedAt: item.completedAt,
+                            index: index,
+                            isLast: item.id == viewModel.completed.last?.id
+                        )
+                    }
+                }
+            }
+
+            if viewModel.isLoadingMore {
+                ProgressView()
+                    .tint(TravColors.muted)
+                    .padding(.vertical, TravSpacing.md)
+            }
+        }
+        .padding(.horizontal, TravSpacing.screenHorizontal)
+        .animation(TravAnimation.quick, value: viewModel.selectedTab)
+    }
+
+    @ViewBuilder
+    private func experienceList(_ items: [ExperienceSummary]) -> some View {
+        ForEach(Array(items.enumerated()), id: \.element.id) { index, experience in
+            experienceRow(
+                experience: experience,
+                completedAt: nil,
+                index: index,
+                isLast: experience.id == items.last?.id
+            )
         }
     }
 
-    private func profileStat(value: String, label: String) -> some View {
-        VStack(spacing: TravSpacing.xxs) {
-            Text(value)
-                .font(TravTypography.titleMedium())
+    @ViewBuilder
+    private func experienceRow(
+        experience: ExperienceSummary,
+        completedAt: Date?,
+        index: Int,
+        isLast: Bool
+    ) -> some View {
+        ProfileExperienceCard(experience: experience, completedAt: completedAt) {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            router.openExperience(experience.id)
+        }
+        .travAppear(delay: Double(min(index, 5)) * 0.03)
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                Rectangle()
+                    .fill(TravColors.border.opacity(0.4))
+                    .frame(height: 0.5)
+                    .padding(.leading, 72 + TravSpacing.md)
+            }
+        }
+        .onAppear {
+            if isLast {
+                Task { await viewModel.loadMoreIfNeeded(using: environment) }
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        if showDismissButton {
+            ToolbarItem(placement: .topBarLeading) {
+                DismissButton { router.dismiss() }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var profileMenu: some View {
+        Menu {
+            Button {
+                environment.appearance.toggle()
+            } label: {
+                Label(
+                    environment.appearance.isLightMode ? "Dark Mode" : "Light Mode",
+                    systemImage: environment.appearance.isLightMode ? "moon" : "sun.max"
+                )
+            }
+            Button(role: .destructive) {
+                Task { await viewModel.signOut(using: environment) }
+            } label: {
+                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(TravColors.primary)
-            Text(label)
-                .font(TravTypography.caption())
-                .foregroundStyle(TravColors.muted)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .multilineTextAlignment(.center)
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, TravSpacing.xxs)
-        .padding(.vertical, TravSpacing.md)
-        .background(TravColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
-    }
-
-    private func signOut() async {
-        guard !isSigningOut else { return }
-        isSigningOut = true
-        defer { isSigningOut = false }
-
-        try? await environment.auth.signOut()
-        session.currentUser = nil
-        session.phase = .unauthenticated
+        .buttonStyle(.plain)
+        .accessibilityLabel("Menu")
     }
 }

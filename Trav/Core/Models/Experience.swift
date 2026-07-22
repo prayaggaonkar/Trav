@@ -46,6 +46,8 @@ struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
     var likeCount: Int
     var completionCount: Int
     var stops: [StopPreview]
+    /// Optional display label when city is stored as text (Supabase simplified schema).
+    var cityName: String? = nil
 
     var costLabel: String {
         if let estimatedCostUSD {
@@ -53,6 +55,11 @@ struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
             return dollars == 0 ? "Free" : "$\(dollars)"
         }
         return costLevel.displayName
+    }
+
+    var displayCityName: String {
+        if let cityName, !cityName.isEmpty { return cityName }
+        return "Unknown"
     }
 }
 

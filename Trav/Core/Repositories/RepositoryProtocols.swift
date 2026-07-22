@@ -27,3 +27,31 @@ protocol AuthRepository: Sendable {
     /// keep `SessionStore` in sync across app launches, sign-outs, and token refreshes.
     func authStateChanges() -> AsyncStream<Profile?>
 }
+
+protocol ProfileRepository: Sendable {
+    func fetchProfile(username: String) async throws -> Profile
+    func fetchProfile(id: UUID) async throws -> Profile
+    func updateProfile(userID: UUID, update: ProfileUpdate) async throws -> Profile
+    func checkUsernameAvailability(_ username: String, excludingUserID: UUID?) async throws -> UsernameAvailability
+    func uploadAvatar(userID: UUID, imageData: Data) async throws -> URL
+    func fetchFollowers(userID: UUID, query: String?, page: Int) async throws -> Paginated<ProfileSummary>
+    func fetchFollowing(userID: UUID, query: String?, page: Int) async throws -> Paginated<ProfileSummary>
+    func isFollowing(followerID: UUID, followingID: UUID) async throws -> Bool
+    func follow(followerID: UUID, followingID: UUID) async throws
+    func unfollow(followerID: UUID, followingID: UUID) async throws
+    func fetchCreatedExperiences(userID: UUID, page: Int) async throws -> Paginated<ExperienceSummary>
+    func fetchSavedExperiences(userID: UUID, page: Int) async throws -> Paginated<ExperienceSummary>
+    func fetchCompletedExperiences(userID: UUID, page: Int) async throws -> Paginated<CompletedExperienceItem>
+}
+
+protocol EngagementRepository: Sendable {
+    func fetchSavedIDs(userID: UUID) async throws -> Set<UUID>
+    func fetchCompletedIDs(userID: UUID) async throws -> Set<UUID>
+    func fetchFollowingIDs(userID: UUID) async throws -> Set<UUID>
+    func isSaved(userID: UUID, experienceID: UUID) async throws -> Bool
+    func isCompleted(userID: UUID, experienceID: UUID) async throws -> Bool
+    /// Returns the new saved state after toggle.
+    func toggleSave(userID: UUID, experienceID: UUID) async throws -> Bool
+    /// Returns the new completed state after toggle.
+    func toggleComplete(userID: UUID, experienceID: UUID) async throws -> Bool
+}

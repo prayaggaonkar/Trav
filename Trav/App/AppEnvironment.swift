@@ -66,41 +66,61 @@ final class AppEnvironment {
     let router: AppRouter
     let session: SessionStore
     let appearance: AppearanceStore
+    let engagement: EngagementStore
     let cities: any CityRepository
     let experiences: any ExperienceRepository
     let auth: any AuthRepository
+    let profiles: any ProfileRepository
+    let engagementRepo: any EngagementRepository
 
     init(
         configuration: AppConfiguration,
         router: AppRouter,
         session: SessionStore,
         appearance: AppearanceStore = AppearanceStore(),
+        engagement: EngagementStore = EngagementStore(),
         cities: any CityRepository,
         experiences: any ExperienceRepository,
-        auth: any AuthRepository
+        auth: any AuthRepository,
+        profiles: any ProfileRepository,
+        engagementRepo: any EngagementRepository
     ) {
         self.configuration = configuration
         self.router = router
         self.session = session
         self.appearance = appearance
+        self.engagement = engagement
         self.cities = cities
         self.experiences = experiences
         self.auth = auth
+        self.profiles = profiles
+        self.engagementRepo = engagementRepo
     }
 
     static let live: AppEnvironment = {
         let config = AppConfiguration.current
         let router = AppRouter()
         let session = SessionStore()
+        let engagement = EngagementStore()
+
+        let profiles: any ProfileRepository = config.useMockBackend
+            ? MockProfileRepository()
+            : SupabaseProfileRepository()
+        let engagementRepo: any EngagementRepository = config.useMockBackend
+            ? MockEngagementRepository()
+            : SupabaseEngagementRepository()
 
         return AppEnvironment(
             configuration: config,
             router: router,
             session: session,
             appearance: AppearanceStore(),
+            engagement: engagement,
             cities: MockCityRepository(),
             experiences: config.useMockBackend ? MockExperienceRepository() : SupabaseExperienceRepository(),
-            auth: config.useMockBackend ? MockAuthRepository() : SupabaseAuthRepository()
+            auth: config.useMockBackend ? MockAuthRepository() : SupabaseAuthRepository(),
+            profiles: profiles,
+            engagementRepo: engagementRepo
         )
     }()
 
@@ -118,7 +138,14 @@ final class AppEnvironment {
         for await profile in auth.authStateChanges() {
             debugLog("AppEnvironment.observeAuthState: received profile update: \(profile?.displayName ?? "nil") (\(profile?.id.uuidString ?? "nil"))")
             session.currentUser = profile
-            session.phase = profile != nil ? .authenticated : .unauthenticated
+            if let profile {
+                session.phase = .authenticated
+                engagement.cache(profile)
+                await engagement.bootstrap(userID: profile.id, using: self)
+            } else {
+                session.phase = .unauthenticated
+                engagement.reset()
+            }
         }
     }
 }
@@ -130,5 +157,6 @@ extension View {
             .environment(environment.router)
             .environment(environment.session)
             .environment(environment.appearance)
+            .environment(environment.engagement)
     }
 }

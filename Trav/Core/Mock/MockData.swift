@@ -169,10 +169,10 @@ enum MockData {
             likeCount: 4_102,
             completionCount: 1_482,
             stops: [
-                StopPreview(id: UUID(), name: "Blue Bottle", emoji: "☕"),
-                StopPreview(id: UUID(), name: "City Lights Books", emoji: "📚"),
-                StopPreview(id: UUID(), name: "Tartine Manufactory", emoji: "🥐"),
-                StopPreview(id: UUID(), name: "Dolores Park", emoji: "🌳")
+                StopPreview(id: UUID(), name: "Blue Bottle", emoji: nil),
+                StopPreview(id: UUID(), name: "City Lights Books", emoji: nil),
+                StopPreview(id: UUID(), name: "Tartine Manufactory", emoji: nil),
+                StopPreview(id: UUID(), name: "Dolores Park", emoji: nil)
             ]
         ),
         ExperienceSummary(
@@ -188,10 +188,10 @@ enum MockData {
             likeCount: 640,
             completionCount: 256,
             stops: [
-                StopPreview(id: UUID(), name: "Salesforce Park", emoji: "🏙️"),
-                StopPreview(id: UUID(), name: "Ferry Building", emoji: "⛴️"),
-                StopPreview(id: UUID(), name: "Coit Tower", emoji: "🗼"),
-                StopPreview(id: UUID(), name: "Twin Peaks", emoji: "🌃")
+                StopPreview(id: UUID(), name: "Salesforce Park", emoji: nil),
+                StopPreview(id: UUID(), name: "Ferry Building", emoji: nil),
+                StopPreview(id: UUID(), name: "Coit Tower", emoji: nil),
+                StopPreview(id: UUID(), name: "Twin Peaks", emoji: nil)
             ]
         ),
         ExperienceSummary(
@@ -207,9 +207,9 @@ enum MockData {
             likeCount: 1_540,
             completionCount: 612,
             stops: [
-                StopPreview(id: UUID(), name: "Clarion Alley", emoji: "🎨"),
-                StopPreview(id: UUID(), name: "Balmy Alley", emoji: "🖌️"),
-                StopPreview(id: UUID(), name: "La Reyna Bakery", emoji: "🧁")
+                StopPreview(id: UUID(), name: "Clarion Alley", emoji: nil),
+                StopPreview(id: UUID(), name: "Balmy Alley", emoji: nil),
+                StopPreview(id: UUID(), name: "La Reyna Bakery", emoji: nil)
             ]
         ),
         ExperienceSummary(
@@ -225,10 +225,10 @@ enum MockData {
             likeCount: 6_220,
             completionCount: 2_104,
             stops: [
-                StopPreview(id: UUID(), name: "Shibuya Crossing", emoji: "🚶"),
-                StopPreview(id: UUID(), name: "Bookstore Café", emoji: "📚"),
-                StopPreview(id: UUID(), name: "Ramen Alley", emoji: "🍜"),
-                StopPreview(id: UUID(), name: "Shinjuku Viewpoint", emoji: "🌃")
+                StopPreview(id: UUID(), name: "Shibuya Crossing", emoji: nil),
+                StopPreview(id: UUID(), name: "Bookstore Café", emoji: nil),
+                StopPreview(id: UUID(), name: "Ramen Alley", emoji: nil),
+                StopPreview(id: UUID(), name: "Shinjuku Viewpoint", emoji: nil)
             ]
         ),
         ExperienceSummary(
@@ -244,10 +244,10 @@ enum MockData {
             likeCount: 2_890,
             completionCount: 980,
             stops: [
-                StopPreview(id: UUID(), name: "Nezu Shrine", emoji: "⛩️"),
-                StopPreview(id: UUID(), name: "Kissaten", emoji: "☕"),
-                StopPreview(id: UUID(), name: "Yanaka Ginza", emoji: "🛍️"),
-                StopPreview(id: UUID(), name: "Temple Garden", emoji: "🎋")
+                StopPreview(id: UUID(), name: "Nezu Shrine", emoji: nil),
+                StopPreview(id: UUID(), name: "Kissaten", emoji: nil),
+                StopPreview(id: UUID(), name: "Yanaka Ginza", emoji: nil),
+                StopPreview(id: UUID(), name: "Temple Garden", emoji: nil)
             ]
         ),
         ExperienceSummary(
@@ -263,10 +263,10 @@ enum MockData {
             likeCount: 1_980,
             completionCount: 744,
             stops: [
-                StopPreview(id: UUID(), name: "Record Shop", emoji: "🎧"),
-                StopPreview(id: UUID(), name: "Vintage Thrift", emoji: "👗"),
-                StopPreview(id: UUID(), name: "Curry House", emoji: "🍛"),
-                StopPreview(id: UUID(), name: "Sunset Bridge", emoji: "🌉")
+                StopPreview(id: UUID(), name: "Record Shop", emoji: nil),
+                StopPreview(id: UUID(), name: "Vintage Thrift", emoji: nil),
+                StopPreview(id: UUID(), name: "Curry House", emoji: nil),
+                StopPreview(id: UUID(), name: "Sunset Bridge", emoji: nil)
             ]
         ),
         ExperienceSummary(
@@ -282,10 +282,10 @@ enum MockData {
             likeCount: 3_410,
             completionCount: 1_650,
             stops: [
-                StopPreview(id: UUID(), name: "Senso-ji", emoji: "🏮"),
-                StopPreview(id: UUID(), name: "Nakamise Street", emoji: "🍡"),
-                StopPreview(id: UUID(), name: "Sumida River", emoji: "🚤"),
-                StopPreview(id: UUID(), name: "Skytree View", emoji: "🗼")
+                StopPreview(id: UUID(), name: "Senso-ji", emoji: nil),
+                StopPreview(id: UUID(), name: "Nakamise Street", emoji: nil),
+                StopPreview(id: UUID(), name: "Sumida River", emoji: nil),
+                StopPreview(id: UUID(), name: "Skytree View", emoji: nil)
             ]
         ),
         ExperienceSummary(
@@ -301,27 +301,32 @@ enum MockData {
             likeCount: 1_620,
             completionCount: 530,
             stops: [
-                StopPreview(id: UUID(), name: "Shakespeare & Co", emoji: "📚"),
-                StopPreview(id: UUID(), name: "Café de Flore", emoji: "☕"),
-                StopPreview(id: UUID(), name: "Jardin du Luxembourg", emoji: "🌳"),
-                StopPreview(id: UUID(), name: "Seine Sunset", emoji: "🌅")
+                StopPreview(id: UUID(), name: "Shakespeare & Co", emoji: nil),
+                StopPreview(id: UUID(), name: "Café de Flore", emoji: nil),
+                StopPreview(id: UUID(), name: "Jardin du Luxembourg", emoji: nil),
+                StopPreview(id: UUID(), name: "Seine Sunset", emoji: nil)
             ]
         )
     ]
 
     static func profile(for summary: ProfileSummary) -> Profile {
-        Profile(
+        let home = cities[summary.id == creators[3].id || summary.id == creators[4].id || summary.id == creators[5].id ? 1 : 0]
+        return Profile(
             id: summary.id,
             username: summary.username,
             displayName: summary.displayName,
-            bio: "Mapping favorite corners of the city.",
+            bio: "Mapping favorite corners of the city — coffee, walks, and golden hour views.",
             avatarURL: summary.avatarURL,
-            homeCityID: cities[1].id,
+            homeCityID: home.id,
+            homeCityName: home.name,
             followerCount: creatorFollowerCounts[summary.id] ?? 1_200,
             followingCount: 280,
-            experienceCount: 12,
+            experienceCount: experiences.filter { $0.creator.id == summary.id }.count,
             completionCount: 44,
-            isVerified: summary.isVerified
+            isVerified: summary.isVerified,
+            selectedVibes: nil,
+            onboardingLocation: home.name,
+            isFollowing: nil
         )
     }
 
