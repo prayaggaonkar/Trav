@@ -294,10 +294,18 @@ struct FeedView: View {
                     ScrollView {
                         LazyVStack(spacing: TravSpacing.md) {
                             ForEach(filteredFeed) { experience in
-                                FeedCardView(
+                                let isItinerary = experience.stops.count > 1
+                                HeroExperienceCard(
                                     experience: experience,
+                                    badgeText: isItinerary ? "ROUTE" : "SPOT",
                                     isSaved: engagement.isSaved(experience.id),
-                                    onSaveToggle: {
+                                    onTap: {
+                                        router.presentedRoute = .experience(experience.id)
+                                    },
+                                    onCreatorTap: {
+                                        router.openProfile(experience.creator.username)
+                                    },
+                                    onSave: {
                                         Task {
                                             await engagement.toggleSave(
                                                 experienceID: experience.id,
@@ -305,20 +313,8 @@ struct FeedView: View {
                                                 using: environment
                                             )
                                         }
-                                    },
-                                    onAddToItinerary: {
-                                        withAnimation(.spring()) {
-                                            let stop = StopPreview(
-                                                id: UUID(),
-                                                name: experience.title,
-                                                emoji: experience.stops.first?.emoji ?? "📍"
-                                            )
-                                            draftStops.append(stop)
-                                        }
                                     }
-                                ) {
-                                    router.presentedRoute = .experience(experience.id)
-                                }
+                                )
                                 .onDrag {
                                     NSItemProvider(object: experience.id.uuidString as NSString)
                                 }

@@ -250,9 +250,10 @@ struct SupabaseProfileRepository: ProfileRepository {
         let pageSize = ProfileLimits.pageSize
         let from = page * pageSize
         let to = from + pageSize - 1
+        let user = userID.uuidString.lowercased()
 
         struct SaveJoin: Decodable {
-            let created_at: Date
+            let created_at: Date?
             let experience: ExperienceJoin?
         }
         struct ExperienceJoin: Decodable {
@@ -266,36 +267,130 @@ struct SupabaseProfileRepository: ProfileRepository {
             let user_id: UUID
         }
 
-        let rows: [SaveJoin] = try await client
+        var items: [ExperienceSummary] = []
+        var seen = Set<UUID>()
+
+        let rows: [SaveJoin] = (try? await client
             .from("experience_saves")
             .select("created_at, experience:experiences(*)")
-            .eq("user_id", value: userID)
+            .eq("user_id", value: user)
             .order("created_at", ascending: false)
             .range(from: from, to: to)
             .execute()
-            .value
+            .value) ?? []
 
-        let items = rows.compactMap { row -> ExperienceSummary? in
-            guard let exp = row.experience else { return nil }
+        for row in rows {
+            guard let exp = row.experience, seen.insert(exp.id).inserted else { continue }
             let cityID = MockData.cities.first { $0.name.caseInsensitiveCompare(exp.city) == .orderedSame }?.id ?? UUID()
-            return ExperienceSummary(
-                id: exp.id,
-                cityID: cityID,
-                title: exp.title,
-                coverImageURL: exp.image.flatMap(URL.init(string:)),
-                creator: ProfileSummary(id: exp.user_id, username: "traveler", displayName: "Traveler", avatarURL: nil, isVerified: false),
-                durationMinutes: max(exp.stops.count, 1) * 30,
-                costLevel: .budget,
-                estimatedCostUSD: nil,
-                saveCount: exp.save_count ?? 0,
-                likeCount: 0,
-                completionCount: exp.completion_count ?? 0,
-                stops: exp.stops.map { StopPreview(id: UUID(), name: $0, emoji: nil) },
-                cityName: exp.city
+            items.append(
+                ExperienceSummary(
+                    id: exp.id,
+                    cityID: cityID,
+                    title: exp.title,
+                    coverImageURL: exp.image.flatMap(URL.init(string:)),
+                    creator: ProfileSummary(id: exp.user_id, username: "traveler", displayName: "Traveler", avatarURL: nil, isVerified: false),
+                    durationMinutes: max(exp.stops.count, 1) * 30,
+                    costLevel: .budget,
+                    estimatedCostUSD: nil,
+                    saveCount: exp.save_count ?? 0,
+                    likeCount: 0,
+                    completionCount: exp.completion_count ?? 0,
+                    stops: exp.stops.map { StopPreview(id: UUID(), name: $0, emoji: nil) },
+                    cityName: exp.city
+                )
             )
         }
 
-        return Paginated(items: items, page: page, hasMore: items.count == pageSize)
+        // Merge legacy `saves` bookmarks that may not have an experience_saves row yet.
+        if page == 0 {
+            struct LegacySave: Decodable { let place_id: String }
+            let legacy: [LegacySave] = (try? await client
+                .from("saves")
+                .select("place_id")
+                .eq("user_id", value: user)
+                .execute()
+                .value) ?? []
+
+            for row in legacy {
+                let id = StableUUID.from(row.place_id)
+                guard seen.insert(id).inserted else { continue }
+
+                if let exp: ExperienceJoin = try? await client
+                    .from("experiences")
+                    .select("id, title, city, stops, image, save_count, completion_count, user_id")
+                    .eq("id", value: id.uuidString.lowercased())
+                    .single()
+                    .execute()
+                    .value {
+                    let cityID = MockData.cities.first { $0.name.caseInsensitiveCompare(exp.city) == .orderedSame }?.id ?? UUID()
+                    items.append(
+                        ExperienceSummary(
+                            id: exp.id,
+                            cityID: cityID,
+                            title: exp.title,
+                            coverImageURL: exp.image.flatMap(URL.init(string:)),
+                            creator: ProfileSummary(id: exp.user_id, username: "traveler", displayName: "Traveler", avatarURL: nil, isVerified: false),
+                            durationMinutes: max(exp.stops.count, 1) * 30,
+                            costLevel: .budget,
+                            estimatedCostUSD: nil,
+                            saveCount: exp.save_count ?? 0,
+                            likeCount: 0,
+                            completionCount: exp.completion_count ?? 0,
+                            stops: exp.stops.map { StopPreview(id: UUID(), name: $0, emoji: nil) },
+                            cityName: exp.city
+                        )
+                    )
+                    continue
+                }
+
+                // Fall back to a place row when the bookmark was a feed place.
+                struct PlaceRow: Decodable {
+                    let id: String
+                    let name: String
+                    let basic_category: String?
+                    let stops: [String]?
+                }
+                if let place: PlaceRow = try? await client
+                    .from("places")
+                    .select("id, name, basic_category, stops")
+                    .eq("id", value: row.place_id)
+                    .single()
+                    .execute()
+                    .value {
+                    let stopNames: [String]
+                    if let stops = place.stops, !stops.isEmpty {
+                        stopNames = stops
+                    } else {
+                        stopNames = [place.name]
+                    }
+                    items.append(
+                        ExperienceSummary(
+                            id: id,
+                            cityID: UUID(),
+                            title: place.name,
+                            coverImageURL: nil,
+                            creator: ProfileSummary(
+                                id: userID,
+                                username: "traveler",
+                                displayName: "Rec by Trav",
+                                avatarURL: nil,
+                                isVerified: true
+                            ),
+                            durationMinutes: max(stopNames.count, 1) * 30,
+                            costLevel: .budget,
+                            estimatedCostUSD: nil,
+                            saveCount: 1,
+                            likeCount: 0,
+                            completionCount: 0,
+                            stops: stopNames.map { StopPreview(id: UUID(), name: $0, emoji: nil) },
+                            cityName: nil
+                        )
+                    )
+                }
+            }
+        }
+
+        return Paginated(items: items, page: page, hasMore: rows.count == pageSize)
     }
 
     func fetchCompletedExperiences(userID: UUID, page: Int) async throws -> Paginated<CompletedExperienceItem> {

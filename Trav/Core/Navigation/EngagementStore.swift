@@ -17,10 +17,16 @@ final class EngagementStore {
     private(set) var savedSummaries: [UUID: ExperienceSummary] = [:]
     /// Bumped whenever lists or counts change so observing views can refresh.
     private(set) var revision: Int = 0
+    /// Surfaces the last save error for debugging / lightweight UI.
+    private(set) var lastSaveError: String?
 
     private var bootstrappedUserID: UUID?
+    private var inFlightSaveIDs: Set<UUID> = []
+    private var bootstrapTask: Task<Void, Never>?
 
     func reset() {
+        bootstrapTask?.cancel()
+        bootstrapTask = nil
         savedExperienceIDs = []
         completedExperienceIDs = []
         followingUserIDs = []
@@ -28,23 +34,41 @@ final class EngagementStore {
         profileCacheByUsername = [:]
         savedSummaries = [:]
         bootstrappedUserID = nil
+        inFlightSaveIDs = []
+        lastSaveError = nil
         bump()
     }
 
     func bootstrap(userID: UUID, using environment: AppEnvironment) async {
         if bootstrappedUserID == userID { return }
-        bootstrappedUserID = userID
-        do {
-            async let saved = environment.engagementRepo.fetchSavedIDs(userID: userID)
-            async let completed = environment.engagementRepo.fetchCompletedIDs(userID: userID)
-            async let following = environment.engagementRepo.fetchFollowingIDs(userID: userID)
-            savedExperienceIDs = try await saved
-            completedExperienceIDs = try await completed
-            followingUserIDs = try await following
-            bump()
-        } catch {
-            // Keep empty sets; screens can still operate with per-action fetches.
+        if let bootstrapTask {
+            await bootstrapTask.value
+            if bootstrappedUserID == userID { return }
         }
+
+        let task = Task { @MainActor in
+            do {
+                async let saved = environment.engagementRepo.fetchSavedIDs(userID: userID)
+                async let completed = environment.engagementRepo.fetchCompletedIDs(userID: userID)
+                async let following = environment.engagementRepo.fetchFollowingIDs(userID: userID)
+                let remoteSaved = try await saved
+                let remoteCompleted = try await completed
+                let remoteFollowing = try await following
+
+                // Merge — never wipe optimistic toggles that happened during the fetch.
+                savedExperienceIDs.formUnion(remoteSaved)
+                completedExperienceIDs.formUnion(remoteCompleted)
+                followingUserIDs.formUnion(remoteFollowing)
+                bootstrappedUserID = userID
+                bump()
+            } catch {
+                print("EngagementStore.bootstrap failed: \(error)")
+                // Allow retry on next screen appear.
+            }
+        }
+        bootstrapTask = task
+        await task.value
+        bootstrapTask = nil
     }
 
     func cache(_ profile: Profile) {
@@ -83,48 +107,45 @@ final class EngagementStore {
             environment.router.presentAuth()
             return false
         }
+        // Prevent double-taps / stacked Tasks from immediately undoing a save.
+        guard !inFlightSaveIDs.contains(experienceID) else {
+            return savedExperienceIDs.contains(experienceID)
+        }
+        inFlightSaveIDs.insert(experienceID)
+        defer { inFlightSaveIDs.remove(experienceID) }
 
         let wasSaved = savedExperienceIDs.contains(experienceID)
-        if wasSaved {
-            savedExperienceIDs.remove(experienceID)
-            savedSummaries.removeValue(forKey: experienceID)
-        } else {
-            savedExperienceIDs.insert(experienceID)
-            if let summary {
-                savedSummaries[experienceID] = summary
-            }
-        }
-        bump()
+        applyLocalSaveState(experienceID: experienceID, saved: !wasSaved, summary: summary)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
 
         do {
             if !wasSaved, let summary {
                 try await environment.engagementRepo.ensureExperienceExists(for: summary, ownerID: userID)
             }
-            let nowSaved = try await environment.engagementRepo.toggleSave(userID: userID, experienceID: experienceID)
-            if nowSaved {
-                savedExperienceIDs.insert(experienceID)
-                if let summary {
-                    savedSummaries[experienceID] = summary
-                }
-            } else {
-                savedExperienceIDs.remove(experienceID)
-                savedSummaries.removeValue(forKey: experienceID)
-            }
-            bump()
+            let nowSaved = try await environment.engagementRepo.toggleSave(
+                userID: userID,
+                experienceID: experienceID
+            )
+            applyLocalSaveState(experienceID: experienceID, saved: nowSaved, summary: summary)
+            lastSaveError = nil
             return nowSaved
         } catch {
-            if wasSaved {
-                savedExperienceIDs.insert(experienceID)
-                if let summary {
-                    savedSummaries[experienceID] = summary
-                }
-            } else {
-                savedExperienceIDs.remove(experienceID)
-                savedSummaries.removeValue(forKey: experienceID)
+            // Keep the optimistic bookmark visible — legacy dual-write / retry paths may
+            // still have persisted. Only revert when the server explicitly reports the
+            // opposite state on a follow-up read.
+            print("EngagementStore.toggleSave error: \(error)")
+            lastSaveError = error.localizedDescription
+
+            if let confirmed = try? await environment.engagementRepo.isSaved(
+                userID: userID,
+                experienceID: experienceID
+            ) {
+                applyLocalSaveState(experienceID: experienceID, saved: confirmed, summary: summary)
+                return confirmed
             }
-            bump()
-            return wasSaved
+
+            // Soft-fail: trust optimistic local state so the UI does not flash unsaved.
+            return !wasSaved
         }
     }
 
@@ -155,7 +176,10 @@ final class EngagementStore {
         bump()
 
         do {
-            let nowCompleted = try await environment.engagementRepo.toggleComplete(userID: userID, experienceID: experienceID)
+            let nowCompleted = try await environment.engagementRepo.toggleComplete(
+                userID: userID,
+                experienceID: experienceID
+            )
             if nowCompleted {
                 completedExperienceIDs.insert(experienceID)
             } else {
@@ -216,7 +240,6 @@ final class EngagementStore {
             }
             return !wasFollowing
         } catch {
-            // Revert optimistic update
             if wasFollowing {
                 followingUserIDs.insert(target.id)
             } else {
@@ -232,6 +255,23 @@ final class EngagementStore {
         cache(profile)
         if session.currentUser?.id == profile.id {
             session.currentUser = profile
+        }
+        bump()
+    }
+
+    private func applyLocalSaveState(
+        experienceID: UUID,
+        saved: Bool,
+        summary: ExperienceSummary?
+    ) {
+        if saved {
+            savedExperienceIDs.insert(experienceID)
+            if let summary {
+                savedSummaries[experienceID] = summary
+            }
+        } else {
+            savedExperienceIDs.remove(experienceID)
+            savedSummaries.removeValue(forKey: experienceID)
         }
         bump()
     }
