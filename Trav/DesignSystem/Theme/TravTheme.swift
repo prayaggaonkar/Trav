@@ -132,3 +132,50 @@ enum TravFormatters {
         count.formatted(.number.grouping(.automatic))
     }
 }
+
+// Utility function to convert raw emojis or categories into professional SF Symbols
+public func sfSymbolForEmojiOrCategory(_ value: String) -> String {
+    let lower = value.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+    
+    // Check if it's already an SF Symbol (contains no emojis and has dot/alphabetic format)
+    if lower.contains(".") || ["bag", "book", "tree", "eye", "map"].contains(lower) {
+        return lower
+    }
+    
+    // Check for raw emojis
+    if lower.contains("☕") { return "cup.and.saucer.fill" }
+    if lower.contains("🍻") || lower.contains("🍷") || lower.contains("🍺") || lower.contains("🍹") || lower.contains("🌙") { return "wineglass.fill" }
+    if lower.contains("🌅") || lower.contains("🌄") || lower.contains("☀️") { return "sun.max.fill" }
+    if lower.contains("🛍️") || lower.contains("🧥") || lower.contains("🛒") { return "bag.fill" }
+    if lower.contains("🎨") || lower.contains("🖼️") || lower.contains("🎭") { return "paintpalette.fill" }
+    if lower.contains("🍲") || lower.contains("🥞") || lower.contains("🍳") || lower.contains("🍽️") || lower.contains("🍕") || lower.contains("🍔") || lower.contains("🌮") { return "fork.knife" }
+    if lower.contains("🥾") || lower.contains("🌳") || lower.contains("🌲") { return "figure.hiking" }
+    if lower.contains("📚") { return "book.fill" }
+    
+    // Fallback to keyword-based category matching
+    if lower.contains("bar") || lower.contains("pub") || lower.contains("drink") || lower.contains("lounge") || lower.contains("nightlife") {
+        return "wineglass.fill"
+    }
+    if lower.contains("coffee") || lower.contains("cafe") || lower.contains("brew") || lower.contains("espresso") {
+        return "cup.and.saucer.fill"
+    }
+    if lower.contains("shop") || lower.contains("store") || lower.contains("market") || lower.contains("vintage") {
+        return "bag.fill"
+    }
+    if lower.contains("hike") || lower.contains("trail") || lower.contains("mountain") || lower.contains("climb") {
+        return "figure.hiking"
+    }
+    if lower.contains("park") || lower.contains("garden") || lower.contains("lawn") || lower.contains("field") {
+        return "tree.fill"
+    }
+    if lower.contains("view") || lower.contains("sunset") || lower.contains("scenic") || lower.contains("vista") {
+        return "sun.max.fill"
+    }
+    if lower.contains("museum") || lower.contains("art") || lower.contains("gallery") {
+        return "paintpalette.fill"
+    }
+    if lower.contains("book") || lower.contains("read") || lower.contains("library") {
+        return "book.fill"
+    }
+    return "mappin.and.ellipse"
+}

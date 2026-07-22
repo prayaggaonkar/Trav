@@ -32,6 +32,26 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let image: String?
     }
 
+    private struct DBPlace: Codable {
+        let id: String
+        let name: String
+        let basic_category: String
+        let latitude: Double
+        let longitude: Double
+        let stops: [String]?
+    }
+
+    private struct DBStop: Codable {
+        let id: UUID
+        let name: String
+        let emoji: String?
+        let description: String
+        let latitude: Double
+        let longitude: Double
+        let place_id: String?
+        let orderIndex: Int
+    }
+
     private struct DBProfileSummary: Codable {
         let id: UUID
         let username: String
@@ -133,6 +153,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
     func fetchExperience(id: UUID) async throws -> Experience {
         do {
+<<<<<<< HEAD
             let targetID = id.uuidString.lowercased()
             let dbExps: [DBExperience] = try await client
                 .from("experiences")
@@ -149,39 +170,178 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 id: dbExp.user_id,
                 username: "traveler",
                 displayName: "Traveler",
-                avatarURL: nil,
-                isVerified: false
-            )
-
-            let stops = dbExp.stops.enumerated().map { (index, stopName) in
-                Stop(
-                    id: UUID(),
-                    orderIndex: index,
-                    name: stopName,
-                    description: "",
-                    creatorNotes: nil,
-                    latitude: 0.0,
-                    longitude: 0.0,
-                    placeID: nil,
-                    recommendedTime: nil,
-                    durationMinutes: 30,
-                    emoji: "📍",
-                    media: []
+=======
+            let idStr = id.uuidString.lowercased()
+            
+            // 1. Try to fetch from experiences table first (User Posts)
+            if let dbExp: DBExperience = try? await client
+                .from("experiences")
+                .select()
+                .eq("id", value: idStr)
+                .single()
+                .execute()
+                .value {
+                
+                // Fetch author's profile details
+                let dbProfile: DBProfileSummary? = try? await client
+                    .from("profiles")
+                    .select("id, username, display_name, avatar_url, is_verified")
+                    .eq("id", value: dbExp.user_id)
+                    .single()
+                    .execute()
+                    .value
+                
+                let userCreator = ProfileSummary(
+                    id: dbExp.user_id,
+                    username: dbProfile?.username ?? "traveler",
+                    displayName: dbProfile?.display_name ?? "Shared by Traveler",
+                    avatarURL: dbProfile?.avatar_url.flatMap { URL(string: $0) },
+                    isVerified: dbProfile?.is_verified ?? false
+                )
+                
+                let stops: [Stop] = dbExp.stops.enumerated().compactMap { (index, stopStr) in
+                    guard let data = stopStr.data(using: .utf8),
+                          let dbStop = try? JSONDecoder().decode(DBStop.self, from: data) else {
+                        // Fallback to name and assign dynamic SF Symbol if plain text string
+                        return Stop(
+                            id: UUID(),
+                            orderIndex: index,
+                            name: stopStr,
+                            description: "Curated hangout stop.",
+                            creatorNotes: nil,
+                            latitude: 0.0,
+                            longitude: 0.0,
+                            placeID: nil,
+                            recommendedTime: nil,
+                            durationMinutes: 30,
+                            emoji: sfSymbolForEmojiOrCategory(stopStr),
+                            media: []
+                        )
+                    }
+                    return Stop(
+                        id: dbStop.id,
+                        orderIndex: dbStop.orderIndex,
+                        name: dbStop.name,
+                        description: dbStop.description,
+                        creatorNotes: nil,
+                        latitude: dbStop.latitude,
+                        longitude: dbStop.longitude,
+                        placeID: dbStop.place_id,
+                        recommendedTime: nil,
+                        durationMinutes: 30,
+                        emoji: dbStop.emoji,
+                        media: []
+                    )
+                }
+                
+                let matchedCity = MockData.cities.first(where: { $0.name.localizedCaseInsensitiveCompare(dbExp.city) == .orderedSame })
+                let cityID = matchedCity?.id ?? UUID()
+                
+                let firstStopName = stops.first?.name ?? "park"
+                let coverURL = dbExp.image.flatMap { URL(string: $0) } ?? defaultCoverForCategory(firstStopName)
+                
+                return Experience(
+                    id: dbExp.id,
+                    cityID: cityID,
+                    creator: userCreator,
+                    title: dbExp.title,
+                    description: dbExp.description,
+                    coverImageURL: coverURL,
+                    durationMinutes: stops.count * 30,
+                    costLevel: .moderate,
+                    estimatedCostUSD: nil,
+                    transportMode: .walking,
+                    totalDistanceMeters: 0,
+                    saveCount: 0,
+                    likeCount: 0,
+                    completionCount: 0,
+                    commentCount: 0,
+                    isPublished: true,
+                    publishedAt: Date(),
+                    stops: stops,
+                    routeSegments: []
                 )
             }
+            
+            // 2. Otherwise, fallback to public places table (System Recommendations)
+            let dbPlace: DBPlace = try await client
+                .from("places")
+                .select()
+                .eq("id", value: idStr)
+                .single()
+                .execute()
+                .value
+            
+            let recCreator = ProfileSummary(
+                id: UUID(),
+                username: "rec_by_trav",
+                displayName: "Rec by Trav",
+>>>>>>> 689a4b59b04866f46c3fb8acf4f369b57b127ac5
+                avatarURL: nil,
+                isVerified: true
+            )
 
-            let matchedCity = MockData.cities.first(where: { $0.name.localizedCaseInsensitiveCompare(dbExp.city) == .orderedSame })
+            let stops: [Stop]
+            if let stopsArray = dbPlace.stops, !stopsArray.isEmpty {
+                stops = stopsArray.compactMap { stopStr in
+                    guard let data = stopStr.data(using: .utf8),
+                          let dbStop = try? JSONDecoder().decode(DBStop.self, from: data) else {
+                        return nil
+                    }
+                    return Stop(
+                        id: dbStop.id,
+                        orderIndex: dbStop.orderIndex,
+                        name: dbStop.name,
+                        description: dbStop.description,
+                        creatorNotes: nil,
+                        latitude: dbStop.latitude,
+                        longitude: dbStop.longitude,
+                        placeID: dbStop.place_id,
+                        recommendedTime: nil,
+                        durationMinutes: 30,
+                        emoji: dbStop.emoji,
+                        media: []
+                    )
+                }
+            } else {
+                let stop = Stop(
+                    id: UUID(),
+                    orderIndex: 0,
+                    name: dbPlace.name,
+                    description: "Curated hangout spot.",
+                    creatorNotes: nil,
+                    latitude: dbPlace.latitude,
+                    longitude: dbPlace.longitude,
+                    placeID: dbPlace.id,
+                    recommendedTime: nil,
+                    durationMinutes: 45,
+                    emoji: emojiForCategory(dbPlace.basic_category),
+                    media: []
+                )
+                stops = [stop]
+            }
+
+            let matchedCity = MockData.cities.first(where: { $0.name.localizedCaseInsensitiveCompare("Berkeley") == .orderedSame })
             let cityID = matchedCity?.id ?? UUID()
 
             return Experience(
-                id: dbExp.id,
+                id: id,
                 cityID: cityID,
+<<<<<<< HEAD
                 creator: creator,
                 title: dbExp.title,
                 description: dbExp.description,
                 coverImageURL: dbExp.image.flatMap { URL(string: $0) },
                 durationMinutes: max(30, stops.count * 30),
                 costLevel: .budget,
+=======
+                creator: recCreator,
+                title: dbPlace.name,
+                description: "Explore local spots and neighborhood favorites curated by Trav.",
+                coverImageURL: defaultCoverForCategory(dbPlace.name),
+                durationMinutes: stops.count * 30,
+                costLevel: .moderate,
+>>>>>>> 689a4b59b04866f46c3fb8acf4f369b57b127ac5
                 estimatedCostUSD: nil,
                 transportMode: .walking,
                 totalDistanceMeters: 0,
@@ -319,5 +479,50 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             print("Failed to fetch user experiences for \(cityID) from Supabase: \(error)")
             return []
         }
+    }
+
+    // MARK: - Helpers for Places mapping
+
+    private func defaultCoverForCategory(_ text: String) -> URL? {
+        let textLower = text.lowercased()
+        if textLower.contains("bar") || textLower.contains("pub") || textLower.contains("drink") || textLower.contains("lounge") {
+            return URL(string: "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&q=80")
+        }
+        if textLower.contains("coffee") || textLower.contains("cafe") || textLower.contains("brew") || textLower.contains("espresso") {
+            return URL(string: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&q=80")
+        }
+        if textLower.contains("shop") || textLower.contains("store") || textLower.contains("market") || textLower.contains("vintage") {
+            return URL(string: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&q=80")
+        }
+        if textLower.contains("hike") || textLower.contains("trail") || textLower.contains("mountain") || textLower.contains("climb") {
+            return URL(string: "https://images.unsplash.com/photo-1501555088652-021faa106b9b?w=800&q=80")
+        }
+        if textLower.contains("park") || textLower.contains("garden") || textLower.contains("lawn") || textLower.contains("field") {
+            return URL(string: "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=80")
+        }
+        if textLower.contains("view") || textLower.contains("sunset") || textLower.contains("scenic") || textLower.contains("vista") {
+            return URL(string: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&q=80")
+        }
+        if textLower.contains("museum") || textLower.contains("art") || textLower.contains("gallery") {
+            return URL(string: "https://images.unsplash.com/photo-1545987796-200677ee1011?w=800&q=80")
+        }
+        if textLower.contains("book") || textLower.contains("read") || textLower.contains("library") {
+            return URL(string: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?w=800&q=80")
+        }
+        return URL(string: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80")
+    }
+
+    private func emojiForCategory(_ category: String) -> String {
+        let emojis: [String: String] = [
+            "bar": "🍻",
+            "shopping": "🛍️",
+            "vintage_store": "🧥",
+            "hiking_trail": "🥾",
+            "park": "🌳",
+            "scenic_viewpoint": "🌅",
+            "museum": "🖼️",
+            "bookstore": "📚"
+        ]
+        return emojis[category.lowercased()] ?? "📍"
     }
 }

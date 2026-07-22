@@ -40,8 +40,9 @@ struct RoutePreview: View {
                 ForEach(Array(visibleStops.enumerated()), id: \.element.id) { index, stop in
                     HStack(spacing: TravSpacing.xxs) {
                         if let emoji = stop.emoji {
-                            Text(emoji)
-                                .font(.system(size: compact ? 11 : 13))
+                            Image(systemName: sfSymbolForEmojiOrCategory(emoji))
+                                .font(.system(size: compact ? 10 : 12))
+                                .foregroundStyle(TravColors.accent)
                         }
                         Text(stop.name)
                             .font(compact ? TravTypography.caption() : TravTypography.labelMedium())

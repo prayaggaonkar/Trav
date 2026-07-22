@@ -176,7 +176,9 @@ struct CreateExperienceView: View {
                             VStack(spacing: TravSpacing.xs) {
                                 ForEach(stops) { stop in
                                     HStack(spacing: TravSpacing.sm) {
-                                        Text(stop.emoji ?? "📍")
+                                        Image(systemName: sfSymbolForEmojiOrCategory(stop.emoji ?? ""))
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(TravColors.accent)
                                         Text(stop.name)
                                             .font(TravTypography.bodyMedium())
                                             .foregroundStyle(TravColors.primary)

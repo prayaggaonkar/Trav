@@ -27,3 +27,18 @@ CREATE POLICY "Users can delete their own experiences" ON public.experiences FOR
 -- Grant privileges
 GRANT SELECT ON public.experiences TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.experiences TO authenticated;
+
+-- Saves table for bookmarking places/experiences
+CREATE TABLE IF NOT EXISTS public.saves (
+  user_id uuid NOT NULL REFERENCES public.profiles (id) ON DELETE CASCADE,
+  place_id text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, place_id)
+);
+
+ALTER TABLE public.saves ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Saves are readable by the owner" ON public.saves FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their own saves" ON public.saves FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own saves" ON public.saves FOR DELETE USING (auth.uid() = user_id);
+
+GRANT SELECT, INSERT, DELETE ON public.saves TO authenticated;
