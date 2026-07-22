@@ -65,46 +65,75 @@ struct HeroExperienceCard: View {
 
     var body: some View {
         let hasImage = experience.coverImageURL != nil
-        let titleColor = hasImage ? Color.white : TravColors.primary
-        let creatorColor = hasImage ? Color.white.opacity(0.85) : TravColors.muted
-        let badgeColor = hasImage ? Color.white.opacity(0.7) : TravColors.accent
 
         ZStack(alignment: .bottomLeading) {
+            // Background Image / Gradient Fill
             if let imageURL = experience.coverImageURL {
                 RemoteImage(
                     url: imageURL,
-                    height: 180,
+                    height: 200,
                     cornerRadius: TravRadius.lg
                 )
                 
                 LinearGradient(
                     colors: [
-                        .black.opacity(0.15),
-                        .black.opacity(0.45),
-                        .black.opacity(0.85)
+                        .black.opacity(0.1),
+                        .black.opacity(0.4),
+                        .black.opacity(0.88)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             } else {
-                RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                    .fill(TravColors.surfaceElevated)
-                    .frame(height: 180)
+                ZStack(alignment: .topTrailing) {
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.14, green: 0.16, blue: 0.24),
+                            Color(red: 0.08, green: 0.09, blue: 0.15)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    
+                    RadialGradient(
+                        colors: [
+                            TravColors.accent.opacity(0.25),
+                            .clear
+                        ],
+                        center: .topTrailing,
+                        startRadius: 10,
+                        endRadius: 180
+                    )
+
+                    Image(systemName: "map.fill")
+                        .font(.system(size: 80, weight: .ultraLight))
+                        .foregroundStyle(.white.opacity(0.05))
+                        .padding(.trailing, 20)
+                        .padding(.top, 20)
+                }
+                .frame(height: 200)
             }
 
+            // Card Overlay Content
             VStack(alignment: .leading, spacing: TravSpacing.xs) {
                 if !badgeText.isEmpty {
                     Text(badgeText)
-                        .font(TravTypography.labelMedium())
-                        .tracking(0.6)
-                        .textCase(.uppercase)
-                        .foregroundStyle(badgeColor)
-                        .lineLimit(1)
+                        .font(TravTypography.caption())
+                        .fontWeight(.bold)
+                        .tracking(0.8)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, TravSpacing.xs + 2)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(TravColors.accent.opacity(0.85))
+                        )
                 }
 
                 Text(experience.title)
                     .font(TravTypography.titleLarge())
-                    .foregroundStyle(titleColor)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.white)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
                     .minimumScaleFactor(0.88)
@@ -113,10 +142,14 @@ struct HeroExperienceCard: View {
                 Button {
                     onCreatorTap?()
                 } label: {
-                    Text("by \(experience.creator.displayName)")
-                        .font(TravTypography.caption())
-                        .foregroundStyle(creatorColor)
-                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.circle.fill")
+                            .font(.caption)
+                        Text("by \(experience.creator.displayName)")
+                            .font(TravTypography.caption())
+                    }
+                    .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(1)
                 }
                 .buttonStyle(.plain)
                 .disabled(onCreatorTap == nil)
@@ -133,6 +166,7 @@ struct HeroExperienceCard: View {
             .padding(TravSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
 
+            // Top-Right Action Controls
             HStack(spacing: TravSpacing.xs) {
                 CityCardActionButton(
                     systemName: isSaved ? "bookmark.fill" : "bookmark",
@@ -146,9 +180,13 @@ struct HeroExperienceCard: View {
             .padding(TravSpacing.sm)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }
-        .frame(height: 180)
+        .frame(height: 200)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
         .contentShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
         .onTapGesture(perform: onTap)
         .accessibilityElement(children: .contain)

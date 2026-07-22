@@ -29,6 +29,31 @@ enum SupabaseManager {
         )
     }()
 
+    /// Dedicated client with static service/apiKey credentials that does not mutate
+    /// auth headers when users sign in, ensuring public database reads (e.g. city feeds)
+    /// succeed reliably.
+    static let serviceClient: SupabaseClient? = {
+        let configuration = AppConfiguration.current
+        guard
+            let url = configuration.supabaseURL,
+            url.host?.isEmpty == false,
+            let key = configuration.supabaseAnonKey,
+            !key.isEmpty
+        else {
+            return nil
+        }
+
+        return SupabaseClient(
+            supabaseURL: url,
+            supabaseKey: key,
+            options: SupabaseClientOptions(
+                auth: SupabaseClientOptions.AuthOptions(
+                    autoRefreshToken: false
+                )
+            )
+        )
+    }()
+
     /// Forwards an incoming deep link (OAuth callback, magic link, password reset) to Supabase Auth.
     /// Safe to call even when no client is configured (mock backend).
     static func handle(_ url: URL) {

@@ -42,14 +42,11 @@ struct ExperienceDetailView: View {
                 actionBar
                     .travAppear(delay: 0.06)
 
-                statsRow(experience)
+                overviewSection(experience)
                     .travAppear(delay: 0.1)
 
-                routeOverview(experience)
-                    .travAppear(delay: 0.14)
-
                 timeline(experience)
-                    .travAppear(delay: 0.18)
+                    .travAppear(delay: 0.14)
             }
             .padding(.bottom, TravSpacing.xxl)
             .safeAreaPadding(.bottom, TravSpacing.sm)
@@ -84,40 +81,85 @@ struct ExperienceDetailView: View {
 
     private var actionBar: some View {
         HStack(spacing: TravSpacing.sm) {
-            TravActionButton(symbol: "bookmark", label: "Save") {}
-            TravActionButton(symbol: "checkmark.circle.fill", label: "Complete", isAccent: true) {}
-            TravActionButton(symbol: "square.and.arrow.up", label: "Share") {}
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "bookmark")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Save")
+                        .font(TravTypography.labelMedium())
+                        .fontWeight(.semibold)
+                }
+                .foregroundStyle(TravColors.primary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(TravColors.surfaceElevated)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+            }
+            .buttonStyle(TravPressButtonStyle())
+
+            Button {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 15, weight: .bold))
+                    Text("Complete")
+                        .font(TravTypography.labelMedium())
+                        .fontWeight(.bold)
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(TravColors.accent)
+                .clipShape(Capsule())
+            }
+            .buttonStyle(TravPressButtonStyle())
+
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Share")
+                        .font(TravTypography.labelMedium())
+                        .fontWeight(.semibold)
+                }
+                .foregroundStyle(TravColors.primary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(TravColors.surfaceElevated)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+            }
+            .buttonStyle(TravPressButtonStyle())
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
         .padding(.vertical, TravSpacing.md)
     }
 
     @ViewBuilder
-    private func statsRow(_ experience: Experience) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: TravSpacing.sm) {
-                StatPill(symbol: "clock", value: TravFormatters.duration(experience.durationMinutes))
-                StatPill(symbol: "dollarsign.circle", value: experience.costLevel.displayName)
-                StatPill(symbol: "figure.walk", value: TravFormatters.distance(experience.totalDistanceMeters))
-                StatPill(symbol: "checkmark.circle", value: TravFormatters.count(experience.completionCount))
-            }
-            .padding(.horizontal, TravSpacing.screenHorizontal)
-        }
-        .padding(.bottom, TravSpacing.lg)
-    }
-
-    @ViewBuilder
-    private func routeOverview(_ experience: Experience) -> some View {
+    private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
-            Text("Route")
+            Text("About this Experience")
                 .font(TravTypography.titleLarge())
+                .fontWeight(.bold)
                 .foregroundStyle(TravColors.primary)
 
-            Text(experience.description)
-                .font(TravTypography.bodyMedium())
-                .foregroundStyle(TravColors.muted)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
+            if !experience.description.isEmpty {
+                Text(experience.description)
+                    .font(TravTypography.bodyMedium())
+                    .foregroundStyle(TravColors.muted)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             RoutePreview(stops: experience.stops.map {
                 StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji)

@@ -3,7 +3,7 @@ import Supabase
 
 struct SupabaseExperienceRepository: ExperienceRepository {
     private var client: SupabaseClient {
-        guard let client = SupabaseManager.client else {
+        guard let client = SupabaseManager.serviceClient ?? SupabaseManager.client else {
             preconditionFailure("SupabaseExperienceRepository used without a configured SupabaseClient.")
         }
         return client
@@ -24,6 +24,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
     private struct DBExperience: Codable {
         let id: UUID
+        let user_id: UUID
         let title: String
         let description: String
         let city: String
@@ -44,6 +45,32 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             case display_name = "display_name"
             case avatar_url = "avatar_url"
             case is_verified = "is_verified"
+        }
+    }
+
+    private func fetchProfiles(for userIDs: [UUID]) async -> [UUID: ProfileSummary] {
+        guard !userIDs.isEmpty else { return [:] }
+        do {
+            let dbProfiles: [DBProfileSummary] = try await client
+                .from("profiles")
+                .select()
+                .in("id", values: userIDs)
+                .execute()
+                .value
+            var map: [UUID: ProfileSummary] = [:]
+            for p in dbProfiles {
+                map[p.id] = ProfileSummary(
+                    id: p.id,
+                    username: p.username,
+                    displayName: p.display_name,
+                    avatarURL: p.avatar_url.flatMap { URL(string: $0) },
+                    isVerified: p.is_verified
+                )
+            }
+            return map
+        } catch {
+            print("Failed to fetch creator profiles for IDs \(userIDs): \(error)")
+            return [:]
         }
     }
 
@@ -106,16 +133,20 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
     func fetchExperience(id: UUID) async throws -> Experience {
         do {
-            let dbExp: DBExperience = try await client
+            let targetID = id.uuidString.lowercased()
+            let dbExps: [DBExperience] = try await client
                 .from("experiences")
                 .select()
-                .eq("id", value: id)
-                .single()
                 .execute()
                 .value
 
-            let creator = ProfileSummary(
-                id: UUID(),
+            guard let dbExp = dbExps.first(where: { $0.id.uuidString.lowercased() == targetID }) else {
+                throw RepositoryError.notFound
+            }
+
+            let profilesMap = await fetchProfiles(for: [dbExp.user_id])
+            let creator = profilesMap[dbExp.user_id] ?? ProfileSummary(
+                id: dbExp.user_id,
                 username: "traveler",
                 displayName: "Traveler",
                 avatarURL: nil,
@@ -149,7 +180,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 title: dbExp.title,
                 description: dbExp.description,
                 coverImageURL: dbExp.image.flatMap { URL(string: $0) },
-                durationMinutes: stops.count * 30,
+                durationMinutes: max(30, stops.count * 30),
                 costLevel: .budget,
                 estimatedCostUSD: nil,
                 transportMode: .walking,
@@ -174,25 +205,27 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         do {
             // Find city name from cityID
             let cityName = MockData.cities.first(where: { $0.id == cityID })?.name ?? "Unknown"
-            debugLog("SupabaseExperienceRepository.fetchCityFeed: resolved cityName: \(cityName)")
+            debugLog("SupabaseExperienceRepository.fetchCityFeed: resolved cityName: '\(cityName)'")
 
-            let dbExps: [DBExperience] = try await client
+            let allExps: [DBExperience] = try await client
                 .from("experiences")
                 .select()
-                .eq("city", value: cityName)
                 .order("created_at", ascending: false)
                 .execute()
                 .value
 
-            debugLog("SupabaseExperienceRepository.fetchCityFeed: query returned \(dbExps.count) rows")
+            debugLog("SupabaseExperienceRepository.fetchCityFeed: total experiences in table = \(allExps.count)")
 
-            let creator = ProfileSummary(
-                id: UUID(),
-                username: "traveler",
-                displayName: "Traveler",
-                avatarURL: nil,
-                isVerified: false
-            )
+            let dbExps = allExps.filter { dbExp in
+                let expCity = dbExp.city.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                let targetCity = cityName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                return expCity == targetCity || expCity.contains(targetCity) || targetCity.contains(expCity)
+            }
+
+            debugLog("SupabaseExperienceRepository.fetchCityFeed: matched \(dbExps.count) experiences for '\(cityName)'")
+
+            let userIDs = Array(Set(dbExps.map(\.user_id)))
+            let profilesMap = await fetchProfiles(for: userIDs)
 
             var summaries: [ExperienceSummary] = []
             for dbExp in dbExps {
@@ -200,13 +233,21 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                     StopPreview(id: UUID(), name: stopName, emoji: "📍")
                 }
 
+                let creator = profilesMap[dbExp.user_id] ?? ProfileSummary(
+                    id: dbExp.user_id,
+                    username: "traveler",
+                    displayName: "Traveler",
+                    avatarURL: nil,
+                    isVerified: false
+                )
+
                 let summary = ExperienceSummary(
                     id: dbExp.id,
                     cityID: cityID,
                     title: dbExp.title,
                     coverImageURL: dbExp.image.flatMap { URL(string: $0) },
                     creator: creator,
-                    durationMinutes: dbExp.stops.count * 30,
+                    durationMinutes: max(30, dbExp.stops.count * 30),
                     costLevel: .budget,
                     estimatedCostUSD: nil,
                     saveCount: 0,
@@ -228,16 +269,22 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         do {
             let cityName = MockData.cities.first(where: { $0.id == cityID })?.name ?? "Unknown"
 
-            let dbExps: [DBExperience] = try await client
+            let allExps: [DBExperience] = try await client
                 .from("experiences")
                 .select()
-                .eq("city", value: cityName)
                 .eq("user_id", value: userID)
                 .order("created_at", ascending: false)
                 .execute()
                 .value
 
-            let creator = ProfileSummary(
+            let dbExps = allExps.filter { dbExp in
+                let expCity = dbExp.city.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                let targetCity = cityName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                return expCity == targetCity || expCity.contains(targetCity) || targetCity.contains(expCity)
+            }
+
+            let profilesMap = await fetchProfiles(for: [userID])
+            let creator = profilesMap[userID] ?? ProfileSummary(
                 id: userID,
                 username: "traveler",
                 displayName: "Traveler",
@@ -257,7 +304,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                     title: dbExp.title,
                     coverImageURL: dbExp.image.flatMap { URL(string: $0) },
                     creator: creator,
-                    durationMinutes: dbExp.stops.count * 30,
+                    durationMinutes: max(30, dbExp.stops.count * 30),
                     costLevel: .budget,
                     estimatedCostUSD: nil,
                     saveCount: 0,
