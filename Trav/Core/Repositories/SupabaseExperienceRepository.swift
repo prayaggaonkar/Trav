@@ -153,24 +153,6 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
     func fetchExperience(id: UUID) async throws -> Experience {
         do {
-<<<<<<< HEAD
-            let targetID = id.uuidString.lowercased()
-            let dbExps: [DBExperience] = try await client
-                .from("experiences")
-                .select()
-                .execute()
-                .value
-
-            guard let dbExp = dbExps.first(where: { $0.id.uuidString.lowercased() == targetID }) else {
-                throw RepositoryError.notFound
-            }
-
-            let profilesMap = await fetchProfiles(for: [dbExp.user_id])
-            let creator = profilesMap[dbExp.user_id] ?? ProfileSummary(
-                id: dbExp.user_id,
-                username: "traveler",
-                displayName: "Traveler",
-=======
             let idStr = id.uuidString.lowercased()
             
             // 1. Try to fetch from experiences table first (User Posts)
@@ -276,7 +258,6 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 id: UUID(),
                 username: "rec_by_trav",
                 displayName: "Rec by Trav",
->>>>>>> 689a4b59b04866f46c3fb8acf4f369b57b127ac5
                 avatarURL: nil,
                 isVerified: true
             )
@@ -327,21 +308,12 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             return Experience(
                 id: id,
                 cityID: cityID,
-<<<<<<< HEAD
-                creator: creator,
-                title: dbExp.title,
-                description: dbExp.description,
-                coverImageURL: dbExp.image.flatMap { URL(string: $0) },
-                durationMinutes: max(30, stops.count * 30),
-                costLevel: .budget,
-=======
                 creator: recCreator,
                 title: dbPlace.name,
                 description: "Explore local spots and neighborhood favorites curated by Trav.",
                 coverImageURL: defaultCoverForCategory(dbPlace.name),
                 durationMinutes: stops.count * 30,
                 costLevel: .moderate,
->>>>>>> 689a4b59b04866f46c3fb8acf4f369b57b127ac5
                 estimatedCostUSD: nil,
                 transportMode: .walking,
                 totalDistanceMeters: 0,
