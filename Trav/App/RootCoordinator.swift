@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum TravTab: String, CaseIterable {
     case explore = "Explore"
@@ -157,6 +158,52 @@ private struct RankingsView: View {
 
 // MARK: - Feed Section
 
+enum FeedFilter: String, CaseIterable, Identifiable {
+    case all = "All"
+    case itineraries = "Itineraries"
+    case singleSpots = "Single Spots"
+    case saved = "Saved"
+    
+    var id: String { self.rawValue }
+    var iconName: String {
+        switch self {
+        case .all: return "square.grid.2x2"
+        case .itineraries: return "map"
+        case .singleSpots: return "pin"
+        case .saved: return "bookmark.fill"
+        }
+    }
+}
+
+struct QuickPlannerDropDelegate: DropDelegate {
+    @Binding var draftStops: [StopPreview]
+    let feedItems: [ExperienceSummary]
+    
+    func performDrop(info: DropInfo) -> Bool {
+        guard let itemProvider = info.itemProviders(for: [.text]).first else { return false }
+        
+        itemProvider.loadItem(forTypeIdentifier: "public.text", options: nil) { (textData, error) in
+            guard let data = textData as? Data,
+                  let idString = String(data: data, encoding: .utf8),
+                  let experienceUUID = UUID(uuidString: idString) else {
+                return
+            }
+            
+            if let matched = feedItems.first(where: { $0.id == experienceUUID }) {
+                DispatchQueue.main.async {
+                    let stop = StopPreview(
+                        id: UUID(),
+                        name: matched.title,
+                        emoji: matched.stops.first?.emoji ?? "📍"
+                    )
+                    draftStops.append(stop)
+                }
+            }
+        }
+        return true
+    }
+}
+
 struct FeedView: View {
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
@@ -166,6 +213,13 @@ struct FeedView: View {
     @State private var feedItems: [ExperienceSummary] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var selectedFilter: FeedFilter = .all
+    @State private var savedPlaceIDs: Set<String> = []
+    
+    // Quick Planner state
+    @State private var draftStops: [StopPreview] = []
+    @State private var itineraryTitle: String = ""
+    @State private var isSavingItinerary = false
 
     var body: some View {
         ZStack {
@@ -177,6 +231,40 @@ struct FeedView: View {
                 headerView
                     .padding(.horizontal, TravSpacing.screenHorizontal)
                     .padding(.top, TravSpacing.sm)
+                
+                // Filter bar
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: TravSpacing.xs) {
+                        ForEach(FeedFilter.allCases) { filter in
+                            Button {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    selectedFilter = filter
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: filter.iconName)
+                                        .font(.system(size: 13, weight: .bold))
+                                    Text(filter.rawValue)
+                                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                }
+                                .padding(.horizontal, TravSpacing.md)
+                                .padding(.vertical, TravSpacing.xs)
+                                .background(
+                                    Capsule()
+                                        .fill(selectedFilter == filter ? TravColors.accent : Color.white.opacity(0.08))
+                                )
+                                .foregroundStyle(selectedFilter == filter ? Color.black : .white)
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                    .padding(.vertical, TravSpacing.xs)
+                }
                 
                 if isLoading {
                     Spacer()
@@ -199,29 +287,176 @@ struct FeedView: View {
                     EmptyStateView(
                         icon: "rectangle.stack.badge.person.crop",
                         title: "No Matching Spots",
-                        description: "Try updating your selected vibes in your profile to see tailored hangout recommendations."
+                        description: "Try updating your selected vibes or your filter to see tailored hangout recommendations."
                     )
                     Spacer()
                 } else {
                     ScrollView {
                         LazyVStack(spacing: TravSpacing.md) {
                             ForEach(filteredFeed) { experience in
-                                FeedCardView(experience: experience) {
+                                FeedCardView(
+                                    experience: experience,
+                                    isSaved: savedPlaceIDs.contains(experience.id.uuidString.lowercased()),
+                                    onSaveToggle: {
+                                        Task {
+                                            await toggleSave(for: experience)
+                                        }
+                                    },
+                                    onAddToItinerary: {
+                                        withAnimation(.spring()) {
+                                            let stop = StopPreview(
+                                                id: UUID(),
+                                                name: experience.title,
+                                                emoji: experience.stops.first?.emoji ?? "📍"
+                                            )
+                                            draftStops.append(stop)
+                                        }
+                                    }
+                                ) {
                                     router.presentedRoute = .experience(experience.id)
+                                }
+                                .onDrag {
+                                    NSItemProvider(object: experience.id.uuidString as NSString)
                                 }
                             }
                         }
                         .padding(.horizontal, TravSpacing.screenHorizontal)
                         .padding(.vertical, TravSpacing.sm)
-                        .padding(.bottom, TravSpacing.tabBarBottom + 20)
+                        .padding(.bottom, draftStops.isEmpty ? TravSpacing.tabBarBottom + 20 : TravSpacing.tabBarBottom + 120)
                     }
                     .refreshable {
                         await loadFeed()
                     }
                 }
             }
+            
+            // Bottom Quick Planner Panel
+            VStack {
+                Spacer()
+                
+                if !draftStops.isEmpty {
+                    VStack(spacing: 0) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("QUICK PLANNER")
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                                    .tracking(2.0)
+                                    .foregroundStyle(TravColors.accent)
+                                
+                                Text("\(draftStops.count) stops selected")
+                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.white)
+                            }
+                            
+                            Spacer()
+                            
+                            Button {
+                                withAnimation(.spring()) {
+                                    draftStops.removeAll()
+                                    itineraryTitle = ""
+                                }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(TravColors.muted)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, TravSpacing.screenHorizontal)
+                        .padding(.vertical, TravSpacing.sm)
+                        
+                        Divider()
+                            .background(Color.white.opacity(0.1))
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(Array(draftStops.enumerated()), id: \.offset) { index, stop in
+                                    HStack(spacing: 6) {
+                                        Text("\(index + 1)")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .padding(5)
+                                            .background(TravColors.accent)
+                                            .clipShape(Circle())
+                                            .foregroundStyle(.black)
+                                        
+                                        Text(stop.emoji ?? "📍")
+                                        Text(stop.name)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(.white)
+                                        
+                                        Button {
+                                            draftStops.remove(at: index)
+                                        } label: {
+                                            Image(systemName: "minus.circle.fill")
+                                                .font(.system(size: 12))
+                                                .foregroundStyle(.red.opacity(0.8))
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                    .padding(.horizontal, TravSpacing.sm)
+                                    .padding(.vertical, 6)
+                                    .background(Color.white.opacity(0.06))
+                                    .clipShape(Capsule())
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    )
+                                }
+                            }
+                            .padding(.horizontal, TravSpacing.screenHorizontal)
+                            .padding(.vertical, TravSpacing.sm)
+                        }
+                        
+                        HStack(spacing: TravSpacing.sm) {
+                            TextField("", text: $itineraryTitle, prompt: Text("Itinerary Name...").foregroundColor(Color.white.opacity(0.3)))
+                                .padding(.horizontal, TravSpacing.md)
+                                .padding(.vertical, 8)
+                                .background(Color.white.opacity(0.08))
+                                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                                .foregroundStyle(.white)
+                                .tint(TravColors.accent)
+                            
+                            Button {
+                                Task {
+                                    await saveDraftItinerary()
+                                }
+                            } label: {
+                                HStack {
+                                    if isSavingItinerary {
+                                        ProgressView()
+                                            .tint(.black)
+                                            .scaleEffect(0.8)
+                                    } else {
+                                        Image(systemName: "checkmark.circle.fill")
+                                        Text("Save Route")
+                                    }
+                                }
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .padding(.horizontal, TravSpacing.md)
+                                .padding(.vertical, 10)
+                                .background(TravColors.accent)
+                                .foregroundStyle(.black)
+                                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                            }
+                            .disabled(isSavingItinerary)
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, TravSpacing.screenHorizontal)
+                        .padding(.bottom, TravSpacing.sm + 10)
+                    }
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                    )
+                    .padding(.horizontal, TravSpacing.sm)
+                    .padding(.bottom, TravSpacing.tabBarBottom + 5)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .onDrop(of: [.text], delegate: QuickPlannerDropDelegate(draftStops: $draftStops, feedItems: feedItems))
+                }
+            }
         }
-        // Dark image cards need dark chrome; empty/loading follow app appearance.
         .tabBarBackdrop(feedTabBarBackdrop)
         .task {
             await loadFeed()
@@ -235,57 +470,169 @@ struct FeedView: View {
     }
 
     private var filteredFeed: [ExperienceSummary] {
-        guard let selectedVibes = session.currentUser?.selectedVibes, !selectedVibes.isEmpty else {
-            return feedItems
-        }
+        var items = feedItems
         
-        let vibeToEmojis: [String: [String]] = [
-            "Coffee / Cafes": ["☕"],
-            "Nightlife / Bars": ["🍻"],
-            "Hikes / Outdoors": ["🥾", "🌳", "🌅"],
-            "Scenic Views": ["🌅"],
-            "Local Shopping": ["🛍️", "🧥"],
-            "Museums / Arts": ["🖼️"],
-            "Bookstores": ["📚"],
-            "Tacos / Casual Bite": ["🍕", "🍔", "🌮", "🍽️"]
-        ]
-        
-        let vibeKeywords: [String: [String]] = [
-            "Coffee / Cafes": ["coffee", "cafe", "crawl", "tartine", "bakery", "brew", "espresso", "latte"],
-            "Nightlife / Bars": ["bar", "night", "rooftop", "lounge", "drink", "cocktail", "beer", "club", "wine", "pub"],
-            "Hikes / Outdoors": ["hike", "trail", "park", "nature", "outdoor", "peaks", "walk", "mountain", "forest", "dolores"],
-            "Scenic Views": ["view", "scenic", "peaks", "rooftop", "coit", "sunset", "golden hour", "horizon", "panorama"],
-            "Local Shopping": ["shop", "market", "boutique", "vintage", "ferry", "store", "flea", "craft"],
-            "Museums / Arts": ["museum", "art", "gallery", "mural", "muralist", "exhibit", "sculpture", "painting"],
-            "Bookstores": ["book", "read", "bookstore", "library", "lights", "literature", "novel"],
-            "Tacos / Casual Bite": ["taco", "bite", "food", "bakery", "restaurant", "croissant", "slice", "pizza", "burger", "deli"]
-        ]
-        
-        return feedItems.filter { item in
-            // Stop Emoji match
-            for stop in item.stops {
-                if let emoji = stop.emoji {
-                    for vibe in selectedVibes {
-                        if let emojis = vibeToEmojis[vibe], emojis.contains(emoji) {
-                            return true
-                        }
-                    }
-                }
-            }
+        // 1. Vibes-based filter (if any are selected in onboarding)
+        if let selectedVibes = session.currentUser?.selectedVibes, !selectedVibes.isEmpty {
+            let vibeToEmojis: [String: [String]] = [
+                "Coffee / Cafes": ["☕"],
+                "Nightlife / Bars": ["🍻"],
+                "Hikes / Outdoors": ["🥾", "🌳", "🌅"],
+                "Scenic Views": ["🌅"],
+                "Local Shopping": ["🛍️", "🧥"],
+                "Museums / Arts": ["🖼️"],
+                "Bookstores": ["📚"],
+                "Tacos / Casual Bite": ["🍕", "🍔", "🌮", "🍽️"]
+            ]
+            let vibeKeywords: [String: [String]] = [
+                "Coffee / Cafes": ["coffee", "cafe", "crawl", "tartine", "bakery", "brew", "espresso", "latte"],
+                "Nightlife / Bars": ["bar", "night", "rooftop", "lounge", "drink", "cocktail", "beer", "club", "wine", "pub"],
+                "Hikes / Outdoors": ["hike", "trail", "park", "nature", "outdoor", "peaks", "walk", "mountain", "forest", "dolores"],
+                "Scenic Views": ["view", "scenic", "peaks", "rooftop", "coit", "sunset", "golden hour", "horizon", "panorama"],
+                "Local Shopping": ["shop", "market", "boutique", "vintage", "ferry", "store", "flea", "craft"],
+                "Museums / Arts": ["museum", "art", "gallery", "mural", "muralist", "exhibit", "sculpture", "painting"],
+                "Bookstores": ["book", "read", "bookstore", "library", "lights", "literature", "novel"],
+                "Tacos / Casual Bite": ["taco", "bite", "food", "bakery", "restaurant", "croissant", "slice", "pizza", "burger", "deli"]
+            ]
             
-            // Experience keyword match fallback
-            let textToSearch = "\(item.title) \(item.stops.map(\.name).joined(separator: " "))".lowercased()
-            for vibe in selectedVibes {
-                if let keywords = vibeKeywords[vibe] {
-                    for keyword in keywords {
-                        if textToSearch.contains(keyword) {
-                            return true
+            items = items.filter { item in
+                for stop in item.stops {
+                    if let emoji = stop.emoji {
+                        for vibe in selectedVibes {
+                            if let emojis = vibeToEmojis[vibe], emojis.contains(emoji) {
+                                return true
+                            }
                         }
                     }
                 }
+                let textToSearch = "\(item.title) \(item.stops.map(\.name).joined(separator: " "))".lowercased()
+                for vibe in selectedVibes {
+                    if let keywords = vibeKeywords[vibe] {
+                        for keyword in keywords {
+                            if textToSearch.contains(keyword) {
+                                return true
+                            }
+                        }
+                    }
+                }
+                return false
             }
-            return false
         }
+        
+        // 2. Tab Filter
+        switch selectedFilter {
+        case .all:
+            break
+        case .itineraries:
+            items = items.filter { $0.stops.count > 1 }
+        case .singleSpots:
+            items = items.filter { $0.stops.count <= 1 }
+        case .saved:
+            items = items.filter { savedPlaceIDs.contains($0.id.uuidString.lowercased()) }
+        }
+        
+        return items
+    }
+
+    private func toggleSave(for experience: ExperienceSummary) async {
+        guard let currentUser = session.currentUser else {
+            router.presentAuth()
+            return
+        }
+        
+        let placeID = experience.id.uuidString.lowercased()
+        let isSaved = savedPlaceIDs.contains(placeID)
+        
+        do {
+            if let client = SupabaseManager.client {
+                if isSaved {
+                    savedPlaceIDs.remove(placeID)
+                    try await client
+                        .from("saves")
+                        .delete()
+                        .eq("user_id", value: currentUser.id)
+                        .eq("place_id", value: placeID)
+                        .execute()
+                } else {
+                    savedPlaceIDs.insert(placeID)
+                    let record = DBSave(user_id: currentUser.id, place_id: placeID)
+                    try await client
+                        .from("saves")
+                        .insert(record)
+                        .execute()
+                }
+            }
+        } catch {
+            print("Failed to toggle bookmark save: \(error)")
+            if isSaved {
+                savedPlaceIDs.insert(placeID)
+            } else {
+                savedPlaceIDs.remove(placeID)
+            }
+        }
+    }
+
+    private func saveDraftItinerary() async {
+        guard let currentUser = session.currentUser else {
+            router.presentAuth()
+            return
+        }
+        guard !draftStops.isEmpty else { return }
+        
+        isSavingItinerary = true
+        
+        do {
+            if let client = SupabaseManager.client {
+                let encoder = JSONEncoder()
+                let stopsJSONStrings: [String] = draftStops.enumerated().compactMap { (index, item) in
+                    let dbStop = DBStop(
+                        id: UUID(),
+                        name: item.name,
+                        emoji: item.emoji,
+                        description: "Stop curated via Quick Planner.",
+                        latitude: 0.0,
+                        longitude: 0.0,
+                        place_id: item.id.uuidString,
+                        orderIndex: index
+                    )
+                    if let data = try? encoder.encode(dbStop),
+                       let jsonStr = String(data: data, encoding: .utf8) {
+                        return jsonStr
+                    }
+                    return nil
+                }
+                
+                let title = itineraryTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                let finalTitle = title.isEmpty ? "My Custom Route" : title
+                
+                let newExp = DBExperienceInsert(
+                    id: UUID(),
+                    user_id: currentUser.id,
+                    title: finalTitle,
+                    description: "A custom route created via Trav Quick Planner.",
+                    city: "Berkeley",
+                    stops: stopsJSONStrings,
+                    created_at: Date()
+                )
+                
+                try await client
+                    .from("experiences")
+                    .insert(newExp)
+                    .execute()
+                
+                withAnimation(.spring()) {
+                    draftStops.removeAll()
+                    itineraryTitle = ""
+                }
+                
+                await loadFeed()
+            }
+        } catch {
+            print("Failed to save draft itinerary: \(error)")
+            errorMessage = "Failed to save itinerary: \(error.localizedDescription)"
+        }
+        
+        isSavingItinerary = false
     }
 
     private var headerView: some View {
@@ -337,83 +684,152 @@ struct FeedView: View {
         errorMessage = nil
         
         do {
-            // Attempt to fetch places from Supabase if configured and not in mock mode
             if !environment.configuration.useMockBackend,
                let client = SupabaseManager.client {
+                
+                // Fetch databases sequentially to ensure explicit generic type inference compiles successfully
                 let dbPlaces: [DBPlace] = try await client
                     .from("places")
                     .select()
                     .execute()
                     .value
                 
-                if dbPlaces.isEmpty {
-                    loadMockFeed()
+                let dbExps: [DBUserExperience] = try await client
+                    .from("experiences")
+                    .select()
+                    .execute()
+                    .value
+                
+                // Load saves/bookmarks
+                let dbSaves: [DBSave]
+                if let currentUserID = session.currentUser?.id {
+                    do {
+                        dbSaves = try await client
+                            .from("saves")
+                            .select()
+                            .eq("user_id", value: currentUserID)
+                            .execute()
+                            .value
+                    } catch {
+                        print("Saves table fetch failed: \(error)")
+                        dbSaves = []
+                    }
                 } else {
-                    let recCreator = ProfileSummary(
-                        id: UUID(),
-                        username: "rec_by_trav",
-                        displayName: "Rec by Trav",
-                        avatarURL: nil,
-                        isVerified: true
-                    )
-                    
-                    self.feedItems = dbPlaces.map { dbPlace in
-                        // Check if it is a multi-stop itinerary
-                        if let stopsArray = dbPlace.stops, !stopsArray.isEmpty {
-                            let decodedStops: [StopPreview] = stopsArray.compactMap { stopStr in
-                                guard let data = stopStr.data(using: .utf8),
-                                      let dbStop = try? JSONDecoder().decode(DBStop.self, from: data) else {
-                                    return nil
-                                }
-                                return StopPreview(
-                                    id: dbStop.id,
-                                    name: dbStop.name,
-                                    emoji: dbStop.emoji
-                                )
+                    dbSaves = []
+                }
+                
+                self.savedPlaceIDs = Set(dbSaves.map { $0.place_id.lowercased() })
+                
+                // 1. Map places (System recommendations)
+                let recCreator = ProfileSummary(
+                    id: UUID(),
+                    username: "rec_by_trav",
+                    displayName: "Rec by Trav",
+                    avatarURL: nil,
+                    isVerified: true
+                )
+                
+                let placeItems: [ExperienceSummary] = dbPlaces.map { dbPlace in
+                    if let stopsArray = dbPlace.stops, !stopsArray.isEmpty {
+                        let decodedStops: [StopPreview] = stopsArray.compactMap { stopStr in
+                            guard let data = stopStr.data(using: .utf8),
+                                  let dbStop = try? JSONDecoder().decode(DBStop.self, from: data) else {
+                                return nil
                             }
-                            
-                            let firstStopName = decodedStops.first?.name ?? "park"
-                            let coverURL = defaultCoverForCategory(firstStopName)
-                            
-                            return ExperienceSummary(
-                                id: UUID(uuidString: dbPlace.id) ?? UUID(),
-                                cityID: UUID(),
-                                title: dbPlace.name,
-                                coverImageURL: coverURL,
-                                creator: recCreator,
-                                durationMinutes: 120,
-                                costLevel: .moderate,
-                                estimatedCostUSD: nil,
-                                saveCount: 0,
-                                likeCount: 0,
-                                completionCount: 0,
-                                stops: decodedStops
-                            )
-                        } else {
-                            // Individual place (single stop experience)
-                            let coverURL = defaultCoverForCategory(dbPlace.name)
-                            let stop = StopPreview(
-                                id: UUID(),
-                                name: dbPlace.name,
-                                emoji: emojiForCategory(dbPlace.basic_category)
-                            )
-                            
-                            return ExperienceSummary(
-                                id: UUID(uuidString: dbPlace.id) ?? UUID(),
-                                cityID: UUID(),
-                                title: dbPlace.name,
-                                coverImageURL: coverURL,
-                                creator: recCreator,
-                                durationMinutes: 45,
-                                costLevel: .budget,
-                                estimatedCostUSD: 0,
-                                saveCount: 0,
-                                likeCount: 0,
-                                completionCount: 0,
-                                stops: [stop]
+                            return StopPreview(
+                                id: dbStop.id,
+                                name: dbStop.name,
+                                emoji: dbStop.emoji
                             )
                         }
+                        
+                        let firstStopName = decodedStops.first?.name ?? "park"
+                        let coverURL = defaultCoverForCategory(firstStopName)
+                        
+                        return ExperienceSummary(
+                            id: UUID(uuidString: dbPlace.id) ?? UUID(),
+                            cityID: UUID(),
+                            title: dbPlace.name,
+                            coverImageURL: coverURL,
+                            creator: recCreator,
+                            durationMinutes: 120,
+                            costLevel: .moderate,
+                            estimatedCostUSD: nil,
+                            saveCount: 0,
+                            likeCount: 0,
+                            completionCount: 0,
+                            stops: decodedStops
+                        )
+                    } else {
+                        let coverURL = defaultCoverForCategory(dbPlace.name)
+                        let stop = StopPreview(
+                            id: UUID(),
+                            name: dbPlace.name,
+                            emoji: emojiForCategory(dbPlace.basic_category)
+                        )
+                        
+                        return ExperienceSummary(
+                            id: UUID(uuidString: dbPlace.id) ?? UUID(),
+                            cityID: UUID(),
+                            title: dbPlace.name,
+                            coverImageURL: coverURL,
+                            creator: recCreator,
+                            durationMinutes: 45,
+                            costLevel: .budget,
+                            estimatedCostUSD: 0,
+                            saveCount: 0,
+                            likeCount: 0,
+                            completionCount: 0,
+                            stops: [stop]
+                        )
                     }
+                }
+                
+                // 2. Map user posts (from experiences table)
+                let userExpItems: [ExperienceSummary] = dbExps.map { dbExp in
+                    let decodedStops: [StopPreview] = dbExp.stops.compactMap { stopStr in
+                        guard let data = stopStr.data(using: .utf8),
+                              let dbStop = try? JSONDecoder().decode(DBStop.self, from: data) else {
+                            // Fallback to name if plain text string
+                            return StopPreview(id: UUID(), name: stopStr, emoji: "📍")
+                        }
+                        return StopPreview(
+                            id: dbStop.id,
+                            name: dbStop.name,
+                            emoji: dbStop.emoji
+                        )
+                    }
+                    
+                    let userCreator = ProfileSummary(
+                        id: dbExp.user_id,
+                        username: "traveler",
+                        displayName: "Shared by Traveler",
+                        avatarURL: nil,
+                        isVerified: false
+                    )
+                    
+                    let firstStopName = decodedStops.first?.name ?? "park"
+                    return ExperienceSummary(
+                        id: dbExp.id,
+                        cityID: UUID(),
+                        title: dbExp.title,
+                        coverImageURL: defaultCoverForCategory(firstStopName),
+                        creator: userCreator,
+                        durationMinutes: dbExp.stops.count * 30,
+                        costLevel: .moderate,
+                        estimatedCostUSD: nil,
+                        saveCount: 0,
+                        likeCount: 0,
+                        completionCount: 0,
+                        stops: decodedStops
+                    )
+                }
+                
+                // Combine and prioritize user posts at the top, followed by Recs from Trav
+                self.feedItems = userExpItems + placeItems
+                
+                if self.feedItems.isEmpty {
+                    loadMockFeed()
                 }
             } else {
                 loadMockFeed()
@@ -431,117 +847,156 @@ struct FeedView: View {
 // Subview: Feed Card
 private struct FeedCardView: View {
     @Environment(AppearanceStore.self) private var appearance
-
+    
     let experience: ExperienceSummary
+    let isSaved: Bool
+    let onSaveToggle: () -> Void
+    let onAddToItinerary: () -> Void
     let action: () -> Void
     
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 0) {
-                // Cover Image — overlays stay light-on-dark for contrast on photos
-                ZStack(alignment: .bottomLeading) {
-                    if let coverURL = experience.coverImageURL {
-                        AsyncImage(url: coverURL) { image in
-                            image.resizable()
-                                 .aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            (appearance.isLightMode ? Color.black : Color.white).opacity(0.06)
-                        }
-                        .frame(height: 200)
-                        .clipped()
-                    } else {
-                        (appearance.isLightMode ? Color.black : Color.white).opacity(0.06)
-                            .frame(height: 200)
-                    }
-                    
-                    // Dark overlay for text readability
-                    LinearGradient(
-                        colors: [.clear, .black.opacity(0.85)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    
-                    // Badges overlay
-                    HStack {
-                        // Rec by Trav Author Badge
-                        HStack(spacing: TravSpacing.xxs) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(TravColors.accent)
-                            Text(experience.creator.displayName)
-                                .font(TravTypography.caption())
-                                .fontWeight(.bold)
-                                .foregroundStyle(.white)
-                        }
-                        .padding(.horizontal, TravSpacing.xs)
-                        .padding(.vertical, TravSpacing.xxs)
-                        .background(
-                            Capsule()
-                                .fill(Color.black.opacity(0.6))
-                        )
-                        
-                        Spacer()
-                        
-                        // Cost & Duration Badges
-                        HStack(spacing: TravSpacing.xxs) {
-                            Text(experience.costLevel.rawValue.capitalized)
-                            Text("•")
-                            Text("\(experience.durationMinutes)m")
-                        }
-                        .font(TravTypography.caption())
-                        .foregroundStyle(.white.opacity(0.9))
-                        .padding(.horizontal, TravSpacing.xs)
-                        .padding(.vertical, TravSpacing.xxs)
-                        .background(
-                            Capsule()
-                                .fill(Color.white.opacity(0.15))
-                        )
-                    }
-                    .padding(TravSpacing.md)
+    private var coverImageView: some View {
+        ZStack {
+            if let coverURL = experience.coverImageURL {
+                AsyncImage(url: coverURL) { image in
+                    image.resizable()
+                         .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Color.white.opacity(0.05)
                 }
-                .frame(height: 200)
-                .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg))
-                .overlay {
-                    RoundedRectangle(cornerRadius: TravRadius.lg)
-                        .stroke(
-                            appearance.isLightMode ? Color.black.opacity(0.1) : Color.white.opacity(0.08),
-                            lineWidth: 1
-                        )
+            } else {
+                Color.white.opacity(0.05)
+            }
+        }
+        .frame(height: 200)
+        .clipped()
+    }
+    
+    private var gradientOverlay: some View {
+        LinearGradient(
+            gradient: Gradient(colors: [Color.clear, Color.black.opacity(0.85)]),
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+    
+    private var topOverlayControls: some View {
+        let isItinerary = experience.stops.count > 1
+        return HStack {
+            Text(isItinerary ? "ROUTE" : "SPOT")
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .tracking(1.5)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(isItinerary ? TravColors.accent.opacity(0.9) : Color.blue.opacity(0.9))
+                )
+                .foregroundStyle(Color.black)
+            
+            Spacer()
+            
+            Button(action: onAddToItinerary) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(TravColors.accent)
+                    .padding(8)
+                    .background(Color.white.opacity(0.15))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            
+            Button(action: onSaveToggle) {
+                Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(isSaved ? Color.yellow : Color.white)
+                    .padding(8)
+                    .background(Color.white.opacity(0.15))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(TravSpacing.sm)
+    }
+    
+    private var titleAndCreatorMetadata: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(TravColors.muted)
+                
+                Text(experience.creator.displayName)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TravColors.muted)
+                
+                if experience.creator.isVerified {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.green)
+                }
+            }
+            
+            Text(experience.title)
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+        }
+        .padding(TravSpacing.md)
+    }
+    
+    private var stopsSequenceStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(experience.stops) { stop in
+                    HStack(spacing: 4) {
+                        Text(stop.emoji ?? "📍")
+                        Text(stop.name)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
+                    }
+                    .padding(.horizontal, TravSpacing.sm)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.04))
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+                }
+            }
+            .padding(.horizontal, TravSpacing.md)
+            .padding(.vertical, TravSpacing.sm)
+        }
+        .background(Color.black.opacity(0.15))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack(alignment: .bottomLeading) {
+                coverImageView
+                gradientOverlay
+                
+                VStack {
+                    topOverlayControls
+                    Spacer()
                 }
                 
-                // Titles sit on the page background — black in light mode
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(experience.title)
-                        .font(TravTypography.titleMedium())
-                        .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
-                        .lineLimit(1)
-                    
-                    if !experience.stops.isEmpty {
-                        Text(experience.stops.map { "\($0.emoji ?? "📍") \($0.name)" }.joined(separator: "   "))
-                            .font(TravTypography.caption())
-                            .foregroundStyle(
-                                appearance.isLightMode
-                                    ? Color.black.opacity(0.55)
-                                    : TravColors.muted
-                            )
-                            .lineLimit(1)
-                    } else {
-                        Text("Explore local spots and neighborhood favorites.")
-                            .font(TravTypography.caption())
-                            .foregroundStyle(
-                                appearance.isLightMode
-                                    ? Color.black.opacity(0.55)
-                                    : TravColors.muted
-                            )
-                            .lineLimit(1)
-                    }
-                }
-                .padding(.vertical, TravSpacing.sm)
-                .padding(.horizontal, TravSpacing.xxs)
+                titleAndCreatorMetadata
             }
-            .background(Color.clear)
+            .frame(height: 200)
+            .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg))
+            .onTapGesture(perform: action)
+            
+            if !experience.stops.isEmpty {
+                stopsSequenceStrip
+            }
         }
-        .buttonStyle(.plain)
+        .background(Color.white.opacity(0.02))
+        .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: TravRadius.lg)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
         .travAppear()
     }
 }
@@ -610,4 +1065,28 @@ private struct DBStop: Codable {
     let longitude: Double
     let place_id: String?
     let orderIndex: Int
+}
+
+private struct DBUserExperience: Codable {
+    let id: UUID
+    let user_id: UUID
+    let title: String
+    let description: String
+    let city: String
+    let stops: [String]
+}
+
+private struct DBExperienceInsert: Codable {
+    let id: UUID
+    let user_id: UUID
+    let title: String
+    let description: String
+    let city: String
+    let stops: [String]
+    let created_at: Date
+}
+
+private struct DBSave: Codable {
+    let user_id: UUID
+    let place_id: String
 }
