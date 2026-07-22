@@ -379,7 +379,9 @@ struct FeedView: View {
                                             .clipShape(Circle())
                                             .foregroundStyle(.black)
                                         
-                                        Text(stop.emoji ?? "📍")
+                                        Image(systemName: sfSymbolForEmojiOrCategory(stop.emoji ?? ""))
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(TravColors.accent)
                                         Text(stop.name)
                                             .font(.system(size: 12, weight: .medium))
                                             .foregroundStyle(.white)
@@ -472,54 +474,7 @@ struct FeedView: View {
     private var filteredFeed: [ExperienceSummary] {
         var items = feedItems
         
-        // 1. Vibes-based filter (if any are selected in onboarding)
-        if let selectedVibes = session.currentUser?.selectedVibes, !selectedVibes.isEmpty {
-            let vibeToEmojis: [String: [String]] = [
-                "☕️ Hidden Cafes": ["☕"],
-                "🌙 Nightlife": ["🍻", "🍷", "🍺"],
-                "🌅 Scenic Views": ["🌅", "🌄"],
-                "🛍️ Vintage Shops": ["🛍️", "🧥", "🛒"],
-                "🎨 Street Art": ["🖼️", "🎨", "🎭"],
-                "🍲 Local Markets": ["🍲", "🥞", "🍳", "🍽️"],
-                "🍷 Rooftop Bars": ["🍷", "🍻", "🍹"],
-                "🥾 Nature Trails": ["🥾", "🌳", "🌲"]
-            ]
-            let vibeKeywords: [String: [String]] = [
-                "☕️ Hidden Cafes": ["coffee", "cafe", "crawl", "tartine", "bakery", "brew", "espresso", "latte"],
-                "🌙 Nightlife": ["bar", "night", "rooftop", "lounge", "drink", "cocktail", "beer", "club", "wine", "pub"],
-                "🌅 Scenic Views": ["view", "scenic", "peaks", "rooftop", "coit", "sunset", "golden hour", "horizon", "panorama"],
-                "🛍️ Vintage Shops": ["shop", "market", "boutique", "vintage", "ferry", "store", "flea", "craft"],
-                "🎨 Street Art": ["museum", "art", "gallery", "mural", "muralist", "exhibit", "sculpture", "painting"],
-                "🍲 Local Markets": ["market", "food", "taco", "bite", "restaurant", "slice", "pizza", "burger", "deli"],
-                "🍷 Rooftop Bars": ["bar", "rooftop", "drink", "cocktail", "wine", "beer"],
-                "🥾 Nature Trails": ["hike", "trail", "park", "nature", "outdoor", "peaks", "walk", "mountain", "forest"]
-            ]
-            
-            items = items.filter { item in
-                for stop in item.stops {
-                    if let emoji = stop.emoji {
-                        for vibe in selectedVibes {
-                            if let emojis = vibeToEmojis[vibe], emojis.contains(emoji) {
-                                return true
-                            }
-                        }
-                    }
-                }
-                let textToSearch = "\(item.title) \(item.stops.map(\.name).joined(separator: " "))".lowercased()
-                for vibe in selectedVibes {
-                    if let keywords = vibeKeywords[vibe] {
-                        for keyword in keywords {
-                            if textToSearch.contains(keyword) {
-                                return true
-                            }
-                        }
-                    }
-                }
-                return false
-            }
-        }
-        
-        // 2. Tab Filter
+        // Tab Filter
         switch selectedFilter {
         case .all:
             break
@@ -959,7 +914,9 @@ private struct FeedCardView: View {
             HStack(spacing: 8) {
                 ForEach(experience.stops) { stop in
                     HStack(spacing: 4) {
-                        Text(stop.emoji ?? "📍")
+                        Image(systemName: sfSymbolForEmojiOrCategory(stop.emoji ?? ""))
+                            .font(.system(size: 11))
+                            .foregroundStyle(TravColors.accent)
                         Text(stop.name)
                             .font(.system(size: 12, weight: .medium, design: .rounded))
                             .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)

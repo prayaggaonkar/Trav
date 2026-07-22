@@ -170,7 +170,11 @@ private struct StopTimelineRow: View {
 
             VStack(alignment: .leading, spacing: TravSpacing.xs) {
                 HStack(alignment: .firstTextBaseline, spacing: TravSpacing.xxs) {
-                    if let emoji = stop.emoji { Text(emoji) }
+                    if let emoji = stop.emoji {
+                        Image(systemName: sfSymbolForEmojiOrCategory(emoji))
+                            .font(.system(size: 14))
+                            .foregroundStyle(TravColors.accent)
+                    }
                     Text(stop.name)
                         .font(TravTypography.titleMedium())
                         .foregroundStyle(TravColors.primary)
