@@ -29,59 +29,57 @@ async def scrape_webpage(url: str) -> str:
             await browser.close()
 
 # Fetch latest post data from Berkeley Reddit search endpoint
-def scrape_reddit() -> list:
-    search_url = "https://www.reddit.com/r/berkeley/search.json?q=popup OR event&sort=new&restrict_sr=on"
-    headers = {
-        "User-Agent": "pc:trav_popup_event_scraper:v1.0 (by /u/trav_developer)"
-    }
-    
-    try:
-        print("Fetching Reddit events from /r/berkeley search API...")
-        res = requests.get(search_url, headers=headers, timeout=15)
-        
-        # If search API succeeds
-        if res.status_code == 200:
-            data = res.json()
+# Fetch latest post data from Berkeley Reddit using Playwright browser to bypass Cloudflare 403 blocks
+async def scrape_reddit() -> list:
+    url = "https://old.reddit.com/r/berkeley/new/"
+    print("Fetching Reddit events from /r/berkeley using Playwright browser...")
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        page = await context.new_page()
+        try:
+            await page.goto(url, wait_until="networkidle", timeout=30000)
+            
+            # Extract post entries on old.reddit
+            things = await page.locator("div.thing").all()
             posts = []
-            for child in data.get("data", {}).get("children", []):
-                post_data = child.get("data", {})
-                title = post_data.get("title", "")
-                selftext = post_data.get("selftext", "")
-                posts.append(f"Title: {title}\nDescription: {selftext}")
-            return posts
-            
-        print(f"Reddit search API returned status code {res.status_code}. Trying CDN-cached feed fallback...")
-    except Exception as e:
-        print(f"Error fetching from Reddit search API: {e}. Trying CDN-cached feed fallback...")
-
-    # Fallback: Scrape the standard sub /new.json feed and filter keywords in Python
-    # This route is CDN-cached at Fastly and rate-limited much less aggressively than dynamic search queries.
-    fallback_url = "https://www.reddit.com/r/berkeley/new.json?limit=50"
-    try:
-        print("Fetching standard /r/berkeley/new.json feed...")
-        res = requests.get(fallback_url, headers=headers, timeout=15)
-        if res.status_code != 200:
-            print(f"Reddit fallback feed returned status code: {res.status_code}")
-            return []
-            
-        data = res.json()
-        posts = []
-        keywords = ["popup", "pop-up", "event", "hangout", "signing", "market", "meetup", "show", "party", "festival"]
-        
-        for child in data.get("data", {}).get("children", []):
-            post_data = child.get("data", {})
-            title = post_data.get("title", "")
-            selftext = post_data.get("selftext", "")
-            combined_text = f"{title} {selftext}".lower()
-            
-            if any(kw in combined_text for kw in keywords):
-                posts.append(f"Title: {title}\nDescription: {selftext}")
+            for thing in things[:20]:
+                title_el = thing.locator("a.title")
+                if await title_el.count() > 0:
+                    title = await title_el.inner_text()
+                    posts.append(f"Title: {title}")
+                    
+            if posts:
+                # Filter posts locally by keywords
+                keywords = ["popup", "pop-up", "event", "hangout", "signing", "market", "meetup", "show", "party", "festival"]
+                filtered = [p for p in posts if any(kw in p.lower() for kw in keywords)]
+                print(f"Playwright Reddit scraper found {len(filtered)} keyword-matched posts on old.reddit.")
+                return filtered
                 
-        print(f"Subreddit feed fallback loaded. Found {len(posts)} keyword-matched posts.")
-        return posts
-    except Exception as e:
-        print(f"Error fetching from Reddit fallback feed: {e}")
-        return []
+            # Fallback to standard reddit new
+            print("old.reddit returned no entries. Trying standard /r/berkeley/new/ text extract...")
+            await page.goto("https://www.reddit.com/r/berkeley/new/", wait_until="networkidle", timeout=30000)
+            await page.wait_for_timeout(3000)
+            body_text = await page.locator("body").inner_text()
+            
+            lines = body_text.split("\n")
+            matched_lines = []
+            keywords = ["popup", "pop-up", "event", "hangout", "signing", "market", "meetup", "show", "party", "festival"]
+            for line in lines:
+                if any(kw in line.lower() for kw in keywords):
+                    matched_lines.append(line.strip())
+            
+            unique_lines = list(set([l for l in matched_lines if len(l) > 10]))
+            print(f"Playwright standard Reddit scraper found {len(unique_lines)} keyword-matched lines.")
+            return unique_lines[:10]
+            
+        except Exception as e:
+            print(f"Error scraping Reddit via Playwright: {e}")
+            return []
+        finally:
+            await browser.close()
 
 # Extract event details using local Ollama model (llama3)
 def extract_events_with_ollama(text: str) -> list:
@@ -227,7 +225,7 @@ async def main():
     eventbrite_text = await scrape_webpage(eventbrite_url)
     
     # 2. Reddit Scraping
-    reddit_posts = scrape_reddit()
+    reddit_posts = await scrape_reddit()
     
     all_events = []
     
