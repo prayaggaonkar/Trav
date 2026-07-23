@@ -30,27 +30,57 @@ async def scrape_webpage(url: str) -> str:
 
 # Fetch latest post data from Berkeley Reddit search endpoint
 def scrape_reddit() -> list:
-    url = "https://www.reddit.com/r/berkeley/search.json?q=popup OR event&sort=new&restrict_sr=on"
+    search_url = "https://www.reddit.com/r/berkeley/search.json?q=popup OR event&sort=new&restrict_sr=on"
     headers = {
         "User-Agent": "pc:trav_popup_event_scraper:v1.0 (by /u/trav_developer)"
     }
+    
     try:
-        print("Fetching Reddit events from /r/berkeley...")
-        res = requests.get(url, headers=headers, timeout=15)
+        print("Fetching Reddit events from /r/berkeley search API...")
+        res = requests.get(search_url, headers=headers, timeout=15)
+        
+        # If search API succeeds
+        if res.status_code == 200:
+            data = res.json()
+            posts = []
+            for child in data.get("data", {}).get("children", []):
+                post_data = child.get("data", {})
+                title = post_data.get("title", "")
+                selftext = post_data.get("selftext", "")
+                posts.append(f"Title: {title}\nDescription: {selftext}")
+            return posts
+            
+        print(f"Reddit search API returned status code {res.status_code}. Trying CDN-cached feed fallback...")
+    except Exception as e:
+        print(f"Error fetching from Reddit search API: {e}. Trying CDN-cached feed fallback...")
+
+    # Fallback: Scrape the standard sub /new.json feed and filter keywords in Python
+    # This route is CDN-cached at Fastly and rate-limited much less aggressively than dynamic search queries.
+    fallback_url = "https://www.reddit.com/r/berkeley/new.json?limit=50"
+    try:
+        print("Fetching standard /r/berkeley/new.json feed...")
+        res = requests.get(fallback_url, headers=headers, timeout=15)
         if res.status_code != 200:
-            print(f"Reddit search returned status code: {res.status_code}")
+            print(f"Reddit fallback feed returned status code: {res.status_code}")
             return []
             
         data = res.json()
         posts = []
+        keywords = ["popup", "pop-up", "event", "hangout", "signing", "market", "meetup", "show", "party", "festival"]
+        
         for child in data.get("data", {}).get("children", []):
             post_data = child.get("data", {})
             title = post_data.get("title", "")
             selftext = post_data.get("selftext", "")
-            posts.append(f"Title: {title}\nDescription: {selftext}")
+            combined_text = f"{title} {selftext}".lower()
+            
+            if any(kw in combined_text for kw in keywords):
+                posts.append(f"Title: {title}\nDescription: {selftext}")
+                
+        print(f"Subreddit feed fallback loaded. Found {len(posts)} keyword-matched posts.")
         return posts
     except Exception as e:
-        print(f"Error fetching Reddit posts: {e}")
+        print(f"Error fetching from Reddit fallback feed: {e}")
         return []
 
 # Extract event details using local Ollama model (llama3)
