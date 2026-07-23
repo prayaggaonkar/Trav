@@ -32,7 +32,7 @@ async def scrape_webpage(url: str) -> str:
 def scrape_reddit() -> list:
     url = "https://www.reddit.com/r/berkeley/search.json?q=popup OR event&sort=new&restrict_sr=on"
     headers = {
-        "User-Agent": "pc:trav_popup_event_scraper:v1.0 (by /u/nikhil23rao)"
+        "User-Agent": "pc:trav_popup_event_scraper:v1.0 (by /u/trav_developer)"
     }
     try:
         print("Fetching Reddit events from /r/berkeley...")
