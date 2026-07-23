@@ -473,6 +473,14 @@ struct FeedView: View {
         if showingCards { return .dark }
         return appearance.isLightMode ? .light : .dark
     }
+    
+    private func isUpcomingPopupClose(_ date: Date?) -> Bool {
+        guard let date = date else { return false }
+        let now = Date()
+        let startOfToday = Calendar.current.startOfDay(for: now)
+        let threeDaysFromNow = Calendar.current.date(byAdding: .day, value: 3, to: now) ?? now
+        return date >= startOfToday && date <= threeDaysFromNow
+    }
 
     private var filteredFeed: [ExperienceSummary] {
         var items = feedItems
@@ -620,6 +628,12 @@ struct FeedView: View {
                     .execute()
                     .value
                 
+                let dbPopups: [DBPopup] = (try? await client
+                    .from("popups")
+                    .select()
+                    .execute()
+                    .value) ?? []
+                
                 // Fetch creators profiles in parallel to resolve shared traveler metadata
                 let dbProfiles: [DBProfileSummary] = (try? await client
                     .from("profiles")
@@ -736,8 +750,78 @@ struct FeedView: View {
                     )
                 }
                 
-                // Combine and prioritize user posts at the top, followed by Recs from Trav
-                self.feedItems = userExpItems + placeItems
+                // Map popup events
+                let popupItems: [ExperienceSummary] = dbPopups.map { dbPopup in
+                    var parsedDate: Date? = nil
+                    if let startStr = dbPopup.start_time {
+                        let isoFormatter = ISO8601DateFormatter()
+                        var date = isoFormatter.date(from: startStr)
+                        if date == nil {
+                            let fallbackFormatter = DateFormatter()
+                            fallbackFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ"
+                            date = fallbackFormatter.date(from: startStr)
+                        }
+                        if date == nil {
+                            let fallbackFormatter2 = DateFormatter()
+                            fallbackFormatter2.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
+                            date = fallbackFormatter2.date(from: startStr)
+                        }
+                        parsedDate = date
+                    }
+                    
+                    let isClose = isUpcomingPopupClose(parsedDate)
+                    let creatorUsername = isClose ? "popup_upcoming" : "popup_standard"
+                    
+                    let dateText: String
+                    if let start = parsedDate {
+                        if Calendar.current.isDateInToday(start) {
+                            dateText = "Today at " + DateFormatter.localizedString(from: start, dateStyle: .none, timeStyle: .short)
+                        } else if Calendar.current.isDateInTomorrow(start) {
+                            dateText = "Tomorrow at " + DateFormatter.localizedString(from: start, dateStyle: .none, timeStyle: .short)
+                        } else {
+                            let formatter = DateFormatter()
+                            formatter.dateStyle = .medium
+                            formatter.timeStyle = .short
+                            dateText = formatter.string(from: start)
+                        }
+                    } else {
+                        dateText = "Date/Time TBA"
+                    }
+                    
+                    let popupCreator = ProfileSummary(
+                        id: UUID(),
+                        username: creatorUsername,
+                        displayName: dateText,
+                        avatarURL: nil,
+                        isVerified: true
+                    )
+                    
+                    let firstStop = StopPreview(
+                        id: UUID(),
+                        name: dbPopup.address,
+                        emoji: "mappin.and.ellipse"
+                    )
+                    
+                    let coverURL = URL(string: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=800&q=80") // default events image
+                    
+                    return ExperienceSummary(
+                        id: dbPopup.id,
+                        cityID: UUID(),
+                        title: dbPopup.event_name,
+                        coverImageURL: coverURL,
+                        creator: popupCreator,
+                        durationMinutes: 120,
+                        costLevel: .budget,
+                        estimatedCostUSD: 0,
+                        saveCount: 0,
+                        likeCount: 0,
+                        completionCount: 0,
+                        stops: [firstStop]
+                    )
+                }
+                
+                // Combine and prioritize upcoming popups at the top, followed by user posts and system places
+                self.feedItems = popupItems + userExpItems + placeItems
                 
                 if self.feedItems.isEmpty {
                     loadMockFeed()
@@ -791,18 +875,35 @@ private struct FeedCardView: View {
     }
     
     private var topOverlayControls: some View {
+        let isUpcoming = experience.creator.username == "popup_upcoming"
+        let isStandard = experience.creator.username == "popup_standard"
+        let isPopup = isUpcoming || isStandard
         let isItinerary = experience.stops.count > 1
+        
         return HStack {
-            Text(isItinerary ? "ROUTE" : "SPOT")
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .tracking(1.5)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    Capsule()
-                        .fill(isItinerary ? TravColors.accent.opacity(0.9) : Color.blue.opacity(0.9))
-                )
-                .foregroundStyle(Color.black)
+            if isPopup {
+                Text(isUpcoming ? "⚡️ HAPPENING SOON" : "📅 LOCAL POP-UP")
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .tracking(1.5)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(isUpcoming ? Color.red.opacity(0.95) : Color.orange.opacity(0.9))
+                    )
+                    .foregroundStyle(.white)
+            } else {
+                Text(isItinerary ? "ROUTE" : "SPOT")
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .tracking(1.5)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(isItinerary ? TravColors.accent.opacity(0.9) : Color.blue.opacity(0.9))
+                    )
+                    .foregroundStyle(Color.black)
+            }
             
             Spacer()
             
@@ -832,15 +933,16 @@ private struct FeedCardView: View {
     private var titleAndCreatorMetadata: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
-                Image(systemName: "person.crop.circle.fill")
+                let isPopup = experience.creator.username.hasPrefix("popup")
+                Image(systemName: isPopup ? "calendar" : "person.crop.circle.fill")
                     .font(.system(size: 12))
-                    .foregroundStyle(TravColors.muted)
+                    .foregroundStyle(isPopup ? TravColors.accent : TravColors.muted)
                 
                 Text(experience.creator.displayName)
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(TravColors.muted)
+                    .foregroundStyle(isPopup ? TravColors.accent : TravColors.muted)
                 
-                if experience.creator.isVerified {
+                if experience.creator.isVerified && !isPopup {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.system(size: 10))
                         .foregroundStyle(Color.green)
@@ -884,6 +986,8 @@ private struct FeedCardView: View {
     }
 
     var body: some View {
+        let isUpcoming = experience.creator.username == "popup_upcoming"
+        
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .bottomLeading) {
                 coverImageView
@@ -898,6 +1002,16 @@ private struct FeedCardView: View {
             }
             .frame(height: 200)
             .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg))
+            .overlay(
+                RoundedRectangle(cornerRadius: TravRadius.lg)
+                    .stroke(
+                        isUpcoming
+                        ? AnyShapeStyle(LinearGradient(colors: [Color.red, Color.orange, TravColors.accent], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        : AnyShapeStyle(Color.white.opacity(0.08)),
+                        lineWidth: isUpcoming ? 2.5 : 1
+                    )
+            )
+            .shadow(color: isUpcoming ? Color.red.opacity(0.35) : Color.clear, radius: isUpcoming ? 10 : 0, y: isUpcoming ? 4 : 0)
             .onTapGesture(perform: action)
             
             if !experience.stops.isEmpty {
@@ -1028,4 +1142,12 @@ private struct DBProfileSummary: Codable {
         case avatar_url = "avatar_url"
         case is_verified = "is_verified"
     }
+}
+
+private struct DBPopup: Codable, Identifiable {
+    let id: UUID
+    let event_name: String
+    let address: String
+    let start_time: String?
+    let end_time: String?
 }
