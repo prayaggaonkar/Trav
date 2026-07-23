@@ -182,10 +182,24 @@ def insert_popups_to_supabase(events: list):
         
     supabase: Client = create_client(supabase_url.strip(), supabase_key.strip())
     
+    # Pre-fetch existing rows to deduplicate and prevent duplicate writes
+    print("Pre-fetching existing events to prevent duplicates...")
+    try:
+        existing_res = supabase.table("popups").select("event_name").execute()
+        existing_names = set(row.get("event_name", "").strip().lower() for row in existing_res.data)
+    except Exception as e:
+        print(f"Warning: Could not pre-fetch existing popups (using empty set): {e}")
+        existing_names = set()
+    
     inserted_count = 0
     for event in events:
         name = event.get("event_name")
         if not name or name.lower() == "null" or "test event" in name.lower():
+            continue
+            
+        name_clean = name.strip()
+        if name_clean.lower() in existing_names:
+            print(f"Skipping duplicate event: {name_clean}")
             continue
             
         address = event.get("address", "Berkeley, CA")
@@ -197,18 +211,19 @@ def insert_popups_to_supabase(events: list):
         end_time = clean_and_parse_iso8601(event.get("end_time"))
         
         row = {
-            "event_name": name,
+            "event_name": name_clean,
             "address": address,
             "start_time": start_time,
             "end_time": end_time
         }
         
         try:
-            print(f"Writing to database: {name} at {address} (Time: {start_time or 'N/A'})")
+            print(f"Writing to database: {name_clean} at {address} (Time: {start_time or 'N/A'})")
             supabase.table("popups").insert(row).execute()
+            existing_names.add(name_clean.lower()) # Prevent duplicate inserts within the same batch
             inserted_count += 1
         except Exception as e:
-            print(f"Database insert error for '{name}': {e}")
+            print(f"Database insert error for '{name_clean}': {e}")
             
     print(f"Database sync complete. Total pop-up events added: {inserted_count}")
 
