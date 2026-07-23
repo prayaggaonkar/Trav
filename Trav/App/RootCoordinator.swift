@@ -223,7 +223,7 @@ struct FeedView: View {
 
     var body: some View {
         ZStack {
-            DottedGridView()
+            Color(red: 0.97, green: 0.98, blue: 0.98) // #F8F9FA Canvas
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -243,20 +243,21 @@ struct FeedView: View {
                             } label: {
                                 HStack(spacing: 6) {
                                     Image(systemName: filter.iconName)
-                                        .font(.system(size: 13, weight: .bold))
+                                        .font(.system(size: 12, weight: .bold))
                                     Text(filter.rawValue)
-                                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
                                 }
                                 .padding(.horizontal, TravSpacing.md)
                                 .padding(.vertical, TravSpacing.xs)
                                 .background(
                                     Capsule()
-                                        .fill(selectedFilter == filter ? TravColors.accent : Color.white.opacity(0.08))
+                                        .fill(selectedFilter == filter ? Color(red: 0.08, green: 0.49, blue: 0.98) : Color.white)
                                 )
-                                .foregroundStyle(selectedFilter == filter ? Color.black : .white)
+                                .foregroundStyle(selectedFilter == filter ? Color.white : Color.black.opacity(0.6))
+                                .shadow(color: Color.black.opacity(0.03), radius: 4, y: 2)
                                 .overlay(
                                     Capsule()
-                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                        .stroke(Color.black.opacity(0.04), lineWidth: 1)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -269,14 +270,14 @@ struct FeedView: View {
                 if isLoading {
                     Spacer()
                     ProgressView()
-                        .tint(TravColors.accent)
+                        .tint(Color(red: 0.08, green: 0.49, blue: 0.98))
                     Spacer()
                 } else if let errorMessage = errorMessage {
                     Spacer()
                     VStack(spacing: TravSpacing.sm) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 32))
-                            .foregroundStyle(TravColors.accent)
+                            .foregroundStyle(Color(red: 0.08, green: 0.49, blue: 0.98))
                         Text(errorMessage)
                             .font(TravTypography.bodyMedium())
                             .foregroundStyle(TravColors.muted)
@@ -292,35 +293,127 @@ struct FeedView: View {
                     Spacer()
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: TravSpacing.md) {
-                            ForEach(filteredFeed) { experience in
-                                let isItinerary = experience.stops.count > 1
-                                HeroExperienceCard(
-                                    experience: experience,
-                                    badgeText: isItinerary ? "ROUTE" : "SPOT",
-                                    isSaved: engagement.isSaved(experience.id),
-                                    onTap: {
-                                        router.presentedRoute = .experience(experience.id)
-                                    },
-                                    onCreatorTap: {
-                                        router.openProfile(experience.creator.username)
-                                    },
-                                    onSave: {
-                                        Task {
-                                            await engagement.toggleSave(
-                                                experienceID: experience.id,
-                                                summary: experience,
-                                                using: environment
-                                            )
+                        VStack(spacing: 16) {
+                            // Top Carousel ("Happening Soon" Popups resembling FB Stories)
+                            if !popups.isEmpty && selectedFilter == .all {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Happening Soon")
+                                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                                        .foregroundStyle(Color.black.opacity(0.8))
+                                        .padding(.horizontal, TravSpacing.screenHorizontal)
+                                        .padding(.top, TravSpacing.xs)
+                                    
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 12) {
+                                            ForEach(popups) { popup in
+                                                Button {
+                                                    router.presentedRoute = .experience(popup.id)
+                                                } label: {
+                                                    ZStack(alignment: .bottomLeading) {
+                                                        // Full-bleed cover image
+                                                        if let coverURL = popup.coverImageURL {
+                                                            RemoteImage(url: coverURL, height: 160, cornerRadius: 16)
+                                                        } else {
+                                                            RoundedRectangle(cornerRadius: 16)
+                                                                .fill(Color.gray.opacity(0.2))
+                                                        }
+                                                        
+                                                        // Dark gradient overlay
+                                                        LinearGradient(
+                                                            colors: [.clear, .black.opacity(0.85)],
+                                                            startPoint: .top,
+                                                            endPoint: .bottom
+                                                        )
+                                                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                                                        
+                                                        // Top pill badge ("TODAY" / "THIS WKND")
+                                                        VStack {
+                                                            HStack {
+                                                                let isToday = popup.creator.displayName.contains("Today")
+                                                                Text(isToday ? "TODAY" : "THIS WKND")
+                                                                    .font(.system(size: 8, weight: .black, design: .rounded))
+                                                                    .foregroundStyle(.white)
+                                                                    .padding(.horizontal, 6)
+                                                                    .padding(.vertical, 3)
+                                                                    .background(
+                                                                        Capsule()
+                                                                            .fill(isToday ? Color.red : Color(red: 0.08, green: 0.49, blue: 0.98))
+                                                                    )
+                                                                    .padding(8)
+                                                                
+                                                                Spacer()
+                                                            }
+                                                            Spacer()
+                                                        }
+                                                        
+                                                        // Host Avatar + Details Overlaid at bottom
+                                                        VStack(alignment: .leading, spacing: 4) {
+                                                            Image(systemName: "calendar.circle.fill")
+                                                                .font(.system(size: 24))
+                                                                .foregroundStyle(.white)
+                                                                .background(Circle().fill(Color(red: 0.08, green: 0.49, blue: 0.98)))
+                                                                .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                                                                .padding(.leading, 8)
+                                                            
+                                                            Spacer()
+                                                            
+                                                            VStack(alignment: .leading, spacing: 2) {
+                                                                Text(popup.title)
+                                                                    .font(.system(size: 11, weight: .bold))
+                                                                    .foregroundStyle(.white)
+                                                                    .lineLimit(2)
+                                                                    .multilineTextAlignment(.leading)
+                                                                
+                                                                Text(popup.creator.displayName)
+                                                                    .font(.system(size: 9, weight: .semibold))
+                                                                    .foregroundStyle(.white.opacity(0.8))
+                                                                    .lineLimit(1)
+                                                            }
+                                                            .padding([.horizontal, .bottom], 8)
+                                                        }
+                                                    }
+                                                    .frame(width: 110, height: 160)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                                    .shadow(color: Color.black.opacity(0.06), radius: 6, y: 3)
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
                                         }
+                                        .padding(.horizontal, TravSpacing.screenHorizontal)
                                     }
-                                )
-                                .onDrag {
-                                    NSItemProvider(object: experience.id.uuidString as NSString)
+                                }
+                                .padding(.bottom, TravSpacing.xs)
+                            }
+                            
+                            // Post Feed list
+                            LazyVStack(spacing: 16) {
+                                ForEach(mainFeedPosts) { experience in
+                                    FeedPostCardView(
+                                        experience: experience,
+                                        isSaved: engagement.isSaved(experience.id),
+                                        onTap: {
+                                            router.presentedRoute = .experience(experience.id)
+                                        },
+                                        onCreatorTap: {
+                                            router.openProfile(experience.creator.username)
+                                        },
+                                        onSave: {
+                                            Task {
+                                                await engagement.toggleSave(
+                                                    experienceID: experience.id,
+                                                    summary: experience,
+                                                    using: environment
+                                                )
+                                            }
+                                        }
+                                    )
+                                    .onDrag {
+                                        NSItemProvider(object: experience.id.uuidString as NSString)
+                                    }
                                 }
                             }
+                            .padding(.horizontal, TravSpacing.screenHorizontal)
                         }
-                        .padding(.horizontal, TravSpacing.screenHorizontal)
                         .padding(.vertical, TravSpacing.sm)
                         .padding(.bottom, draftStops.isEmpty ? TravSpacing.tabBarBottom + 20 : TravSpacing.tabBarBottom + 120)
                     }
@@ -500,6 +593,14 @@ struct FeedView: View {
         return items
     }
 
+    private var popups: [ExperienceSummary] {
+        feedItems.filter { $0.creator.username.hasPrefix("popup") }
+    }
+    
+    private var mainFeedPosts: [ExperienceSummary] {
+        filteredFeed.filter { !$0.creator.username.hasPrefix("popup") }
+    }
+
     private func saveDraftItinerary() async {
         guard let currentUser = session.currentUser else {
             router.presentAuth()
@@ -565,35 +666,36 @@ struct FeedView: View {
 
     private var headerView: some View {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("RECOMMENDED")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .tracking(2.5)
-                    .foregroundStyle(TravColors.accent)
-                
-                Text("Hangout Feed")
-                    .font(TravTypography.displayMedium())
-                    .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
-            }
+            Text("Trav")
+                .font(.system(size: 28, weight: .black, design: .rounded))
+                .foregroundStyle(Color(red: 0.08, green: 0.49, blue: 0.98)) // Electric blue accent
             
             Spacer()
             
-            // Status Indicator showing if feed is filtered by user vibes
-            if let selectedVibes = session.currentUser?.selectedVibes, !selectedVibes.isEmpty {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(TravColors.accent)
-                        .frame(width: 6, height: 6)
-                    Text("Tailored")
-                        .font(TravTypography.labelMedium())
-                        .foregroundStyle(TravColors.accent)
+            HStack(spacing: 12) {
+                Button {
+                    // Search placeholder
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color.black.opacity(0.6))
+                        .padding(8)
+                        .background(Color.black.opacity(0.04))
+                        .clipShape(Circle())
                 }
-                .padding(.horizontal, TravSpacing.sm)
-                .padding(.vertical, TravSpacing.xxs)
-                .background(
-                    Capsule()
-                        .fill(TravColors.accent.opacity(0.12))
-                )
+                .buttonStyle(.plain)
+                
+                Button {
+                    // Notifications placeholder
+                } label: {
+                    Image(systemName: "bell.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color.black.opacity(0.6))
+                        .padding(8)
+                        .background(Color.black.opacity(0.04))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.bottom, TravSpacing.xs)
@@ -839,192 +941,253 @@ struct FeedView: View {
     }
 }
 
-// Subview: Feed Card
-private struct FeedCardView: View {
+// Subview: Feed Post Card
+private struct FeedPostCardView: View {
     @Environment(AppearanceStore.self) private var appearance
     
     let experience: ExperienceSummary
     let isSaved: Bool
-    let onSaveToggle: () -> Void
-    let onAddToItinerary: () -> Void
-    let action: () -> Void
+    let onTap: () -> Void
+    let onCreatorTap: () -> Void
+    let onSave: () -> Void
     
-    private var coverImageView: some View {
-        ZStack {
-            if let coverURL = experience.coverImageURL {
-                AsyncImage(url: coverURL) { image in
-                    image.resizable()
-                         .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Color.white.opacity(0.05)
-                }
-            } else {
-                Color.white.opacity(0.05)
-            }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            headerSection
+            captionSection
+            mediaSection
+            stopsSection
+            statsSection
+            Divider()
+                .background(Color.black.opacity(0.06))
+                .padding(.horizontal, 12)
+            actionsSection
         }
-        .frame(height: 200)
-        .clipped()
-    }
-    
-    private var gradientOverlay: some View {
-        LinearGradient(
-            gradient: Gradient(colors: [Color.clear, Color.black.opacity(0.85)]),
-            startPoint: .top,
-            endPoint: .bottom
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.black.opacity(0.03), lineWidth: 1)
         )
     }
     
-    private var topOverlayControls: some View {
-        let isUpcoming = experience.creator.username == "popup_upcoming"
-        let isStandard = experience.creator.username == "popup_standard"
-        let isPopup = isUpcoming || isStandard
-        let isItinerary = experience.stops.count > 1
-        
-        return HStack {
-            if isPopup {
-                Text(isUpcoming ? "⚡️ HAPPENING SOON" : "📅 LOCAL POP-UP")
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .tracking(1.5)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(isUpcoming ? Color.red.opacity(0.95) : Color.orange.opacity(0.9))
-                    )
-                    .foregroundStyle(.white)
-            } else {
-                Text(isItinerary ? "ROUTE" : "SPOT")
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .tracking(1.5)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(isItinerary ? TravColors.accent.opacity(0.9) : Color.blue.opacity(0.9))
-                    )
-                    .foregroundStyle(Color.black)
+    private var headerSection: some View {
+        HStack(spacing: 10) {
+            Button(action: onCreatorTap) {
+                if let avatarURL = experience.creator.avatarURL {
+                    RemoteImage(url: avatarURL, height: 38, cornerRadius: 19)
+                        .frame(width: 38, height: 38)
+                } else {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 38))
+                        .foregroundStyle(Color(red: 0.08, green: 0.49, blue: 0.98).opacity(0.8))
+                        .background(Circle().fill(Color.white))
+                }
+            }
+            .buttonStyle(.plain)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Text(experience.creator.displayName)
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.black.opacity(0.85))
+                    
+                    if experience.creator.isVerified {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color(red: 0.08, green: 0.49, blue: 0.98))
+                    }
+                }
+                
+                HStack(spacing: 4) {
+                    Image(systemName: "mappin.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.black.opacity(0.4))
+                    Text(experience.stops.first?.name ?? "Berkeley, CA")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.black.opacity(0.5))
+                    
+                    Text("•")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.black.opacity(0.3))
+                    
+                    Text("2h ago")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.black.opacity(0.4))
+                }
             }
             
             Spacer()
             
-            Button(action: onAddToItinerary) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(TravColors.accent)
-                    .padding(8)
-                    .background(Color.white.opacity(0.15))
-                    .clipShape(Circle())
-            }
-            .buttonStyle(.plain)
-            
-            Button(action: onSaveToggle) {
-                Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(isSaved ? Color.yellow : Color.white)
-                    .padding(8)
-                    .background(Color.white.opacity(0.15))
-                    .clipShape(Circle())
+            Button {
+                // Menu
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16))
+                    .foregroundStyle(Color.black.opacity(0.5))
             }
             .buttonStyle(.plain)
         }
-        .padding(TravSpacing.sm)
+        .padding(.horizontal, 14)
+        .padding(.top, 14)
     }
     
-    private var titleAndCreatorMetadata: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                let isPopup = experience.creator.username.hasPrefix("popup")
-                Image(systemName: isPopup ? "calendar" : "person.crop.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(isPopup ? TravColors.accent : TravColors.muted)
-                
-                Text(experience.creator.displayName)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(isPopup ? TravColors.accent : TravColors.muted)
-                
-                if experience.creator.isVerified && !isPopup {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.green)
-                }
-            }
+    private var captionSection: some View {
+        let captionText = experience.stops.count > 1 
+            ? "Exploring a new route! Spots include: " + experience.stops.map { $0.name }.joined(separator: ", ") + "."
+            : "Checked out " + (experience.stops.first?.name ?? "this place") + ". A must-visit spot in town!"
             
-            Text(experience.title)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.white)
-                .lineLimit(1)
-        }
-        .padding(TravSpacing.md)
+        return Text(captionText)
+            .font(.system(size: 13, weight: .regular))
+            .foregroundStyle(Color.black.opacity(0.8))
+            .lineLimit(3)
+            .padding(.horizontal, 14)
     }
     
-    private var stopsSequenceStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(experience.stops) { stop in
-                    HStack(spacing: 4) {
-                        Image(systemName: sfSymbolForEmojiOrCategory(stop.emoji ?? ""))
-                            .font(.system(size: 11))
-                            .foregroundStyle(TravColors.accent)
-                        Text(stop.name)
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
-                    }
-                    .padding(.horizontal, TravSpacing.sm)
-                    .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.04))
-                    .clipShape(Capsule())
-                    .overlay(
-                        Capsule()
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                    )
-                }
-            }
-            .padding(.horizontal, TravSpacing.md)
-            .padding(.vertical, TravSpacing.sm)
-        }
-        .background(Color.black.opacity(0.15))
-    }
-
-    var body: some View {
-        let isUpcoming = experience.creator.username == "popup_upcoming"
-        
-        VStack(alignment: .leading, spacing: 0) {
+    private var mediaSection: some View {
+        Button(action: onTap) {
             ZStack(alignment: .bottomLeading) {
-                coverImageView
-                gradientOverlay
-                
-                VStack {
-                    topOverlayControls
-                    Spacer()
+                if let coverURL = experience.coverImageURL {
+                    RemoteImage(url: coverURL, height: 210, cornerRadius: 12)
+                } else {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(LinearGradient(colors: [Color.gray.opacity(0.1), Color.gray.opacity(0.2)], startPoint: .top, endPoint: .bottom))
+                        .frame(height: 210)
                 }
                 
-                titleAndCreatorMetadata
-            }
-            .frame(height: 200)
-            .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg))
-            .overlay(
-                RoundedRectangle(cornerRadius: TravRadius.lg)
-                    .stroke(
-                        isUpcoming
-                        ? AnyShapeStyle(LinearGradient(colors: [Color.red, Color.orange, TravColors.accent], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        : AnyShapeStyle(Color.white.opacity(0.08)),
-                        lineWidth: isUpcoming ? 2.5 : 1
-                    )
-            )
-            .shadow(color: isUpcoming ? Color.red.opacity(0.35) : Color.clear, radius: isUpcoming ? 10 : 0, y: isUpcoming ? 4 : 0)
-            .onTapGesture(perform: action)
-            
-            if !experience.stops.isEmpty {
-                stopsSequenceStrip
+                if experience.stops.count > 1 {
+                    Text("\(experience.stops.count) SPOTS")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.black.opacity(0.6)))
+                        .padding(10)
+                }
             }
         }
-        .background(Color.white.opacity(0.02))
-        .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: TravRadius.lg)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-        )
-        .travAppear()
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+    }
+    
+    @ViewBuilder
+    private var stopsSection: some View {
+        if experience.stops.count > 1 {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array(experience.stops.enumerated()), id: \.offset) { index, stop in
+                        HStack(spacing: 4) {
+                            Text("\(index + 1)")
+                                .font(.system(size: 9, weight: .bold))
+                                .padding(4)
+                                .background(Color(red: 0.08, green: 0.49, blue: 0.98).opacity(0.1))
+                                .clipShape(Circle())
+                                .foregroundStyle(Color(red: 0.08, green: 0.49, blue: 0.98))
+                            
+                            Text(stop.name)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Color.black.opacity(0.7))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.black.opacity(0.03))
+                        .clipShape(Capsule())
+                    }
+                }
+                .padding(.horizontal, 14)
+            }
+        }
+    }
+    
+    private var statsSection: some View {
+        let likes = experience.stops.count * 4 + 7
+        let saves = experience.saveCount + 15
+        
+        return HStack {
+            HStack(spacing: 4) {
+                Image(systemName: "hand.thumbsup.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white)
+                    .padding(3)
+                    .background(Circle().fill(Color(red: 0.08, green: 0.49, blue: 0.98)))
+                
+                Text("\(likes)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.black.opacity(0.5))
+            }
+            
+            Spacer()
+            
+            Text("\(saves) saved • \(experience.stops.count + 2) comments")
+                .font(.system(size: 11))
+                .foregroundStyle(Color.black.opacity(0.5))
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 2)
+    }
+    
+    private var actionsSection: some View {
+        HStack(spacing: 0) {
+            Button {
+                // Like placeholder
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "hand.thumbsup")
+                        .font(.system(size: 15))
+                    Text("Like")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(Color.black.opacity(0.6))
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            
+            Button(action: onSave) {
+                HStack(spacing: 6) {
+                    Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                        .font(.system(size: 15))
+                    Text(isSaved ? "Saved" : "Save")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(isSaved ? Color(red: 0.08, green: 0.49, blue: 0.98) : Color.black.opacity(0.6))
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            
+            Button {
+                // Comment placeholder
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "bubble.left")
+                        .font(.system(size: 15))
+                    Text("Comment")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(Color.black.opacity(0.6))
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            
+            Button {
+                // Share placeholder
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 15))
+                    Text("Share")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(Color.black.opacity(0.6))
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.bottom, 8)
     }
 }
 
