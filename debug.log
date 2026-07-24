@@ -605,3 +605,44 @@
 [2026-07-23 17:23:28] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 7
 [2026-07-23 17:23:28] SupabaseExperienceRepository.fetchCityFeed: matched 5 experiences for 'San Francisco'
 [2026-07-23 17:23:28] CityViewModel.load completed successfully, phase set to loaded
+[2026-07-23 17:24:33] AppEnvironment.observeAuthState started
+[2026-07-23 17:24:34] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-23 17:24:56] CityViewModel.load started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-23 17:24:56] SupabaseExperienceRepository.fetchCityFeed started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-23 17:24:56] SupabaseExperienceRepository.fetchCityFeed: resolved cityName: 'San Francisco'
+[2026-07-23 17:24:56] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 7
+[2026-07-23 17:24:56] SupabaseExperienceRepository.fetchCityFeed: matched 5 experiences for 'San Francisco'
+[2026-07-23 17:24:56] CityViewModel.load completed successfully, phase set to loaded
+[2026-07-23 17:25:41] CityViewModel.load started for cityID: C1000004-0000-0000-0000-000000000004
+[2026-07-23 17:25:41] SupabaseExperienceRepository.fetchCityFeed started for cityID: C1000004-0000-0000-0000-000000000004
+[2026-07-23 17:25:41] SupabaseExperienceRepository.fetchCityFeed: resolved cityName: 'New York'
+[2026-07-23 17:25:41] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 7
+[2026-07-23 17:25:41] SupabaseExperienceRepository.fetchCityFeed: matched 1 experiences for 'New York'
+[2026-07-23 17:25:41] CityViewModel.load completed successfully, phase set to loaded
+[2026-07-23 17:26:02] CityViewModel.load started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-23 17:26:02] SupabaseExperienceRepository.fetchCityFeed started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-23 17:26:02] SupabaseExperienceRepository.fetchCityFeed: resolved cityName: 'San Francisco'
+[2026-07-23 17:26:02] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 7
+[2026-07-23 17:26:02] SupabaseExperienceRepository.fetchCityFeed: matched 5 experiences for 'San Francisco'
+[2026-07-23 17:26:03] CityViewModel.load completed successfully, phase set to loaded
+[2026-07-23 17:27:52] CityViewModel.load started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-23 17:27:52] SupabaseExperienceRepository.fetchCityFeed started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-23 17:27:52] SupabaseExperienceRepository.fetchCityFeed: resolved cityName: 'San Francisco'
+[2026-07-23 17:27:52] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 7
+[2026-07-23 17:27:52] SupabaseExperienceRepository.fetchCityFeed: matched 5 experiences for 'San Francisco'
+[2026-07-23 17:27:52] CityViewModel.load completed successfully, phase set to loaded
+[2026-07-23 17:28:35] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-23 17:29:17] CityViewModel.load started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-23 17:29:17] SupabaseExperienceRepository.fetchCityFeed started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-23 17:29:17] SupabaseExperienceRepository.fetchCityFeed: resolved cityName: 'San Francisco'
+[2026-07-23 17:29:17] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 7
+[2026-07-23 17:29:17] SupabaseExperienceRepository.fetchCityFeed: matched 5 experiences for 'San Francisco'
+[2026-07-23 17:29:18] CityViewModel.load completed successfully, phase set to loaded
+[2026-07-23 17:30:10] AppEnvironment.observeAuthState started
+[2026-07-23 17:30:11] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-23 17:30:23] CityViewModel.load started for cityID: C1000002-0000-0000-0000-000000000002
+[2026-07-23 17:30:23] SupabaseExperienceRepository.fetchCityFeed started for cityID: C1000002-0000-0000-0000-000000000002
+[2026-07-23 17:30:23] SupabaseExperienceRepository.fetchCityFeed: resolved cityName: 'Tokyo'
+[2026-07-23 17:30:23] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 7
+[2026-07-23 17:30:23] SupabaseExperienceRepository.fetchCityFeed: matched 0 experiences for 'Tokyo'
+[2026-07-23 17:30:23] CityViewModel.load completed successfully, phase set to loaded

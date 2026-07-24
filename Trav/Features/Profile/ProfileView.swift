@@ -234,14 +234,10 @@ struct ProfileView: View {
         LazyVStack(spacing: 0) {
             switch viewModel.selectedTab {
             case .created:
-                if viewModel.created.isEmpty {
-                    ProfileEmptyState(
-                        title: "No experiences yet",
-                        description: "Share your first experience with the community."
-                    )
-                } else {
-                    experienceList(viewModel.created)
-                }
+                ProfileEmptyState(
+                    title: "No experiences yet",
+                    description: "Share your first experience with the community."
+                )
 
             case .saved:
                 if viewModel.saved.isEmpty {
