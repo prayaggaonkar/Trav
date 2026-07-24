@@ -483,7 +483,7 @@ struct GlobeLandingView: View {
 
 /// Sky behind the globe — night indigo in dark mode, soft daylight wash in light mode.
 /// The SceneKit globe textures/lights are unchanged.
-private struct HomeCelestialBackground: View {
+struct HomeCelestialBackground: View {
     @Environment(AppearanceStore.self) private var appearance
 
     var body: some View {

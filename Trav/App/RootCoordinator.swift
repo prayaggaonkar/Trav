@@ -223,7 +223,7 @@ struct FeedView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.97, green: 0.98, blue: 0.98) // #F8F9FA Canvas
+            HomeCelestialBackground() // Match Explore Page background
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -251,13 +251,12 @@ struct FeedView: View {
                                 .padding(.vertical, TravSpacing.xs)
                                 .background(
                                     Capsule()
-                                        .fill(selectedFilter == filter ? Color(red: 0.08, green: 0.49, blue: 0.98) : Color.white)
+                                        .fill(selectedFilter == filter ? TravColors.accent : Color.white.opacity(0.08))
                                 )
-                                .foregroundStyle(selectedFilter == filter ? Color.white : Color.black.opacity(0.6))
-                                .shadow(color: Color.black.opacity(0.03), radius: 4, y: 2)
+                                .foregroundStyle(selectedFilter == filter ? Color.black : .white)
                                 .overlay(
                                     Capsule()
-                                        .stroke(Color.black.opacity(0.04), lineWidth: 1)
+                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -270,14 +269,14 @@ struct FeedView: View {
                 if isLoading {
                     Spacer()
                     ProgressView()
-                        .tint(Color(red: 0.08, green: 0.49, blue: 0.98))
+                        .tint(TravColors.accent)
                     Spacer()
                 } else if let errorMessage = errorMessage {
                     Spacer()
                     VStack(spacing: TravSpacing.sm) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 32))
-                            .foregroundStyle(Color(red: 0.08, green: 0.49, blue: 0.98))
+                            .foregroundStyle(TravColors.accent)
                         Text(errorMessage)
                             .font(TravTypography.bodyMedium())
                             .foregroundStyle(TravColors.muted)
@@ -299,7 +298,7 @@ struct FeedView: View {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Happening Soon")
                                         .font(.system(size: 16, weight: .bold, design: .rounded))
-                                        .foregroundStyle(Color.black.opacity(0.8))
+                                        .foregroundStyle(.white)
                                         .padding(.horizontal, TravSpacing.screenHorizontal)
                                         .padding(.top, TravSpacing.xs)
                                     
@@ -337,7 +336,7 @@ struct FeedView: View {
                                                                     .padding(.vertical, 3)
                                                                     .background(
                                                                         Capsule()
-                                                                            .fill(isToday ? Color.red : Color(red: 0.08, green: 0.49, blue: 0.98))
+                                                                            .fill(isToday ? Color.red : TravColors.accent)
                                                                     )
                                                                     .padding(8)
                                                                 
@@ -351,7 +350,7 @@ struct FeedView: View {
                                                             Image(systemName: "calendar.circle.fill")
                                                                 .font(.system(size: 24))
                                                                 .foregroundStyle(.white)
-                                                                .background(Circle().fill(Color(red: 0.08, green: 0.49, blue: 0.98)))
+                                                                .background(Circle().fill(TravColors.accent))
                                                                 .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
                                                                 .padding(.leading, 8)
                                                             
@@ -666,39 +665,84 @@ struct FeedView: View {
 
     private var headerView: some View {
         HStack(alignment: .center) {
-            Text("Trav")
-                .font(.system(size: 28, weight: .black, design: .rounded))
-                .foregroundStyle(Color(red: 0.08, green: 0.49, blue: 0.98)) // Electric blue accent
+            // Left Side: Brand Logo and Title
+            HStack(spacing: TravSpacing.sm) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        appearance.toggle()
+                    }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(TravColors.accent.opacity(0.15))
+                            .frame(width: 46, height: 46)
+
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundStyle(TravColors.accent)
+                    }
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.92))
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("TRAV")
+                        .font(.system(size: 22, weight: .black, design: .rounded))
+                        .tracking(3)
+                        .foregroundStyle(appearance.isLightMode ? Color.black : .white)
+
+                    Text("What's the move?")
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundStyle(
+                            appearance.isLightMode
+                                ? Color.black.opacity(0.55)
+                                : .white.opacity(0.5)
+                        )
+                }
+            }            
             
             Spacer()
             
-            HStack(spacing: 12) {
-                Button {
-                    // Search placeholder
-                } label: {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(Color.black.opacity(0.6))
-                        .padding(8)
-                        .background(Color.black.opacity(0.04))
-                        .clipShape(Circle())
+            // Right Side: Auth / Profile Action
+            if session.isAuthenticated {
+                Button(action: {
+                    if let username = session.currentUser?.username {
+                        router.openProfile(username)
+                    }
+                }) {
+                    if let avatarURL = session.currentUser?.avatarURL {
+                        RemoteImage(url: avatarURL, height: 44, cornerRadius: 22)
+                            .frame(width: 44, height: 44)
+                    } else {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.system(size: 44))
+                            .foregroundStyle(TravColors.accent)
+                            .background(Circle().fill(Color.white.opacity(0.05)))
+                    }
                 }
-                .buttonStyle(.plain)
-                
+                .buttonStyle(TravPressButtonStyle(scale: 0.92))
+            } else {
                 Button {
-                    // Notifications placeholder
+                    router.presentAuth()
                 } label: {
-                    Image(systemName: "bell.fill")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(Color.black.opacity(0.6))
-                        .padding(8)
-                        .background(Color.black.opacity(0.04))
-                        .clipShape(Circle())
+                    Text("Sign In")
+                        .font(TravTypography.bodyMedium())
+                        .fontWeight(.bold)
+                        .foregroundStyle(appearance.isLightMode ? Color.black : .white)
+                        .padding(.horizontal, TravSpacing.lg)
+                        .frame(height: 38)
+                        .background(
+                            Capsule()
+                                .fill(TravColors.accent.opacity(appearance.isLightMode ? 0.12 : 0.15))
+                        )
+                        .overlay {
+                            Capsule()
+                                .stroke(TravColors.accent.opacity(0.3), lineWidth: 1)
+                        }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TravPressButtonStyle(scale: 0.95))
             }
         }
-        .padding(.bottom, TravSpacing.xs)
+        .padding(.vertical, TravSpacing.sm)
     }
 
     private func loadMockFeed() {
@@ -959,16 +1003,15 @@ private struct FeedPostCardView: View {
             stopsSection
             statsSection
             Divider()
-                .background(Color.black.opacity(0.06))
+                .background(Color.white.opacity(0.08))
                 .padding(.horizontal, 12)
             actionsSection
         }
-        .background(Color.white)
+        .background(Color.white.opacity(0.025))
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.black.opacity(0.03), lineWidth: 1)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
         )
     }
     
@@ -981,8 +1024,8 @@ private struct FeedPostCardView: View {
                 } else {
                     Image(systemName: "person.crop.circle.fill")
                         .font(.system(size: 38))
-                        .foregroundStyle(Color(red: 0.08, green: 0.49, blue: 0.98).opacity(0.8))
-                        .background(Circle().fill(Color.white))
+                        .foregroundStyle(TravColors.accent.opacity(0.8))
+                        .background(Circle().fill(Color.black.opacity(0.2)))
                 }
             }
             .buttonStyle(.plain)
@@ -991,30 +1034,30 @@ private struct FeedPostCardView: View {
                 HStack(spacing: 4) {
                     Text(experience.creator.displayName)
                         .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.black.opacity(0.85))
+                        .foregroundStyle(.white)
                     
                     if experience.creator.isVerified {
                         Image(systemName: "checkmark.seal.fill")
                             .font(.system(size: 11))
-                            .foregroundStyle(Color(red: 0.08, green: 0.49, blue: 0.98))
+                            .foregroundStyle(TravColors.accent)
                     }
                 }
                 
                 HStack(spacing: 4) {
                     Image(systemName: "mappin.circle.fill")
                         .font(.system(size: 10))
-                        .foregroundStyle(Color.black.opacity(0.4))
+                        .foregroundStyle(.white.opacity(0.4))
                     Text(experience.stops.first?.name ?? "Berkeley, CA")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color.black.opacity(0.5))
+                        .foregroundStyle(.white.opacity(0.5))
                     
                     Text("•")
                         .font(.system(size: 10))
-                        .foregroundStyle(Color.black.opacity(0.3))
+                        .foregroundStyle(.white.opacity(0.3))
                     
                     Text("2h ago")
                         .font(.system(size: 11))
-                        .foregroundStyle(Color.black.opacity(0.4))
+                        .foregroundStyle(.white.opacity(0.4))
                 }
             }
             
@@ -1025,7 +1068,7 @@ private struct FeedPostCardView: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 16))
-                    .foregroundStyle(Color.black.opacity(0.5))
+                    .foregroundStyle(.white.opacity(0.5))
             }
             .buttonStyle(.plain)
         }
@@ -1040,7 +1083,7 @@ private struct FeedPostCardView: View {
             
         return Text(captionText)
             .font(.system(size: 13, weight: .regular))
-            .foregroundStyle(Color.black.opacity(0.8))
+            .foregroundStyle(.white.opacity(0.8))
             .lineLimit(3)
             .padding(.horizontal, 14)
     }
@@ -1052,7 +1095,7 @@ private struct FeedPostCardView: View {
                     RemoteImage(url: coverURL, height: 210, cornerRadius: 12)
                 } else {
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(LinearGradient(colors: [Color.gray.opacity(0.1), Color.gray.opacity(0.2)], startPoint: .top, endPoint: .bottom))
+                        .fill(LinearGradient(colors: [Color.white.opacity(0.05), Color.white.opacity(0.1)], startPoint: .top, endPoint: .bottom))
                         .frame(height: 210)
                 }
                 
@@ -1081,17 +1124,17 @@ private struct FeedPostCardView: View {
                             Text("\(index + 1)")
                                 .font(.system(size: 9, weight: .bold))
                                 .padding(4)
-                                .background(Color(red: 0.08, green: 0.49, blue: 0.98).opacity(0.1))
+                                .background(TravColors.accent.opacity(0.15))
                                 .clipShape(Circle())
-                                .foregroundStyle(Color(red: 0.08, green: 0.49, blue: 0.98))
+                                .foregroundStyle(TravColors.accent)
                             
                             Text(stop.name)
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(Color.black.opacity(0.7))
+                                .foregroundStyle(.white.opacity(0.7))
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Color.black.opacity(0.03))
+                        .background(Color.white.opacity(0.04))
                         .clipShape(Capsule())
                     }
                 }
@@ -1101,27 +1144,15 @@ private struct FeedPostCardView: View {
     }
     
     private var statsSection: some View {
-        let likes = experience.stops.count * 4 + 7
         let saves = experience.saveCount + 15
-        
         return HStack {
-            HStack(spacing: 4) {
-                Image(systemName: "hand.thumbsup.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.white)
-                    .padding(3)
-                    .background(Circle().fill(Color(red: 0.08, green: 0.49, blue: 0.98)))
-                
-                Text("\(likes)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.black.opacity(0.5))
-            }
-            
-            Spacer()
-            
-            Text("\(saves) saved • \(experience.stops.count + 2) comments")
+            Image(systemName: "bookmark.fill")
+                .font(.system(size: 10))
+                .foregroundStyle(TravColors.accent)
+            Text("\(saves) saved")
                 .font(.system(size: 11))
-                .foregroundStyle(Color.black.opacity(0.5))
+                .foregroundStyle(.white.opacity(0.5))
+            Spacer()
         }
         .padding(.horizontal, 14)
         .padding(.top, 2)
@@ -1129,59 +1160,29 @@ private struct FeedPostCardView: View {
     
     private var actionsSection: some View {
         HStack(spacing: 0) {
-            Button {
-                // Like placeholder
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "hand.thumbsup")
-                        .font(.system(size: 15))
-                    Text("Like")
-                        .font(.system(size: 12, weight: .semibold))
-                }
-                .foregroundStyle(Color.black.opacity(0.6))
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.plain)
-            
             Button(action: onSave) {
                 HStack(spacing: 6) {
                     Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 15))
+                        .font(.system(size: 14))
                     Text(isSaved ? "Saved" : "Save")
                         .font(.system(size: 12, weight: .semibold))
                 }
-                .foregroundStyle(isSaved ? Color(red: 0.08, green: 0.49, blue: 0.98) : Color.black.opacity(0.6))
+                .foregroundStyle(isSaved ? Color.yellow : .white.opacity(0.6))
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.plain)
             
             Button {
-                // Comment placeholder
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "bubble.left")
-                        .font(.system(size: 15))
-                    Text("Comment")
-                        .font(.system(size: 12, weight: .semibold))
-                }
-                .foregroundStyle(Color.black.opacity(0.6))
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.plain)
-            
-            Button {
-                // Share placeholder
+                // Share action placeholder
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 15))
+                        .font(.system(size: 14))
                     Text("Share")
                         .font(.system(size: 12, weight: .semibold))
                 }
-                .foregroundStyle(Color.black.opacity(0.6))
+                .foregroundStyle(.white.opacity(0.6))
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity)
             }
