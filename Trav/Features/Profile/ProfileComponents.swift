@@ -146,43 +146,128 @@ struct ProfileExperienceCard: View {
     var onTap: (() -> Void)? = nil
 
     var body: some View {
-        let row = HStack(alignment: .center, spacing: TravSpacing.md) {
-            RemoteImage(
-                url: experience.coverImageURL,
-                height: 72,
-                cornerRadius: 10
-            )
-            .frame(width: 72, height: 72)
+        let cardContent = ZStack {
+            // Glass background fill
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.12, green: 0.07, blue: 0.28).opacity(0.85),
+                        Color(red: 0.08, green: 0.11, blue: 0.32).opacity(0.88),
+                        Color(red: 0.05, green: 0.07, blue: 0.22).opacity(0.92)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(experience.title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(TravColors.primary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
+                RadialGradient(
+                    colors: [
+                        Color(red: 0.65, green: 0.32, blue: 1.0).opacity(0.25),
+                        .clear
+                    ],
+                    center: .topLeading,
+                    startRadius: 0,
+                    endRadius: 180
+                )
 
-                Text(metaLine)
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
-                    .foregroundStyle(TravColors.muted)
-                    .lineLimit(1)
+                Rectangle()
+                    .fill(.thinMaterial)
+                    .opacity(0.15)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(alignment: .center, spacing: TravSpacing.md) {
+                ZStack {
+                    RemoteImage(
+                        url: experience.coverImageURL,
+                        height: 68,
+                        cornerRadius: 12
+                    )
+                    .frame(width: 68, height: 68)
+
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [.white.opacity(0.5), Color(red: 0.65, green: 0.35, blue: 1.0).opacity(0.4)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(experience.title)
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+
+                    HStack(spacing: 6) {
+                        HStack(spacing: 4) {
+                            if let url = experience.creator.avatarURL {
+                                AsyncImage(url: url) { image in
+                                    image.resizable().scaledToFill()
+                                } placeholder: {
+                                    Image(systemName: "person.crop.circle.fill")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(.white)
+                                }
+                                .frame(width: 14, height: 14)
+                                .clipShape(Circle())
+                            } else {
+                                Image(systemName: "person.crop.circle.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.white)
+                            }
+                            Text(experience.creator.displayName)
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.9))
+                        }
+
+                        Text("·")
+                            .foregroundStyle(.white.opacity(0.4))
+
+                        Text(metaLine)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.75))
+                            .lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(TravSpacing.sm + 2)
         }
-        .padding(.vertical, TravSpacing.sm)
+        .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            .white.opacity(0.35),
+                            .white.opacity(0.1),
+                            Color(red: 0.65, green: 0.35, blue: 1.0).opacity(0.3)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
+        .shadow(color: Color(red: 0.12, green: 0.06, blue: 0.30).opacity(0.35), radius: 12, x: 0, y: 6)
+        .padding(.vertical, 4)
         .contentShape(Rectangle())
 
         if let onTap {
-            Button(action: onTap) { row }
-                .buttonStyle(TravPressButtonStyle(scale: 0.99))
+            Button(action: onTap) { cardContent }
+                .buttonStyle(TravPressButtonStyle(scale: 0.98))
         } else {
-            row
+            cardContent
         }
     }
 
     private var metaLine: String {
         var parts: [String] = [cityLabel]
         parts.append("\(TravFormatters.count(experience.saveCount)) saves")
-        parts.append("\(TravFormatters.count(experience.completionCount)) completed")
         if let completedAt {
             parts = [cityLabel, "Completed \(completedAt.formatted(date: .abbreviated, time: .omitted))"]
         }

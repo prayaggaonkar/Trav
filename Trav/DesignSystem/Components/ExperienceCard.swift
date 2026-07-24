@@ -1,8 +1,58 @@
 import SwiftUI
 
-/// Full-width editorial experience card used in the City page feed.
+/// Full-width experience card used across feeds.
+/// Renders user-created experiences with the frosted glassmorphic card design & circular rating progress bar,
+/// and non-user (system/editorial) experiences with the standard card design.
 struct ExperienceCard: View {
     let experience: ExperienceSummary
+    var badgeText: String = ""
+    var isSaved: Bool = false
+    var isLiked: Bool = false
+    var onTap: () -> Void
+    var onCreatorTap: (() -> Void)? = nil
+    var onSave: (() -> Void)? = nil
+    var onLike: (() -> Void)? = nil
+    var onShare: (() -> Void)? = nil
+
+    var body: some View {
+        if isUserCard {
+            HeroExperienceCard(
+                experience: experience,
+                badgeText: badgeText.isEmpty ? "Created by Me" : badgeText,
+                isSaved: isSaved,
+                isLiked: isLiked,
+                onTap: onTap,
+                onCreatorTap: onCreatorTap,
+                onSave: onSave,
+                onLike: onLike,
+                onShare: onShare
+            )
+        } else {
+            StandardExperienceCard(
+                experience: experience,
+                badgeText: badgeText,
+                isSaved: isSaved,
+                isLiked: isLiked,
+                onTap: onTap,
+                onCreatorTap: onCreatorTap,
+                onSave: onSave,
+                onLike: onLike,
+                onShare: onShare
+            )
+        }
+    }
+
+    private var isUserCard: Bool {
+        if badgeText == "Created by Me" { return true }
+        let systemNames = ["system", "trav editorial", "editorial", "trav"]
+        return !systemNames.contains(experience.creator.displayName.lowercased())
+    }
+}
+
+/// Standard experience card for non-user (system/featured/editorial) experiences.
+struct StandardExperienceCard: View {
+    let experience: ExperienceSummary
+    var badgeText: String = ""
     var isSaved: Bool = false
     var isLiked: Bool = false
     var onTap: () -> Void
@@ -27,13 +77,28 @@ struct ExperienceCard: View {
                 )
 
                 HStack(spacing: TravSpacing.xs) {
+                    if !badgeText.isEmpty {
+                        Text(badgeText)
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(Color.black.opacity(0.45)))
+                    }
+
+                    Spacer()
+
                     CityCardActionButton(
                         systemName: isSaved ? "bookmark.fill" : "bookmark",
                         isActive: isSaved
                     ) { onSave?() }
-                    CityCardActionButton(
-                        systemName: "square.and.arrow.up"
-                    ) { onShare?() }
+
+                    if onShare != nil {
+                        CityCardActionButton(
+                            systemName: "square.and.arrow.up",
+                            isActive: false
+                        ) { onShare?() }
+                    }
                 }
                 .padding(TravSpacing.sm)
             }
@@ -54,7 +119,7 @@ struct ExperienceCard: View {
                 Button {
                     onCreatorTap?()
                 } label: {
-                    Text(experience.creator.displayName)
+                    Text("by \(experience.creator.displayName)")
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.muted)
                         .lineLimit(1)
@@ -84,11 +149,10 @@ struct ExperienceCard: View {
         .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
         .onTapGesture(perform: onTap)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(experience.title)
     }
 
     private var displaySaveCount: Int {
         experience.saveCount + (isSaved ? 1 : 0)
     }
 }
+

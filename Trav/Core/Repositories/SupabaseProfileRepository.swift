@@ -352,7 +352,6 @@ struct SupabaseProfileRepository: ProfileRepository {
 
         struct SaveRow: Decodable {
             let experience_id: UUID
-            let created_at: Date?
         }
 
         struct ExperienceJoin: Decodable {
@@ -366,31 +365,50 @@ struct SupabaseProfileRepository: ProfileRepository {
             let user_id: UUID
         }
 
+        struct PlaceJoin: Decodable {
+            let id: String
+            let name: String
+            let basic_category: String
+            let latitude: Double
+            let longitude: Double
+            let stops: [String]?
+        }
+
         var items: [ExperienceSummary] = []
         var seen = Set<UUID>()
 
-        let rows: [SaveRow] = (try? await client
-            .from("saved_experiences")
-            .select("experience_id, created_at")
-            .eq("user_id", value: user)
-            .order("created_at", ascending: false)
-            .range(from: from, to: to)
-            .execute()
-            .value) ?? []
+        var rows: [SaveRow] = []
+        do {
+            rows = try await client
+                .from("saved_experiences")
+                .select("experience_id")
+                .eq("user_id", value: user)
+                .order("created_at", ascending: false)
+                .range(from: from, to: to)
+                .execute()
+                .value
+        } catch {
+            print("SupabaseProfileRepository.fetchSavedExperiences notice (saved_experiences): \(error)")
+        }
 
-        let fallbackRows: [SaveRow] = rows.isEmpty ? ((try? await client
-            .from("experience_saves")
-            .select("experience_id, created_at")
-            .eq("user_id", value: user)
-            .order("created_at", ascending: false)
-            .range(from: from, to: to)
-            .execute()
-            .value) ?? []) : []
+        if rows.isEmpty {
+            do {
+                rows = try await client
+                    .from("experience_saves")
+                    .select("experience_id")
+                    .eq("user_id", value: user)
+                    .order("created_at", ascending: false)
+                    .range(from: from, to: to)
+                    .execute()
+                    .value
+            } catch {
+                print("SupabaseProfileRepository.fetchSavedExperiences notice (experience_saves): \(error)")
+            }
+        }
 
-        let combinedSaved = rows.isEmpty ? fallbackRows : rows
+        if !rows.isEmpty {
+            let expIDs = rows.map { $0.experience_id.uuidString.lowercased() }
 
-        if !combinedSaved.isEmpty {
-            let expIDs = combinedSaved.map { $0.experience_id.uuidString.lowercased() }
             let exps: [ExperienceJoin] = (try? await client
                 .from("experiences")
                 .select("id, title, city, stops, image, save_count, completion_count, user_id")
@@ -411,33 +429,125 @@ struct SupabaseProfileRepository: ProfileRepository {
                 saveCounts[r.experience_id, default: 0] += 1
             }
 
+            let userIDs = Array(Set(exps.map(\.user_id)))
+            let creatorsMap = await fetchCreatorProfiles(for: userIDs)
+
             let expByID = Dictionary(uniqueKeysWithValues: exps.map { ($0.id, $0) })
-            for row in combinedSaved {
-                guard let exp = expByID[row.experience_id], seen.insert(exp.id).inserted else { continue }
-                let cityID = MockData.cities.first { $0.name.caseInsensitiveCompare(exp.city) == .orderedSame }?.id ?? UUID()
-                let liveSaveCount = saveCounts[exp.id] ?? exp.save_count ?? 0
-                items.append(
-                    ExperienceSummary(
-                        id: exp.id,
-                        cityID: cityID,
-                        title: exp.title,
-                        coverImageURL: exp.image.flatMap(URL.init(string:)),
-                        creator: ProfileSummary(id: exp.user_id, username: "traveler", displayName: "Traveler", avatarURL: nil, isVerified: false),
-                        durationMinutes: max(exp.stops.count, 1) * 30,
-                        costLevel: .budget,
-                        estimatedCostUSD: nil,
-                        saveCount: liveSaveCount,
-                        likeCount: 0,
-                        completionCount: exp.completion_count ?? 0,
-                        stops: exp.stops.map { StopPreview(id: UUID(), name: $0, emoji: nil) },
-                        cityName: exp.city
+
+            let foundExpIDs = Set(exps.map(\.id))
+            let missingExpIDs = rows.map(\.experience_id).filter { !foundExpIDs.contains($0) }
+            var placesByID: [UUID: PlaceJoin] = [:]
+            if !missingExpIDs.isEmpty {
+                let placeIDs = missingExpIDs.map { $0.uuidString.lowercased() }
+                let places: [PlaceJoin] = (try? await client
+                    .from("places")
+                    .select("id, name, basic_category, latitude, longitude, stops")
+                    .in("id", values: placeIDs)
+                    .execute()
+                    .value) ?? []
+                for p in places {
+                    if let u = UUID(uuidString: p.id) {
+                        placesByID[u] = p
+                    }
+                }
+            }
+
+            for row in rows {
+                guard seen.insert(row.experience_id).inserted else { continue }
+                if let exp = expByID[row.experience_id] {
+                    let cityID = MockData.cities.first { $0.name.caseInsensitiveCompare(exp.city) == .orderedSame }?.id ?? UUID()
+                    let liveSaveCount = saveCounts[exp.id] ?? exp.save_count ?? 0
+                    let creator = creatorsMap[exp.user_id] ?? ProfileSummary(
+                        id: exp.user_id,
+                        username: "traveler",
+                        displayName: "Traveler",
+                        avatarURL: nil,
+                        isVerified: false
                     )
-                )
+                    items.append(
+                        ExperienceSummary(
+                            id: exp.id,
+                            cityID: cityID,
+                            title: exp.title,
+                            coverImageURL: exp.image.flatMap(URL.init(string:)),
+                            creator: creator,
+                            durationMinutes: max(exp.stops.count, 1) * 30,
+                            costLevel: .budget,
+                            estimatedCostUSD: nil,
+                            saveCount: liveSaveCount,
+                            likeCount: 0,
+                            completionCount: exp.completion_count ?? 0,
+                            stops: exp.stops.map { StopPreview(id: UUID(), name: $0, emoji: nil) },
+                            cityName: exp.city
+                        )
+                    )
+                } else if let place = placesByID[row.experience_id] {
+                    let matchedCity = MockData.cities.first(where: { $0.name.localizedCaseInsensitiveCompare("Berkeley") == .orderedSame })
+                    let cityID = matchedCity?.id ?? UUID()
+                    let recCreator = ProfileSummary(
+                        id: UUID(),
+                        username: "rec_by_trav",
+                        displayName: "Rec by Trav",
+                        avatarURL: nil,
+                        isVerified: true
+                    )
+                    items.append(
+                        ExperienceSummary(
+                            id: row.experience_id,
+                            cityID: cityID,
+                            title: place.name,
+                            coverImageURL: nil,
+                            creator: recCreator,
+                            durationMinutes: 45,
+                            costLevel: .budget,
+                            estimatedCostUSD: nil,
+                            saveCount: 1,
+                            likeCount: 0,
+                            completionCount: 0,
+                            stops: [StopPreview(id: UUID(), name: place.name, emoji: nil)],
+                            cityName: "Berkeley"
+                        )
+                    )
+                }
             }
         }
 
-        return Paginated(items: items, page: page, hasMore: combinedSaved.count == pageSize)
+        return Paginated(items: items, page: page, hasMore: rows.count == pageSize)
     }
+
+    private func fetchCreatorProfiles(for userIDs: [UUID]) async -> [UUID: ProfileSummary] {
+        guard !userIDs.isEmpty else { return [:] }
+        struct DBProfileSummary: Decodable {
+            let id: UUID
+            let username: String
+            let display_name: String
+            let avatar_url: String?
+            let is_verified: Bool
+        }
+        do {
+            let dbProfiles: [DBProfileSummary] = try await client
+                .from("profiles")
+                .select("id, username, display_name, avatar_url, is_verified")
+                .in("id", values: userIDs.map(\.uuidString))
+                .execute()
+                .value
+            var map: [UUID: ProfileSummary] = [:]
+            for p in dbProfiles {
+                map[p.id] = ProfileSummary(
+                    id: p.id,
+                    username: p.username,
+                    displayName: p.display_name,
+                    avatarURL: p.avatar_url.flatMap { URL(string: $0) },
+                    isVerified: p.is_verified
+                )
+            }
+            return map
+        } catch {
+            print("Failed to fetch creator profiles for \(userIDs): \(error)")
+            return [:]
+        }
+    }
+
 
     func fetchCompletedExperiences(userID: UUID, page: Int) async throws -> Paginated<CompletedExperienceItem> {
         let pageSize = ProfileLimits.pageSize

@@ -198,7 +198,7 @@ final class ProfileViewModel {
 
                 if environment.session.currentUser?.id == profile.id {
                     let store = environment.engagement
-                    if !store.savedExperienceIDs.isEmpty {
+                    if store.bootstrappedUserID == profile.id {
                         items = items.filter { store.isSaved($0.id) }
                     }
                     let present = Set(items.map(\.id))

@@ -236,7 +236,7 @@ struct CityPageView: View {
                     ForEach(Array(feed.enumerated()), id: \.element.id) { index, experience in
                         let isUserCreated = session.currentUser?.id == experience.creator.id
                         let badgeText = isUserCreated ? "Created by Me" : ""
-                        HeroExperienceCard(
+                        ExperienceCard(
                             experience: experience,
                             badgeText: badgeText,
                             isSaved: engagement.isSaved(experience.id),

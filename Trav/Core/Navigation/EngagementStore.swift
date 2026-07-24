@@ -21,7 +21,7 @@ final class EngagementStore {
     /// Surfaces the last save error for debugging / lightweight UI.
     private(set) var lastSaveError: String?
 
-    private var bootstrappedUserID: UUID?
+    private(set) var bootstrappedUserID: UUID?
     private var inFlightSaveIDs: Set<UUID> = []
     private var bootstrapTask: Task<Void, Never>?
 
