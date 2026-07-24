@@ -948,7 +948,7 @@ struct FeedView: View {
                         emoji: "mappin.and.ellipse"
                     )
                     
-                    let coverURL = URL(string: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=800&q=80") // default events image
+                    let coverURL = imageForEventTitle(dbPopup.event_name)
                     
                     return ExperienceSummary(
                         id: dbPopup.id,
@@ -1221,6 +1221,79 @@ private func defaultCoverForCategory(_ text: String) -> URL? {
         return URL(string: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?w=800&q=80")
     }
     return URL(string: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80")
+}
+
+private func imageForEventTitle(_ title: String) -> URL? {
+    let lowerTitle = title.lowercased()
+    
+    // 1. AI / Tech / Meetup / Software / Hardware / Coding
+    if lowerTitle.contains("ai") || lowerTitle.contains("neural") || lowerTitle.contains("openai") || lowerTitle.contains("voice") {
+        return URL(string: "https://images.unsplash.com/photo-1677442136019-21780efad99a?w=800&q=80") // AI/Robotics
+    }
+    if lowerTitle.contains("meetup") || lowerTitle.contains("lounge") || lowerTitle.contains("founders") || lowerTitle.contains("builders") {
+        return URL(string: "https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=800&q=80") // Meetup/Networking/Gathering
+    }
+    if lowerTitle.contains("tech") || lowerTitle.contains("software") || lowerTitle.contains("hardware") || lowerTitle.contains("infra") {
+        return URL(string: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&q=80") // Developer/Code/Hardware
+    }
+    if lowerTitle.contains("engineering") || lowerTitle.contains("pitch") {
+        return URL(string: "https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=800&q=80") // Presentation/Talk
+    }
+    
+    // 2. Music / Party / Night / Dance / Sound / Concert / Balkan / SKOTO
+    if lowerTitle.contains("music") || lowerTitle.contains("sound") || lowerTitle.contains("concert") || lowerTitle.contains("band") {
+        return URL(string: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80") // Concert/Live Music
+    }
+    if lowerTitle.contains("party") || lowerTitle.contains("dance") || lowerTitle.contains("bachata") || lowerTitle.contains("night") || lowerTitle.contains("noche") {
+        return URL(string: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80") // Party/Dancing/Night Club
+    }
+    if lowerTitle.contains("glaom") || lowerTitle.contains("fevr") || lowerTitle.contains("80s") {
+        return URL(string: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80") // DJ/Club Lights
+    }
+    
+    // 3. Art / Creative / Painting / Wine
+    if lowerTitle.contains("paint") || lowerTitle.contains("art") || lowerTitle.contains("creative") || lowerTitle.contains("craft") {
+        return URL(string: "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&q=80") // Painting/Art
+    }
+    if lowerTitle.contains("wine") || lowerTitle.contains("winery") {
+        return URL(string: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=800&q=80") // Wine glasses/Winery
+    }
+    
+    // 4. Books / Reading / signing / math
+    if lowerTitle.contains("book") || lowerTitle.contains("reading") || lowerTitle.contains("signing") || lowerTitle.contains("math") || lowerTitle.contains("mcluhan") {
+        return URL(string: "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=800&q=80") // Books/Library/Signing
+    }
+    
+    // 5. Film / Screening / Theater
+    if lowerTitle.contains("film") || lowerTitle.contains("screening") || lowerTitle.contains("movie") {
+        return URL(string: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&q=80") // Cinema/Theater
+    }
+    
+    // 6. Food / Dinner / Restaurant / Wine / Kitchen
+    if lowerTitle.contains("dinner") || lowerTitle.contains("food") || lowerTitle.contains("celebration") || lowerTitle.contains("islander") || lowerTitle.contains("roots") {
+        return URL(string: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=80") // Fine dining/Buffet/Food
+    }
+    
+    // 7. Market / Witch / Showcase / Frog
+    if lowerTitle.contains("market") || lowerTitle.contains("bazaar") || lowerTitle.contains("showcase") {
+        return URL(string: "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=800&q=80") // Open-air market
+    }
+    if lowerTitle.contains("witch") || lowerTitle.contains("cosmic") {
+        return URL(string: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&q=80") // Cosmic/Stars/Astrology
+    }
+    
+    // 8. Games / Chess / Tournament
+    if lowerTitle.contains("chess") || lowerTitle.contains("game") || lowerTitle.contains("tournament") || lowerTitle.contains("bughouse") {
+        return URL(string: "https://images.unsplash.com/photo-1529699211952-734e80c4d42b?w=800&q=80") // Chess board
+    }
+    
+    // 9. Berkeley / Golden Hour / Fourth
+    if lowerTitle.contains("berkeley") || lowerTitle.contains("golden") || lowerTitle.contains("hour") {
+        return URL(string: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80") // Golden hour/Sunset
+    }
+    
+    // Default fallback - High-quality festival/gathering event
+    return URL(string: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=800&q=80")
 }
 
 private func emojiForCategory(_ text: String) -> String {
