@@ -8,6 +8,7 @@ struct ExperienceCard: View {
     var badgeText: String = ""
     var isSaved: Bool = false
     var isLiked: Bool = false
+    var connectedLayout: Bool = false
     var onTap: () -> Void
     var onCreatorTap: (() -> Void)? = nil
     var onSave: (() -> Void)? = nil
@@ -21,6 +22,7 @@ struct ExperienceCard: View {
                 badgeText: badgeText.isEmpty ? "Created by Me" : badgeText,
                 isSaved: isSaved,
                 isLiked: isLiked,
+                connectedLayout: connectedLayout,
                 onTap: onTap,
                 onCreatorTap: onCreatorTap,
                 onSave: onSave,
@@ -33,6 +35,7 @@ struct ExperienceCard: View {
                 badgeText: badgeText,
                 isSaved: isSaved,
                 isLiked: isLiked,
+                connectedLayout: connectedLayout,
                 onTap: onTap,
                 onCreatorTap: onCreatorTap,
                 onSave: onSave,
@@ -43,6 +46,7 @@ struct ExperienceCard: View {
     }
 
     private var isUserCard: Bool {
+        if experience.creator.displayName.lowercased() == "rec by trav" { return true }
         if badgeText == "Created by Me" { return true }
         let systemNames = ["system", "trav editorial", "editorial", "trav"]
         return !systemNames.contains(experience.creator.displayName.lowercased())
@@ -55,6 +59,7 @@ struct StandardExperienceCard: View {
     var badgeText: String = ""
     var isSaved: Bool = false
     var isLiked: Bool = false
+    var connectedLayout: Bool = false
     var onTap: () -> Void
     var onCreatorTap: (() -> Void)? = nil
     var onSave: (() -> Void)? = nil
@@ -146,8 +151,19 @@ struct StandardExperienceCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(TravColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : TravRadius.lg, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : TravRadius.lg, style: .continuous))
+        .overlay(
+            Group {
+                if connectedLayout {
+                    VStack {
+                        Spacer()
+                        Divider()
+                            .background(Color.white.opacity(0.08))
+                    }
+                }
+            }
+        )
         .onTapGesture(perform: onTap)
     }
 

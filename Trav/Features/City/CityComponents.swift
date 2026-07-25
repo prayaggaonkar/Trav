@@ -57,11 +57,16 @@ struct HeroExperienceCard: View {
     let badgeText: String
     var isSaved: Bool = false
     var isLiked: Bool = false
+    var connectedLayout: Bool = false
     var onTap: () -> Void
     var onCreatorTap: (() -> Void)? = nil
     var onSave: (() -> Void)? = nil
     var onLike: (() -> Void)? = nil
     var onShare: (() -> Void)? = nil
+
+    private var showRating: Bool {
+        experience.creator.displayName.lowercased() != "rec by trav"
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -146,8 +151,10 @@ struct HeroExperienceCard: View {
                     .buttonStyle(.plain)
                 }
                 
-                CircularRatingView(rating: displayRating, size: 42)
-                    .padding(.top, 4)
+                if showRating {
+                    CircularRatingView(rating: displayRating, size: 42)
+                        .padding(.top, 4)
+                }
             }
         }
         .padding(14)
@@ -161,10 +168,20 @@ struct HeroExperienceCard: View {
                 endPoint: .bottomTrailing
             )
         )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : 18, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            Group {
+                if connectedLayout {
+                    VStack {
+                        Spacer()
+                        Divider()
+                            .background(Color.white.opacity(0.08))
+                    }
+                } else {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                }
+            }
         )
         .onTapGesture(perform: onTap)
     }

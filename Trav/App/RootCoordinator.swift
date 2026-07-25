@@ -385,36 +385,42 @@ struct FeedView: View {
                             }
                             
                             // Post Feed list
-                            LazyVStack(spacing: 16) {
-                                ForEach(mainFeedPosts) { experience in
-                                    ExperienceCard(
-                                        experience: experience,
-                                        isSaved: engagement.isSaved(experience.id),
-                                        onTap: {
-                                            router.presentedRoute = .experience(experience.id)
-                                        },
-                                        onCreatorTap: {
-                                            router.openProfile(experience.creator.username)
-                                        },
-                                        onSave: {
-                                            Task {
-                                                await engagement.toggleSave(
-                                                    experienceID: experience.id,
-                                                    summary: experience,
-                                                    using: environment
-                                                )
-                                            }
-                                        },
-                                        onShare: {
-                                            // Share action placeholder
-                                        }
-                                    )
-                                    .onDrag {
-                                        NSItemProvider(object: experience.id.uuidString as NSString)
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, TravSpacing.screenHorizontal)
+                             LazyVStack(spacing: 0) {
+                                 ForEach(mainFeedPosts) { experience in
+                                     ExperienceCard(
+                                         experience: experience,
+                                         isSaved: engagement.isSaved(experience.id),
+                                         connectedLayout: true,
+                                         onTap: {
+                                             router.presentedRoute = .experience(experience.id)
+                                         },
+                                         onCreatorTap: {
+                                             router.openProfile(experience.creator.username)
+                                         },
+                                         onSave: {
+                                             Task {
+                                                 await engagement.toggleSave(
+                                                     experienceID: experience.id,
+                                                     summary: experience,
+                                                     using: environment
+                                                 )
+                                             }
+                                         },
+                                         onShare: {
+                                             // Share action placeholder
+                                         }
+                                     )
+                                     .onDrag {
+                                         NSItemProvider(object: experience.id.uuidString as NSString)
+                                     }
+                                 }
+                             }
+                             .clipShape(RoundedRectangle(cornerRadius: 18))
+                             .overlay(
+                                 RoundedRectangle(cornerRadius: 18)
+                                     .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                             )
+                             .padding(.horizontal, TravSpacing.screenHorizontal)
                         }
                         .padding(.vertical, TravSpacing.sm)
                         .padding(.bottom, draftStops.isEmpty ? TravSpacing.tabBarBottom + 20 : TravSpacing.tabBarBottom + 120)
