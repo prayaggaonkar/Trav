@@ -384,6 +384,17 @@ struct FeedView: View {
                                 .padding(.bottom, TravSpacing.xs)
                             }
                             
+                            // Header label before the list
+                            HStack {
+                                Text("Your Feed")
+                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                Spacer()
+                            }
+                            .padding(.horizontal, TravSpacing.screenHorizontal)
+                            .padding(.top, TravSpacing.xs)
+                            .padding(.bottom, 4)
+                            
                             // Post Feed list
                              LazyVStack(spacing: 0) {
                                  ForEach(mainFeedPosts) { experience in
