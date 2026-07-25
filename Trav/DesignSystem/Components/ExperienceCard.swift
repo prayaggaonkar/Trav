@@ -146,7 +146,7 @@ struct StandardExperienceCard: View {
                 RoutePreview(stops: experience.stops, maxVisibleStops: 3, compact: true)
                     .padding(.top, TravSpacing.xxs)
             }
-            .padding(TravSpacing.md)
+            .padding(connectedLayout ? 20 : TravSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

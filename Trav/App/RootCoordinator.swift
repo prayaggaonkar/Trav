@@ -415,12 +415,6 @@ struct FeedView: View {
                                      }
                                  }
                              }
-                             .clipShape(RoundedRectangle(cornerRadius: 18))
-                             .overlay(
-                                 RoundedRectangle(cornerRadius: 18)
-                                     .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                             )
-                             .padding(.horizontal, TravSpacing.screenHorizontal)
                         }
                         .padding(.vertical, TravSpacing.sm)
                         .padding(.bottom, draftStops.isEmpty ? TravSpacing.tabBarBottom + 20 : TravSpacing.tabBarBottom + 120)

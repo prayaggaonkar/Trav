@@ -157,7 +157,7 @@ struct HeroExperienceCard: View {
                 }
             }
         }
-        .padding(14)
+        .padding(connectedLayout ? 20 : 14)
         .background(
             LinearGradient(
                 colors: [
