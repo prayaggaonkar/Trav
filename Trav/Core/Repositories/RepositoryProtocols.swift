@@ -61,3 +61,10 @@ protocol EngagementRepository: Sendable {
     /// (used when bookmarking feed places that are not already published experiences).
     func ensureExperienceExists(for summary: ExperienceSummary, ownerID: UUID) async throws
 }
+
+protocol NotificationRepository: Sendable {
+    func fetchNotifications(userID: UUID, page: Int) async throws -> Paginated<AppNotification>
+    func unreadCount(userID: UUID) async throws -> Int
+    func markRead(ids: [UUID]) async throws
+    func markAllRead(userID: UUID) async throws
+}

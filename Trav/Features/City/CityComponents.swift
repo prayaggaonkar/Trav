@@ -11,42 +11,182 @@ struct CitySearchBar: View {
     }
 
     var body: some View {
+        FeedSearchBar(
+            text: $text,
+            placeholder: placeholder,
+            isFocused: .constant(false)
+        )
+    }
+}
+
+/// Feed / discovery search field with optional focus binding and inline filter tokens.
+struct FeedSearchBar: View {
+    @Binding var text: String
+    var placeholder: String = "Search spots, cities, creators..."
+    @Binding var isFocused: Bool
+    var isLightMode: Bool = false
+    var cityToken: City? = nil
+    var userToken: ProfileSummary? = nil
+    var onClearCity: (() -> Void)? = nil
+    var onClearUser: (() -> Void)? = nil
+
+    @FocusState private var fieldFocused: Bool
+
+    private var hasTokens: Bool {
+        cityToken != nil || userToken != nil
+    }
+
+    private var resolvedPlaceholder: String {
+        if hasTokens { return "Add keyword..." }
+        return placeholder
+    }
+
+    var body: some View {
         HStack(spacing: TravSpacing.sm) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .medium))
+                .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(TravColors.muted)
                 .accessibilityHidden(true)
 
-            TextField(placeholder, text: $text)
+            if let cityToken {
+                FeedSearchToken(
+                    icon: "mappin.circle.fill",
+                    label: cityToken.name,
+                    isLightMode: isLightMode,
+                    accessibilityLabel: "Filtering by \(cityToken.name)",
+                    onClear: { onClearCity?() }
+                )
+            }
+
+            if let userToken {
+                FeedSearchToken(
+                    icon: "person.crop.circle.fill",
+                    label: "@\(userToken.username)",
+                    isLightMode: isLightMode,
+                    accessibilityLabel: "Filtering by @\(userToken.username)",
+                    onClear: { onClearUser?() }
+                )
+            }
+
+            TextField(resolvedPlaceholder, text: $text)
                 .font(TravTypography.bodyMedium())
-                .foregroundStyle(TravColors.primary)
+                .foregroundStyle(isLightMode ? Color.black : Color.white)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
                 .lineLimit(1)
+                .focused($fieldFocused)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            if !text.isEmpty {
+            if !text.isEmpty || hasTokens {
                 Button {
-                    text = ""
+                    if !text.isEmpty {
+                        withAnimation {
+                            text = ""
+                        }
+                    } else {
+                        onClearCity?()
+                        onClearUser?()
+                    }
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 16))
                         .foregroundStyle(TravColors.muted)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
+                .accessibilityLabel(text.isEmpty ? "Clear filters" : "Clear search")
             }
         }
         .padding(.horizontal, TravSpacing.md)
-        .frame(height: TravLayout.citySearchHeight)
+        .frame(height: 44)
         .frame(maxWidth: .infinity)
-        .background(TravColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: TravRadius.xl, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: TravRadius.md)
+                .fill(.ultraThinMaterial)
+                .environment(\.colorScheme, isLightMode ? .light : .dark)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: TravRadius.md)
+                .stroke(
+                    isLightMode
+                        ? Color.black.opacity(0.12)
+                        : Color.white.opacity(0.15),
+                    lineWidth: 1
+                )
+        }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(placeholder)
+        .accessibilityLabel(resolvedPlaceholder)
+        .onChange(of: fieldFocused) { _, focused in
+            isFocused = focused
+        }
+        .onChange(of: isFocused) { _, focused in
+            if fieldFocused != focused {
+                fieldFocused = focused
+            }
+        }
+    }
+}
+
+/// Compact removable token rendered inside the search field.
+struct FeedSearchToken: View {
+    let icon: String
+    let label: String
+    var isLightMode: Bool = false
+    var accessibilityLabel: String
+    let onClear: () -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(TravColors.accent)
+
+            Text(label)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(isLightMode ? Color.black : Color.white)
+                .lineLimit(1)
+
+            Button(action: onClear) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(TravColors.muted)
+                    .frame(width: 16, height: 16)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(label)")
+        }
+        .padding(.leading, 8)
+        .padding(.trailing, 4)
+        .padding(.vertical, 5)
+        .background(
+            Capsule()
+                .fill(TravColors.accent.opacity(isLightMode ? 0.12 : 0.2))
+        )
+        .overlay {
+            Capsule()
+                .stroke(TravColors.accent.opacity(0.3), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        .fixedSize(horizontal: true, vertical: false)
+    }
+}
+
+/// Removable chip for the active Feed city scope (legacy external placement).
+struct FeedCityChip: View {
+    let city: City
+    var isLightMode: Bool = false
+    let onClear: () -> Void
+
+    var body: some View {
+        FeedSearchToken(
+            icon: "mappin.circle.fill",
+            label: city.name,
+            isLightMode: isLightMode,
+            accessibilityLabel: "Filtering by \(city.name)",
+            onClear: onClear
+        )
     }
 }
 

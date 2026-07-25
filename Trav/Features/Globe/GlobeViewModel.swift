@@ -27,7 +27,7 @@ final class GlobeViewModel {
         self.router = router
 
         renderer.onCitySelected = { [weak router] city in
-            router?.openCity(city.id)
+            router?.openCity(city)
         }
     }
 
@@ -45,7 +45,7 @@ final class GlobeViewModel {
     func selectCity(_ city: City) {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         controller.flyTo(city: city) { [weak router] in
-            router?.openCity(city.id)
+            router?.openCity(city)
         }
     }
 

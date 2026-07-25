@@ -45,6 +45,7 @@ struct MockExperienceRepository: ExperienceRepository {
     ) async throws {
         print("--- MockExperienceRepository.publishExperience called (using Mock Backend) ---")
         try await Task.sleep(for: .milliseconds(500))
+        await MockSocialState.shared.notifyNewExperience(creatorID: creatorID, experienceID: UUID())
     }
 
     func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary] {
@@ -242,6 +243,27 @@ struct MockEngagementRepository: EngagementRepository {
 
     func ensureExperienceExists(for summary: ExperienceSummary, ownerID: UUID) async throws {
         await MockSocialState.shared.ensureExperienceExists(for: summary, ownerID: ownerID)
+    }
+}
+
+struct MockNotificationRepository: NotificationRepository {
+    private static let pageSize = 30
+
+    func fetchNotifications(userID: UUID, page: Int) async throws -> Paginated<AppNotification> {
+        try await Task.sleep(for: .milliseconds(120))
+        return await MockSocialState.shared.notifications(for: userID, page: page, pageSize: Self.pageSize)
+    }
+
+    func unreadCount(userID: UUID) async throws -> Int {
+        await MockSocialState.shared.unreadCount(for: userID)
+    }
+
+    func markRead(ids: [UUID]) async throws {
+        await MockSocialState.shared.markRead(ids: ids)
+    }
+
+    func markAllRead(userID: UUID) async throws {
+        await MockSocialState.shared.markAllRead(userID: userID)
     }
 }
 

@@ -6,6 +6,7 @@ struct GlobeLandingView: View {
     @Environment(SessionStore.self) private var session
     @Environment(AppearanceStore.self) private var appearance
     @Environment(EngagementStore.self) private var engagement
+    @Environment(NotificationStore.self) private var notificationStore
 
     @State private var viewModel: GlobeViewModel?
     @State private var showOnboarding = false
@@ -69,6 +70,9 @@ struct GlobeLandingView: View {
         .task(id: session.currentUser?.id) {
             if let userID = session.currentUser?.id {
                 await engagement.bootstrap(userID: userID, using: environment)
+                await notificationStore.refreshUnreadCount(userID: userID, using: environment)
+            } else {
+                notificationStore.reset()
             }
         }
         .onChange(of: appearance.isLightMode) { _, isLight in
@@ -78,6 +82,11 @@ struct GlobeLandingView: View {
             // When leaving a city (or any modal route) back to home, restore default zoom.
             if previous != nil, current == nil {
                 viewModel?.resetZoomAfterReturningHome()
+                if let userID = session.currentUser?.id {
+                    Task {
+                        await notificationStore.refreshUnreadCount(userID: userID, using: environment)
+                    }
+                }
             }
         }
         .onChange(of: searchText) { _, newValue in
@@ -160,36 +169,19 @@ struct GlobeLandingView: View {
             }            
             Spacer()
             
-            // Right Side: Auth / Profile Action
+            // Right Side: Notifications / Sign In
             if session.isAuthenticated {
-                Button(action: {
-                    if let username = session.currentUser?.username {
-                        router.presentedRoute = .profile(username)
-                    }
-                }) {
-                    if let avatarURL = session.currentUser?.avatarURL {
-                        AsyncImage(url: avatarURL) { image in
-                            image.resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            defaultAvatar
-                        }
-                        .frame(width: 44, height: 44)
-                        .clipShape(Circle())
-                        .overlay {
-                            Circle().stroke(
-                                appearance.isLightMode
-                                    ? Color.black.opacity(0.12)
-                                    : Color.white.opacity(0.15),
-                                lineWidth: 1
-                            )
-                        }
-                    } else {
-                        defaultAvatar
-                    }
+                Button {
+                    router.openNotifications()
+                } label: {
+                    notificationsBell
                 }
                 .buttonStyle(TravPressButtonStyle(scale: 0.92))
-                .accessibilityLabel("Profile")
+                .accessibilityLabel(
+                    notificationStore.unreadCount > 0
+                        ? "Notifications, \(notificationStore.unreadCount) unread"
+                        : "Notifications"
+                )
             } else {
                 // Sign In Button
                 Button { showOnboarding = true } label: {
@@ -215,15 +207,31 @@ struct GlobeLandingView: View {
         .padding(.vertical, TravSpacing.sm)
     }
 
-    private var defaultAvatar: some View {
-        ZStack {
-            Circle()
-                .fill(appearance.isLightMode ? Color.black.opacity(0.06) : Color.white.opacity(0.08))
-                .frame(width: 44, height: 44)
-            
-            Image(systemName: "person.fill")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(TravColors.muted)
+    private var notificationsBell: some View {
+        ZStack(alignment: .topTrailing) {
+            ZStack {
+                Circle()
+                    .fill(appearance.isLightMode ? Color.black.opacity(0.06) : Color.white.opacity(0.08))
+                    .frame(width: 44, height: 44)
+
+                Image(systemName: notificationStore.unreadCount > 0 ? "bell.fill" : "bell")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
+            }
+
+            if notificationStore.unreadCount > 0 {
+                Circle()
+                    .fill(TravColors.accent)
+                    .frame(width: 10, height: 10)
+                    .overlay {
+                        Circle()
+                            .stroke(
+                                appearance.isLightMode ? Color.white : Color.black.opacity(0.4),
+                                lineWidth: 1.5
+                            )
+                    }
+                    .offset(x: 1, y: -1)
+            }
         }
     }
 
