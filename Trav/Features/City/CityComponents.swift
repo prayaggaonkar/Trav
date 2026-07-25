@@ -83,37 +83,13 @@ struct HeroExperienceCard: View {
                 .buttonStyle(.plain)
             }
             
-            // 2. Center/Right Details
+            // 2. Center details
             VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .center, spacing: 6) {
-                    if !badgeText.isEmpty {
-                        Text(badgeText.uppercased())
-                            .font(.system(size: 9, weight: .bold, design: .rounded))
-                            .tracking(1.0)
-                            .foregroundStyle(TravColors.accent)
-                    }
-                    
-                    Spacer(minLength: 0)
-                    
-                    // Small compact action buttons
-                    Button {
-                        onSave?()
-                    } label: {
-                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 13))
-                            .foregroundStyle(isSaved ? Color.yellow : .white.opacity(0.5))
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Button {
-                        onShare?()
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.5))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.leading, 6)
+                if !badgeText.isEmpty {
+                    Text(badgeText.uppercased())
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .tracking(1.0)
+                        .foregroundStyle(TravColors.accent)
                 }
                 
                 Text(experience.title)
@@ -140,28 +116,38 @@ struct HeroExperienceCard: View {
                 .disabled(onCreatorTap == nil)
                 .padding(.top, 2)
                 
-                HStack(alignment: .center, spacing: 8) {
-                    Text(cityLabel)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.4))
-                    
-                    Spacer()
-                    
-                    // Rating indicator badge instead of giant progress circle
-                    HStack(spacing: 3) {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 10))
-                            .foregroundStyle(TravColors.accent)
-                        Text(String(format: "%.1f", displayRating))
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
+                Text(cityLabel)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .padding(.top, 4)
+            }
+            
+            Spacer(minLength: 0)
+            
+            // 3. Right: Circular Rating + Action Buttons
+            VStack(alignment: .trailing, spacing: 8) {
+                HStack(spacing: 8) {
+                    Button {
+                        onSave?()
+                    } label: {
+                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                            .font(.system(size: 13))
+                            .foregroundStyle(isSaved ? Color.yellow : .white.opacity(0.5))
                     }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color.white.opacity(0.08))
-                    .clipShape(Capsule())
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        onShare?()
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .padding(.top, 4)
+                
+                CircularRatingView(rating: displayRating, size: 42)
+                    .padding(.top, 4)
             }
         }
         .padding(14)
@@ -199,10 +185,12 @@ struct HeroExperienceCard: View {
 struct CircularRatingView: View {
     let rating: Double // e.g. 4.8
     var maxRating: Double = 5.0
-    var size: CGFloat = 88 // Diameter equals width of the two top action buttons
+    var size: CGFloat = 88 // Default diameter
 
     var body: some View {
         let progress = min(max(rating / maxRating, 0.0), 1.0)
+        let strokeWidth = size * 0.07
+        let fontSize = size * 0.3
 
         ZStack {
             // Glass background disk
@@ -224,7 +212,7 @@ struct CircularRatingView: View {
 
             // Outer track ring
             Circle()
-                .stroke(Color.white.opacity(0.18), lineWidth: 6)
+                .stroke(Color.white.opacity(0.18), lineWidth: strokeWidth)
 
             // Circular progress bar filled up proportionately to the rating out of 5
             Circle()
@@ -238,10 +226,10 @@ struct CircularRatingView: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
-                    style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                    style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                .shadow(color: Color(red: 0.70, green: 0.35, blue: 1.0).opacity(0.85), radius: 8, x: 0, y: 0)
+                .shadow(color: Color(red: 0.70, green: 0.35, blue: 1.0).opacity(0.85), radius: size * 0.1, x: 0, y: 0)
 
             // Glass rim border
             Circle()
@@ -251,17 +239,17 @@ struct CircularRatingView: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
-                    lineWidth: 1.2
+                    lineWidth: size * 0.015
                 )
 
             // Rating number only (no star, no /5)
             Text(String(format: "%.1f", rating))
-                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .font(.system(size: fontSize, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1.5)
+                .shadow(color: .black.opacity(0.5), radius: size * 0.03, x: 0, y: size * 0.015)
         }
         .frame(width: size, height: size)
-        .shadow(color: Color(red: 0.15, green: 0.08, blue: 0.35).opacity(0.4), radius: 12, x: 0, y: 6)
+        .shadow(color: Color(red: 0.15, green: 0.08, blue: 0.35).opacity(0.4), radius: size * 0.13, x: 0, y: size * 0.07)
     }
 }
 
