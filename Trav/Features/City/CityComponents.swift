@@ -64,161 +64,122 @@ struct HeroExperienceCard: View {
     var onShare: (() -> Void)? = nil
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            // 1. Complex Background canvas: Navy blue to vibrant violet-purple gradient
-            ZStack {
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.05, green: 0.06, blue: 0.18), // Deep navy bottom left
-                        Color(red: 0.12, green: 0.08, blue: 0.32), // Transitioning indigo
-                        Color(red: 0.38, green: 0.15, blue: 0.72)  // Vibrant violet top right
-                    ],
-                    startPoint: .bottomLeading,
-                    endPoint: .topTrailing
-                )
-
-                if let imageURL = experience.coverImageURL {
+        HStack(alignment: .top, spacing: 14) {
+            // 1. Left: Clickable Small Square Photo
+            if let imageURL = experience.coverImageURL {
+                Button(action: onTap) {
                     RemoteImage(
                         url: imageURL,
-                        height: 220,
-                        cornerRadius: 0
+                        height: 72,
+                        cornerRadius: 12
                     )
-                    .opacity(0.28)
-                    .overlay {
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.05, green: 0.06, blue: 0.18).opacity(0.6),
-                                Color(red: 0.38, green: 0.15, blue: 0.72).opacity(0.75)
-                            ],
-                            startPoint: .bottomLeading,
-                            endPoint: .topTrailing
-                        )
-                    }
+                    .frame(width: 72, height: 72)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
                 }
-
-                // Nebula purple glow near top-right / right side
-                RadialGradient(
-                    colors: [
-                        Color(red: 0.65, green: 0.28, blue: 0.98).opacity(0.45),
-                        Color(red: 0.45, green: 0.18, blue: 0.85).opacity(0.2),
-                        .clear
-                    ],
-                    center: .topTrailing,
-                    startRadius: 0,
-                    endRadius: 220
-                )
-
-                // Frosted glass material overlay
-                Rectangle()
-                    .fill(.thinMaterial)
-                    .opacity(0.12)
+                .buttonStyle(.plain)
             }
-
-            // 2. Right Side: Circular Rating Progress Bar (moved below action buttons, diameter matching button width)
-            HStack {
-                Spacer()
-                CircularRatingView(rating: displayRating, size: 88)
-                    .padding(.trailing, 20)
-                    .padding(.top, 74)
-            }
-
-            // 3. Card Foreground Layout
-            VStack(alignment: .leading, spacing: 0) {
-                // Top Row: Badge & Action Buttons
-                HStack(alignment: .top) {
+            
+            // 2. Center/Right Details
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .center, spacing: 6) {
                     if !badgeText.isEmpty {
-                        FrostedGlassBadge(text: badgeText)
-                    } else {
-                        Spacer(minLength: 0)
+                        Text(badgeText.uppercased())
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .tracking(1.0)
+                            .foregroundStyle(TravColors.accent)
                     }
-
+                    
                     Spacer(minLength: 0)
-
-                    HStack(spacing: 10) {
-                        CityCardActionButton(
-                            systemName: isSaved ? "bookmark.fill" : "bookmark",
-                            isActive: isSaved
-                        ) { onSave?() }
-
-                        CityCardActionButton(
-                            systemName: "square.and.arrow.up",
-                            isActive: false
-                        ) { onShare?() }
+                    
+                    // Small compact action buttons
+                    Button {
+                        onSave?()
+                    } label: {
+                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                            .font(.system(size: 13))
+                            .foregroundStyle(isSaved ? Color.yellow : .white.opacity(0.5))
                     }
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        onShare?()
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 6)
                 }
-
-                // Title: Large Bold Crisp White (placed directly below badge)
+                
                 Text(experience.title)
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1.5)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.85)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 12)
-
-                // Author Row
+                    .padding(.top, 2)
+                
+                // Author row
                 Button {
                     onCreatorTap?()
                 } label: {
-                    HStack(spacing: 6) {
-                        if let url = experience.creator.avatarURL {
-                            AsyncImage(url: url) { image in
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                            } placeholder: {
-                                Image(systemName: "person.crop.circle.fill")
-                                    .font(.system(size: 20))
-                                    .foregroundStyle(.white)
-                            }
-                            .frame(width: 20, height: 20)
-                            .clipShape(Circle())
-                        } else {
-                            Image(systemName: "person.crop.circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundStyle(.white)
-                        }
-
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(TravColors.accent)
                         Text("by \(experience.creator.displayName)")
-                            .font(.system(size: 15, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.6))
                     }
                 }
                 .buttonStyle(.plain)
                 .disabled(onCreatorTap == nil)
-                .padding(.top, 6)
-
-                Spacer(minLength: 16)
-
-                // Bottom Left City / Subtitle Label
-                Text(cityLabel)
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.8))
+                .padding(.top, 2)
+                
+                HStack(alignment: .center, spacing: 8) {
+                    Text(cityLabel)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.4))
+                    
+                    Spacer()
+                    
+                    // Rating indicator badge instead of giant progress circle
+                    HStack(spacing: 3) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(TravColors.accent)
+                        Text(String(format: "%.1f", displayRating))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.white.opacity(0.08))
+                    .clipShape(Capsule())
+                }
+                .padding(.top, 4)
             }
-            .padding(20)
         }
-        .frame(minHeight: 220)
-        .frame(maxWidth: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            .white.opacity(0.65),
-                            .white.opacity(0.2),
-                            Color(red: 0.65, green: 0.35, blue: 1.0).opacity(0.4)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1.5
-                )
+        .padding(14)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.08, green: 0.08, blue: 0.12),
+                    Color(red: 0.12, green: 0.12, blue: 0.18)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         )
-        .shadow(color: Color(red: 0.20, green: 0.08, blue: 0.45).opacity(0.45), radius: 20, x: 0, y: 10)
-        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
         .onTapGesture(perform: onTap)
     }
 
