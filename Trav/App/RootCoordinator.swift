@@ -387,55 +387,30 @@ struct FeedView: View {
                             // Post Feed list
                             LazyVStack(spacing: 16) {
                                 ForEach(mainFeedPosts) { experience in
-                                    if experience.creator.displayName.lowercased() != "rec by trav" {
-                                        ExperienceCard(
-                                            experience: experience,
-                                            isSaved: engagement.isSaved(experience.id),
-                                            onTap: {
-                                                router.presentedRoute = .experience(experience.id)
-                                            },
-                                            onCreatorTap: {
-                                                router.openProfile(experience.creator.username)
-                                            },
-                                            onSave: {
-                                                Task {
-                                                    await engagement.toggleSave(
-                                                        experienceID: experience.id,
-                                                        summary: experience,
-                                                        using: environment
-                                                    )
-                                                }
-                                            },
-                                            onShare: {
-                                                // Share action placeholder
+                                    ExperienceCard(
+                                        experience: experience,
+                                        isSaved: engagement.isSaved(experience.id),
+                                        onTap: {
+                                            router.presentedRoute = .experience(experience.id)
+                                        },
+                                        onCreatorTap: {
+                                            router.openProfile(experience.creator.username)
+                                        },
+                                        onSave: {
+                                            Task {
+                                                await engagement.toggleSave(
+                                                    experienceID: experience.id,
+                                                    summary: experience,
+                                                    using: environment
+                                                )
                                             }
-                                        )
-                                        .onDrag {
-                                            NSItemProvider(object: experience.id.uuidString as NSString)
+                                        },
+                                        onShare: {
+                                            // Share action placeholder
                                         }
-                                    } else {
-                                        FeedPostCardView(
-                                            experience: experience,
-                                            isSaved: engagement.isSaved(experience.id),
-                                            onTap: {
-                                                router.presentedRoute = .experience(experience.id)
-                                            },
-                                            onCreatorTap: {
-                                                router.openProfile(experience.creator.username)
-                                            },
-                                            onSave: {
-                                                Task {
-                                                    await engagement.toggleSave(
-                                                        experienceID: experience.id,
-                                                        summary: experience,
-                                                        using: environment
-                                                    )
-                                                }
-                                            }
-                                        )
-                                        .onDrag {
-                                            NSItemProvider(object: experience.id.uuidString as NSString)
-                                        }
+                                    )
+                                    .onDrag {
+                                        NSItemProvider(object: experience.id.uuidString as NSString)
                                     }
                                 }
                             }
@@ -1013,212 +988,7 @@ struct FeedView: View {
     }
 }
 
-// Subview: Feed Post Card
-private struct FeedPostCardView: View {
-    @Environment(AppearanceStore.self) private var appearance
-    
-    let experience: ExperienceSummary
-    let isSaved: Bool
-    let onTap: () -> Void
-    let onCreatorTap: () -> Void
-    let onSave: () -> Void
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            headerSection
-            captionSection
-            mediaSection
-            stopsSection
-            statsSection
-            Divider()
-                .background(Color.white.opacity(0.08))
-                .padding(.horizontal, 12)
-            actionsSection
-        }
-        .background(Color.white.opacity(0.025))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-        )
-    }
-    
-    private var headerSection: some View {
-        HStack(spacing: 10) {
-            Button(action: onCreatorTap) {
-                if let avatarURL = experience.creator.avatarURL {
-                    RemoteImage(url: avatarURL, height: 38, cornerRadius: 19)
-                        .frame(width: 38, height: 38)
-                } else {
-                    Image(systemName: "person.crop.circle.fill")
-                        .font(.system(size: 38))
-                        .foregroundStyle(TravColors.accent.opacity(0.8))
-                        .background(Circle().fill(Color.black.opacity(0.2)))
-                }
-            }
-            .buttonStyle(.plain)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(experience.creator.displayName)
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                    
-                    if experience.creator.isVerified {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(TravColors.accent)
-                    }
-                }
-                
-                HStack(spacing: 4) {
-                    Image(systemName: "mappin.circle.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.white.opacity(0.4))
-                    Text(experience.stops.first?.name ?? "Berkeley, CA")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.5))
-                    
-                    Text("•")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.white.opacity(0.3))
-                    
-                    Text("2h ago")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.4))
-                }
-            }
-            
-            Spacer()
-            
-            Button {
-                // Menu
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.white.opacity(0.5))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 14)
-        .padding(.top, 14)
-    }
-    
-    private var captionSection: some View {
-        let captionText = experience.stops.count > 1 
-            ? "Exploring a new route! Spots include: " + experience.stops.map { $0.name }.joined(separator: ", ") + "."
-            : "Checked out " + (experience.stops.first?.name ?? "this place") + ". A must-visit spot in town!"
-            
-        return Text(captionText)
-            .font(.system(size: 13, weight: .regular))
-            .foregroundStyle(.white.opacity(0.8))
-            .lineLimit(3)
-            .padding(.horizontal, 14)
-    }
-    
-    private var mediaSection: some View {
-        Button(action: onTap) {
-            ZStack(alignment: .bottomLeading) {
-                if let coverURL = experience.coverImageURL {
-                    RemoteImage(url: coverURL, height: 210, cornerRadius: 12)
-                } else {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(LinearGradient(colors: [Color.white.opacity(0.05), Color.white.opacity(0.1)], startPoint: .top, endPoint: .bottom))
-                        .frame(height: 210)
-                }
-                
-                if experience.stops.count > 1 {
-                    Text("\(experience.stops.count) SPOTS")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.black.opacity(0.6)))
-                        .padding(10)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 12)
-    }
-    
-    @ViewBuilder
-    private var stopsSection: some View {
-        if experience.stops.count > 1 {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Array(experience.stops.enumerated()), id: \.offset) { index, stop in
-                        HStack(spacing: 4) {
-                            Text("\(index + 1)")
-                                .font(.system(size: 9, weight: .bold))
-                                .padding(4)
-                                .background(TravColors.accent.opacity(0.15))
-                                .clipShape(Circle())
-                                .foregroundStyle(TravColors.accent)
-                            
-                            Text(stop.name)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.7))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.04))
-                        .clipShape(Capsule())
-                    }
-                }
-                .padding(.horizontal, 14)
-            }
-        }
-    }
-    
-    private var statsSection: some View {
-        let saves = experience.saveCount + 15
-        return HStack {
-            Image(systemName: "bookmark.fill")
-                .font(.system(size: 10))
-                .foregroundStyle(TravColors.accent)
-            Text("\(saves) saved")
-                .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.5))
-            Spacer()
-        }
-        .padding(.horizontal, 14)
-        .padding(.top, 2)
-    }
-    
-    private var actionsSection: some View {
-        HStack(spacing: 0) {
-            Button(action: onSave) {
-                HStack(spacing: 6) {
-                    Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 14))
-                    Text(isSaved ? "Saved" : "Save")
-                        .font(.system(size: 12, weight: .semibold))
-                }
-                .foregroundStyle(isSaved ? Color.yellow : .white.opacity(0.6))
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.plain)
-            
-            Button {
-                // Share action placeholder
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 14))
-                    Text("Share")
-                        .font(.system(size: 12, weight: .semibold))
-                }
-                .foregroundStyle(.white.opacity(0.6))
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.bottom, 8)
-    }
-}
+
 
 // Helpers for Places mapping
 
