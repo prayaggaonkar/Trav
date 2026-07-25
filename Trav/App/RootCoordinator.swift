@@ -387,27 +387,55 @@ struct FeedView: View {
                             // Post Feed list
                             LazyVStack(spacing: 16) {
                                 ForEach(mainFeedPosts) { experience in
-                                    FeedPostCardView(
-                                        experience: experience,
-                                        isSaved: engagement.isSaved(experience.id),
-                                        onTap: {
-                                            router.presentedRoute = .experience(experience.id)
-                                        },
-                                        onCreatorTap: {
-                                            router.openProfile(experience.creator.username)
-                                        },
-                                        onSave: {
-                                            Task {
-                                                await engagement.toggleSave(
-                                                    experienceID: experience.id,
-                                                    summary: experience,
-                                                    using: environment
-                                                )
+                                    if experience.creator.displayName.lowercased() != "rec by trav" {
+                                        ExperienceCard(
+                                            experience: experience,
+                                            isSaved: engagement.isSaved(experience.id),
+                                            onTap: {
+                                                router.presentedRoute = .experience(experience.id)
+                                            },
+                                            onCreatorTap: {
+                                                router.openProfile(experience.creator.username)
+                                            },
+                                            onSave: {
+                                                Task {
+                                                    await engagement.toggleSave(
+                                                        experienceID: experience.id,
+                                                        summary: experience,
+                                                        using: environment
+                                                    )
+                                                }
+                                            },
+                                            onShare: {
+                                                // Share action placeholder
                                             }
+                                        )
+                                        .onDrag {
+                                            NSItemProvider(object: experience.id.uuidString as NSString)
                                         }
-                                    )
-                                    .onDrag {
-                                        NSItemProvider(object: experience.id.uuidString as NSString)
+                                    } else {
+                                        FeedPostCardView(
+                                            experience: experience,
+                                            isSaved: engagement.isSaved(experience.id),
+                                            onTap: {
+                                                router.presentedRoute = .experience(experience.id)
+                                            },
+                                            onCreatorTap: {
+                                                router.openProfile(experience.creator.username)
+                                            },
+                                            onSave: {
+                                                Task {
+                                                    await engagement.toggleSave(
+                                                        experienceID: experience.id,
+                                                        summary: experience,
+                                                        using: environment
+                                                    )
+                                                }
+                                            }
+                                        )
+                                        .onDrag {
+                                            NSItemProvider(object: experience.id.uuidString as NSString)
+                                        }
                                     }
                                 }
                             }
