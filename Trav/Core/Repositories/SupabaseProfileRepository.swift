@@ -149,6 +149,11 @@ struct SupabaseProfileRepository: ProfileRepository {
             .eq("id", value: userID)
             .execute()
 
+        if update.clearAvatar {
+            let path = "\(userID.uuidString.lowercased())/avatar.jpg"
+            try? await client.storage.from("avatars").remove(paths: [path])
+        }
+
         return try await fetchProfile(id: userID)
     }
 
@@ -184,16 +189,23 @@ struct SupabaseProfileRepository: ProfileRepository {
     }
 
     func uploadAvatar(userID: UUID, imageData: Data) async throws -> URL {
-        let storageClient = SupabaseManager.serviceClient?.storage ?? client.storage
+        // Must use the authenticated client so storage RLS (`auth.uid()`) can authorize
+        // the write. `serviceClient` has no user session and owner-write policies reject it.
         let path = "\(userID.uuidString.lowercased())/avatar.jpg"
-        _ = try await storageClient
+        _ = try await client.storage
             .from("avatars")
             .upload(
                 path,
                 data: imageData,
                 options: FileOptions(contentType: "image/jpeg", upsert: true)
             )
-        return try storageClient.from("avatars").getPublicURL(path: path)
+        let publicURL = try client.storage.from("avatars").getPublicURL(path: path)
+        // Bust URL caches (AsyncImage / CDN) so a replaced avatar refreshes immediately.
+        var components = URLComponents(url: publicURL, resolvingAgainstBaseURL: false)
+        var items = components?.queryItems ?? []
+        items.append(URLQueryItem(name: "t", value: String(Int(Date().timeIntervalSince1970))))
+        components?.queryItems = items
+        return components?.url ?? publicURL
     }
 
     func fetchFollowers(userID: UUID, query: String?, page: Int) async throws -> Paginated<ProfileSummary> {
