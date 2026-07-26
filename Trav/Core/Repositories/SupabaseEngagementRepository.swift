@@ -35,24 +35,9 @@ struct SupabaseEngagementRepository: EngagementRepository {
     }
 
     func fetchCompletedIDs(userID: UUID) async throws -> Set<UUID> {
-        struct Row: Decodable { let experience_id: UUID }
-        var rows: [Row] = []
-        do {
-            rows = try await client
-                .from("completed_experiences")
-                .select("experience_id")
-                .eq("user_id", value: userID.uuidString.lowercased())
-                .execute()
-                .value
-        } catch {
-            rows = try await client
-                .from("experience_completions")
-                .select("experience_id")
-                .eq("user_id", value: userID.uuidString.lowercased())
-                .execute()
-                .value
-        }
-        return Set(rows.map(\.experience_id))
+        let key = "completed_experiences_\(userID.uuidString.lowercased())"
+        let array = UserDefaults.standard.stringArray(forKey: key) ?? []
+        return Set(array.compactMap { UUID(uuidString: $0) })
     }
 
     func fetchFollowingIDs(userID: UUID) async throws -> Set<UUID> {
@@ -72,28 +57,8 @@ struct SupabaseEngagementRepository: EngagementRepository {
     }
 
     func isCompleted(userID: UUID, experienceID: UUID) async throws -> Bool {
-        struct Row: Decodable { let experience_id: UUID }
-        var rows: [Row] = []
-        do {
-            rows = try await client
-                .from("completed_experiences")
-                .select("experience_id")
-                .eq("user_id", value: userID.uuidString.lowercased())
-                .eq("experience_id", value: experienceID.uuidString.lowercased())
-                .limit(1)
-                .execute()
-                .value
-        } catch {
-            rows = try await client
-                .from("experience_completions")
-                .select("experience_id")
-                .eq("user_id", value: userID.uuidString.lowercased())
-                .eq("experience_id", value: experienceID.uuidString.lowercased())
-                .limit(1)
-                .execute()
-                .value
-        }
-        return !rows.isEmpty
+        let ids = try await fetchCompletedIDs(userID: userID)
+        return ids.contains(experienceID)
     }
 
     func toggleSave(userID: UUID, experienceID: UUID) async throws -> Bool {
@@ -160,45 +125,19 @@ struct SupabaseEngagementRepository: EngagementRepository {
     }
 
     func toggleComplete(userID: UUID, experienceID: UUID) async throws -> Bool {
-        let user = userID.uuidString.lowercased()
-        let experience = experienceID.uuidString.lowercased()
-
-        if try await isCompleted(userID: userID, experienceID: experienceID) {
-            do {
-                try await client
-                    .from("completed_experiences")
-                    .delete()
-                    .eq("user_id", value: user)
-                    .eq("experience_id", value: experience)
-                    .execute()
-            } catch {
-                try await client
-                    .from("experience_completions")
-                    .delete()
-                    .eq("user_id", value: user)
-                    .eq("experience_id", value: experience)
-                    .execute()
-            }
-            return false
+        let key = "completed_experiences_\(userID.uuidString.lowercased())"
+        var ids = try await fetchCompletedIDs(userID: userID)
+        let nowCompleted: Bool
+        if ids.contains(experienceID) {
+            ids.remove(experienceID)
+            nowCompleted = false
+        } else {
+            ids.insert(experienceID)
+            nowCompleted = true
         }
-
-        struct Insert: Encodable {
-            let user_id: String
-            let experience_id: String
-        }
-        let insert = Insert(user_id: user, experience_id: experience)
-        do {
-            try await client
-                .from("completed_experiences")
-                .insert(insert)
-                .execute()
-        } catch {
-            try await client
-                .from("experience_completions")
-                .insert(insert)
-                .execute()
-        }
-        return true
+        let array = Array(ids).map { $0.uuidString.lowercased() }
+        UserDefaults.standard.set(array, forKey: key)
+        return nowCompleted
     }
 
     func ensureExperienceExists(for summary: ExperienceSummary, ownerID: UUID) async throws {

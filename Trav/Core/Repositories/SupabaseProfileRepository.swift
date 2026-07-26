@@ -566,67 +566,73 @@ struct SupabaseProfileRepository: ProfileRepository {
         let from = page * pageSize
         let to = from + pageSize - 1
 
-        struct CompletionJoin: Decodable {
-            let id: UUID
-            let completed_at: Date
-            let note: String?
-            let experience: ExperienceJoin?
+        let key = "completed_experiences_\(userID.uuidString.lowercased())"
+        let array = UserDefaults.standard.stringArray(forKey: key) ?? []
+        let allIDs = array.compactMap { UUID(uuidString: $0) }
+
+        guard !allIDs.isEmpty else {
+            return Paginated(items: [], page: page, hasMore: false)
         }
+
+        let rangeStart = min(from, allIDs.count)
+        let rangeEnd = min(to + 1, allIDs.count)
+        guard rangeStart < rangeEnd else {
+            return Paginated(items: [], page: page, hasMore: false)
+        }
+        let pageIDs = Array(allIDs[rangeStart..<rangeEnd])
+
         struct ExperienceJoin: Decodable {
             let id: UUID
             let title: String
             let city: String
             let stops: [String]
             let image: StringOrArray?
-            let save_count: Int?
-            let completion_count: Int?
             let user_id: UUID
         }
 
-        var rows: [CompletionJoin] = []
-        do {
-            rows = try await client
-                .from("completed_experiences")
-                .select("id, completed_at, note, experience:experiences(*)")
-                .eq("user_id", value: userID)
-                .order("completed_at", ascending: false)
-                .range(from: from, to: to)
-                .execute()
-                .value
-        } catch {
-            rows = try await client
-                .from("experience_completions")
-                .select("id, completed_at, note, experience:experiences(*)")
-                .eq("user_id", value: userID)
-                .order("completed_at", ascending: false)
-                .range(from: from, to: to)
-                .execute()
-                .value
-        }
+        let expIDs = pageIDs.map { $0.uuidString.lowercased() }
+        let rows: [ExperienceJoin] = expIDs.isEmpty ? [] : ((try? await client
+            .from("experiences")
+            .select("id, title, city, stops, image, user_id")
+            .in("id", values: expIDs)
+            .execute()
+            .value) ?? [])
 
-        let items = rows.compactMap { row -> CompletedExperienceItem? in
-            guard let exp = row.experience else { return nil }
-            let cityID = MockData.cities.first { $0.name.caseInsensitiveCompare(exp.city) == .orderedSame }?.id ?? UUID()
-            let parsedURLs = exp.image?.values.compactMap { URL(string: $0) } ?? []
+        let userIDs = Array(Set(rows.map(\.user_id)))
+        let creatorsMap = await fetchCreatorProfiles(for: userIDs)
+
+        var completedItems: [CompletedExperienceItem] = []
+        for row in rows {
+            let cityID = MockData.cities.first { $0.name.caseInsensitiveCompare(row.city) == .orderedSame }?.id ?? UUID()
+            let parsedURLs = row.image?.values.compactMap { URL(string: $0) } ?? []
+            let creator = creatorsMap[row.user_id] ?? ProfileSummary(id: row.user_id, username: "traveler", displayName: "Traveler", avatarURL: nil, isVerified: false)
+            
             let summary = ExperienceSummary(
-                id: exp.id,
+                id: row.id,
                 cityID: cityID,
-                title: exp.title,
+                title: row.title,
                 imageURLs: parsedURLs,
-                creator: ProfileSummary(id: exp.user_id, username: "traveler", displayName: "Traveler", avatarURL: nil, isVerified: false),
-                durationMinutes: max(exp.stops.count, 1) * 30,
+                creator: creator,
+                durationMinutes: max(row.stops.count, 1) * 30,
                 costLevel: .budget,
                 estimatedCostUSD: nil,
-                saveCount: exp.save_count ?? 0,
+                saveCount: 0,
                 likeCount: 0,
-                completionCount: exp.completion_count ?? 0,
-                stops: exp.stops.map { StopPreview(id: UUID(), name: $0, emoji: nil) },
-                cityName: exp.city
+                completionCount: 0,
+                stops: row.stops.map { StopPreview(id: UUID(), name: $0, emoji: nil) },
+                cityName: row.city
             )
-            return CompletedExperienceItem(id: row.id, experience: summary, completedAt: row.completed_at, note: row.note)
+            
+            completedItems.append(CompletedExperienceItem(
+                id: UUID(),
+                experience: summary,
+                completedAt: Date(),
+                note: nil
+            ))
         }
 
-        return Paginated(items: items, page: page, hasMore: items.count == pageSize)
+        let hasMore = rangeEnd < allIDs.count
+        return Paginated(items: completedItems, page: page, hasMore: hasMore)
     }
 
     // MARK: - Private
