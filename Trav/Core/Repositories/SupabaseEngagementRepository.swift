@@ -36,12 +36,22 @@ struct SupabaseEngagementRepository: EngagementRepository {
 
     func fetchCompletedIDs(userID: UUID) async throws -> Set<UUID> {
         struct Row: Decodable { let experience_id: UUID }
-        let rows: [Row] = try await client
-            .from("experience_completions")
-            .select("experience_id")
-            .eq("user_id", value: userID.uuidString.lowercased())
-            .execute()
-            .value
+        var rows: [Row] = []
+        do {
+            rows = try await client
+                .from("completed_experiences")
+                .select("experience_id")
+                .eq("user_id", value: userID.uuidString.lowercased())
+                .execute()
+                .value
+        } catch {
+            rows = try await client
+                .from("experience_completions")
+                .select("experience_id")
+                .eq("user_id", value: userID.uuidString.lowercased())
+                .execute()
+                .value
+        }
         return Set(rows.map(\.experience_id))
     }
 
@@ -63,14 +73,26 @@ struct SupabaseEngagementRepository: EngagementRepository {
 
     func isCompleted(userID: UUID, experienceID: UUID) async throws -> Bool {
         struct Row: Decodable { let experience_id: UUID }
-        let rows: [Row] = try await client
-            .from("experience_completions")
-            .select("experience_id")
-            .eq("user_id", value: userID.uuidString.lowercased())
-            .eq("experience_id", value: experienceID.uuidString.lowercased())
-            .limit(1)
-            .execute()
-            .value
+        var rows: [Row] = []
+        do {
+            rows = try await client
+                .from("completed_experiences")
+                .select("experience_id")
+                .eq("user_id", value: userID.uuidString.lowercased())
+                .eq("experience_id", value: experienceID.uuidString.lowercased())
+                .limit(1)
+                .execute()
+                .value
+        } catch {
+            rows = try await client
+                .from("experience_completions")
+                .select("experience_id")
+                .eq("user_id", value: userID.uuidString.lowercased())
+                .eq("experience_id", value: experienceID.uuidString.lowercased())
+                .limit(1)
+                .execute()
+                .value
+        }
         return !rows.isEmpty
     }
 
@@ -142,12 +164,21 @@ struct SupabaseEngagementRepository: EngagementRepository {
         let experience = experienceID.uuidString.lowercased()
 
         if try await isCompleted(userID: userID, experienceID: experienceID) {
-            try await client
-                .from("experience_completions")
-                .delete()
-                .eq("user_id", value: user)
-                .eq("experience_id", value: experience)
-                .execute()
+            do {
+                try await client
+                    .from("completed_experiences")
+                    .delete()
+                    .eq("user_id", value: user)
+                    .eq("experience_id", value: experience)
+                    .execute()
+            } catch {
+                try await client
+                    .from("experience_completions")
+                    .delete()
+                    .eq("user_id", value: user)
+                    .eq("experience_id", value: experience)
+                    .execute()
+            }
             return false
         }
 
@@ -155,10 +186,18 @@ struct SupabaseEngagementRepository: EngagementRepository {
             let user_id: String
             let experience_id: String
         }
-        try await client
-            .from("experience_completions")
-            .insert(Insert(user_id: user, experience_id: experience))
-            .execute()
+        let insert = Insert(user_id: user, experience_id: experience)
+        do {
+            try await client
+                .from("completed_experiences")
+                .insert(insert)
+                .execute()
+        } catch {
+            try await client
+                .from("experience_completions")
+                .insert(insert)
+                .execute()
+        }
         return true
     }
 

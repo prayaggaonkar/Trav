@@ -583,14 +583,26 @@ struct SupabaseProfileRepository: ProfileRepository {
             let user_id: UUID
         }
 
-        let rows: [CompletionJoin] = try await client
-            .from("experience_completions")
-            .select("id, completed_at, note, experience:experiences(*)")
-            .eq("user_id", value: userID)
-            .order("completed_at", ascending: false)
-            .range(from: from, to: to)
-            .execute()
-            .value
+        var rows: [CompletionJoin] = []
+        do {
+            rows = try await client
+                .from("completed_experiences")
+                .select("id, completed_at, note, experience:experiences(*)")
+                .eq("user_id", value: userID)
+                .order("completed_at", ascending: false)
+                .range(from: from, to: to)
+                .execute()
+                .value
+        } catch {
+            rows = try await client
+                .from("experience_completions")
+                .select("id, completed_at, note, experience:experiences(*)")
+                .eq("user_id", value: userID)
+                .order("completed_at", ascending: false)
+                .range(from: from, to: to)
+                .execute()
+                .value
+        }
 
         let items = rows.compactMap { row -> CompletedExperienceItem? in
             guard let exp = row.experience else { return nil }
