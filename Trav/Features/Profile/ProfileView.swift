@@ -76,7 +76,7 @@ struct ProfileView: View {
                 SettingsSheetView {
                     Task { await viewModel.signOut(using: environment) }
                 }
-                .presentationDetents([.height(240)])
+                .presentationDetents([.height(440)])
                 .presentationDragIndicator(.visible)
             }
             .overlay(alignment: .top) {
@@ -420,6 +420,10 @@ struct SettingsSheetView: View {
     @Environment(\.dismiss) private var dismiss
     let onSignOut: () -> Void
 
+    @State private var notificationsEnabled = UserDefaults.standard.bool(forKey: "trav.settings.notificationsEnabled")
+    @State private var hapticsEnabled = UserDefaults.standard.bool(forKey: "trav.settings.hapticsEnabled")
+    @State private var autoPlayMedia = UserDefaults.standard.bool(forKey: "trav.settings.autoPlayMedia")
+
     var body: some View {
         VStack(spacing: TravSpacing.md) {
             // Header
@@ -446,75 +450,122 @@ struct SettingsSheetView: View {
             Divider()
                 .background(TravColors.border.opacity(0.3))
 
-            VStack(spacing: TravSpacing.sm) {
-                // Toggle theme button
-                Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    environment.appearance.toggle()
-                } label: {
-                    HStack(spacing: TravSpacing.md) {
-                        Image(systemName: environment.appearance.isLightMode ? "moon.fill" : "sun.max.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(TravColors.accent)
-                            .frame(width: 32, height: 32)
-                            .background(TravColors.surfaceElevated)
-                            .clipShape(Circle())
-
-                        Text(environment.appearance.isLightMode ? "Dark Mode" : "Light Mode")
-                            .font(.system(size: 15, weight: .medium, design: .rounded))
-                            .foregroundStyle(TravColors.primary)
-
-                        Spacer()
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(TravColors.muted)
+            VStack(spacing: TravSpacing.md) {
+                // Grouped preference box
+                VStack(spacing: 0) {
+                    ToggleRow(
+                        isOn: $notificationsEnabled,
+                        icon: "bell.fill",
+                        iconColor: Color.blue,
+                        title: "Notifications"
+                    ) { newValue in
+                        UserDefaults.standard.set(newValue, forKey: "trav.settings.notificationsEnabled")
                     }
-                    .padding(.horizontal, TravSpacing.md)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(TravColors.surface)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
 
-                // Sign out button
-                Button {
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    dismiss()
-                    onSignOut()
-                } label: {
-                    HStack(spacing: TravSpacing.md) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Color.red)
-                            .frame(width: 32, height: 32)
-                            .background(Color.red.opacity(0.1))
-                            .clipShape(Circle())
+                    Divider()
+                        .background(TravColors.border.opacity(0.2))
+                        .padding(.leading, 48)
 
-                        Text("Sign Out")
-                            .font(.system(size: 15, weight: .medium, design: .rounded))
-                            .foregroundStyle(Color.red)
-
-                        Spacer()
+                    ToggleRow(
+                        isOn: $hapticsEnabled,
+                        icon: "waveform",
+                        iconColor: Color.orange,
+                        title: "Haptic Feedback"
+                    ) { newValue in
+                        UserDefaults.standard.set(newValue, forKey: "trav.settings.hapticsEnabled")
                     }
-                    .padding(.horizontal, TravSpacing.md)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(TravColors.surface)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(Color.red.opacity(0.2), lineWidth: 1)
-                            )
-                    )
+
+                    Divider()
+                        .background(TravColors.border.opacity(0.2))
+                        .padding(.leading, 48)
+
+                    ToggleRow(
+                        isOn: $autoPlayMedia,
+                        icon: "play.circle.fill",
+                        iconColor: Color.green,
+                        title: "Auto-Play Experiences"
+                    ) { newValue in
+                        UserDefaults.standard.set(newValue, forKey: "trav.settings.autoPlayMedia")
+                    }
                 }
-                .buttonStyle(.plain)
+                .background(TravColors.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
+                )
+
+                // Actions Box
+                VStack(spacing: TravSpacing.sm) {
+                    // Toggle theme button
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        environment.appearance.toggle()
+                    } label: {
+                        HStack(spacing: TravSpacing.md) {
+                            Image(systemName: environment.appearance.isLightMode ? "moon.fill" : "sun.max.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(TravColors.accent)
+                                .frame(width: 32, height: 32)
+                                .background(TravColors.surfaceElevated)
+                                .clipShape(Circle())
+
+                            Text(environment.appearance.isLightMode ? "Dark Mode" : "Light Mode")
+                                .font(.system(size: 15, weight: .medium, design: .rounded))
+                                .foregroundStyle(TravColors.primary)
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(TravColors.muted)
+                        }
+                        .padding(.horizontal, TravSpacing.md)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(TravColors.surface)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    // Sign out button
+                    Button {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        dismiss()
+                        onSignOut()
+                    } label: {
+                        HStack(spacing: TravSpacing.md) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.red)
+                                .frame(width: 32, height: 32)
+                                .background(Color.red.opacity(0.1))
+                                .clipShape(Circle())
+
+                            Text("Sign Out")
+                                .font(.system(size: 15, weight: .medium, design: .rounded))
+                                .foregroundStyle(Color.red)
+
+                            Spacer()
+                        }
+                        .padding(.horizontal, TravSpacing.md)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(TravColors.surface)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(Color.red.opacity(0.2), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             .padding(.horizontal, TravSpacing.screenHorizontal)
             .padding(.top, TravSpacing.sm)
@@ -522,5 +573,39 @@ struct SettingsSheetView: View {
             Spacer()
         }
         .travScreenBackground()
+    }
+}
+
+struct ToggleRow: View {
+    @Binding var isOn: Bool
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let onChange: (Bool) -> Void
+
+    var body: some View {
+        HStack(spacing: TravSpacing.md) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(iconColor)
+                .frame(width: 28, height: 28)
+                .background(iconColor.opacity(0.12))
+                .clipShape(Circle())
+
+            Text(title)
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundStyle(TravColors.primary)
+
+            Spacer()
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .tint(TravColors.accent)
+                .onChange(of: isOn) { _, newValue in
+                    onChange(newValue)
+                }
+        }
+        .padding(.horizontal, TravSpacing.md)
+        .padding(.vertical, 10)
     }
 }

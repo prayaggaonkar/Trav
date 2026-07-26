@@ -202,6 +202,7 @@ final class NotificationStore {
     /// Enqueues a toast. Concurrent arrivals are serialized on the main actor:
     /// the first is shown immediately; the rest wait in FIFO order (capped).
     private func enqueueToast(for notification: AppNotification) {
+        guard UserDefaults.standard.bool(forKey: "trav.settings.notificationsEnabled") else { return }
         guard !seenToastIDs.contains(notification.id) else { return }
         // Already showing or queued — ignore duplicate id.
         if currentToast?.id == notification.id { return }
