@@ -38,128 +38,7 @@ struct InteractiveRadarChartView: View {
                 let center = CGPoint(x: geometry.size.width / 2.0, y: geometry.size.height / 2.0)
                 let radius = (size / 2.0) - 40.0 // Padding for interactive vertex knobs and labels
 
-                ZStack {
-                    // 1. Background grid concentric polygon rings (25%, 50%, 75%, 100%)
-                    ForEach([0.25, 0.5, 0.75, 1.0], id: \.self) { level in
-                        RadarChartPolygonShape(values: Array(repeating: level, count: axes.count))
-                            .stroke(TravColors.border.opacity(0.4), lineWidth: level == 1.0 ? 1.5 : 1.0)
-                            .frame(width: radius * 2 * CGFloat(level), height: radius * 2 * CGFloat(level))
-                    }
-
-                    // 2. Axis spokes & Headroom Guide Lines (Center to Vertex, and Vertex to Max 10.0)
-                    ForEach(0..<axes.count, id: \.self) { i in
-                        let axis = axes[i]
-                        let isEnabled = rating.isEnabled(axis.id)
-                        let val = rating.normalizedScore(for: axis.id, min: minScore, max: maxScore)
-                        let angle = -.pi / 2.0 + Double(i) * (2.0 * .pi / Double(axes.count))
-
-                        let vertexPoint = CGPoint(
-                            x: center.x + CGFloat(radius * val * cos(angle)),
-                            y: center.y + CGFloat(radius * val * sin(angle))
-                        )
-                        let maxPoint = CGPoint(
-                            x: center.x + CGFloat(radius * cos(angle)),
-                            y: center.y + CGFloat(radius * sin(angle))
-                        )
-                        let isActive = activeAxisIndex == i
-
-                        // Solid line from center to current rated vertex
-                        Path { p in
-                            p.move(to: center)
-                            p.addLine(to: vertexPoint)
-                        }
-                        .stroke(
-                            isEnabled ? (isActive ? TravColors.accent : TravColors.accent.opacity(0.35)) : Color.gray.opacity(0.2),
-                            lineWidth: isActive ? 2.5 : 1.5
-                        )
-
-                        // Soft dashed headroom line indicating remaining capacity up to max 10.0
-                        Path { p in
-                            p.move(to: vertexPoint)
-                            p.addLine(to: maxPoint)
-                        }
-                        .stroke(
-                            isEnabled ? (isActive ? TravColors.accent.opacity(0.85) : TravColors.border.opacity(0.6)) : Color.gray.opacity(0.25),
-                            style: StrokeStyle(
-                                lineWidth: isActive ? 2.0 : 1.2,
-                                dash: [5, 4]
-                            )
-                        )
-                    }
-
-                    // 3. Interactive filled rating polygon
-                    let normalizedValues = axes.map { axis in
-                        rating.normalizedScore(for: axis.id, min: minScore, max: maxScore)
-                    }
-
-                    RadarChartPolygonShape(values: normalizedValues)
-                        .fill(
-                            LinearGradient(
-                                colors: [TravColors.accent.opacity(0.45), TravColors.accent.opacity(0.15)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .frame(width: radius * 2, height: radius * 2)
-
-                    RadarChartPolygonShape(values: normalizedValues)
-                        .stroke(TravColors.accent, lineWidth: 2.5)
-                        .frame(width: radius * 2, height: radius * 2)
-
-                    // 4. Interactive Draggable Vertex Handles & Touch Gesture Recognizers
-                    ForEach(0..<axes.count, id: \.self) { i in
-                        let axis = axes[i]
-                        let isEnabled = rating.isEnabled(axis.id)
-                        let val = rating.normalizedScore(for: axis.id, min: minScore, max: maxScore)
-                        let angle = -.pi / 2.0 + Double(i) * (2.0 * .pi / Double(axes.count))
-                        let point = CGPoint(
-                            x: center.x + CGFloat(radius * val * cos(angle)),
-                            y: center.y + CGFloat(radius * val * sin(angle))
-                        )
-                        let isActive = activeAxisIndex == i
-                        let score = rating.score(for: axis.id, default: minScore)
-
-                        // Draggable Knob Handle on the Polygon (Gray when disabled at center)
-                        ZStack {
-                            if isActive && isEnabled {
-                                Circle()
-                                    .fill(TravColors.accent.opacity(0.25))
-                                    .frame(width: 38, height: 38)
-
-                                // Floating Tooltip badge showing live continuous decimal value
-                                Text(String(format: "%.1f", score))
-                                    .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(TravColors.accent)
-                                    .clipShape(Capsule())
-                                    .shadow(color: TravColors.accent.opacity(0.4), radius: 4, y: 2)
-                                    .offset(y: -32)
-                            }
-
-                            Circle()
-                                .fill(isEnabled ? TravColors.surface : Color.gray.opacity(0.2))
-                                .frame(width: isActive ? 24 : (isEnabled ? 18 : 14), height: isActive ? 24 : (isEnabled ? 18 : 14))
-                                .shadow(color: Color.black.opacity(isEnabled ? 0.15 : 0.05), radius: 3)
-
-                            Circle()
-                                .fill(isEnabled ? (isActive ? TravColors.accent : TravColors.primary) : Color.gray)
-                                .frame(width: isActive ? 14 : (isEnabled ? 10 : 8), height: isActive ? 14 : (isEnabled ? 10 : 8))
-                        }
-                        .position(point)
-
-                        // Outer Axis Title & Icon Badge (Tapping toggles Category ON/OFF)
-                        let labelRadius = radius + 28.0
-                        let labelPoint = CGPoint(
-                            x: center.x + CGFloat(labelRadius * cos(angle)),
-                            y: center.y + CGFloat(labelRadius * sin(angle))
-                        )
-
-                        axisLabelView(axis: axis, score: score, isActive: isActive)
-                            .position(labelPoint)
-                    }
-                }
+                radarPlotView(size: size, center: center, radius: radius)
                 // Gesture Overlay handling radial touch projection directly on the polygon
                 .contentShape(Rectangle())
                 .gesture(
@@ -185,6 +64,86 @@ struct InteractiveRadarChartView: View {
             RoundedRectangle(cornerRadius: TravRadius.lg)
                 .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
         )
+    }
+
+    @ViewBuilder
+    private func backgroundGridRings(radius: CGFloat) -> some View {
+        ForEach([0.25, 0.5, 0.75, 1.0], id: \.self) { level in
+            let w = radius * 2 * CGFloat(level)
+            let h = radius * 2 * CGFloat(level)
+            let lw: CGFloat = level == 1.0 ? 1.5 : 1.0
+            RadarChartPolygonShape(values: Array(repeating: level, count: axes.count))
+                .stroke(TravColors.border.opacity(0.4), lineWidth: lw)
+                .frame(width: w, height: h)
+        }
+    }
+
+    @ViewBuilder
+    private func axisSpokesAndGuides(center: CGPoint, radius: CGFloat) -> some View {
+        ForEach(0..<axes.count, id: \.self) { i in
+            AxisSpokeView(
+                index: i,
+                axis: axes[i],
+                center: center,
+                radius: radius,
+                rating: rating,
+                minScore: minScore,
+                maxScore: maxScore,
+                activeAxisIndex: activeAxisIndex,
+                axesCount: axes.count
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func ratingPolygon(radius: CGFloat, normalizedValues: [Double]) -> some View {
+        ZStack {
+            RadarChartPolygonShape(values: normalizedValues)
+                .fill(
+                    LinearGradient(
+                        colors: [TravColors.accent.opacity(0.45), TravColors.accent.opacity(0.15)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: radius * 2, height: radius * 2)
+
+            RadarChartPolygonShape(values: normalizedValues)
+                .stroke(TravColors.accent, lineWidth: 2.5)
+                .frame(width: radius * 2, height: radius * 2)
+        }
+    }
+
+    @ViewBuilder
+    private func draggableKnobsAndLabels(center: CGPoint, radius: CGFloat) -> some View {
+        ForEach(0..<axes.count, id: \.self) { i in
+            DraggableKnobView(
+                index: i,
+                axis: axes[i],
+                center: center,
+                radius: radius,
+                rating: $rating,
+                minScore: minScore,
+                maxScore: maxScore,
+                activeAxisIndex: activeAxisIndex,
+                axesCount: axes.count,
+                hapticFeedback: hapticFeedback
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func radarPlotView(size: CGFloat, center: CGPoint, radius: CGFloat) -> some View {
+        let normalizedValues = axes.map { axis in
+            rating.normalizedScore(for: axis.id, min: minScore, max: maxScore)
+        }
+
+        ZStack {
+            backgroundGridRings(radius: radius)
+            axisSpokesAndGuides(center: center, radius: radius)
+            ratingPolygon(radius: radius, normalizedValues: normalizedValues)
+            draggableKnobsAndLabels(center: center, radius: radius)
+        }
     }
 
     // MARK: - Radial Touch Projection & Live Score Update Logic
@@ -336,43 +295,195 @@ struct InteractiveRadarChartView: View {
         }
     }
 
-    private func axisLabelView(axis: RadarAxis, score: Double, isActive: Bool) -> some View {
-        let isEnabled = rating.isEnabled(axis.id)
+}
 
-        return Button {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                rating.toggleCategory(axis.id)
+// MARK: - Helper Subviews for Compiler Optimization
+
+struct AxisSpokeView: View {
+    let index: Int
+    let axis: RadarAxis
+    let center: CGPoint
+    let radius: CGFloat
+    let rating: RadarRating
+    let minScore: Double
+    let maxScore: Double
+    let activeAxisIndex: Int?
+    let axesCount: Int
+
+    private var isEnabled: Bool {
+        rating.isEnabled(axis.id)
+    }
+
+    private var val: Double {
+        rating.normalizedScore(for: axis.id, min: minScore, max: maxScore)
+    }
+
+    private var angle: Double {
+        -.pi / 2.0 + Double(index) * (2.0 * .pi / Double(axesCount))
+    }
+
+    private var vertexPoint: CGPoint {
+        CGPoint(
+            x: center.x + CGFloat(radius * val * cos(angle)),
+            y: center.y + CGFloat(radius * val * sin(angle))
+        )
+    }
+
+    private var maxPoint: CGPoint {
+        CGPoint(
+            x: center.x + CGFloat(radius * cos(angle)),
+            y: center.y + CGFloat(radius * sin(angle))
+        )
+    }
+
+    private var isActive: Bool {
+        activeAxisIndex == index
+    }
+
+    var body: some View {
+        ZStack {
+            // Solid line from center to current rated vertex
+            Path { p in
+                p.move(to: center)
+                p.addLine(to: vertexPoint)
             }
-            hapticFeedback.impactOccurred()
-        } label: {
-            VStack(spacing: 2) {
-                HStack(spacing: 3) {
-                    if let iconName = axis.iconName {
-                        Image(systemName: isEnabled ? iconName : "eye.slash.fill")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(isEnabled ? (isActive ? TravColors.accent : TravColors.muted) : Color.gray)
-                    }
-                    Text(axis.name)
-                        .font(.system(size: 11, weight: isEnabled ? (isActive ? .bold : .semibold) : .medium, design: .rounded))
-                        .foregroundStyle(isEnabled ? (isActive ? TravColors.accent : TravColors.primary) : Color.gray)
-                }
-                Text(isEnabled ? String(format: "%.1f", score) : "OFF")
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(isEnabled ? (isActive ? TravColors.accent : TravColors.muted) : Color.gray.opacity(0.8))
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(isEnabled ? TravColors.surface.opacity(0.95) : Color.gray.opacity(0.15))
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(isEnabled ? (isActive ? TravColors.accent : TravColors.border.opacity(0.5)) : Color.gray.opacity(0.4), lineWidth: 1)
+            .stroke(
+                isEnabled ? (isActive ? TravColors.accent : TravColors.accent.opacity(0.35)) : Color.gray.opacity(0.2),
+                lineWidth: isActive ? 2.5 : 1.5
             )
-            .shadow(color: Color.black.opacity(isActive ? 0.15 : 0.04), radius: isActive ? 3 : 1)
-            .scaleEffect(isActive ? 1.08 : 1.0)
-            .animation(.spring(response: 0.2), value: isActive)
+
+            // Soft dashed headroom line indicating remaining capacity up to max 10.0
+            Path { p in
+                p.move(to: vertexPoint)
+                p.addLine(to: maxPoint)
+            }
+            .stroke(
+                isEnabled ? (isActive ? TravColors.accent.opacity(0.85) : TravColors.border.opacity(0.6)) : Color.gray.opacity(0.25),
+                style: StrokeStyle(
+                    lineWidth: isActive ? 2.0 : 1.2,
+                    dash: [5, 4]
+                )
+            )
         }
-        .buttonStyle(.plain)
+    }
+}
+
+struct DraggableKnobView: View {
+    let index: Int
+    let axis: RadarAxis
+    let center: CGPoint
+    let radius: CGFloat
+    @Binding var rating: RadarRating
+    let minScore: Double
+    let maxScore: Double
+    let activeAxisIndex: Int?
+    let axesCount: Int
+    let hapticFeedback: UIImpactFeedbackGenerator
+
+    private var isEnabled: Bool {
+        rating.isEnabled(axis.id)
+    }
+
+    private var val: Double {
+        rating.normalizedScore(for: axis.id, min: minScore, max: maxScore)
+    }
+
+    private var angle: Double {
+        -.pi / 2.0 + Double(index) * (2.0 * .pi / Double(axesCount))
+    }
+
+    private var point: CGPoint {
+        CGPoint(
+            x: center.x + CGFloat(radius * val * cos(angle)),
+            y: center.y + CGFloat(radius * val * sin(angle))
+        )
+    }
+
+    private var isActive: Bool {
+        activeAxisIndex == index
+    }
+
+    private var score: Double {
+        rating.score(for: axis.id, default: minScore)
+    }
+
+    private var labelPoint: CGPoint {
+        let labelRadius = radius + 28.0
+        return CGPoint(
+            x: center.x + CGFloat(labelRadius * cos(angle)),
+            y: center.y + CGFloat(labelRadius * sin(angle))
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            // Draggable Knob Handle on the Polygon (Gray when disabled at center)
+            ZStack {
+                if isActive && isEnabled {
+                    Circle()
+                        .fill(TravColors.accent.opacity(0.25))
+                        .frame(width: 38, height: 38)
+
+                    // Floating Tooltip badge showing live continuous decimal value
+                    Text(String(format: "%.1f", score))
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(TravColors.accent)
+                        .clipShape(Capsule())
+                        .shadow(color: TravColors.accent.opacity(0.4), radius: 4, y: 2)
+                        .offset(y: -32)
+                }
+
+                Circle()
+                    .fill(isEnabled ? TravColors.surface : Color.gray.opacity(0.2))
+                    .frame(width: isActive ? 24 : (isEnabled ? 18 : 14), height: isActive ? 24 : (isEnabled ? 18 : 14))
+                    .shadow(color: Color.black.opacity(isEnabled ? 0.15 : 0.05), radius: 3)
+
+                Circle()
+                    .fill(isEnabled ? (isActive ? TravColors.accent : TravColors.primary) : Color.gray)
+                    .frame(width: isActive ? 14 : (isEnabled ? 10 : 8), height: isActive ? 14 : (isEnabled ? 10 : 8))
+            }
+            .position(point)
+
+            // Outer Axis Title & Icon Badge (Tapping toggles Category ON/OFF)
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    rating.toggleCategory(axis.id)
+                }
+                hapticFeedback.impactOccurred()
+            } label: {
+                VStack(spacing: 2) {
+                    HStack(spacing: 3) {
+                        if let iconName = axis.iconName {
+                            Image(systemName: isEnabled ? iconName : "eye.slash.fill")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(isEnabled ? (isActive ? TravColors.accent : TravColors.muted) : Color.gray)
+                        }
+                        Text(axis.name)
+                            .font(.system(size: 11, weight: isEnabled ? (isActive ? .bold : .semibold) : .medium, design: .rounded))
+                            .foregroundStyle(isEnabled ? (isActive ? TravColors.accent : TravColors.primary) : Color.gray)
+                    }
+                    Text(isEnabled ? String(format: "%.1f", score) : "OFF")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(isEnabled ? (isActive ? TravColors.accent : TravColors.muted) : Color.gray.opacity(0.8))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(isEnabled ? TravColors.surface.opacity(0.95) : Color.gray.opacity(0.15))
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(isEnabled ? (isActive ? TravColors.accent : TravColors.border.opacity(0.5)) : Color.gray.opacity(0.4), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(isActive ? 0.15 : 0.04), radius: isActive ? 3 : 1)
+                .scaleEffect(isActive ? 1.08 : 1.0)
+                .animation(.spring(response: 0.2), value: isActive)
+            }
+            .buttonStyle(.plain)
+            .position(labelPoint)
+        }
     }
 }
 

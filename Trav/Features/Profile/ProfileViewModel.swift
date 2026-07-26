@@ -115,11 +115,7 @@ final class ProfileViewModel {
 
         if let cached = store.cachedProfile(username: username) {
             var merged = cached
-            if let existing = profile {
-                merged.isFollowing = store.isFollowing(cached.id) ? true : existing.isFollowing
-            } else {
-                merged.isFollowing = store.isFollowing(cached.id)
-            }
+            merged.isFollowing = store.isFollowing(cached.id)
             profile = merged
         }
 
@@ -192,6 +188,11 @@ final class ProfileViewModel {
                 createdPage = page
                 createdHasMore = result.hasMore
             case .saved:
+                guard environment.session.currentUser?.id == profile.id else {
+                    saved = []
+                    savedHasMore = false
+                    return
+                }
                 let page = reset ? 0 : savedPage + 1
                 let result = try await environment.profiles.fetchSavedExperiences(userID: profile.id, page: page)
                 var items = result.items

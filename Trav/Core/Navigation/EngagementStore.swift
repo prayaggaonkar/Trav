@@ -99,8 +99,28 @@ final class EngagementStore {
     }
 
     func cache(_ profile: Profile) {
-        profileCache[profile.id] = profile
-        profileCacheByUsername[profile.username.lowercased()] = profile
+        if var existing = profileCache[profile.id] {
+            let isStub = profile.bio == nil && profile.homeCityName == nil && profile.experienceCount == 0 && profile.followerCount == 0
+            if isStub {
+                let oldFollowing = existing.isFollowing ?? followingUserIDs.contains(profile.id)
+                let newFollowing = profile.isFollowing ?? followingUserIDs.contains(profile.id)
+                if oldFollowing != newFollowing {
+                    if newFollowing {
+                        existing.followerCount += 1
+                    } else {
+                        existing.followerCount = max(0, existing.followerCount - 1)
+                    }
+                }
+                existing.isFollowing = newFollowing
+            } else {
+                existing = profile
+            }
+            profileCache[profile.id] = existing
+            profileCacheByUsername[profile.username.lowercased()] = existing
+        } else {
+            profileCache[profile.id] = profile
+            profileCacheByUsername[profile.username.lowercased()] = profile
+        }
         bump()
     }
 

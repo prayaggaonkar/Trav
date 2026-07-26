@@ -343,15 +343,9 @@ struct HeroExperienceCard: View {
 
 /// Circular progress bar displaying experience rating out of 10.0.
 struct CircularRatingView: View {
-<<<<<<< HEAD
     let rating: Double // e.g. 8.5 out of 10.0
     var maxRating: Double = 10.0
     var size: CGFloat = 88 // Diameter equals width of the two top action buttons
-=======
-    let rating: Double // e.g. 4.8
-    var maxRating: Double = 5.0
-    var size: CGFloat = 88 // Default diameter
->>>>>>> 2deab7946cdd240dc905de4942e26ba82ac03558
 
     var body: some View {
         let progress = min(max(rating / maxRating, 0.0), 1.0)

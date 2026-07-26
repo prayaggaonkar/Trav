@@ -14,6 +14,15 @@ struct ProfileView: View {
     @State private var showEditProfile = false
     @State private var followListMode: FollowListMode?
     @State private var saveConfirmation = false
+    @State private var showSettings = false
+
+    private var tabs: [ProfileContentTab] {
+        if isOwnProfile {
+            return [.created, .saved, .completed]
+        } else {
+            return [.created, .completed]
+        }
+    }
 
     init(username: String, showDismissButton: Bool = true) {
         self.username = username
@@ -62,6 +71,13 @@ struct ProfileView: View {
                 if let profile = viewModel.profile {
                     FollowListView(profile: profile, mode: mode)
                 }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsSheetView {
+                    Task { await viewModel.signOut(using: environment) }
+                }
+                .presentationDetents([.height(240)])
+                .presentationDragIndicator(.visible)
             }
             .overlay(alignment: .top) {
                 if saveConfirmation {
@@ -141,7 +157,7 @@ struct ProfileView: View {
                     .travAppear(delay: 0.08)
 
                 ProfileTabBar(
-                    tabs: ProfileContentTab.defaultTabs,
+                    tabs: tabs,
                     selection: Binding(
                         get: { viewModel.selectedTab },
                         set: { newValue in
@@ -382,28 +398,129 @@ struct ProfileView: View {
 
     @ViewBuilder
     private var profileMenu: some View {
-        Menu {
-            Button {
-                environment.appearance.toggle()
-            } label: {
-                Label(
-                    environment.appearance.isLightMode ? "Dark Mode" : "Light Mode",
-                    systemImage: environment.appearance.isLightMode ? "moon" : "sun.max"
-                )
-            }
-            Button(role: .destructive) {
-                Task { await viewModel.signOut(using: environment) }
-            } label: {
-                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-            }
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            showSettings = true
         } label: {
-            Image(systemName: "line.3.horizontal")
+            Image(systemName: "gearshape")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(TravColors.primary)
                 .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Menu")
+        .accessibilityLabel("Settings")
+    }
+}
+
+// MARK: - Settings Sheet
+
+struct SettingsSheetView: View {
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(\.dismiss) private var dismiss
+    let onSignOut: () -> Void
+
+    var body: some View {
+        VStack(spacing: TravSpacing.md) {
+            // Header
+            HStack {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(TravColors.accent)
+                Text("Settings")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(TravColors.primary)
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(TravColors.muted)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, TravSpacing.screenHorizontal)
+            .padding(.top, TravSpacing.lg)
+
+            Divider()
+                .background(TravColors.border.opacity(0.3))
+
+            VStack(spacing: TravSpacing.sm) {
+                // Toggle theme button
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    environment.appearance.toggle()
+                } label: {
+                    HStack(spacing: TravSpacing.md) {
+                        Image(systemName: environment.appearance.isLightMode ? "moon.fill" : "sun.max.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(TravColors.accent)
+                            .frame(width: 32, height: 32)
+                            .background(TravColors.surfaceElevated)
+                            .clipShape(Circle())
+
+                        Text(environment.appearance.isLightMode ? "Dark Mode" : "Light Mode")
+                            .font(.system(size: 15, weight: .medium, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(TravColors.muted)
+                    }
+                    .padding(.horizontal, TravSpacing.md)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(TravColors.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+
+                // Sign out button
+                Button {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    dismiss()
+                    onSignOut()
+                } label: {
+                    HStack(spacing: TravSpacing.md) {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Color.red)
+                            .frame(width: 32, height: 32)
+                            .background(Color.red.opacity(0.1))
+                            .clipShape(Circle())
+
+                        Text("Sign Out")
+                            .font(.system(size: 15, weight: .medium, design: .rounded))
+                            .foregroundStyle(Color.red)
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, TravSpacing.md)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(TravColors.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(Color.red.opacity(0.2), lineWidth: 1)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, TravSpacing.screenHorizontal)
+            .padding(.top, TravSpacing.sm)
+
+            Spacer()
+        }
+        .travScreenBackground()
     }
 }
