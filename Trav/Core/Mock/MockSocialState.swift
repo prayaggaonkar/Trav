@@ -8,6 +8,7 @@ actor MockSocialState {
     private var follows: Set<FollowEdge> = []
     private var saves: Set<SaveEdge> = []
     private var completions: [CompletionEdge] = []
+    private var notifications: [AppNotification] = []
     /// Extra summaries (e.g. bookmarked feed places) not present in MockData.experiences.
     private var bookmarkedSummaries: [UUID: ExperienceSummary] = [:]
     private var didSeed = false
@@ -65,6 +66,35 @@ actor MockSocialState {
             completedAt: Date().addingTimeInterval(-86400 * 10),
             note: nil
         ))
+
+        // Seed inbox items for the demo user (maya).
+        if let jordan = profiles[MockData.creators[1].id]?.summary,
+           let sam = profiles[MockData.creators[2].id]?.summary {
+            appendNotification(
+                recipientID: demoUser,
+                actor: jordan,
+                type: .follow,
+                referenceID: jordan.id,
+                createdAt: Date().addingTimeInterval(-3600 * 2),
+                isRead: false
+            )
+            appendNotification(
+                recipientID: demoUser,
+                actor: sam,
+                type: .save,
+                referenceID: MockData.experiences[0].id,
+                createdAt: Date().addingTimeInterval(-3600 * 5),
+                isRead: false
+            )
+            appendNotification(
+                recipientID: demoUser,
+                actor: jordan,
+                type: .newExperience,
+                referenceID: MockData.experiences[1].id,
+                createdAt: Date().addingTimeInterval(-86400),
+                isRead: true
+            )
+        }
 
         recalculateCounts()
     }
@@ -143,6 +173,16 @@ actor MockSocialState {
         guard !follows.contains(edge) else { return }
         follows.insert(edge)
         recalculateCounts()
+        if let actor = profiles[followerID]?.summary {
+            appendNotification(
+                recipientID: followingID,
+                actor: actor,
+                type: .follow,
+                referenceID: followerID,
+                createdAt: Date(),
+                isRead: false
+            )
+        }
     }
 
     func unfollow(followerID: UUID, followingID: UUID) {
@@ -193,6 +233,18 @@ actor MockSocialState {
             return false
         }
         saves.insert(edge)
+        if let ownerID = experienceOwnerID(experienceID),
+           ownerID != userID,
+           let actor = profiles[userID]?.summary {
+            appendNotification(
+                recipientID: ownerID,
+                actor: actor,
+                type: .save,
+                referenceID: experienceID,
+                createdAt: Date(),
+                isRead: false
+            )
+        }
         return true
     }
 
@@ -268,6 +320,87 @@ actor MockSocialState {
     func createdExperiences(userID: UUID) -> [ExperienceSummary] {
         seedIfNeeded()
         return MockData.experiences.filter { $0.creator.id == userID }
+    }
+
+    /// Fan-out: notify everyone who follows `creatorID` about a new experience.
+    func notifyNewExperience(creatorID: UUID, experienceID: UUID) {
+        seedIfNeeded()
+        guard let actor = profiles[creatorID]?.summary else { return }
+        let recipients = follows
+            .filter { $0.followingID == creatorID }
+            .map(\.followerID)
+        for recipientID in recipients where recipientID != creatorID {
+            appendNotification(
+                recipientID: recipientID,
+                actor: actor,
+                type: .newExperience,
+                referenceID: experienceID,
+                createdAt: Date(),
+                isRead: false
+            )
+        }
+    }
+
+    func notifications(for userID: UUID, page: Int, pageSize: Int) -> Paginated<AppNotification> {
+        seedIfNeeded()
+        let sorted = notifications
+            .filter { $0.userID == userID }
+            .sorted { $0.createdAt > $1.createdAt }
+        let start = page * pageSize
+        guard start < sorted.count else {
+            return Paginated(items: [], page: page, hasMore: false)
+        }
+        let end = min(start + pageSize, sorted.count)
+        return Paginated(items: Array(sorted[start..<end]), page: page, hasMore: end < sorted.count)
+    }
+
+    func unreadCount(for userID: UUID) -> Int {
+        seedIfNeeded()
+        return notifications.filter { $0.userID == userID && !$0.isRead }.count
+    }
+
+    func markRead(ids: [UUID]) {
+        seedIfNeeded()
+        let idSet = Set(ids)
+        for index in notifications.indices where idSet.contains(notifications[index].id) {
+            notifications[index].isRead = true
+        }
+    }
+
+    func markAllRead(userID: UUID) {
+        seedIfNeeded()
+        for index in notifications.indices where notifications[index].userID == userID {
+            notifications[index].isRead = true
+        }
+    }
+
+    private func experienceOwnerID(_ experienceID: UUID) -> UUID? {
+        if let summary = MockData.experiences.first(where: { $0.id == experienceID }) {
+            return summary.creator.id
+        }
+        return bookmarkedSummaries[experienceID]?.creator.id
+    }
+
+    private func appendNotification(
+        recipientID: UUID,
+        actor: ProfileSummary,
+        type: AppNotificationType,
+        referenceID: UUID?,
+        createdAt: Date,
+        isRead: Bool
+    ) {
+        guard recipientID != actor.id else { return }
+        notifications.append(
+            AppNotification(
+                id: UUID(),
+                userID: recipientID,
+                actor: actor,
+                type: type,
+                referenceID: referenceID,
+                isRead: isRead,
+                createdAt: createdAt
+            )
+        )
     }
 
     private func recalculateCounts() {
