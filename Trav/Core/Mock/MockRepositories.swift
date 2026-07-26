@@ -37,14 +37,13 @@ struct MockExperienceRepository: ExperienceRepository {
 
     func publishExperience(
         title: String,
-        description: String,
         cityID: UUID,
         creatorID: UUID,
         stops: [StopPreview],
         rating: RadarRating?,
-        imageData: Data?
+        imagesData: [Data]
     ) async throws {
-        print("--- MockExperienceRepository.publishExperience called (using Mock Backend) with rating: \(String(describing: rating)) ---")
+        print("--- MockExperienceRepository.publishExperience called (using Mock Backend) with \(imagesData.count) images & rating: \(String(describing: rating)) ---")
         try await Task.sleep(for: .milliseconds(500))
         await MockSocialState.shared.notifyNewExperience(creatorID: creatorID, experienceID: UUID())
     }

@@ -15,10 +15,9 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let id: UUID
         let user_id: UUID
         let title: String
-        let description: String
         let city: String
         let stops: [String]
-        let image: String?
+        let image: [String]?
         let created_at: Date
         let rating: [String: Double]?
     }
@@ -27,10 +26,9 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let id: UUID
         let user_id: UUID
         let title: String
-        let description: String
         let city: String
         let stops: [String]
-        let image: String?
+        let image: StringOrArray?
         let rating: RadarRating?
     }
 
@@ -100,46 +98,48 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
     func publishExperience(
         title: String,
-        description: String,
         cityID: UUID,
         creatorID: UUID,
         stops: [StopPreview],
         rating: RadarRating?,
-        imageData: Data?
+        imagesData: [Data]
     ) async throws {
         print("--- SupabaseExperienceRepository.publishExperience starting ---")
         let experienceID = UUID()
 
-        // Match cityID to a name, or default to "Unknown"
-        let cityName = MockData.cities.first(where: { $0.id == cityID })?.name ?? "Unknown"
+        // Match cityID to a name, or default to "San Francisco"
+        let cityName = MockData.cities.first(where: { $0.id == cityID })?.name ?? "San Francisco"
 
-        var publicURLString: String? = nil
+        var imageURLStrings: [String] = []
 
-        if let data = imageData {
-            let path = "\(experienceID.uuidString.lowercased())/cover.jpg"
-            print("Uploading cover image to Supabase Storage: path=\(path), size=\(data.count) bytes")
+        for (index, data) in imagesData.enumerated() {
+            let path = "\(experienceID.uuidString.lowercased())/photo_\(index).jpg"
+            print("Uploading image \(index + 1)/\(imagesData.count) to Supabase Storage: path=\(path), size=\(data.count) bytes")
             
-            _ = try await client.storage
-                .from("experiences")
-                .upload(
-                    path,
-                    data: data,
-                    options: FileOptions(contentType: "image/jpeg")
-                )
-            
-            let publicURL = try client.storage.from("experiences").getPublicURL(path: path)
-            publicURLString = publicURL.absoluteString
-            print("Successfully uploaded cover image to Supabase Storage. Public URL: \(publicURLString ?? "nil")")
+            do {
+                _ = try await client.storage
+                    .from("experiences")
+                    .upload(
+                        path,
+                        data: data,
+                        options: FileOptions(contentType: "image/jpeg")
+                    )
+                
+                let publicURL = try client.storage.from("experiences").getPublicURL(path: path)
+                imageURLStrings.append(publicURL.absoluteString)
+                print("Successfully uploaded image \(index + 1). Public URL: \(publicURL.absoluteString)")
+            } catch {
+                print("Error uploading image \(index): \(error)")
+            }
         }
 
         let experienceInsert = DBExperienceInsert(
             id: experienceID,
             user_id: creatorID,
             title: title,
-            description: description,
             city: cityName,
             stops: stops.map { $0.name },
-            image: publicURLString,
+            image: imageURLStrings.isEmpty ? nil : imageURLStrings,
             created_at: Date(),
             rating: rating?.scores
         )
@@ -224,15 +224,16 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 let cityID = matchedCity?.id ?? UUID()
                 
                 let firstStopName = stops.first?.name ?? "park"
-                let coverURL = dbExp.image.flatMap { URL(string: $0) } ?? defaultCoverForCategory(firstStopName)
+                let parsedURLs = dbExp.image?.values.compactMap { URL(string: $0) } ?? []
+                let imageURLs = parsedURLs.isEmpty ? [defaultCoverForCategory(firstStopName)].compactMap { $0 } : parsedURLs
                 
                 return Experience(
                     id: dbExp.id,
                     cityID: cityID,
                     creator: userCreator,
                     title: dbExp.title,
-                    description: dbExp.description,
-                    coverImageURL: coverURL,
+                    description: "",
+                    imageURLs: imageURLs,
                     durationMinutes: stops.count * 30,
                     costLevel: .moderate,
                     estimatedCostUSD: nil,
@@ -378,11 +379,14 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                     isVerified: false
                 )
 
+                let parsedURLs = dbExp.image?.values.compactMap { URL(string: $0) } ?? []
+                let imageURLs = parsedURLs.isEmpty ? [defaultCoverForCategory(dbExp.title)].compactMap { $0 } : parsedURLs
+
                 let summary = ExperienceSummary(
                     id: dbExp.id,
                     cityID: cityID,
                     title: dbExp.title,
-                    coverImageURL: dbExp.image.flatMap { URL(string: $0) },
+                    imageURLs: imageURLs,
                     creator: creator,
                     durationMinutes: max(30, dbExp.stops.count * 30),
                     costLevel: .budget,
@@ -436,11 +440,14 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                     StopPreview(id: UUID(), name: stopName, emoji: nil)
                 }
 
+                let parsedURLs = dbExp.image?.values.compactMap { URL(string: $0) } ?? []
+                let imageURLs = parsedURLs.isEmpty ? [defaultCoverForCategory(dbExp.title)].compactMap { $0 } : parsedURLs
+
                 let summary = ExperienceSummary(
                     id: dbExp.id,
                     cityID: cityID,
                     title: dbExp.title,
-                    coverImageURL: dbExp.image.flatMap { URL(string: $0) },
+                    imageURLs: imageURLs,
                     creator: creator,
                     durationMinutes: max(30, dbExp.stops.count * 30),
                     costLevel: .budget,

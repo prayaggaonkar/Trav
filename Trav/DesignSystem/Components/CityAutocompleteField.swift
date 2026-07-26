@@ -1,4 +1,5 @@
 import CoreLocation
+import MapKit
 import SwiftUI
 import UIKit
 
@@ -245,5 +246,374 @@ final class CurrentCityLocator: NSObject, CLLocationManagerDelegate {
             continuation?.resume(returning: nil)
             continuation = nil
         }
+    }
+}
+
+// MARK: - Stop Autocomplete
+
+struct StopSuggestion: Identifiable, Hashable, Sendable {
+    let id: String
+    let title: String
+    let subtitle: String
+
+    var displayLabel: String {
+        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanSubtitle = subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanSubtitle.isEmpty { return cleanTitle }
+        if cleanTitle.lowercased().contains(cleanSubtitle.lowercased()) {
+            return cleanTitle
+        }
+        return "\(cleanTitle), \(cleanSubtitle)"
+    }
+}
+
+/// Stop search controller utilizing direct Apple Maps Search API (MKLocalSearch) with location biasing and natural language query support.
+@Observable
+@MainActor
+final class StopAutocompleteController: NSObject, MKLocalSearchCompleterDelegate, CLLocationManagerDelegate {
+    var query: String = "" {
+        didSet {
+            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            searchTask?.cancel()
+            if trimmed.isEmpty {
+                suggestions = []
+                completer.queryFragment = ""
+                isSearching = false
+            } else if trimmed != lastQueried {
+                lastQueried = trimmed
+                isSearching = true
+                completer.queryFragment = trimmed
+
+                // Execute direct Apple Maps API (MKLocalSearch) search for any place, query, or city
+                searchTask = Task {
+                    try? await Task.sleep(for: .milliseconds(200))
+                    guard !Task.isCancelled else { return }
+                    await self.performAppleMapsSearch(for: trimmed)
+                }
+            }
+        }
+    }
+
+    private(set) var suggestions: [StopSuggestion] = []
+    private(set) var isSearching = false
+
+    private let completer = MKLocalSearchCompleter()
+    private let locationManager = CLLocationManager()
+    private var lastQueried = ""
+    private var searchTask: Task<Void, Never>?
+
+    override init() {
+        super.init()
+        completer.delegate = self
+        completer.resultTypes = [.pointOfInterest, .address, .query]
+
+        locationManager.delegate = self
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        if locationManager.authorizationStatus == .notDetermined {
+            locationManager.requestWhenInUseAuthorization()
+        }
+        if let location = locationManager.location {
+            updateRegion(location.coordinate)
+        }
+        locationManager.startUpdatingLocation()
+    }
+
+    private func updateRegion(_ coordinate: CLLocationCoordinate2D) {
+        completer.region = MKCoordinateRegion(
+            center: coordinate,
+            latitudinalMeters: 50_000,
+            longitudinalMeters: 50_000
+        )
+    }
+
+    func clear() {
+        searchTask?.cancel()
+        query = ""
+        suggestions = []
+        lastQueried = ""
+        isSearching = false
+    }
+
+    func dismissSuggestions() {
+        searchTask?.cancel()
+        suggestions = []
+        isSearching = false
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        Task { @MainActor in
+            self.updateRegion(location.coordinate)
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
+
+    nonisolated func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        let snapshots: [(title: String, subtitle: String)] = completer.results.map {
+            ($0.title, $0.subtitle)
+        }
+        Task { @MainActor in
+            // Fast prefix completion while direct Apple Maps API search is loading
+            if self.suggestions.isEmpty {
+                self.applyCompleter(snapshots: snapshots)
+            }
+        }
+    }
+
+    nonisolated func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {}
+
+    private func applyCompleter(snapshots: [(title: String, subtitle: String)]) {
+        var mapped: [StopSuggestion] = []
+        var seen = Set<String>()
+
+        for snapshot in snapshots {
+            let title = snapshot.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let subtitle = snapshot.subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty else { continue }
+
+            let suggestion = StopSuggestion(
+                id: "completer|\(title)|\(subtitle)",
+                title: title,
+                subtitle: subtitle
+            )
+            let key = suggestion.displayLabel.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            mapped.append(suggestion)
+            if mapped.count >= 15 { break }
+        }
+
+        if self.suggestions.isEmpty {
+            self.suggestions = mapped
+        }
+    }
+
+    /// Primary search function using Apple Maps Search API (MKLocalSearch).
+    private func performAppleMapsSearch(for queryText: String) async {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = queryText
+
+        if let location = locationManager.location {
+            request.region = MKCoordinateRegion(
+                center: location.coordinate,
+                latitudinalMeters: 50_000,
+                longitudinalMeters: 50_000
+            )
+        }
+
+        let search = MKLocalSearch(request: request)
+        do {
+            let response = try await search.start()
+            guard !Task.isCancelled else { return }
+
+            var apiSuggestions: [StopSuggestion] = []
+            var seen = Set<String>()
+
+            for item in response.mapItems {
+                guard let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
+                let subtitle = Self.formatSubtitle(for: item)
+                let suggestion = StopSuggestion(
+                    id: "maps_api|\(name)|\(subtitle)",
+                    title: name,
+                    subtitle: subtitle
+                )
+                let key = suggestion.displayLabel.lowercased()
+                guard !seen.contains(key) else { continue }
+                seen.insert(key)
+                apiSuggestions.append(suggestion)
+            }
+
+            if !apiSuggestions.isEmpty {
+                self.suggestions = Array(apiSuggestions.prefix(15))
+            }
+            self.isSearching = false
+        } catch {
+            Task { @MainActor in
+                self.isSearching = false
+            }
+        }
+    }
+
+    private static func formatSubtitle(for item: MKMapItem) -> String {
+        let placemark = item.placemark
+        var parts: [String] = []
+
+        if let street = placemark.thoroughfare {
+            if let number = placemark.subThoroughfare {
+                parts.append("\(number) \(street)")
+            } else {
+                parts.append(street)
+            }
+        }
+
+        if let city = placemark.locality ?? placemark.subAdministrativeArea, !city.isEmpty {
+            parts.append(city)
+        }
+
+        if let state = placemark.administrativeArea, !state.isEmpty, state != placemark.locality {
+            parts.append(state)
+        } else if let country = placemark.country, !country.isEmpty, country != placemark.locality {
+            parts.append(country)
+        }
+
+        return parts.joined(separator: ", ")
+    }
+}
+
+/// Search and autocomplete field for adding experience stops using Apple Maps API.
+struct StopAutocompleteField: View {
+    @Binding var stops: [StopPreview]
+    var placeholder: String = "Search Apple Maps (e.g. Chipotle SF, Septime Paris)..."
+
+    private static let suggestionRowHeight: CGFloat = 52
+    private static let maxVisibleSuggestions = 5
+
+    @State private var controller = StopAutocompleteController()
+    @State private var draft = ""
+    @State private var showSuggestions = false
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TravSpacing.xs) {
+            HStack(spacing: TravSpacing.xs) {
+                HStack(spacing: TravSpacing.sm) {
+                    if controller.isSearching {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(TravColors.accent)
+                    } else {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(TravColors.muted)
+                    }
+
+                    TextField(placeholder, text: $draft)
+                        .font(TravTypography.bodyLarge())
+                        .autocorrectionDisabled()
+                        .focused($isFocused)
+                        .onSubmit {
+                            addCustomStop()
+                        }
+                        .onChange(of: draft) { _, newValue in
+                            controller.query = newValue
+                            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                            showSuggestions = !trimmed.isEmpty
+                        }
+
+                    if !draft.isEmpty {
+                        Button {
+                            draft = ""
+                            controller.clear()
+                            showSuggestions = false
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 16))
+                                .foregroundStyle(TravColors.muted)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(TravSpacing.md)
+                .background(TravColors.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                        .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
+                }
+
+                Button(action: addCustomStop) {
+                    Image(systemName: "plus")
+                        .font(.system(size: TravIcon.sm, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
+                        .background(TravColors.accent)
+                        .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
+                }
+                .buttonStyle(TravPressButtonStyle())
+                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .opacity(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1.0)
+            }
+
+            if showSuggestions, !controller.suggestions.isEmpty {
+                let count = min(controller.suggestions.count, Self.maxVisibleSuggestions)
+                let boxHeight = Self.suggestionRowHeight * CGFloat(count)
+
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(controller.suggestions) { suggestion in
+                            Button {
+                                select(suggestion)
+                            } label: {
+                                HStack(spacing: TravSpacing.sm) {
+                                    Image(systemName: "mappin.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(TravColors.accent)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(suggestion.title)
+                                            .font(TravTypography.bodyMedium())
+                                            .foregroundStyle(TravColors.primary)
+                                            .lineLimit(1)
+                                            .multilineTextAlignment(.leading)
+                                        if !suggestion.subtitle.isEmpty {
+                                            Text(suggestion.subtitle)
+                                                .font(TravTypography.caption())
+                                                .foregroundStyle(TravColors.muted)
+                                                .lineLimit(1)
+                                                .multilineTextAlignment(.leading)
+                                        }
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .frame(minHeight: Self.suggestionRowHeight - 1, alignment: .center)
+                                .padding(.horizontal, TravSpacing.md)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+
+                            if suggestion.id != controller.suggestions.last?.id {
+                                Divider().opacity(0.35)
+                            }
+                        }
+                    }
+                }
+                .frame(height: boxHeight)
+                .scrollBounceBehavior(.basedOnSize)
+                .background(TravColors.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                        .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
+                }
+                .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 4)
+            }
+        }
+    }
+
+    private func select(_ suggestion: StopSuggestion) {
+        let name = suggestion.displayLabel
+        guard !name.isEmpty else { return }
+        withAnimation(TravAnimation.enter) {
+            stops.append(StopPreview(id: UUID(), name: name, emoji: nil))
+        }
+        draft = ""
+        controller.clear()
+        showSuggestions = false
+        isFocused = false
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    private func addCustomStop() {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        withAnimation(TravAnimation.enter) {
+            stops.append(StopPreview(id: UUID(), name: trimmed, emoji: nil))
+        }
+        draft = ""
+        controller.clear()
+        showSuggestions = false
+        isFocused = false
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 }

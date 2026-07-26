@@ -842,7 +842,6 @@ struct FeedView: View {
                     id: UUID(),
                     user_id: currentUser.id,
                     title: finalTitle,
-                    description: "A custom route created via Trav Quick Planner.",
                     city: "Berkeley",
                     stops: stopsJSONStrings,
                     created_at: Date()
@@ -1151,11 +1150,14 @@ struct FeedView: View {
 
                     let matchedCity = resolveCatalogCity(from: dbExp.city)
                     let firstStopName = decodedStops.first?.name ?? "park"
+                    let parsedURLs = dbExp.image?.values.compactMap { URL(string: $0) } ?? []
+                    let imageURLs = parsedURLs.isEmpty ? [defaultCoverForCategory(firstStopName)].compactMap { $0 } : parsedURLs
+
                     return ExperienceSummary(
                         id: dbExp.id,
                         cityID: matchedCity?.id ?? UUID(),
                         title: dbExp.title,
-                        coverImageURL: defaultCoverForCategory(firstStopName),
+                        imageURLs: imageURLs,
                         creator: userCreator,
                         durationMinutes: dbExp.stops.count * 30,
                         costLevel: .moderate,
@@ -1164,6 +1166,7 @@ struct FeedView: View {
                         likeCount: 0,
                         completionCount: 0,
                         stops: decodedStops,
+                        rating: dbExp.rating,
                         cityName: matchedCity?.name ?? dbExp.city
                     )
                 }
@@ -1408,7 +1411,7 @@ private struct DBStop: Codable {
     let id: UUID
     let name: String
     let emoji: String?
-    let description: String
+    let description: String?
     let latitude: Double
     let longitude: Double
     let place_id: String?
@@ -1419,16 +1422,16 @@ private struct DBUserExperience: Codable {
     let id: UUID
     let user_id: UUID
     let title: String
-    let description: String
     let city: String
     let stops: [String]
+    let image: StringOrArray?
+    let rating: RadarRating?
 }
 
 private struct DBExperienceInsert: Codable {
     let id: UUID
     let user_id: UUID
     let title: String
-    let description: String
     let city: String
     let stops: [String]
     let created_at: Date

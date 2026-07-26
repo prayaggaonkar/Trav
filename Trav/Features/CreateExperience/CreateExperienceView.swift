@@ -6,14 +6,10 @@ struct CreateExperienceView: View {
     @Environment(SessionStore.self) private var session
 
     @State private var title = ""
-    @State private var description = ""
-    @State private var selectedCity: City?
-    @State private var selectedItem: PhotosPickerItem? = nil
-    @State private var selectedImageData: Data? = nil
-    @State private var selectedUIImage: UIImage? = nil
-    @State private var cities: [City] = []
+    @State private var selectedItems: [PhotosPickerItem] = []
+    @State private var selectedImagesData: [Data] = []
+    @State private var selectedUIImages: [UIImage] = []
     @State private var stops: [StopPreview] = []
-    @State private var newStopName = ""
     @State private var rating = RadarRating.defaultRating
 
     @State private var isSubmitting = false
@@ -39,11 +35,6 @@ struct CreateExperienceView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(errorMessage ?? "An unexpected error occurred. Please try again.")
-            }
-            .task {
-                do {
-                    cities = try await environment.cities.fetchGlobeCities()
-                } catch {}
             }
         }
     }
@@ -79,48 +70,22 @@ struct CreateExperienceView: View {
                             placeholder: "e.g. SF Coffee & Books Tour",
                             text: $title
                         )
-                        TravTextField(
-                            title: "Description",
-                            placeholder: "What makes this experience special?",
-                            text: $description,
-                            axis: .vertical
-                        )
                     }
                 }
                 .travAppear(delay: 0.05)
 
-                TravFormSection(title: "Cover Photo") {
-                    VStack(alignment: .center, spacing: TravSpacing.sm) {
-                        PhotosPicker(selection: $selectedItem, matching: .images) {
-                            if let selectedUIImage {
-                                Image(uiImage: selectedUIImage)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(height: 180)
-                                    .frame(maxWidth: .infinity)
-                                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: TravRadius.md)
-                                            .stroke(TravColors.primary.opacity(0.15), lineWidth: 1)
-                                    )
-                                    .overlay(
-                                        Text("Change Cover Photo")
-                                            .font(TravTypography.labelMedium())
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, TravSpacing.md)
-                                            .padding(.vertical, TravSpacing.xs)
-                                            .background(.black.opacity(0.58))
-                                            .clipShape(Capsule())
-                                    )
-                            } else {
+                TravFormSection(title: "Add Media") {
+                    VStack(alignment: .leading, spacing: TravSpacing.sm) {
+                        if selectedUIImages.isEmpty {
+                            PhotosPicker(selection: $selectedItems, matching: .images) {
                                 VStack(spacing: TravSpacing.xs) {
                                     Image(systemName: "photo.badge.plus")
-                                        .font(.system(size: 28))
+                                        .font(.system(size: 32))
                                         .foregroundStyle(TravColors.accent)
-                                    Text("Add Cover Photo")
+                                    Text("Add Media")
                                         .font(TravTypography.labelMedium())
                                         .foregroundStyle(TravColors.primary)
-                                    Text("Upload an image of a place you visited")
+                                    Text("Upload photos of your experience")
                                         .font(TravTypography.caption())
                                         .foregroundStyle(TravColors.muted)
                                 }
@@ -134,39 +99,83 @@ struct CreateExperienceView: View {
                                         .foregroundStyle(TravColors.primary.opacity(0.15))
                                 )
                             }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .onChange(of: selectedItem) { _, newItem in
-                        Task {
-                            if let newItem {
-                                if let data = try? await newItem.loadTransferable(type: Data.self) {
-                                    selectedImageData = data
-                                    selectedUIImage = UIImage(data: data)
+                            .buttonStyle(.plain)
+                        } else {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: TravSpacing.sm) {
+                                    ForEach(Array(selectedUIImages.enumerated()), id: \.offset) { index, img in
+                                        ZStack(alignment: .topTrailing) {
+                                            Image(uiImage: img)
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: 110, height: 110)
+                                                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: TravRadius.md)
+                                                        .stroke(TravColors.primary.opacity(0.15), lineWidth: 1)
+                                                )
+
+                                            Button {
+                                                withAnimation(TravAnimation.quick) {
+                                                    if index < selectedItems.count { selectedItems.remove(at: index) }
+                                                    if index < selectedImagesData.count { selectedImagesData.remove(at: index) }
+                                                    if index < selectedUIImages.count { selectedUIImages.remove(at: index) }
+                                                }
+                                            } label: {
+                                                Image(systemName: "xmark.circle.fill")
+                                                    .font(.system(size: 22))
+                                                    .foregroundStyle(.white, Color.black.opacity(0.75))
+                                                    .padding(4)
+                                            }
+                                        }
+                                    }
+
+                                    PhotosPicker(selection: $selectedItems, matching: .images) {
+                                        VStack(spacing: TravSpacing.xxs) {
+                                            Image(systemName: "plus.circle.fill")
+                                                .font(.system(size: 24))
+                                                .foregroundStyle(TravColors.accent)
+                                            Text("Add More")
+                                                .font(TravTypography.caption())
+                                                .foregroundStyle(TravColors.primary)
+                                        }
+                                        .frame(width: 110, height: 110)
+                                        .background(TravColors.surfaceElevated)
+                                        .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: TravRadius.md)
+                                                .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [4]))
+                                                .foregroundStyle(TravColors.accent.opacity(0.4))
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
                                 }
+                            }
+
+                            Text("\(selectedUIImages.count) photo\(selectedUIImages.count == 1 ? "" : "s") added")
+                                .font(TravTypography.caption())
+                                .foregroundStyle(TravColors.muted)
+                        }
+                    }
+                    .onChange(of: selectedItems) { _, newItems in
+                        Task {
+                            var datas: [Data] = []
+                            var uiImages: [UIImage] = []
+                            for item in newItems {
+                                if let data = try? await item.loadTransferable(type: Data.self),
+                                   let uiImage = UIImage(data: data) {
+                                    datas.append(data)
+                                    uiImages.append(uiImage)
+                                }
+                            }
+                            await MainActor.run {
+                                self.selectedImagesData = datas
+                                self.selectedUIImages = uiImages
                             }
                         }
                     }
                 }
                 .travAppear(delay: 0.08)
-
-                TravFormSection(title: "Destination City") {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: TravSpacing.sm) {
-                            ForEach(cities) { city in
-                                SelectionChip(
-                                    title: city.name,
-                                    isSelected: selectedCity?.id == city.id
-                                ) {
-                                    selectedCity = city
-                                }
-                            }
-                        }
-                        .padding(.horizontal, TravSpacing.screenHorizontal)
-                    }
-                    .padding(.horizontal, -TravSpacing.screenHorizontal)
-                }
-                .travAppear(delay: 0.1)
 
                 TravFormSection(title: "Stops Along the Way") {
                     VStack(spacing: TravSpacing.sm) {
@@ -174,7 +183,7 @@ struct CreateExperienceView: View {
                             VStack(spacing: TravSpacing.xs) {
                                 ForEach(stops) { stop in
                                     HStack(spacing: TravSpacing.sm) {
-                                        Image(systemName: sfSymbolForEmojiOrCategory(stop.emoji ?? ""))
+                                        Image(systemName: sfSymbolForEmojiOrCategory(stop.emoji ?? stop.name))
                                             .font(.system(size: 12))
                                             .foregroundStyle(TravColors.accent)
                                         Text(stop.name)
@@ -202,32 +211,15 @@ struct CreateExperienceView: View {
                             }
                         }
 
-                        HStack(spacing: TravSpacing.xs) {
-                            TextField("Add a new stop name...", text: $newStopName)
-                                .font(TravTypography.bodyLarge())
-                                .padding(TravSpacing.md)
-                                .frame(minHeight: TravLayout.minTouchTarget)
-                                .background(TravColors.surfaceElevated)
-                                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
-
-                            Button(action: addStop) {
-                                Image(systemName: "plus")
-                                    .font(.system(size: TravIcon.sm, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
-                                    .background(TravColors.accent)
-                                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
-                            }
-                            .buttonStyle(TravPressButtonStyle())
-                        }
+                        StopAutocompleteField(stops: $stops)
                     }
                 }
-                .travAppear(delay: 0.15)
+                .travAppear(delay: 0.12)
 
                 TravFormSection(title: "Experience Ratings") {
                     InteractiveRadarChartView(rating: $rating)
                 }
-                .travAppear(delay: 0.18)
+                .travAppear(delay: 0.15)
 
                 PrimaryButton(
                     title: "Publish Experience",
@@ -237,7 +229,7 @@ struct CreateExperienceView: View {
                     submit()
                 }
                 .padding(.top, TravSpacing.sm)
-                .travAppear(delay: 0.2)
+                .travAppear(delay: 0.18)
             }
             .padding(.horizontal, TravSpacing.screenHorizontal)
             .padding(.bottom, TravSpacing.xl)
@@ -261,7 +253,7 @@ struct CreateExperienceView: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .minimumScaleFactor(0.9)
-                Text("Your itinerary \"\(title)\" is now live on the globe of \(selectedCity?.name ?? "the world")!")
+                Text("Your itinerary \"\(title)\" is now live!")
                     .font(TravTypography.bodyMedium())
                     .foregroundStyle(TravColors.muted)
                     .multilineTextAlignment(.center)
@@ -280,21 +272,10 @@ struct CreateExperienceView: View {
 
     private var canPublish: Bool {
         !title.trimmingCharacters(in: .whitespaces).isEmpty &&
-        selectedCity != nil &&
         !stops.isEmpty
     }
 
-    private func addStop() {
-        guard !newStopName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        withAnimation(TravAnimation.enter) {
-            stops.append(StopPreview(id: UUID(), name: newStopName, emoji: nil))
-            newStopName = ""
-        }
-    }
-
     private func submit() {
-        guard let selectedCity = selectedCity else { return }
-
         isSubmitting = true
         errorMessage = nil
 
@@ -310,14 +291,15 @@ struct CreateExperienceView: View {
                     creatorID = userId
                 }
 
+                let defaultCityID = MockData.cities.first?.id ?? UUID()
+
                 try await environment.experiences.publishExperience(
                     title: title,
-                    description: description,
-                    cityID: selectedCity.id,
+                    cityID: defaultCityID,
                     creatorID: creatorID,
                     stops: stops,
                     rating: rating,
-                    imageData: selectedImageData
+                    imagesData: selectedImagesData
                 )
 
                 await MainActor.run {
@@ -338,11 +320,9 @@ struct CreateExperienceView: View {
 
     private func resetForm() {
         title = ""
-        description = ""
-        selectedItem = nil
-        selectedImageData = nil
-        selectedUIImage = nil
-        selectedCity = nil
+        selectedItems = []
+        selectedImagesData = []
+        selectedUIImages = []
         stops = []
         showSuccess = false
     }

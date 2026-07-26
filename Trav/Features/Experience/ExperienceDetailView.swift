@@ -62,7 +62,7 @@ struct ExperienceDetailView: View {
 
     @ViewBuilder
     private func hero(_ experience: Experience) -> some View {
-        HeroImageHeader(url: experience.coverImageURL, height: TravLayout.heroExperienceHeight) {
+        HeroMediaCarousel(urls: experience.imageURLs, height: TravLayout.heroExperienceHeight) {
             VStack(alignment: .leading, spacing: TravSpacing.sm) {
                 Text(experience.title)
                     .font(TravTypography.displayMedium())
@@ -97,7 +97,7 @@ struct ExperienceDetailView: View {
             id: experience.id,
             cityID: experience.cityID,
             title: experience.title,
-            coverImageURL: experience.coverImageURL,
+            imageURLs: experience.imageURLs,
             creator: experience.creator,
             durationMinutes: experience.durationMinutes,
             costLevel: experience.costLevel,
@@ -184,17 +184,22 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
-            Text("About this Experience")
-                .font(TravTypography.titleLarge())
-                .fontWeight(.bold)
-                .foregroundStyle(TravColors.primary)
+            if experience.imageURLs.count > 1 {
+                VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                    Text("Media Gallery (\(experience.imageURLs.count))")
+                        .font(TravTypography.titleMedium())
+                        .foregroundStyle(TravColors.primary)
 
-            if !experience.description.isEmpty {
-                Text(experience.description)
-                    .font(TravTypography.bodyMedium())
-                    .foregroundStyle(TravColors.muted)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: TravSpacing.sm) {
+                            ForEach(Array(experience.imageURLs.enumerated()), id: \.offset) { index, url in
+                                RemoteImage(url: url, height: 110, cornerRadius: TravRadius.md)
+                                    .frame(width: 150, height: 110)
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, TravSpacing.xs)
             }
 
             RoutePreview(stops: experience.stops.map {
@@ -309,5 +314,61 @@ private struct StopTimelineRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
+    }
+}
+
+private struct HeroMediaCarousel<Overlay: View>: View {
+    let urls: [URL]
+    let height: CGFloat
+    @ViewBuilder let overlay: () -> Overlay
+
+    @State private var currentIndex = 0
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            if urls.count > 1 {
+                TabView(selection: $currentIndex) {
+                    ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
+                        RemoteImage(url: url, height: height, cornerRadius: 0)
+                            .tag(index)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+            } else {
+                RemoteImage(url: urls.first, height: height, cornerRadius: 0)
+            }
+
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.75)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: height)
+
+            overlay()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, TravSpacing.screenHorizontal)
+                .padding(.bottom, TravSpacing.lg)
+
+            if urls.count > 1 {
+                HStack(spacing: 4) {
+                    Image(systemName: "photo")
+                        .font(.system(size: 10))
+                    Text("\(currentIndex + 1)/\(urls.count)")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.black.opacity(0.65))
+                .clipShape(Capsule())
+                .padding(.trailing, TravSpacing.screenHorizontal)
+                .padding(.bottom, TravSpacing.lg)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            }
+        }
+        .frame(height: height)
+        .frame(maxWidth: .infinity)
+        .clipped()
     }
 }

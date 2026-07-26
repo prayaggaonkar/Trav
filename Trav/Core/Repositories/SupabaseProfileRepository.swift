@@ -297,10 +297,9 @@ struct SupabaseProfileRepository: ProfileRepository {
         struct DBExperience: Decodable {
             let id: UUID
             let title: String
-            let description: String
             let city: String
             let stops: [String]
-            let image: String?
+            let image: StringOrArray?
             let save_count: Int?
             let completion_count: Int?
             let user_id: UUID
@@ -310,7 +309,6 @@ struct SupabaseProfileRepository: ProfileRepository {
             .from("experiences")
             .select()
             .eq("user_id", value: userID)
-            .neq("description", value: ProfileLimits.bookmarkDescriptionSentinel)
             .order("created_at", ascending: false)
             .range(from: from, to: to)
             .execute()
@@ -336,11 +334,12 @@ struct SupabaseProfileRepository: ProfileRepository {
         let items = rows.map { row -> ExperienceSummary in
             let cityID = MockData.cities.first { $0.name.caseInsensitiveCompare(row.city) == .orderedSame }?.id ?? UUID()
             let liveSaveCount = saveCounts[row.id] ?? row.save_count ?? 0
+            let parsedURLs = row.image?.values.compactMap { URL(string: $0) } ?? []
             return ExperienceSummary(
                 id: row.id,
                 cityID: cityID,
                 title: row.title,
-                coverImageURL: row.image.flatMap(URL.init(string:)),
+                imageURLs: parsedURLs,
                 creator: creator,
                 durationMinutes: max(row.stops.count, 1) * 30,
                 costLevel: .budget,
@@ -371,7 +370,7 @@ struct SupabaseProfileRepository: ProfileRepository {
             let title: String
             let city: String
             let stops: [String]
-            let image: String?
+            let image: StringOrArray?
             let save_count: Int?
             let completion_count: Int?
             let user_id: UUID
@@ -476,12 +475,13 @@ struct SupabaseProfileRepository: ProfileRepository {
                         avatarURL: nil,
                         isVerified: false
                     )
+                    let parsedURLs = exp.image?.values.compactMap { URL(string: $0) } ?? []
                     items.append(
                         ExperienceSummary(
                             id: exp.id,
                             cityID: cityID,
                             title: exp.title,
-                            coverImageURL: exp.image.flatMap(URL.init(string:)),
+                            imageURLs: parsedURLs,
                             creator: creator,
                             durationMinutes: max(exp.stops.count, 1) * 30,
                             costLevel: .budget,
@@ -577,7 +577,7 @@ struct SupabaseProfileRepository: ProfileRepository {
             let title: String
             let city: String
             let stops: [String]
-            let image: String?
+            let image: StringOrArray?
             let save_count: Int?
             let completion_count: Int?
             let user_id: UUID
@@ -595,11 +595,12 @@ struct SupabaseProfileRepository: ProfileRepository {
         let items = rows.compactMap { row -> CompletedExperienceItem? in
             guard let exp = row.experience else { return nil }
             let cityID = MockData.cities.first { $0.name.caseInsensitiveCompare(exp.city) == .orderedSame }?.id ?? UUID()
+            let parsedURLs = exp.image?.values.compactMap { URL(string: $0) } ?? []
             let summary = ExperienceSummary(
                 id: exp.id,
                 cityID: cityID,
                 title: exp.title,
-                coverImageURL: exp.image.flatMap(URL.init(string:)),
+                imageURLs: parsedURLs,
                 creator: ProfileSummary(id: exp.user_id, username: "traveler", displayName: "Traveler", avatarURL: nil, isVerified: false),
                 durationMinutes: max(exp.stops.count, 1) * 30,
                 costLevel: .budget,
