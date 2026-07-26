@@ -67,11 +67,13 @@ final class AppEnvironment {
     let session: SessionStore
     let appearance: AppearanceStore
     let engagement: EngagementStore
+    let notificationStore: NotificationStore
     let cities: any CityRepository
     let experiences: any ExperienceRepository
     let auth: any AuthRepository
     let profiles: any ProfileRepository
     let engagementRepo: any EngagementRepository
+    let notifications: any NotificationRepository
 
     init(
         configuration: AppConfiguration,
@@ -79,22 +81,26 @@ final class AppEnvironment {
         session: SessionStore,
         appearance: AppearanceStore = AppearanceStore(),
         engagement: EngagementStore = EngagementStore(),
+        notificationStore: NotificationStore = NotificationStore(),
         cities: any CityRepository,
         experiences: any ExperienceRepository,
         auth: any AuthRepository,
         profiles: any ProfileRepository,
-        engagementRepo: any EngagementRepository
+        engagementRepo: any EngagementRepository,
+        notifications: any NotificationRepository
     ) {
         self.configuration = configuration
         self.router = router
         self.session = session
         self.appearance = appearance
         self.engagement = engagement
+        self.notificationStore = notificationStore
         self.cities = cities
         self.experiences = experiences
         self.auth = auth
         self.profiles = profiles
         self.engagementRepo = engagementRepo
+        self.notifications = notifications
     }
 
     static let live: AppEnvironment = {
@@ -102,6 +108,7 @@ final class AppEnvironment {
         let router = AppRouter()
         let session = SessionStore()
         let engagement = EngagementStore()
+        let notificationStore = NotificationStore()
 
         let profiles: any ProfileRepository = config.useMockBackend
             ? MockProfileRepository()
@@ -109,6 +116,9 @@ final class AppEnvironment {
         let engagementRepo: any EngagementRepository = config.useMockBackend
             ? MockEngagementRepository()
             : SupabaseEngagementRepository()
+        let notifications: any NotificationRepository = config.useMockBackend
+            ? MockNotificationRepository()
+            : SupabaseNotificationRepository()
 
         return AppEnvironment(
             configuration: config,
@@ -116,11 +126,13 @@ final class AppEnvironment {
             session: session,
             appearance: AppearanceStore(),
             engagement: engagement,
+            notificationStore: notificationStore,
             cities: MockCityRepository(),
             experiences: config.useMockBackend ? MockExperienceRepository() : SupabaseExperienceRepository(),
             auth: config.useMockBackend ? MockAuthRepository() : SupabaseAuthRepository(),
             profiles: profiles,
-            engagementRepo: engagementRepo
+            engagementRepo: engagementRepo,
+            notifications: notifications
         )
     }()
 
@@ -142,9 +154,11 @@ final class AppEnvironment {
                 session.phase = .authenticated
                 engagement.cache(profile)
                 await engagement.bootstrap(userID: profile.id, using: self)
+                await notificationStore.refreshUnreadCount(userID: profile.id, using: self)
             } else {
                 session.phase = .unauthenticated
                 engagement.reset()
+                notificationStore.reset()
             }
         }
     }
@@ -158,5 +172,6 @@ extension View {
             .environment(environment.session)
             .environment(environment.appearance)
             .environment(environment.engagement)
+            .environment(environment.notificationStore)
     }
 }

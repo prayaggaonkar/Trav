@@ -55,6 +55,9 @@ struct RootCoordinator: View {
                 // Reset to a safe default until the new tab reports its backdrop.
                 tabBarBackdrop = defaultBackdrop(for: tab)
             }
+            .onChange(of: router.feedNavigationToken) { _, _ in
+                activeTab = .feed
+            }
     }
 
     private func defaultBackdrop(for tab: TravTab) -> TabBarBackdrop {
@@ -114,12 +117,12 @@ struct RootCoordinator: View {
     @ViewBuilder
     private func routeDestination(for route: TravRoute) -> some View {
         switch route {
-        case let .city(cityID):
-            CityPageView(cityID: cityID)
         case let .experience(experienceID):
             ExperienceDetailView(experienceID: experienceID)
         case let .profile(username):
             ProfileView(username: username)
+        case .notifications:
+            NotificationsView()
         }
     }
 }
@@ -215,23 +218,35 @@ struct FeedView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var selectedFilter: FeedFilter = .all
-    
+
+    // Search
+    @State private var searchText = ""
+    @State private var isSearchFocused = false
+    @State private var catalogCities: [City] = []
+    @State private var userSearchResults: [ProfileSummary] = []
+    @State private var userSearchTask: Task<Void, Never>?
+    @State private var isSearchingUsers = false
+
     // Quick Planner state
     @State private var draftStops: [StopPreview] = []
     @State private var itineraryTitle: String = ""
     @State private var isSavingItinerary = false
 
+    private var showSearchSuggestions: Bool {
+        isSearchFocused && !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         ZStack {
             HomeCelestialBackground() // Match Explore Page background
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 0) {
-                // Header
+                // Header + search
                 headerView
                     .padding(.horizontal, TravSpacing.screenHorizontal)
                     .padding(.top, TravSpacing.sm)
-                
+
                 // Filter bar
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: TravSpacing.xs) {
@@ -265,182 +280,24 @@ struct FeedView: View {
                     .padding(.horizontal, TravSpacing.screenHorizontal)
                     .padding(.vertical, TravSpacing.xs)
                 }
-                
-                if isLoading {
-                    Spacer()
-                    ProgressView()
-                        .tint(TravColors.accent)
-                    Spacer()
-                } else if let errorMessage = errorMessage {
-                    Spacer()
-                    VStack(spacing: TravSpacing.sm) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 32))
-                            .foregroundStyle(TravColors.accent)
-                        Text(errorMessage)
-                            .font(TravTypography.bodyMedium())
-                            .foregroundStyle(TravColors.muted)
-                    }
-                    Spacer()
-                } else if filteredFeed.isEmpty {
-                    Spacer()
-                    EmptyStateView(
-                        icon: "rectangle.stack.badge.person.crop",
-                        title: "No Matching Spots",
-                        description: "Try updating your selected vibes or your filter to see tailored hangout recommendations."
-                    )
-                    Spacer()
-                } else {
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            // Top Carousel ("Happening Soon" Popups resembling FB Stories)
-                            if !popups.isEmpty && selectedFilter == .all {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Happening Soon")
-                                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                                        .foregroundStyle(.white)
-                                        .padding(.horizontal, TravSpacing.screenHorizontal)
-                                        .padding(.top, TravSpacing.xs)
-                                    
-                                    ScrollView(.horizontal, showsIndicators: false) {
-                                        HStack(spacing: 12) {
-                                            ForEach(popups) { popup in
-                                                Button {
-                                                    router.presentedRoute = .experience(popup.id)
-                                                } label: {
-                                                    ZStack(alignment: .bottomLeading) {
-                                                        // Full-bleed cover image
-                                                        if let coverURL = popup.coverImageURL {
-                                                            RemoteImage(url: coverURL, height: 160, cornerRadius: 16)
-                                                        } else {
-                                                            RoundedRectangle(cornerRadius: 16)
-                                                                .fill(Color.gray.opacity(0.2))
-                                                        }
-                                                        
-                                                        // Dark gradient overlay
-                                                        LinearGradient(
-                                                            colors: [.clear, .black.opacity(0.85)],
-                                                            startPoint: .top,
-                                                            endPoint: .bottom
-                                                        )
-                                                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                                                        
-                                                        // Top pill badge ("TODAY" / "THIS WKND")
-                                                        VStack {
-                                                            HStack {
-                                                                let isToday = popup.creator.displayName.contains("Today")
-                                                                Text(isToday ? "TODAY" : "THIS WKND")
-                                                                    .font(.system(size: 8, weight: .black, design: .rounded))
-                                                                    .foregroundStyle(.white)
-                                                                    .padding(.horizontal, 6)
-                                                                    .padding(.vertical, 3)
-                                                                    .background(
-                                                                        Capsule()
-                                                                            .fill(isToday ? Color.red : TravColors.accent)
-                                                                    )
-                                                                    .padding(8)
-                                                                
-                                                                Spacer()
-                                                            }
-                                                            Spacer()
-                                                        }
-                                                        
-                                                        // Host Avatar + Details Overlaid at bottom
-                                                        VStack(alignment: .leading, spacing: 4) {
-                                                            Image(systemName: "calendar.circle.fill")
-                                                                .font(.system(size: 24))
-                                                                .foregroundStyle(.white)
-                                                                .background(Circle().fill(TravColors.accent))
-                                                                .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
-                                                                .padding(.leading, 8)
-                                                            
-                                                            Spacer()
-                                                            
-                                                            VStack(alignment: .leading, spacing: 2) {
-                                                                Text(popup.title)
-                                                                    .font(.system(size: 11, weight: .bold))
-                                                                    .foregroundStyle(.white)
-                                                                    .lineLimit(2)
-                                                                    .multilineTextAlignment(.leading)
-                                                                
-                                                                Text(popup.creator.displayName)
-                                                                    .font(.system(size: 9, weight: .semibold))
-                                                                    .foregroundStyle(.white.opacity(0.8))
-                                                                    .lineLimit(1)
-                                                            }
-                                                            .padding([.horizontal, .bottom], 8)
-                                                        }
-                                                    }
-                                                    .frame(width: 110, height: 160)
-                                                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                                                    .shadow(color: Color.black.opacity(0.06), radius: 6, y: 3)
-                                                }
-                                                .buttonStyle(.plain)
-                                            }
-                                        }
-                                        .padding(.horizontal, TravSpacing.screenHorizontal)
-                                    }
-                                }
-                                .padding(.bottom, TravSpacing.xs)
-                            }
-                            
-                            // Header label before the list
-                            HStack {
-                                Text("Your Feed")
-                                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.white)
-                                Spacer()
-                            }
+
+                ZStack(alignment: .top) {
+                    feedBody
+
+                    if showSearchSuggestions {
+                        searchSuggestionsOverlay
                             .padding(.horizontal, TravSpacing.screenHorizontal)
-                            .padding(.top, TravSpacing.xs)
-                            .padding(.bottom, 4)
-                            
-                            // Post Feed list
-                            LazyVStack(spacing: 12) {
-                                ForEach(mainFeedPosts) { experience in
-                                    ExperienceCard(
-                                        experience: experience,
-                                        isSaved: engagement.isSaved(experience.id),
-                                        connectedLayout: false,
-                                        onTap: {
-                                            router.presentedRoute = .experience(experience.id)
-                                        },
-                                        onCreatorTap: {
-                                            router.openProfile(experience.creator.username)
-                                        },
-                                        onSave: {
-                                            Task {
-                                                await engagement.toggleSave(
-                                                    experienceID: experience.id,
-                                                    summary: experience,
-                                                    using: environment
-                                                )
-                                            }
-                                        },
-                                        onShare: {
-                                            // Share action placeholder
-                                        }
-                                    )
-                                    .onDrag {
-                                        NSItemProvider(object: experience.id.uuidString as NSString)
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                        }
-                        .padding(.vertical, TravSpacing.sm)
-                        .padding(.bottom, draftStops.isEmpty ? TravSpacing.tabBarBottom + 20 : TravSpacing.tabBarBottom + 120)
-                    }
-                    .refreshable {
-                        await loadFeed()
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                            .zIndex(10)
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            
+
             // Bottom Quick Planner Panel
             VStack {
                 Spacer()
-                
+
                 if !draftStops.isEmpty {
                     VStack(spacing: 0) {
                         HStack {
@@ -449,14 +306,14 @@ struct FeedView: View {
                                     .font(.system(size: 9, weight: .bold, design: .rounded))
                                     .tracking(2.0)
                                     .foregroundStyle(TravColors.accent)
-                                
+
                                 Text("\(draftStops.count) stops selected")
                                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                                     .foregroundStyle(.white)
                             }
-                            
+
                             Spacer()
-                            
+
                             Button {
                                 withAnimation(.spring()) {
                                     draftStops.removeAll()
@@ -471,10 +328,10 @@ struct FeedView: View {
                         }
                         .padding(.horizontal, TravSpacing.screenHorizontal)
                         .padding(.vertical, TravSpacing.sm)
-                        
+
                         Divider()
                             .background(Color.white.opacity(0.1))
-                        
+
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(Array(draftStops.enumerated()), id: \.offset) { index, stop in
@@ -485,14 +342,14 @@ struct FeedView: View {
                                             .background(TravColors.accent)
                                             .clipShape(Circle())
                                             .foregroundStyle(.black)
-                                        
+
                                         Image(systemName: sfSymbolForEmojiOrCategory(stop.emoji ?? ""))
                                             .font(.system(size: 11))
                                             .foregroundStyle(TravColors.accent)
                                         Text(stop.name)
                                             .font(.system(size: 12, weight: .medium))
                                             .foregroundStyle(.white)
-                                        
+
                                         Button {
                                             draftStops.remove(at: index)
                                         } label: {
@@ -515,7 +372,7 @@ struct FeedView: View {
                             .padding(.horizontal, TravSpacing.screenHorizontal)
                             .padding(.vertical, TravSpacing.sm)
                         }
-                        
+
                         HStack(spacing: TravSpacing.sm) {
                             TextField("", text: $itineraryTitle, prompt: Text("Itinerary Name...").foregroundColor(Color.white.opacity(0.3)))
                                 .padding(.horizontal, TravSpacing.md)
@@ -524,7 +381,7 @@ struct FeedView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
                                 .foregroundStyle(.white)
                                 .tint(TravColors.accent)
-                            
+
                             Button {
                                 Task {
                                     await saveDraftItinerary()
@@ -571,8 +428,228 @@ struct FeedView: View {
             if let userID = session.currentUser?.id {
                 await engagement.bootstrap(userID: userID, using: environment)
             }
+            catalogCities = (try? await environment.cities.fetchGlobeCities()) ?? MockData.cities
             await loadFeed()
         }
+        .onChange(of: searchText) { _, newValue in
+            router.feedKeyword = newValue
+            scheduleUserSearch(for: newValue)
+        }
+        .onChange(of: router.feedNavigationToken) { _, _ in
+            searchText = router.feedKeyword
+            isSearchFocused = false
+            userSearchResults = []
+        }
+        .onDisappear {
+            userSearchTask?.cancel()
+        }
+    }
+
+    @ViewBuilder
+    private var feedBody: some View {
+        if isLoading {
+            Spacer()
+            ProgressView()
+                .tint(TravColors.accent)
+            Spacer()
+        } else if let errorMessage = errorMessage {
+            Spacer()
+            VStack(spacing: TravSpacing.sm) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 32))
+                    .foregroundStyle(TravColors.accent)
+                Text(errorMessage)
+                    .font(TravTypography.bodyMedium())
+                    .foregroundStyle(TravColors.muted)
+            }
+            Spacer()
+        } else if filteredFeed.isEmpty {
+            Spacer()
+            EmptyStateView(
+                icon: "magnifyingglass",
+                title: emptyStateTitle,
+                description: emptyStateDescription
+            )
+            Spacer()
+        } else {
+            ScrollView {
+                VStack(spacing: 16) {
+                    // Top Carousel ("Happening Soon" Popups resembling FB Stories)
+                    if !popups.isEmpty && selectedFilter == .all {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Happening Soon")
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, TravSpacing.screenHorizontal)
+                                .padding(.top, TravSpacing.xs)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(popups) { popup in
+                                        Button {
+                                            router.presentedRoute = .experience(popup.id)
+                                        } label: {
+                                            ZStack(alignment: .bottomLeading) {
+                                                // Full-bleed cover image
+                                                if let coverURL = imageForEventTitle(popup.title) ?? popup.coverImageURL {
+                                                    RemoteImage(url: coverURL, height: 160, cornerRadius: 16)
+                                                } else {
+                                                    RoundedRectangle(cornerRadius: 16)
+                                                        .fill(Color.gray.opacity(0.2))
+                                                }
+
+                                                // Dark gradient overlay
+                                                LinearGradient(
+                                                    colors: [.clear, .black.opacity(0.85)],
+                                                    startPoint: .top,
+                                                    endPoint: .bottom
+                                                )
+                                                .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                                                // Top pill badge ("TODAY" / "THIS WKND")
+                                                VStack {
+                                                    HStack {
+                                                        let isToday = popup.creator.displayName.contains("Today")
+                                                        Text(isToday ? "TODAY" : "THIS WKND")
+                                                            .font(.system(size: 8, weight: .black, design: .rounded))
+                                                            .foregroundStyle(.white)
+                                                            .padding(.horizontal, 6)
+                                                            .padding(.vertical, 3)
+                                                            .background(
+                                                                Capsule()
+                                                                    .fill(isToday ? Color.red : TravColors.accent)
+                                                            )
+                                                            .padding(8)
+
+                                                        Spacer()
+                                                    }
+                                                    Spacer()
+                                                }
+
+                                                // Host Avatar + Details Overlaid at bottom
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Image(systemName: "calendar.circle.fill")
+                                                        .font(.system(size: 24))
+                                                        .foregroundStyle(.white)
+                                                        .background(Circle().fill(TravColors.accent))
+                                                        .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                                                        .padding(.leading, 8)
+
+                                                    Spacer()
+
+                                                    VStack(alignment: .leading, spacing: 2) {
+                                                        Text(popup.title)
+                                                            .font(.system(size: 11, weight: .bold))
+                                                            .foregroundStyle(.white)
+                                                            .lineLimit(2)
+                                                            .multilineTextAlignment(.leading)
+
+                                                        Text(popup.creator.displayName)
+                                                            .font(.system(size: 9, weight: .semibold))
+                                                            .foregroundStyle(.white.opacity(0.8))
+                                                            .lineLimit(1)
+                                                    }
+                                                    .padding([.horizontal, .bottom], 8)
+                                                }
+                                            }
+                                            .frame(width: 110, height: 160)
+                                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                                            .shadow(color: Color.black.opacity(0.06), radius: 6, y: 3)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.horizontal, TravSpacing.screenHorizontal)
+                            }
+                        }
+                        .padding(.bottom, TravSpacing.xs)
+                    }
+
+                    // Header label before the list
+                    HStack {
+                        Text("Your Feed")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                        Spacer()
+                    }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                    .padding(.top, TravSpacing.xs)
+                    .padding(.bottom, 4)
+
+                    // Post Feed list
+                    LazyVStack(spacing: 12) {
+                        ForEach(mainFeedPosts) { experience in
+                            ExperienceCard(
+                                experience: experience,
+                                isSaved: engagement.isSaved(experience.id),
+                                connectedLayout: false,
+                                onTap: {
+                                    router.presentedRoute = .experience(experience.id)
+                                },
+                                onCreatorTap: {
+                                    router.openProfile(experience.creator.username)
+                                },
+                                onSave: {
+                                    Task {
+                                        await engagement.toggleSave(
+                                            experienceID: experience.id,
+                                            summary: experience,
+                                            using: environment
+                                        )
+                                    }
+                                },
+                                onShare: {
+                                    // Share action placeholder
+                                }
+                            )
+                            .onDrag {
+                                NSItemProvider(object: experience.id.uuidString as NSString)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                }
+                .padding(.vertical, TravSpacing.sm)
+                .padding(.bottom, draftStops.isEmpty ? TravSpacing.tabBarBottom + 20 : TravSpacing.tabBarBottom + 120)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .refreshable {
+                await loadFeed()
+            }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 8).onChanged { _ in
+                    if isSearchFocused {
+                        isSearchFocused = false
+                    }
+                }
+            )
+        }
+    }
+
+    private var emptyStateTitle: String {
+        let keyword = router.feedKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !keyword.isEmpty {
+            return "No results for \"\(keyword)\""
+        }
+        if let user = router.selectedFeedUser, let city = router.selectedFeedCity {
+            return "No posts by @\(user.username) in \(city.name)"
+        }
+        if let user = router.selectedFeedUser {
+            return "No posts by @\(user.username)"
+        }
+        if let city = router.selectedFeedCity {
+            return "No experiences in \(city.name)"
+        }
+        return "No Matching Spots"
+    }
+
+    private var emptyStateDescription: String {
+        if router.selectedFeedCity != nil
+            || router.selectedFeedUser != nil
+            || !router.feedKeyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Try another city or person from the suggestions, clear a tag, or search a different keyword."
+        }
+        return "Try updating your selected vibes or your filter to see tailored hangout recommendations."
     }
 
     private var feedTabBarBackdrop: TabBarBackdrop {
@@ -591,8 +668,20 @@ struct FeedView: View {
 
     private var filteredFeed: [ExperienceSummary] {
         var items = feedItems
-        
-        // Tab Filter
+
+        if let city = router.selectedFeedCity {
+            items = items.filter { experienceMatchesCity($0, city: city) }
+        }
+
+        if let user = router.selectedFeedUser {
+            items = items.filter { experienceMatchesUser($0, user: user) }
+        }
+
+        let keyword = router.feedKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !keyword.isEmpty {
+            items = items.filter { experienceMatchesKeyword($0, query: keyword) }
+        }
+
         switch selectedFilter {
         case .all:
             break
@@ -603,16 +692,88 @@ struct FeedView: View {
         case .saved:
             items = items.filter { engagement.isSaved($0.id) }
         }
-        
+
         return items
     }
 
-    private var popups: [ExperienceSummary] {
-        feedItems.filter { $0.creator.username.hasPrefix("popup") }
+    private var matchingCities: [City] {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        return catalogCities.filter { city in
+            city.name.localizedCaseInsensitiveContains(trimmed)
+                || city.countryName.localizedCaseInsensitiveContains(trimmed)
+                || city.locationLabel.localizedCaseInsensitiveContains(trimmed)
+        }
     }
-    
+
+    private var popups: [ExperienceSummary] {
+        filteredFeed.filter { $0.creator.username.hasPrefix("popup") }
+    }
+
     private var mainFeedPosts: [ExperienceSummary] {
         filteredFeed.filter { !$0.creator.username.hasPrefix("popup") }
+    }
+
+    private func experienceMatchesCity(_ experience: ExperienceSummary, city: City) -> Bool {
+        if experience.cityID == city.id { return true }
+        let expCity = (experience.cityName ?? experience.displayCityName)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let target = city.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !expCity.isEmpty, expCity != "unknown" else { return false }
+        return expCity == target || expCity.contains(target) || target.contains(expCity)
+    }
+
+    private func experienceMatchesKeyword(_ experience: ExperienceSummary, query: String) -> Bool {
+        experience.title.localizedCaseInsensitiveContains(query)
+            || experience.creator.displayName.localizedCaseInsensitiveContains(query)
+            || experience.creator.username.localizedCaseInsensitiveContains(query)
+            || experience.stops.contains { $0.name.localizedCaseInsensitiveContains(query) }
+            || (experience.cityName?.localizedCaseInsensitiveContains(query) ?? false)
+            || experience.displayCityName.localizedCaseInsensitiveContains(query)
+    }
+
+    private func experienceMatchesUser(_ experience: ExperienceSummary, user: ProfileSummary) -> Bool {
+        experience.creator.id == user.id
+            || experience.creator.username.caseInsensitiveCompare(user.username) == .orderedSame
+    }
+
+    private func scheduleUserSearch(for query: String) {
+        userSearchTask?.cancel()
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else {
+            userSearchResults = []
+            isSearchingUsers = false
+            return
+        }
+        isSearchingUsers = true
+        userSearchTask = Task {
+            try? await Task.sleep(for: .milliseconds(280))
+            guard !Task.isCancelled else { return }
+            let results = (try? await environment.profiles.searchUsers(query: trimmed)) ?? []
+            guard !Task.isCancelled else { return }
+            userSearchResults = results
+            isSearchingUsers = false
+        }
+    }
+
+    private func selectFeedCity(_ city: City) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        router.selectedFeedCity = city
+        searchText = ""
+        router.feedKeyword = ""
+        userSearchResults = []
+        // Keep focus so the user can keep adding keywords / another token.
+        isSearchFocused = true
+    }
+
+    private func selectFeedUser(_ user: ProfileSummary) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        router.selectedFeedUser = user
+        searchText = ""
+        router.feedKeyword = ""
+        userSearchResults = []
+        isSearchFocused = true
     }
 
     private func saveDraftItinerary() async {
@@ -621,9 +782,9 @@ struct FeedView: View {
             return
         }
         guard !draftStops.isEmpty else { return }
-        
+
         isSavingItinerary = true
-        
+
         do {
             if let client = SupabaseManager.client {
                 let encoder = JSONEncoder()
@@ -644,10 +805,10 @@ struct FeedView: View {
                     }
                     return nil
                 }
-                
+
                 let title = itineraryTitle.trimmingCharacters(in: .whitespacesAndNewlines)
                 let finalTitle = title.isEmpty ? "My Custom Route" : title
-                
+
                 let newExp = DBExperienceInsert(
                     id: UUID(),
                     user_id: currentUser.id,
@@ -657,144 +818,216 @@ struct FeedView: View {
                     stops: stopsJSONStrings,
                     created_at: Date()
                 )
-                
+
                 try await client
                     .from("experiences")
                     .insert(newExp)
                     .execute()
-                
+
                 withAnimation(.spring()) {
                     draftStops.removeAll()
                     itineraryTitle = ""
                 }
-                
+
                 await loadFeed()
             }
         } catch {
             print("Failed to save draft itinerary: \(error)")
             errorMessage = "Failed to save itinerary: \(error.localizedDescription)"
         }
-        
+
         isSavingItinerary = false
     }
 
     private var headerView: some View {
-        HStack(alignment: .center) {
-            // Left Side: Brand Logo and Title
-            HStack(spacing: TravSpacing.sm) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        appearance.toggle()
-                    }
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(TravColors.accent.opacity(0.15))
-                            .frame(width: 46, height: 46)
+        FeedSearchBar(
+            text: $searchText,
+            placeholder: "Search spots, cities, creators...",
+            isFocused: $isSearchFocused,
+            isLightMode: appearance.isLightMode,
+            cityToken: router.selectedFeedCity,
+            userToken: router.selectedFeedUser,
+            onClearCity: {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    router.clearFeedCity()
+                }
+            },
+            onClearUser: {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    router.clearFeedUser()
+                }
+            }
+        )
+        .padding(.vertical, TravSpacing.xs)
+    }
 
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundStyle(TravColors.accent)
-                    }
-                }
-                .buttonStyle(TravPressButtonStyle(scale: 0.92))
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("TRAV")
-                        .font(.system(size: 22, weight: .black, design: .rounded))
-                        .tracking(3)
-                        .foregroundStyle(appearance.isLightMode ? Color.black : .white)
+    private var searchSuggestionsOverlay: some View {
+        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            if !matchingCities.isEmpty {
+                VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                    Text("CITIES")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .tracking(1.2)
+                        .foregroundStyle(Color.white.opacity(0.55))
+                        .padding(.horizontal, TravSpacing.xs)
 
-                    Text("What's the move?")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(
-                            appearance.isLightMode
-                                ? Color.black.opacity(0.55)
-                                : .white.opacity(0.5)
-                        )
-                }
-            }            
-            
-            Spacer()
-            
-            // Right Side: Auth / Profile Action
-            if session.isAuthenticated {
-                Button(action: {
-                    if let username = session.currentUser?.username {
-                        router.openProfile(username)
-                    }
-                }) {
-                    if let avatarURL = session.currentUser?.avatarURL {
-                        RemoteImage(url: avatarURL, height: 44, cornerRadius: 22)
-                            .frame(width: 44, height: 44)
-                    } else {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 44))
-                            .foregroundStyle(TravColors.accent)
-                            .background(Circle().fill(Color.white.opacity(0.05)))
-                    }
-                }
-                .buttonStyle(TravPressButtonStyle(scale: 0.92))
-            } else {
-                Button {
-                    router.presentAuth()
-                } label: {
-                    Text("Sign In")
-                        .font(TravTypography.bodyMedium())
-                        .fontWeight(.bold)
-                        .foregroundStyle(appearance.isLightMode ? Color.black : .white)
-                        .padding(.horizontal, TravSpacing.lg)
-                        .frame(height: 38)
-                        .background(
-                            Capsule()
-                                .fill(TravColors.accent.opacity(appearance.isLightMode ? 0.12 : 0.15))
-                        )
-                        .overlay {
-                            Capsule()
-                                .stroke(TravColors.accent.opacity(0.3), lineWidth: 1)
+                    VStack(spacing: 6) {
+                        ForEach(matchingCities.prefix(5)) { city in
+                            Button {
+                                selectFeedCity(city)
+                            } label: {
+                                HStack(spacing: TravSpacing.sm) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(TravColors.accent.opacity(0.15))
+                                            .frame(width: 32, height: 32)
+                                        Image(systemName: "mappin.circle.fill")
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundStyle(TravColors.accent)
+                                    }
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(city.name)
+                                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(.white)
+                                        Text(city.locationLabel)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(Color.white.opacity(0.5))
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.horizontal, TravSpacing.sm)
+                                .padding(.vertical, 8)
+                                .background(Color.white.opacity(0.06))
+                                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
                         }
+                    }
                 }
-                .buttonStyle(TravPressButtonStyle(scale: 0.95))
+            }
+
+            if isSearchingUsers || !userSearchResults.isEmpty {
+                VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                    Text("PEOPLE")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .tracking(1.2)
+                        .foregroundStyle(Color.white.opacity(0.55))
+                        .padding(.horizontal, TravSpacing.xs)
+
+                    if isSearchingUsers && userSearchResults.isEmpty {
+                        ProgressView()
+                            .tint(.white)
+                            .padding(.vertical, TravSpacing.sm)
+                    }
+
+                    VStack(spacing: 6) {
+                        ForEach(userSearchResults.prefix(5)) { user in
+                            Button {
+                                selectFeedUser(user)
+                            } label: {
+                                HStack(spacing: TravSpacing.sm) {
+                                    if let avatarURL = user.avatarURL {
+                                        RemoteImage(url: avatarURL, height: 32, cornerRadius: 16)
+                                            .frame(width: 32, height: 32)
+                                    } else {
+                                        Image(systemName: "person.crop.circle.fill")
+                                            .font(.system(size: 32))
+                                            .foregroundStyle(TravColors.accent.opacity(0.8))
+                                    }
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(user.displayName)
+                                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(.white)
+                                        Text("@\(user.username)")
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(Color.white.opacity(0.5))
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.horizontal, TravSpacing.sm)
+                                .padding(.vertical, 8)
+                                .background(Color.white.opacity(0.06))
+                                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+
+            if matchingCities.isEmpty && userSearchResults.isEmpty && !isSearchingUsers {
+                Text("Keep typing to filter experiences by keyword")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(0.45))
+                    .padding(.horizontal, TravSpacing.xs)
+                    .padding(.vertical, TravSpacing.xs)
             }
         }
-        .padding(.vertical, TravSpacing.sm)
+        .padding(TravSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .environment(\.colorScheme, .dark)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.35), radius: 16, y: 8)
     }
 
     private func loadMockFeed() {
         self.feedItems = MockData.experiences.map { exp in
             var modifiedExp = exp
             modifiedExp.creator.displayName = "Rec by Trav"
+            if modifiedExp.cityName == nil {
+                modifiedExp.cityName = MockData.cities.first(where: { $0.id == exp.cityID })?.name
+            }
             return modifiedExp
+        }
+    }
+
+    private func resolveCatalogCity(from text: String) -> City? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let cities = catalogCities.isEmpty ? MockData.cities : catalogCities
+        if let exact = cities.first(where: { $0.name.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+            return exact
+        }
+        return cities.first { city in
+            trimmed.localizedCaseInsensitiveContains(city.name)
+                || city.name.localizedCaseInsensitiveContains(trimmed)
         }
     }
 
     private func loadFeed() async {
         isLoading = true
         errorMessage = nil
-        
+
         do {
             if !environment.configuration.useMockBackend,
                let client = SupabaseManager.client {
-                
+
                 // Fetch databases sequentially to ensure explicit generic type inference compiles successfully
                 let dbPlaces: [DBPlace] = try await client
                     .from("places")
                     .select()
                     .execute()
                     .value
-                
+
                 let dbExps: [DBUserExperience] = try await client
                     .from("experiences")
                     .select()
                     .execute()
                     .value
-                
+
                 let dbPopups: [DBPopup] = (try? await client
                     .from("popups")
                     .select()
                     .execute()
                     .value) ?? []
-                
+
                 // Fetch creators profiles in parallel to resolve shared traveler metadata
                 let dbProfiles: [DBProfileSummary] = (try? await client
                     .from("profiles")
@@ -802,7 +1035,7 @@ struct FeedView: View {
                     .execute()
                     .value) ?? []
                 let profileMap = Dictionary(uniqueKeysWithValues: dbProfiles.map { ($0.id, $0) })
-                
+
                 // 1. Map places (System recommendations)
                 let recCreator = ProfileSummary(
                     id: UUID(),
@@ -811,11 +1044,13 @@ struct FeedView: View {
                     avatarURL: nil,
                     isVerified: true
                 )
-                
+
                 let placeItems: [ExperienceSummary] = dbPlaces.map { dbPlace in
                     let placeID = StableUUID.from(dbPlace.id)
+                    let placeCity = resolveCatalogCity(from: dbPlace.name)
+                    let decodedStops: [StopPreview]
                     if let stopsArray = dbPlace.stops, !stopsArray.isEmpty {
-                        let decodedStops: [StopPreview] = stopsArray.compactMap { stopStr in
+                        decodedStops = stopsArray.compactMap { stopStr in
                             guard let data = stopStr.data(using: .utf8),
                                   let dbStop = try? JSONDecoder().decode(DBStop.self, from: data) else {
                                 return nil
@@ -826,49 +1061,36 @@ struct FeedView: View {
                                 emoji: dbStop.emoji
                             )
                         }
-                        
-                        let firstStopName = decodedStops.first?.name ?? "park"
-                        let coverURL = defaultCoverForCategory(firstStopName)
-                        
-                        return ExperienceSummary(
-                            id: placeID,
-                            cityID: UUID(),
-                            title: dbPlace.name,
-                            coverImageURL: coverURL,
-                            creator: recCreator,
-                            durationMinutes: 120,
-                            costLevel: .moderate,
-                            estimatedCostUSD: nil,
-                            saveCount: 0,
-                            likeCount: 0,
-                            completionCount: 0,
-                            stops: decodedStops
-                        )
                     } else {
-                        let coverURL = defaultCoverForCategory(dbPlace.name)
-                        let stop = StopPreview(
-                            id: UUID(),
-                            name: dbPlace.name,
-                            emoji: emojiForCategory(dbPlace.basic_category)
-                        )
-                        
-                        return ExperienceSummary(
-                            id: placeID,
-                            cityID: UUID(),
-                            title: dbPlace.name,
-                            coverImageURL: coverURL,
-                            creator: recCreator,
-                            durationMinutes: 45,
-                            costLevel: .budget,
-                            estimatedCostUSD: 0,
-                            saveCount: 0,
-                            likeCount: 0,
-                            completionCount: 0,
-                            stops: [stop]
-                        )
+                        decodedStops = [
+                            StopPreview(
+                                id: UUID(),
+                                name: dbPlace.name,
+                                emoji: emojiForCategory(dbPlace.basic_category)
+                            )
+                        ]
                     }
+
+                    let firstStopName = decodedStops.first?.name ?? dbPlace.name
+                    let coverURL = defaultCoverForCategory(firstStopName)
+
+                    return ExperienceSummary(
+                        id: placeID,
+                        cityID: placeCity?.id ?? UUID(),
+                        title: dbPlace.name,
+                        coverImageURL: coverURL,
+                        creator: recCreator,
+                        durationMinutes: decodedStops.count > 1 ? 120 : 45,
+                        costLevel: decodedStops.count > 1 ? .moderate : .budget,
+                        estimatedCostUSD: decodedStops.count > 1 ? nil : 0,
+                        saveCount: 0,
+                        likeCount: 0,
+                        completionCount: 0,
+                        stops: decodedStops,
+                        cityName: placeCity?.name
+                    )
                 }
-                
+
                 // 2. Map user posts (from experiences table)
                 let userExpItems: [ExperienceSummary] = dbExps.map { dbExp in
                     let decodedStops: [StopPreview] = dbExp.stops.compactMap { stopStr in
@@ -884,7 +1106,7 @@ struct FeedView: View {
                             emoji: dbStop.emoji
                         )
                     }
-                    
+
                     let dbProfile = profileMap[dbExp.user_id]
                     let userCreator = ProfileSummary(
                         id: dbExp.user_id,
@@ -893,11 +1115,12 @@ struct FeedView: View {
                         avatarURL: dbProfile?.avatar_url.flatMap { URL(string: $0) },
                         isVerified: dbProfile?.is_verified ?? false
                     )
-                    
+
+                    let matchedCity = resolveCatalogCity(from: dbExp.city)
                     let firstStopName = decodedStops.first?.name ?? "park"
                     return ExperienceSummary(
                         id: dbExp.id,
-                        cityID: UUID(),
+                        cityID: matchedCity?.id ?? UUID(),
                         title: dbExp.title,
                         coverImageURL: defaultCoverForCategory(firstStopName),
                         creator: userCreator,
@@ -907,10 +1130,11 @@ struct FeedView: View {
                         saveCount: 0,
                         likeCount: 0,
                         completionCount: 0,
-                        stops: decodedStops
+                        stops: decodedStops,
+                        cityName: matchedCity?.name ?? dbExp.city
                     )
                 }
-                
+
                 // Map popup events
                 let popupItems: [ExperienceSummary] = dbPopups.map { dbPopup in
                     var parsedDate: Date? = nil
@@ -929,10 +1153,10 @@ struct FeedView: View {
                         }
                         parsedDate = date
                     }
-                    
+
                     let isClose = isUpcomingPopupClose(parsedDate)
                     let creatorUsername = isClose ? "popup_upcoming" : "popup_standard"
-                    
+
                     let dateText: String
                     if let start = parsedDate {
                         if Calendar.current.isDateInToday(start) {
@@ -948,7 +1172,7 @@ struct FeedView: View {
                     } else {
                         dateText = "Date/Time TBA"
                     }
-                    
+
                     let popupCreator = ProfileSummary(
                         id: UUID(),
                         username: creatorUsername,
@@ -956,18 +1180,19 @@ struct FeedView: View {
                         avatarURL: nil,
                         isVerified: true
                     )
-                    
+
                     let firstStop = StopPreview(
                         id: UUID(),
                         name: dbPopup.address,
                         emoji: "mappin.and.ellipse"
                     )
-                    
+
                     let coverURL = imageForEventTitle(dbPopup.event_name)
-                    
+                    let matchedCity = resolveCatalogCity(from: dbPopup.address)
+
                     return ExperienceSummary(
                         id: dbPopup.id,
-                        cityID: UUID(),
+                        cityID: matchedCity?.id ?? UUID(),
                         title: dbPopup.event_name,
                         coverImageURL: coverURL,
                         creator: popupCreator,
@@ -977,13 +1202,14 @@ struct FeedView: View {
                         saveCount: 0,
                         likeCount: 0,
                         completionCount: 0,
-                        stops: [firstStop]
+                        stops: [firstStop],
+                        cityName: matchedCity?.name
                     )
                 }
-                
+
                 // Combine and prioritize upcoming popups at the top, followed by user posts and system places
                 self.feedItems = popupItems + userExpItems + placeItems
-                
+
                 if self.feedItems.isEmpty {
                     loadMockFeed()
                 }
@@ -995,7 +1221,7 @@ struct FeedView: View {
             print(errMsg)
             self.errorMessage = errMsg
         }
-        
+
         isLoading = false
     }
 }

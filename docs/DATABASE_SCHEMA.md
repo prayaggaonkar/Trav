@@ -11,7 +11,8 @@ CREATE TYPE cost_level AS ENUM ('free', 'budget', 'moderate', 'premium');
 CREATE TYPE transport_mode AS ENUM ('walking', 'driving', 'transit', 'mixed');
 CREATE TYPE media_type AS ENUM ('photo', 'video');
 CREATE TYPE notification_type AS ENUM (
-  'follow', 'like', 'comment', 'save', 'completion', 'mention'
+  'follow', 'save', 'new_experience'
+  -- reserved for later: like, comment, completion, mention
 );
 ```
 
@@ -183,15 +184,17 @@ Unique: `(user_id, experience_id)`
 
 ### `notifications`
 
-| Column | Type |
-|--------|------|
-| id | uuid PK |
-| user_id | uuid FK → profiles |
-| actor_id | uuid FK → profiles |
-| type | notification_type |
-| reference_id | uuid |
-| is_read | boolean |
-| created_at | timestamptz |
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| user_id | uuid FK → profiles | Recipient |
+| actor_id | uuid FK → profiles | Who caused the event |
+| type | notification_type | `follow`, `save`, `new_experience` |
+| reference_id | uuid | Experience id (`save` / `new_experience`) or actor id (`follow`) |
+| is_read | boolean | Default false |
+| created_at | timestamptz | |
+
+Populated by Postgres triggers on follow insert, `experience_saves` insert, and `experiences` insert (fan-out to followers; bookmark sentinel rows skipped). Clients may only SELECT/UPDATE their own rows.
 
 ---
 

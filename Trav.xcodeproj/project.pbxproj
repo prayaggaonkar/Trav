@@ -9,6 +9,10 @@
 /* Begin PBXBuildFile section */
 		014352908D96491BA4E04437 /* PrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22D7B624DAAF4F4AA1F44A7F /* PrimaryButton.swift */; };
 		0A139D20BECF4AB8AA14CC31 /* RepositoryProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4762DCE38F22479AB6D818E6 /* RepositoryProtocols.swift */; };
+		0F1A2B3C4D5E6F708192A3B4 /* AppNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1A2B3C4D5E6F708192A3B0 /* AppNotification.swift */; };
+		0F1A2B3C4D5E6F708192A3B5 /* NotificationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1A2B3C4D5E6F708192A3B1 /* NotificationStore.swift */; };
+		0F1A2B3C4D5E6F708192A3B6 /* SupabaseNotificationRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1A2B3C4D5E6F708192A3B2 /* SupabaseNotificationRepository.swift */; };
+		0F1A2B3C4D5E6F708192A3B7 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1A2B3C4D5E6F708192A3B3 /* NotificationsView.swift */; };
 		10474AB917424CD0AD7A2340 /* earth_day.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 496BA6B3143F4D3DB499E304 /* earth_day.jpg */; };
 		E4A7C1D0B2F84E6A9C3D5E71 /* earth_day_light.jpg in Resources */ = {isa = PBXBuildFile; fileRef = E4A7C1D0B2F84E6A9C3D5E70 /* earth_day_light.jpg */; };
 		1081907320D844448603E8A7 /* StatPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9989CC2CCE5A4311865A3993 /* StatPill.swift */; };
@@ -77,6 +81,10 @@
 
 /* Begin PBXFileReference section */
 		06CAAC7E093049558C61768C /* RoutePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePreview.swift; sourceTree = "<group>"; };
+		0F1A2B3C4D5E6F708192A3B0 /* AppNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNotification.swift; sourceTree = "<group>"; };
+		0F1A2B3C4D5E6F708192A3B1 /* NotificationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationStore.swift; sourceTree = "<group>"; };
+		0F1A2B3C4D5E6F708192A3B2 /* SupabaseNotificationRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseNotificationRepository.swift; sourceTree = "<group>"; };
+		0F1A2B3C4D5E6F708192A3B3 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
 		10CE54D2D476419EB5E371A9 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		11E6F8A4B25B440892DC9677 /* TravApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravApp.swift; sourceTree = "<group>"; };
 		1468F8B546604199BB6747BD /* Enums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Enums.swift; sourceTree = "<group>"; };
@@ -237,11 +245,20 @@
 				2FD3BCE95DEC4AA78DBE7EC5 /* City */,
 				3135ACFAA51B427A80B50DBA /* Experience */,
 				8FC45DD7329E4045852F9C15 /* Globe */,
+				0F1A2B3C4D5E6F708192A3C0 /* Notifications */,
 				C12D4E5F6A7B8491C3D4E5F6 /* Onboarding */,
 				BF002BE61CD74981A2F62551 /* Profile */,
 				C7EAD1EAE5A54853BC25399C /* CreateExperience */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		0F1A2B3C4D5E6F708192A3C0 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				0F1A2B3C4D5E6F708192A3B3 /* NotificationsView.swift */,
+			);
+			path = Notifications;
 			sourceTree = "<group>";
 		};
 		C12D4E5F6A7B8491C3D4E5F6 /* Onboarding */ = {
@@ -342,6 +359,7 @@
 		E58854D817814045B4E38829 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				0F1A2B3C4D5E6F708192A3B0 /* AppNotification.swift */,
 				F414D94FCA3541F9955659C0 /* ProfileRow.swift */,
 				495A3A8B9C6E42DFB539E0D3 /* City.swift */,
 				1468F8B546604199BB6747BD /* Enums.swift */,
@@ -385,6 +403,7 @@
 			children = (
 				118A3664AB2548DA90972DDC /* SupabaseProfileRepository.swift */,
 				E118DCF01C624355A779A495 /* SupabaseEngagementRepository.swift */,
+				0F1A2B3C4D5E6F708192A3B2 /* SupabaseNotificationRepository.swift */,
 				4762DCE38F22479AB6D818E6 /* RepositoryProtocols.swift */,
 				AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */,
 				AC10E298F515465C8669B015 /* SupabaseExperienceRepository.swift */,
@@ -396,6 +415,7 @@
 			isa = PBXGroup;
 			children = (
 				B969E76B8F634876BDCDEE19 /* EngagementStore.swift */,
+				0F1A2B3C4D5E6F708192A3B1 /* NotificationStore.swift */,
 				C0BA082CA18B4C8FA2514428 /* AppRouter.swift */,
 			);
 			path = Navigation;
@@ -532,6 +552,10 @@
 				AC10E298F515465C8669B002 /* SupabaseManager.swift in Sources */,
 				AC10E298F515465C8669B004 /* SupabaseAuthRepository.swift in Sources */,
 				AC10E298F515465C8669B016 /* SupabaseExperienceRepository.swift in Sources */,
+				0F1A2B3C4D5E6F708192A3B4 /* AppNotification.swift in Sources */,
+				0F1A2B3C4D5E6F708192A3B5 /* NotificationStore.swift in Sources */,
+				0F1A2B3C4D5E6F708192A3B6 /* SupabaseNotificationRepository.swift in Sources */,
+				0F1A2B3C4D5E6F708192A3B7 /* NotificationsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
