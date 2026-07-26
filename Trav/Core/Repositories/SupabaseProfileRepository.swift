@@ -566,21 +566,12 @@ struct SupabaseProfileRepository: ProfileRepository {
         let from = page * pageSize
         let to = from + pageSize - 1
 
-        let key = "completed_experiences_\(userID.uuidString.lowercased())"
-        let array = UserDefaults.standard.stringArray(forKey: key) ?? []
-        let allIDs = array.compactMap { UUID(uuidString: $0) }
-
-        guard !allIDs.isEmpty else {
-            return Paginated(items: [], page: page, hasMore: false)
+        struct CompletionJoin: Decodable {
+            let id: UUID
+            let completed_at: Date
+            let note: String?
+            let experience: ExperienceJoin?
         }
-
-        let rangeStart = min(from, allIDs.count)
-        let rangeEnd = min(to + 1, allIDs.count)
-        guard rangeStart < rangeEnd else {
-            return Paginated(items: [], page: page, hasMore: false)
-        }
-        let pageIDs = Array(allIDs[rangeStart..<rangeEnd])
-
         struct ExperienceJoin: Decodable {
             let id: UUID
             let title: String
@@ -590,49 +581,38 @@ struct SupabaseProfileRepository: ProfileRepository {
             let user_id: UUID
         }
 
-        let expIDs = pageIDs.map { $0.uuidString.lowercased() }
-        let rows: [ExperienceJoin] = expIDs.isEmpty ? [] : ((try? await client
-            .from("experiences")
-            .select("id, title, city, stops, image, user_id")
-            .in("id", values: expIDs)
+        let rows: [CompletionJoin] = try await client
+            .from("experience_completions")
+            .select("id, completed_at, note, experience:experiences(*)")
+            .eq("user_id", value: userID)
+            .order("completed_at", ascending: false)
+            .range(from: from, to: to)
             .execute()
-            .value) ?? [])
+            .value
 
-        let userIDs = Array(Set(rows.map(\.user_id)))
-        let creatorsMap = await fetchCreatorProfiles(for: userIDs)
-
-        var completedItems: [CompletedExperienceItem] = []
-        for row in rows {
-            let cityID = MockData.cities.first { $0.name.caseInsensitiveCompare(row.city) == .orderedSame }?.id ?? UUID()
-            let parsedURLs = row.image?.values.compactMap { URL(string: $0) } ?? []
-            let creator = creatorsMap[row.user_id] ?? ProfileSummary(id: row.user_id, username: "traveler", displayName: "Traveler", avatarURL: nil, isVerified: false)
-            
+        let items = rows.compactMap { row -> CompletedExperienceItem? in
+            guard let exp = row.experience else { return nil }
+            let cityID = MockData.cities.first { $0.name.caseInsensitiveCompare(exp.city) == .orderedSame }?.id ?? UUID()
+            let parsedURLs = exp.image?.values.compactMap { URL(string: $0) } ?? []
             let summary = ExperienceSummary(
-                id: row.id,
+                id: exp.id,
                 cityID: cityID,
-                title: row.title,
+                title: exp.title,
                 imageURLs: parsedURLs,
-                creator: creator,
-                durationMinutes: max(row.stops.count, 1) * 30,
+                creator: ProfileSummary(id: exp.user_id, username: "traveler", displayName: "Traveler", avatarURL: nil, isVerified: false),
+                durationMinutes: max(exp.stops.count, 1) * 30,
                 costLevel: .budget,
                 estimatedCostUSD: nil,
                 saveCount: 0,
                 likeCount: 0,
                 completionCount: 0,
-                stops: row.stops.map { StopPreview(id: UUID(), name: $0, emoji: nil) },
-                cityName: row.city
+                stops: exp.stops.map { StopPreview(id: UUID(), name: $0, emoji: nil) },
+                cityName: exp.city
             )
-            
-            completedItems.append(CompletedExperienceItem(
-                id: UUID(),
-                experience: summary,
-                completedAt: Date(),
-                note: nil
-            ))
+            return CompletedExperienceItem(id: row.id, experience: summary, completedAt: row.completed_at, note: row.note)
         }
 
-        let hasMore = rangeEnd < allIDs.count
-        return Paginated(items: completedItems, page: page, hasMore: hasMore)
+        return Paginated(items: items, page: page, hasMore: items.count == pageSize)
     }
 
     // MARK: - Private
