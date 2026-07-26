@@ -140,16 +140,16 @@ struct ExperienceDetailView: View {
                 Task { await engagement.toggleComplete(experienceID: experience.id, using: environment) }
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "checkmark.circle")
+                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "plus.circle.fill")
                         .font(.system(size: 15, weight: .bold))
-                    Text(isCompleted ? "Completed" : "Complete")
+                    Text(isCompleted ? "I'm Down" : "Watchlist")
                         .font(TravTypography.labelMedium())
                         .fontWeight(.bold)
                 }
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
-                .background(TravColors.accent)
+                .background(isCompleted ? Color.gray.opacity(0.4) : TravColors.accent)
                 .clipShape(Capsule())
             }
             .buttonStyle(TravPressButtonStyle())
