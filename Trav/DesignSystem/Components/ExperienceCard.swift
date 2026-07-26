@@ -278,8 +278,9 @@ struct GemPostCardView: View {
                     // Right Group: Watchlist Pill Button
                     Button {
                         let expID = experience.id
+                        let summary = experience
                         Task {
-                            await engagement.toggleComplete(experienceID: expID, using: environment)
+                            await engagement.toggleComplete(experienceID: expID, summary: summary, using: environment)
                         }
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     } label: {

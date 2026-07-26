@@ -220,7 +220,11 @@ final class EngagementStore {
     }
 
     @discardableResult
-    func toggleComplete(experienceID: UUID, using environment: AppEnvironment) async -> Bool {
+    func toggleComplete(
+        experienceID: UUID,
+        summary: ExperienceSummary? = nil,
+        using environment: AppEnvironment
+    ) async -> Bool {
         guard let userID = environment.session.currentUser?.id else {
             environment.router.presentAuth()
             return false
@@ -246,6 +250,9 @@ final class EngagementStore {
         bump()
 
         do {
+            if !wasCompleted, let summary {
+                try await environment.engagementRepo.ensureExperienceExists(for: summary, ownerID: userID)
+            }
             let nowCompleted = try await environment.engagementRepo.toggleComplete(
                 userID: userID,
                 experienceID: experienceID
