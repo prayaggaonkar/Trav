@@ -422,7 +422,7 @@ struct SupabaseProfileRepository: ProfileRepository {
 
             let exps: [ExperienceJoin] = (try? await client
                 .from("experiences")
-                .select("id, title, city, stops, image, save_count, completion_count, user_id")
+                .select("id, title, city, stops, image, user_id")
                 .in("id", values: expIDs)
                 .execute()
                 .value) ?? []
