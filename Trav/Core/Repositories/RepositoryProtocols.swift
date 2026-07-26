@@ -12,6 +12,19 @@ protocol ExperienceRepository: Sendable {
     func fetchCityFeed(cityID: UUID, page: Int) async throws -> Paginated<ExperienceSummary>
     func publishExperience(title: String, description: String, cityID: UUID, creatorID: UUID, stops: [StopPreview], rating: RadarRating?, imageData: Data?) async throws
     func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary]
+    /// Ranked experiences with a real rating. Unrated experiences are excluded.
+    func fetchRankedExperiences(
+        cityID: UUID?,
+        creatorID: UUID?,
+        axis: RankingAxis,
+        page: Int
+    ) async throws -> Paginated<ExperienceSummary>
+    /// Creators ranked by mean score of their rated experiences (min 1).
+    func fetchRankedCreators(
+        cityID: UUID?,
+        axis: RankingAxis,
+        page: Int
+    ) async throws -> Paginated<RankedCreator>
 }
 
 protocol AuthRepository: Sendable {

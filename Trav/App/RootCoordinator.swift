@@ -29,6 +29,8 @@ struct RootCoordinator: View {
 
     @State private var activeTab: TravTab = .explore
     @State private var tabBarBackdrop: TabBarBackdrop = .dark
+    /// Tabs stay mounted after first visit so Explore's SceneKit globe is not rebuilt.
+    @State private var retainedTabs: Set<TravTab> = [.explore]
 
     var body: some View {
         @Bindable var router = router
@@ -68,6 +70,7 @@ struct RootCoordinator: View {
                 }
             }
             .onChange(of: activeTab) { _, tab in
+                retainedTabs.insert(tab)
                 // Reset to a safe default until the new tab reports its backdrop.
                 tabBarBackdrop = defaultBackdrop(for: tab)
             }
@@ -103,45 +106,65 @@ struct RootCoordinator: View {
 
     @ViewBuilder
     private var tabContent: some View {
-        Group {
-            switch activeTab {
-            case .explore:
-                GlobeLandingView()
-                    .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
-            case .feed:
-                FeedView()
-            case .create:
-                if session.isAuthenticated {
-                    CreateExperienceView()
+        ZStack {
+            if retainedTabs.contains(.explore) {
+                tabPane(.explore) {
+                    GlobeLandingView(isActive: activeTab == .explore)
                         .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
-                } else {
-                    UnauthenticatedPlaceholderView(
-                        title: "Create Experience",
-                        description: "Sign in to document your journeys, add custom stops, and publish your own experiences.",
-                        imageName: "plus.circle.fill"
-                    )
-                    .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
                 }
-            case .rankings:
-                RankingsView()
-                    .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
-            case .profile:
-                if let currentUser = session.currentUser {
-                    ProfileView(username: currentUser.username, showDismissButton: false)
+            }
+            if retainedTabs.contains(.feed) {
+                tabPane(.feed) {
+                    FeedView()
+                }
+            }
+            if retainedTabs.contains(.create) {
+                tabPane(.create) {
+                    if session.isAuthenticated {
+                        CreateExperienceView()
+                            .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
+                    } else {
+                        UnauthenticatedPlaceholderView(
+                            title: "Create Experience",
+                            description: "Sign in to document your journeys, add custom stops, and publish your own experiences.",
+                            imageName: "plus.circle.fill"
+                        )
                         .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
-                } else {
-                    UnauthenticatedPlaceholderView(
-                        title: "Travel Profile",
-                        description: "Sign in to track completed experiences, save favorites, and connect with other travelers.",
-                        imageName: "person.circle.fill"
-                    )
-                    .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
+                    }
+                }
+            }
+            if retainedTabs.contains(.rankings) {
+                tabPane(.rankings) {
+                    RankingsView()
+                        .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
+                }
+            }
+            if retainedTabs.contains(.profile) {
+                tabPane(.profile) {
+                    if let currentUser = session.currentUser {
+                        ProfileView(username: currentUser.username, showDismissButton: false)
+                            .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
+                    } else {
+                        UnauthenticatedPlaceholderView(
+                            title: "Travel Profile",
+                            description: "Sign in to track completed experiences, save favorites, and connect with other travelers.",
+                            imageName: "person.circle.fill"
+                        )
+                        .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
+                    }
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .id(activeTab)
-        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+    }
+
+    @ViewBuilder
+    private func tabPane<Content: View>(_ tab: TravTab, @ViewBuilder content: () -> Content) -> some View {
+        content()
+            .opacity(activeTab == tab ? 1 : 0)
+            .allowsHitTesting(activeTab == tab)
+            .accessibilityHidden(activeTab != tab)
+            .zIndex(activeTab == tab ? 1 : 0)
     }
     @ViewBuilder
     private func routeDestination(for route: TravRoute) -> some View {
@@ -176,17 +199,6 @@ private struct UnauthenticatedPlaceholderView: View {
     }
 }
 
-
-private struct RankingsView: View {
-    var body: some View {
-        EmptyStateView(
-            icon: "crown",
-            title: "Rankings",
-            description: "See top-rated experiences and popular creators."
-        )
-        .travScreenBackground()
-    }
-}
 
 // MARK: - Feed Section
 

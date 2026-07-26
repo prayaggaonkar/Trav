@@ -8,12 +8,16 @@ struct GlobeLandingView: View {
     @Environment(EngagementStore.self) private var engagement
     @Environment(NotificationStore.self) private var notificationStore
 
+    /// When false (Explore tab hidden), SceneKit stops continuous rendering.
+    var isActive: Bool = true
+
     @State private var viewModel: GlobeViewModel?
     @State private var showOnboarding = false
     @State private var searchText = ""
     @State private var userSearchResults: [ProfileSummary] = []
     @State private var isSearchingUsers = false
     @State private var userSearchTask: Task<Void, Never>?
+    @State private var cityFilterTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -64,8 +68,8 @@ struct GlobeLandingView: View {
                 router: environment.router
             )
             viewModel = vm
-            vm.controller.renderer.setDaytimeLook(appearance.isLightMode)
-            await vm.loadCities()
+            vm.controller.setRenderingActive(isActive)
+            await vm.prepare(isLightMode: appearance.isLightMode)
         }
         .task(id: session.currentUser?.id) {
             if let userID = session.currentUser?.id {
@@ -74,6 +78,9 @@ struct GlobeLandingView: View {
             } else {
                 notificationStore.reset()
             }
+        }
+        .onChange(of: isActive) { _, active in
+            viewModel?.controller.setRenderingActive(active)
         }
         .onChange(of: appearance.isLightMode) { _, isLight in
             viewModel?.controller.renderer.setDaytimeLook(isLight)
@@ -91,10 +98,14 @@ struct GlobeLandingView: View {
         }
         .onChange(of: searchText) { _, newValue in
             userSearchTask?.cancel()
+            cityFilterTask?.cancel()
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty {
                 userSearchResults = []
                 isSearchingUsers = false
+                if case let .loaded(allCities) = viewModel?.loadState {
+                    viewModel?.renderer.setCities(allCities)
+                }
             } else {
                 isSearchingUsers = true
                 userSearchTask = Task {
@@ -109,17 +120,17 @@ struct GlobeLandingView: View {
                         isSearchingUsers = false
                     }
                 }
-            }
 
-            if case let .loaded(allCities) = viewModel?.loadState {
-                if newValue.isEmpty {
-                    viewModel?.renderer.setCities(allCities)
-                } else {
-                    let filtered = allCities.filter { city in
-                        city.name.localizedCaseInsensitiveContains(newValue) ||
-                        city.countryName.localizedCaseInsensitiveContains(newValue)
+                cityFilterTask = Task {
+                    try? await Task.sleep(for: .milliseconds(150))
+                    guard !Task.isCancelled else { return }
+                    if case let .loaded(allCities) = viewModel?.loadState {
+                        let filtered = allCities.filter { city in
+                            city.name.localizedCaseInsensitiveContains(newValue) ||
+                            city.countryName.localizedCaseInsensitiveContains(newValue)
+                        }
+                        viewModel?.renderer.setCities(filtered)
                     }
-                    viewModel?.renderer.setCities(filtered)
                 }
             }
         }
@@ -431,23 +442,16 @@ struct GlobeLandingView: View {
                         .minimumScaleFactor(0.9)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    ScrollViewReader { proxy in
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: TravSpacing.sm) {
-                                let prefixCities = Array(filtered.prefix(6))
-                                ForEach(0..<prefixCities.count, id: \.self) { index in
-                                    CityChip(city: prefixCities[index], isLightMode: appearance.isLightMode) {
-                                        viewModel?.selectCity(prefixCities[index])
-                                    }
-                                    .id(index)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: TravSpacing.sm) {
+                            let prefixCities = Array(filtered.prefix(6))
+                            ForEach(prefixCities) { city in
+                                CityChip(city: city, isLightMode: appearance.isLightMode) {
+                                    viewModel?.selectCity(city)
                                 }
                             }
-                            .padding(.vertical, TravSpacing.xxs)
                         }
-                        .task {
-                            let count = min(filtered.count, 6)
-                            await runAutoScroll(proxy: proxy, count: count)
-                        }
+                        .padding(.vertical, TravSpacing.xxs)
                     }
                 }
             } else if case .loading = viewModel?.loadState {
@@ -455,35 +459,6 @@ struct GlobeLandingView: View {
                     .tint(appearance.isLightMode ? TravColors.accent : .white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, TravSpacing.sm)
-            }
-        }
-    }
-
-    private func runAutoScroll(proxy: ScrollViewProxy, count: Int) async {
-        guard count > 1 else { return }
-        
-        var currentIndex = 0
-        var goingForward = true
-        
-        while !Task.isCancelled {
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            
-            if goingForward {
-                currentIndex += 1
-                if currentIndex >= count {
-                    currentIndex = count - 2
-                    goingForward = false
-                }
-            } else {
-                currentIndex -= 1
-                if currentIndex < 0 {
-                    currentIndex = 1
-                    goingForward = true
-                }
-            }
-            
-            withAnimation(.easeInOut(duration: 1.5)) {
-                proxy.scrollTo(currentIndex, anchor: .center)
             }
         }
     }
@@ -516,16 +491,15 @@ struct HomeCelestialBackground: View {
 
                     EllipticalGradient(
                         colors: [
-                            Color(red: 0.42, green: 0.40, blue: 0.68).opacity(0.20),
-                            Color(red: 0.46, green: 0.50, blue: 0.74).opacity(0.08),
+                            Color(red: 0.42, green: 0.40, blue: 0.68).opacity(0.18),
+                            Color(red: 0.46, green: 0.50, blue: 0.74).opacity(0.07),
                             .clear
                         ],
                         center: .center,
-                        startRadiusFraction: 0.05,
-                        endRadiusFraction: 0.72
+                        startRadiusFraction: 0.08,
+                        endRadiusFraction: 0.85
                     )
                     .scaleEffect(x: 0.55, y: 1.15)
-                    .blur(radius: 28)
                     .opacity(0.8)
 
                     RadialGradient(
@@ -551,16 +525,15 @@ struct HomeCelestialBackground: View {
 
                     EllipticalGradient(
                         colors: [
-                            Color(red: 0.22, green: 0.18, blue: 0.36).opacity(0.22),
-                            Color(red: 0.12, green: 0.1, blue: 0.22).opacity(0.1),
+                            Color(red: 0.22, green: 0.18, blue: 0.36).opacity(0.20),
+                            Color(red: 0.12, green: 0.1, blue: 0.22).opacity(0.09),
                             .clear
                         ],
                         center: .center,
-                        startRadiusFraction: 0.05,
-                        endRadiusFraction: 0.72
+                        startRadiusFraction: 0.08,
+                        endRadiusFraction: 0.85
                     )
                     .scaleEffect(x: 0.55, y: 1.15)
-                    .blur(radius: 28)
                     .opacity(0.85)
 
                     RadialGradient(

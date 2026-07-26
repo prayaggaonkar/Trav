@@ -173,7 +173,10 @@ enum MockData {
                 StopPreview(id: UUID(), name: "City Lights Books", emoji: nil),
                 StopPreview(id: UUID(), name: "Tartine Manufactory", emoji: nil),
                 StopPreview(id: UUID(), name: "Dolores Park", emoji: nil)
-            ]
+            ],
+            rating: RadarRating(scores: [
+                "Cost": 7.0, "Food": 9.2, "Memorability": 8.5, "Authenticity": 8.8, "Immersion": 8.0
+            ])
         ),
         ExperienceSummary(
             id: UUID(uuidString: "E1000002-0000-0000-0000-000000000002")!,
@@ -192,7 +195,10 @@ enum MockData {
                 StopPreview(id: UUID(), name: "Ferry Building", emoji: nil),
                 StopPreview(id: UUID(), name: "Coit Tower", emoji: nil),
                 StopPreview(id: UUID(), name: "Twin Peaks", emoji: nil)
-            ]
+            ],
+            rating: RadarRating(scores: [
+                "Cost": 8.5, "Food": 6.5, "Memorability": 9.4, "Authenticity": 7.8, "Immersion": 9.0
+            ])
         ),
         ExperienceSummary(
             id: UUID(uuidString: "E1000003-0000-0000-0000-000000000003")!,
@@ -210,7 +216,10 @@ enum MockData {
                 StopPreview(id: UUID(), name: "Clarion Alley", emoji: nil),
                 StopPreview(id: UUID(), name: "Balmy Alley", emoji: nil),
                 StopPreview(id: UUID(), name: "La Reyna Bakery", emoji: nil)
-            ]
+            ],
+            rating: RadarRating(scores: [
+                "Cost": 9.5, "Food": 7.0, "Memorability": 8.8, "Authenticity": 9.2, "Immersion": 8.6
+            ])
         ),
         ExperienceSummary(
             id: UUID(uuidString: "E1000004-0000-0000-0000-000000000004")!,
@@ -229,7 +238,10 @@ enum MockData {
                 StopPreview(id: UUID(), name: "Bookstore Café", emoji: nil),
                 StopPreview(id: UUID(), name: "Ramen Alley", emoji: nil),
                 StopPreview(id: UUID(), name: "Shinjuku Viewpoint", emoji: nil)
-            ]
+            ],
+            rating: RadarRating(scores: [
+                "Cost": 6.5, "Food": 9.5, "Memorability": 9.6, "Authenticity": 9.0, "Immersion": 9.4
+            ])
         ),
         ExperienceSummary(
             id: UUID(uuidString: "E1000005-0000-0000-0000-000000000005")!,
@@ -248,7 +260,10 @@ enum MockData {
                 StopPreview(id: UUID(), name: "Kissaten", emoji: nil),
                 StopPreview(id: UUID(), name: "Yanaka Ginza", emoji: nil),
                 StopPreview(id: UUID(), name: "Temple Garden", emoji: nil)
-            ]
+            ],
+            rating: RadarRating(scores: [
+                "Cost": 8.0, "Food": 8.2, "Memorability": 8.0, "Authenticity": 9.5, "Immersion": 9.1
+            ])
         ),
         ExperienceSummary(
             id: UUID(uuidString: "E1000006-0000-0000-0000-000000000006")!,
@@ -267,7 +282,10 @@ enum MockData {
                 StopPreview(id: UUID(), name: "Vintage Thrift", emoji: nil),
                 StopPreview(id: UUID(), name: "Curry House", emoji: nil),
                 StopPreview(id: UUID(), name: "Sunset Bridge", emoji: nil)
-            ]
+            ],
+            rating: RadarRating(scores: [
+                "Cost": 5.5, "Food": 8.8, "Memorability": 8.2, "Authenticity": 8.5, "Immersion": 8.0
+            ])
         ),
         ExperienceSummary(
             id: UUID(uuidString: "E1000007-0000-0000-0000-000000000007")!,
@@ -286,7 +304,10 @@ enum MockData {
                 StopPreview(id: UUID(), name: "Nakamise Street", emoji: nil),
                 StopPreview(id: UUID(), name: "Sumida River", emoji: nil),
                 StopPreview(id: UUID(), name: "Skytree View", emoji: nil)
-            ]
+            ],
+            rating: RadarRating(scores: [
+                "Cost": 7.5, "Food": 9.0, "Memorability": 8.7, "Authenticity": 8.9, "Immersion": 8.4
+            ])
         ),
         ExperienceSummary(
             id: UUID(uuidString: "E1000008-0000-0000-0000-000000000008")!,
@@ -305,7 +326,10 @@ enum MockData {
                 StopPreview(id: UUID(), name: "Café de Flore", emoji: nil),
                 StopPreview(id: UUID(), name: "Jardin du Luxembourg", emoji: nil),
                 StopPreview(id: UUID(), name: "Seine Sunset", emoji: nil)
-            ]
+            ],
+            rating: RadarRating(scores: [
+                "Cost": 6.0, "Food": 9.1, "Memorability": 8.3, "Authenticity": 8.0, "Immersion": 7.5
+            ])
         )
     ]
 

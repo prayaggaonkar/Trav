@@ -78,6 +78,7 @@ Extends `auth.users`.
 | is_published | boolean | |
 | is_featured | boolean | City page featured |
 | published_at | timestamptz nullable | |
+| rating | jsonb nullable | Creator radar scores (`{"Cost": 5.5, ...}`) |
 | created_at | timestamptz | |
 | updated_at | timestamptz | |
 

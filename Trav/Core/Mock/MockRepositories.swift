@@ -2,7 +2,6 @@ import Foundation
 
 struct MockCityRepository: CityRepository {
     func fetchGlobeCities() async throws -> [City] {
-        try await Task.sleep(for: .milliseconds(200))
         return MockData.cities
     }
 
@@ -51,6 +50,38 @@ struct MockExperienceRepository: ExperienceRepository {
 
     func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary] {
         MockData.experiences.filter { $0.cityID == cityID && $0.creator.id == userID }
+    }
+
+    func fetchRankedExperiences(
+        cityID: UUID?,
+        creatorID: UUID?,
+        axis: RankingAxis,
+        page: Int
+    ) async throws -> Paginated<ExperienceSummary> {
+        try await Task.sleep(for: .milliseconds(180))
+        var items = MockData.experiences
+        if let cityID {
+            items = items.filter { $0.cityID == cityID }
+        }
+        if let creatorID {
+            items = items.filter { $0.creator.id == creatorID }
+        }
+        let sorted = RankingScore.sortedExperiences(items, axis: axis)
+        return RankingScore.paginate(sorted, page: page)
+    }
+
+    func fetchRankedCreators(
+        cityID: UUID?,
+        axis: RankingAxis,
+        page: Int
+    ) async throws -> Paginated<RankedCreator> {
+        try await Task.sleep(for: .milliseconds(180))
+        var items = MockData.experiences
+        if let cityID {
+            items = items.filter { $0.cityID == cityID }
+        }
+        let ranked = RankingScore.rankedCreators(from: items, axis: axis)
+        return RankingScore.paginate(ranked, page: page)
     }
 }
 
