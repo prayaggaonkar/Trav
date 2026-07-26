@@ -66,9 +66,15 @@ struct GemPostCardView: View {
     var onLike: (() -> Void)? = nil
     var onShare: (() -> Void)? = nil
 
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(EngagementStore.self) private var engagement
+
     @State private var isSavedLocal: Bool
     @State private var isLikedLocal: Bool
-    @State private var isWatchlisted: Bool = false
+
+    private var isWatchlisted: Bool {
+        engagement.isCompleted(experience.id)
+    }
 
     init(
         experience: ExperienceSummary,
@@ -271,8 +277,9 @@ struct GemPostCardView: View {
 
                     // Right Group: Watchlist Pill Button
                     Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            isWatchlisted.toggle()
+                        let expID = experience.id
+                        Task {
+                            await engagement.toggleComplete(experienceID: expID, using: environment)
                         }
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     } label: {
