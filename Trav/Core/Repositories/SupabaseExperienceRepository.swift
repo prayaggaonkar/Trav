@@ -26,6 +26,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let id: UUID
         let user_id: UUID
         let title: String
+        let description: String
         let city: String
         let stops: [String]
         let image: StringOrArray?
@@ -43,7 +44,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             description = try container.decode(String.self, forKey: .description)
             city = try container.decode(String.self, forKey: .city)
             stops = try container.decode([String].self, forKey: .stops)
-            image = try container.decodeIfPresent(String.self, forKey: .image)
+            image = try container.decodeIfPresent(StringOrArray.self, forKey: .image)
 
             // Rating is stored as a flat scores dict on write. Decode leniently so one
             // malformed row (or a missing column) does not fail the entire leaderboard fetch.
@@ -573,7 +574,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 id: dbExp.id,
                 cityID: resolvedCityID,
                 title: dbExp.title,
-                coverImageURL: dbExp.image.flatMap { URL(string: $0) },
+                coverImageURL: dbExp.image?.values.first.flatMap { URL(string: $0) },
                 creator: creator,
                 durationMinutes: max(30, dbExp.stops.count * 30),
                 costLevel: .budget,
