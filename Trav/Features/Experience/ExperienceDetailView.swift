@@ -137,7 +137,7 @@ struct ExperienceDetailView: View {
             .buttonStyle(TravPressButtonStyle())
 
             Button {
-                Task { await engagement.toggleComplete(experienceID: experience.id, using: environment) }
+                Task { await engagement.toggleComplete(experienceID: experience.id, summary: summary, using: environment) }
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: isCompleted ? "checkmark.circle.fill" : "plus.circle.fill")
