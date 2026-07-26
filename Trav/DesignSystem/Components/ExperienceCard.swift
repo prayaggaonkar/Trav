@@ -71,9 +71,26 @@ struct GemPostCardView: View {
 
     @State private var isSavedLocal: Bool
     @State private var isLikedLocal: Bool
+    @State private var showEyesRain = false
 
     private var isWatchlisted: Bool {
         engagement.isCompleted(experience.id)
+    }
+
+    private var watchlistedToDisplay: [WatchlistUser] {
+        var toDisplay: [WatchlistUser] = []
+        if isWatchlisted, let currentUser = environment.session.currentUser {
+            toDisplay.append(WatchlistUser(
+                id: currentUser.id,
+                name: currentUser.displayName,
+                avatarImage: currentUser.avatarURL?.absoluteString ?? ""
+            ))
+        }
+        let followers = experience.watchlistedBy.filter { user in
+            engagement.followingUserIDs.contains(user.id) && user.id != environment.session.currentUser?.id
+        }
+        toDisplay.append(contentsOf: followers.prefix(3 - toDisplay.count))
+        return toDisplay
     }
 
     init(
@@ -143,6 +160,8 @@ struct GemPostCardView: View {
                     Spacer()
                 }
                 .padding(TravSpacing.sm)
+
+                repostBubble
             }
             .frame(height: TravLayout.feedCardImageHeight)
             .frame(maxWidth: .infinity)
@@ -279,8 +298,17 @@ struct GemPostCardView: View {
                     Button {
                         let expID = experience.id
                         let summary = experience
+                        let wasCompleted = isWatchlisted
                         Task {
-                            await engagement.toggleComplete(experienceID: expID, summary: summary, using: environment)
+                            let nowCompleted = await engagement.toggleComplete(experienceID: expID, summary: summary, using: environment)
+                            if nowCompleted && !wasCompleted {
+                                withAnimation {
+                                    showEyesRain = true
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
+                                    showEyesRain = false
+                                }
+                            }
                         }
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     } label: {
@@ -305,17 +333,8 @@ struct GemPostCardView: View {
         .background(TravColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : TravRadius.lg, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : TravRadius.lg, style: .continuous))
-        .overlay(
-            Group {
-                if connectedLayout {
-                    VStack {
-                        Spacer()
-                        Divider()
-                            .background(Color.white.opacity(0.08))
-                    }
-                }
-            }
-        )
+        .overlay(connectedLayoutOverlay)
+        .overlay(eyesRainOverlay)
         .onTapGesture(perform: onTap)
     }
 
@@ -331,6 +350,100 @@ struct GemPostCardView: View {
         let score = 7.5 + Double(hash % 20) * 0.1
         return min(score, 9.8)
     }
+
+    @ViewBuilder
+    private var repostBubble: some View {
+        if !watchlistedToDisplay.isEmpty {
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    HStack(spacing: -6) {
+                        ForEach(watchlistedToDisplay) { user in
+                            avatarView(for: user)
+                        }
+                        Text("Reposted")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .padding(.leading, 2)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.black.opacity(0.65)))
+                    .padding(8)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func avatarView(for user: WatchlistUser) -> some View {
+        if let url = URL(string: user.avatarImage), !user.avatarImage.isEmpty {
+            AsyncImage(url: url) { image in
+                image
+                    .resizable()
+                    .scaledToFill()
+            } placeholder: {
+                Image(systemName: "person.crop.circle.fill")
+                    .foregroundStyle(.gray)
+            }
+            .frame(width: 20, height: 20)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(Color.black, lineWidth: 1.5))
+        } else {
+            Image(systemName: "person.crop.circle.fill")
+                .resizable()
+                .frame(width: 20, height: 20)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.black, lineWidth: 1.5))
+        }
+    }
+
+    @ViewBuilder
+    private var connectedLayoutOverlay: some View {
+        if connectedLayout {
+            VStack {
+                Spacer()
+                Divider()
+                    .background(Color.white.opacity(0.08))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var eyesRainOverlay: some View {
+        if showEyesRain {
+            EmojiParticleView()
+        }
+    }
 }
 
 typealias StandardExperienceCard = GemPostCardView
+
+struct EmojiParticleView: View {
+    @State private var animate = false
+    
+    var body: some View {
+        ZStack {
+            ForEach(0..<25, id: \.self) { i in
+                Text("👀")
+                    .font(.system(size: CGFloat.random(in: 20...45)))
+                    .offset(
+                        x: CGFloat.random(in: -180...180),
+                        y: animate ? CGFloat.random(in: 450...800) : -400
+                    )
+                    .rotationEffect(.degrees(animate ? Double.random(in: 180...720) : 0))
+                    .animation(
+                        .linear(duration: Double.random(in: 1.2...2.5))
+                        .delay(Double.random(in: 0...0.6)),
+                        value: animate
+                    )
+            }
+        }
+        .onAppear {
+            animate = true
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+}

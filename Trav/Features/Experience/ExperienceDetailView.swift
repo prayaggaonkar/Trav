@@ -7,6 +7,7 @@ struct ExperienceDetailView: View {
     @State private var experience: Experience?
     @State private var isLoading = true
     @State private var error: Error?
+    @State private var showEyesRain = false
 
     let experienceID: UUID
 
@@ -30,6 +31,13 @@ struct ExperienceDetailView: View {
                 }
             }
         }
+        .overlay(
+            Group {
+                if showEyesRain {
+                    EmojiParticleView()
+                }
+            }
+        )
         .task {
             if let userID = environment.session.currentUser?.id {
                 await engagement.refreshBootstrap(userID: userID, using: environment)
@@ -137,7 +145,18 @@ struct ExperienceDetailView: View {
             .buttonStyle(TravPressButtonStyle())
 
             Button {
-                Task { await engagement.toggleComplete(experienceID: experience.id, summary: summary, using: environment) }
+                let wasCompleted = isCompleted
+                Task {
+                    let nowCompleted = await engagement.toggleComplete(experienceID: experience.id, summary: summary, using: environment)
+                    if nowCompleted && !wasCompleted {
+                        withAnimation {
+                            showEyesRain = true
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
+                            showEyesRain = false
+                        }
+                    }
+                }
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: isCompleted ? "checkmark.circle.fill" : "plus.circle.fill")
