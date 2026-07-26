@@ -4,11 +4,10 @@ import UIKit
 
 /// Manages gesture input, momentum, and idle auto-rotation for the globe.
 @MainActor
-final class EarthGlobeController: NSObject {
+final class EarthGlobeController: NSObject, SCNSceneRendererDelegate {
     let renderer: EarthGlobeRenderer
 
     private weak var sceneView: SCNView?
-    private nonisolated(unsafe) var tickTimer: Timer?
 
     private var lastInteractionTime: CFTimeInterval = 0
     private var isDragging = false
@@ -16,6 +15,7 @@ final class EarthGlobeController: NSObject {
     private var lastDragWorld = SIMD3<Float>(0, 0, 1)
     private var momentum = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
     private var pinchStartDistance: Float?
+    private var isTabActive = true
 
     private let autoRotateSpeed: Float = 0.004
     private let idleDelay: CFTimeInterval = 2.5
@@ -27,15 +27,18 @@ final class EarthGlobeController: NSObject {
     init(renderer: EarthGlobeRenderer) {
         self.renderer = renderer
         super.init()
-        startTickTimer()
-    }
-
-    deinit {
-        tickTimer?.invalidate()
     }
 
     func attach(to view: SCNView) {
         sceneView = view
+        view.delegate = self
+        syncRenderingMode()
+    }
+
+    /// Pause SceneKit when Explore is hidden so other tabs are not fighting a 60fps globe.
+    func setRenderingActive(_ active: Bool) {
+        isTabActive = active
+        syncRenderingMode()
     }
 
     func handlePan(at location: CGPoint, state: UIGestureRecognizer.State) {
@@ -48,6 +51,7 @@ final class EarthGlobeController: NSObject {
             dragAnchorWorld = renderer.worldDirectionOnSphere(from: location, in: sceneView)
             lastDragWorld = dragAnchorWorld
             lastInteractionTime = CACurrentMediaTime()
+            syncRenderingMode()
 
         case .changed:
             guard isDragging else { return }
@@ -60,6 +64,7 @@ final class EarthGlobeController: NSObject {
         case .ended, .cancelled:
             isDragging = false
             lastInteractionTime = CACurrentMediaTime()
+            syncRenderingMode()
 
         default:
             break
@@ -73,6 +78,7 @@ final class EarthGlobeController: NSObject {
         case .began:
             pinchStartDistance = renderer.cameraDistance
             lastInteractionTime = CACurrentMediaTime()
+            syncRenderingMode()
         case .changed:
             guard let start = pinchStartDistance else { return }
             renderer.setCameraDistance(start / Float(scale))
@@ -80,6 +86,7 @@ final class EarthGlobeController: NSObject {
         case .ended, .cancelled:
             pinchStartDistance = nil
             lastInteractionTime = CACurrentMediaTime()
+            syncRenderingMode()
         default:
             break
         }
@@ -90,6 +97,7 @@ final class EarthGlobeController: NSObject {
         let factor = direction > 0 ? 1 / keyboardZoomFactor : keyboardZoomFactor
         renderer.adjustZoom(by: factor)
         lastInteractionTime = CACurrentMediaTime()
+        syncRenderingMode()
     }
 
     func handleTap(at point: CGPoint) {
@@ -97,6 +105,7 @@ final class EarthGlobeController: NSObject {
         if renderer.handleTap(at: point, in: sceneView) {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             lastInteractionTime = CACurrentMediaTime()
+            syncRenderingMode()
         }
     }
 
@@ -104,8 +113,11 @@ final class EarthGlobeController: NSObject {
         isAnimatingFlyTo = true
         isDragging = false
         momentum = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+        syncRenderingMode()
         renderer.flyTo(city: city) { [weak self] in
             self?.isAnimatingFlyTo = false
+            self?.lastInteractionTime = CACurrentMediaTime()
+            self?.syncRenderingMode()
             completion?()
         }
     }
@@ -117,16 +129,49 @@ final class EarthGlobeController: NSObject {
         momentum = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
         renderer.resetZoom(animated: animated)
         lastInteractionTime = CACurrentMediaTime()
+        syncRenderingMode()
     }
 
-    private func startTickTimer() {
-        tickTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
+    // MARK: - SCNSceneRendererDelegate
+
+    nonisolated func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+        // SCNView invokes this on the main thread; fall back if not.
+        guard Thread.isMainThread else {
+            Task { @MainActor [weak self] in
+                self?.tick()
+                self?.syncRenderingMode()
+            }
+            return
+        }
+        MainActor.assumeIsolated {
+            tick()
+            syncRenderingMode()
         }
     }
 
+    private var hasActiveMomentum: Bool {
+        let momentumAngle = 2 * acos(min(1, abs(momentum.real)))
+        return momentumAngle > 0.00005
+    }
+
+    private func syncRenderingMode() {
+        guard let view = sceneView else { return }
+
+        guard isTabActive else {
+            view.rendersContinuously = false
+            view.isPlaying = false
+            return
+        }
+
+        let interactive = isDragging || pinchStartDistance != nil || isAnimatingFlyTo || hasActiveMomentum
+        view.isPlaying = true
+        view.rendersContinuously = true
+        // 60fps while interacting / coasting; 30fps for idle auto-spin.
+        view.preferredFramesPerSecond = interactive ? 60 : 30
+    }
+
     private func tick() {
-        guard !isAnimatingFlyTo, !isDragging else { return }
+        guard isTabActive, !isAnimatingFlyTo, !isDragging else { return }
 
         let now = CACurrentMediaTime()
         let isIdle = (now - lastInteractionTime) > idleDelay

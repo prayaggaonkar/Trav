@@ -38,83 +38,7 @@ struct ReadOnlyRadarChartView: View {
                 let center = CGPoint(x: geometry.size.width / 2.0, y: geometry.size.height / 2.0)
                 let radius = (size / 2.0) - 36.0 // Leave padding for text labels
 
-                ZStack {
-                    // 1. Concentric background grid rings (25%, 50%, 75%, 100%)
-                    ForEach([0.25, 0.5, 0.75, 1.0], id: \.self) { level in
-                        RadarChartPolygonShape(values: Array(repeating: level, count: axes.count))
-                            .stroke(TravColors.border.opacity(0.4), lineWidth: level == 1.0 ? 1.5 : 1.0)
-                            .frame(width: radius * 2 * CGFloat(level), height: radius * 2 * CGFloat(level))
-                    }
-
-                    // 2. Axis spokes from center
-                    ForEach(0..<axes.count, id: \.self) { i in
-                        let axis = axes[i]
-                        let isEnabled = rating.isEnabled(axis.id)
-                        let angle = -.pi / 2.0 + Double(i) * (2.0 * .pi / Double(axes.count))
-                        let endPoint = CGPoint(
-                            x: center.x + CGFloat(radius * cos(angle)),
-                            y: center.y + CGFloat(radius * sin(angle))
-                        )
-                        Path { p in
-                            p.move(to: center)
-                            p.addLine(to: endPoint)
-                        }
-                        .stroke(isEnabled ? TravColors.border.opacity(0.3) : Color.gray.opacity(0.2), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                    }
-
-                    // 3. Filled polygon shape representing active scores (disabled categories collapse to 0.0)
-                    let normalizedValues = axes.map { axis in
-                        isAnimated ? rating.normalizedScore(for: axis.id, min: minScore, max: maxScore) : 0.0
-                    }
-
-                    RadarChartPolygonShape(values: normalizedValues)
-                        .fill(
-                            LinearGradient(
-                                colors: [fillColor.opacity(0.45), fillColor.opacity(0.15)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .frame(width: radius * 2, height: radius * 2)
-
-                    RadarChartPolygonShape(values: normalizedValues)
-                        .stroke(strokeColor, lineWidth: 2.5)
-                        .frame(width: radius * 2, height: radius * 2)
-
-                    // 4. Vertex dots at active points
-                    ForEach(0..<axes.count, id: \.self) { i in
-                        let axis = axes[i]
-                        let isEnabled = rating.isEnabled(axis.id)
-                        let val = isAnimated ? rating.normalizedScore(for: axis.id, min: minScore, max: maxScore) : 0.0
-                        let angle = -.pi / 2.0 + Double(i) * (2.0 * .pi / Double(axes.count))
-                        let point = CGPoint(
-                            x: center.x + CGFloat(radius * val * cos(angle)),
-                            y: center.y + CGFloat(radius * val * sin(angle))
-                        )
-
-                        Circle()
-                            .fill(isEnabled ? strokeColor : Color.gray)
-                            .frame(width: isEnabled ? 8 : 6, height: isEnabled ? 8 : 6)
-                            .shadow(color: isEnabled ? strokeColor.opacity(0.5) : Color.clear, radius: 3)
-                            .position(point)
-                    }
-
-                    // 5. Axis labels & numerical values around the perimeter
-                    ForEach(0..<axes.count, id: \.self) { i in
-                        let axis = axes[i]
-                        let score = rating.score(for: axis.id, default: minScore)
-                        let angle = -.pi / 2.0 + Double(i) * (2.0 * .pi / Double(axes.count))
-                        let labelRadius = radius + 24.0
-
-                        let labelPoint = CGPoint(
-                            x: center.x + CGFloat(labelRadius * cos(angle)),
-                            y: center.y + CGFloat(labelRadius * sin(angle))
-                        )
-
-                        axisLabelView(axis: axis, score: score)
-                            .position(labelPoint)
-                    }
-                }
+                radarPlotView(size: size, center: center, radius: radius)
             }
             .frame(height: 250)
             .padding(.vertical, TravSpacing.xs)
@@ -134,6 +58,99 @@ struct ReadOnlyRadarChartView: View {
             RoundedRectangle(cornerRadius: TravRadius.lg)
                 .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
         )
+    }
+
+    @ViewBuilder
+    private func backgroundGridRings(radius: CGFloat) -> some View {
+        ForEach([0.25, 0.5, 0.75, 1.0], id: \.self) { level in
+            let w = radius * 2 * CGFloat(level)
+            let h = radius * 2 * CGFloat(level)
+            let lw: CGFloat = level == 1.0 ? 1.5 : 1.0
+            RadarChartPolygonShape(values: Array(repeating: level, count: axes.count))
+                .stroke(TravColors.border.opacity(0.4), lineWidth: lw)
+                .frame(width: w, height: h)
+        }
+    }
+
+    @ViewBuilder
+    private func axisSpokes(center: CGPoint, radius: CGFloat) -> some View {
+        ForEach(0..<axes.count, id: \.self) { i in
+            ReadOnlyAxisSpokeView(
+                index: i,
+                axis: axes[i],
+                center: center,
+                radius: radius,
+                rating: rating,
+                axesCount: axes.count
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func activePolygon(radius: CGFloat, normalizedValues: [Double]) -> some View {
+        ZStack {
+            RadarChartPolygonShape(values: normalizedValues)
+                .fill(
+                    LinearGradient(
+                        colors: [fillColor.opacity(0.45), fillColor.opacity(0.15)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: radius * 2, height: radius * 2)
+
+            RadarChartPolygonShape(values: normalizedValues)
+                .stroke(strokeColor, lineWidth: 2.5)
+                .frame(width: radius * 2, height: radius * 2)
+        }
+    }
+
+    @ViewBuilder
+    private func vertexDots(center: CGPoint, radius: CGFloat) -> some View {
+        ForEach(0..<axes.count, id: \.self) { i in
+            ReadOnlyVertexDotView(
+                index: i,
+                axis: axes[i],
+                center: center,
+                radius: radius,
+                rating: rating,
+                minScore: minScore,
+                maxScore: maxScore,
+                activeColor: strokeColor,
+                isAnimated: isAnimated,
+                axesCount: axes.count
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func perimeterLabels(center: CGPoint, radius: CGFloat) -> some View {
+        ForEach(0..<axes.count, id: \.self) { i in
+            ReadOnlyPerimeterLabelView(
+                index: i,
+                axis: axes[i],
+                center: center,
+                radius: radius,
+                rating: rating,
+                minScore: minScore,
+                axesCount: axes.count
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func radarPlotView(size: CGFloat, center: CGPoint, radius: CGFloat) -> some View {
+        let normalizedValues = axes.map { axis in
+            isAnimated ? rating.normalizedScore(for: axis.id, min: minScore, max: maxScore) : 0.0
+        }
+
+        ZStack {
+            backgroundGridRings(radius: radius)
+            axisSpokes(center: center, radius: radius)
+            activePolygon(radius: radius, normalizedValues: normalizedValues)
+            vertexDots(center: center, radius: radius)
+            perimeterLabels(center: center, radius: radius)
+        }
     }
 
     // MARK: - Subviews
@@ -174,31 +191,6 @@ struct ReadOnlyRadarChartView: View {
         }
     }
 
-    private func axisLabelView(axis: RadarAxis, score: Double) -> some View {
-        let isEnabled = rating.isEnabled(axis.id)
-
-        return VStack(spacing: 2) {
-            HStack(spacing: 3) {
-                if let iconName = axis.iconName {
-                    Image(systemName: isEnabled ? iconName : "eye.slash.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(isEnabled ? TravColors.accent : Color.gray)
-                }
-                Text(axis.name)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(isEnabled ? TravColors.primary : Color.gray)
-            }
-            Text(isEnabled ? String(format: "%.1f", score) : "OFF")
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundStyle(isEnabled ? TravColors.accent : Color.gray.opacity(0.8))
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(isEnabled ? TravColors.surface.opacity(0.95) : Color.gray.opacity(0.12))
-        .clipShape(Capsule())
-        .shadow(color: Color.black.opacity(0.08), radius: 2, x: 0, y: 1)
-    }
-
     private var scoreSummaryGrid: some View {
         HStack(spacing: 8) {
             ForEach(axes) { axis in
@@ -224,6 +216,134 @@ struct ReadOnlyRadarChartView: View {
         .padding(.vertical, 6)
         .background(isEnabled ? TravColors.surfaceElevated : Color.gray.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm))
+    }
+}
+
+// MARK: - Helper Subviews for Compiler Optimization
+
+struct ReadOnlyAxisSpokeView: View {
+    let index: Int
+    let axis: RadarAxis
+    let center: CGPoint
+    let radius: CGFloat
+    let rating: RadarRating
+    let axesCount: Int
+
+    private var isEnabled: Bool {
+        rating.isEnabled(axis.id)
+    }
+
+    private var angle: Double {
+        -.pi / 2.0 + Double(index) * (2.0 * .pi / Double(axesCount))
+    }
+
+    private var endPoint: CGPoint {
+        CGPoint(
+            x: center.x + CGFloat(radius * cos(angle)),
+            y: center.y + CGFloat(radius * sin(angle))
+        )
+    }
+
+    var body: some View {
+        Path { p in
+            p.move(to: center)
+            p.addLine(to: endPoint)
+        }
+        .stroke(isEnabled ? TravColors.border.opacity(0.3) : Color.gray.opacity(0.2), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+    }
+}
+
+struct ReadOnlyVertexDotView: View {
+    let index: Int
+    let axis: RadarAxis
+    let center: CGPoint
+    let radius: CGFloat
+    let rating: RadarRating
+    let minScore: Double
+    let maxScore: Double
+    let activeColor: Color
+    let isAnimated: Bool
+    let axesCount: Int
+
+    private var isEnabled: Bool {
+        rating.isEnabled(axis.id)
+    }
+
+    private var val: Double {
+        isAnimated ? rating.normalizedScore(for: axis.id, min: minScore, max: maxScore) : 0.0
+    }
+
+    private var angle: Double {
+        -.pi / 2.0 + Double(index) * (2.0 * .pi / Double(axesCount))
+    }
+
+    private var point: CGPoint {
+        CGPoint(
+            x: center.x + CGFloat(radius * val * cos(angle)),
+            y: center.y + CGFloat(radius * val * sin(angle))
+        )
+    }
+
+    var body: some View {
+        Circle()
+            .fill(isEnabled ? activeColor : Color.gray)
+            .frame(width: isEnabled ? 8 : 6, height: isEnabled ? 8 : 6)
+            .shadow(color: isEnabled ? activeColor.opacity(0.5) : Color.clear, radius: 3)
+            .position(point)
+    }
+}
+
+struct ReadOnlyPerimeterLabelView: View {
+    let index: Int
+    let axis: RadarAxis
+    let center: CGPoint
+    let radius: CGFloat
+    let rating: RadarRating
+    let minScore: Double
+    let axesCount: Int
+
+    private var isEnabled: Bool {
+        rating.isEnabled(axis.id)
+    }
+
+    private var score: Double {
+        rating.score(for: axis.id, default: minScore)
+    }
+
+    private var angle: Double {
+        -.pi / 2.0 + Double(index) * (2.0 * .pi / Double(axesCount))
+    }
+
+    private var labelPoint: CGPoint {
+        let labelRadius = radius + 24.0
+        return CGPoint(
+            x: center.x + CGFloat(labelRadius * cos(angle)),
+            y: center.y + CGFloat(labelRadius * sin(angle))
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 3) {
+                if let iconName = axis.iconName {
+                    Image(systemName: isEnabled ? iconName : "eye.slash.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(isEnabled ? TravColors.accent : Color.gray)
+                }
+                Text(axis.name)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(isEnabled ? TravColors.primary : Color.gray)
+            }
+            Text(isEnabled ? String(format: "%.1f", score) : "OFF")
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(isEnabled ? TravColors.accent : Color.gray.opacity(0.8))
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(isEnabled ? TravColors.surface.opacity(0.95) : Color.gray.opacity(0.12))
+        .clipShape(Capsule())
+        .shadow(color: Color.black.opacity(0.08), radius: 2, x: 0, y: 1)
+        .position(labelPoint)
     }
 }
 

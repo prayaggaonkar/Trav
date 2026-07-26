@@ -18,11 +18,13 @@ final class EarthGlobeRenderer {
     private var sunDirection = EarthSunPosition.direction()
     private var orientation = simd_quatf(angle: 0, axis: SIMD3(0, 1, 0))
     private var usesDaytimeLook = false
+    private var texturesReady = false
+    private var dayLightLoadTask: Task<Void, Never>?
 
     /// Dark-mode land/ocean diffuse.
-    private var earthDayTexture: UIImage!
+    private var earthDayTexture: UIImage?
     /// Light-mode daytime land/ocean diffuse (recolored oceans/land). Purple emission unchanged.
-    private var earthDayLightTexture: UIImage!
+    private var earthDayLightTexture: UIImage?
 
     var onCitySelected: ((City) -> Void)?
 
@@ -53,15 +55,52 @@ final class EarthGlobeRenderer {
     func setDaytimeLook(_ enabled: Bool) {
         guard usesDaytimeLook != enabled else { return }
         usesDaytimeLook = enabled
-        let material = earthNode.geometry?.firstMaterial
-        material?.diffuse.contents = enabled ? earthDayLightTexture : earthDayTexture
-        // Same texture assets; only the diffuse gain changes in light mode.
-        material?.diffuse.intensity = enabled ? 0.8 : 1.55
+        guard texturesReady else { return }
+
+        if enabled {
+            dayLightLoadTask?.cancel()
+            dayLightLoadTask = Task { [weak self] in
+                await self?.ensureDayLightTexture()
+                guard let self, !Task.isCancelled, self.usesDaytimeLook else { return }
+                self.applyDiffuseForCurrentLook()
+            }
+        } else {
+            dayLightLoadTask?.cancel()
+            dayLightLoadTask = nil
+            // Release light-mode map while dark mode is active.
+            earthDayLightTexture = nil
+            applyDiffuseForCurrentLook()
+        }
     }
 
     init() {
         buildScene()
         startSunTimer()
+    }
+
+    /// Decode day + night off the main actor, then assign materials. Optionally preload light-mode diffuse.
+    func loadTextures(preferDaytime: Bool) async {
+        usesDaytimeLook = preferDaytime
+
+        async let dayTask = Self.decodeImage(named: "earth_day")
+        async let nightTask = Self.decodeImage(named: "earth_night")
+        let day: UIImage
+        let night: UIImage
+        do {
+            (day, night) = try await (dayTask, nightTask)
+        } catch {
+            return
+        }
+
+        earthDayTexture = day
+        applyBaseTextures(day: day, night: night)
+        texturesReady = true
+
+        if preferDaytime {
+            await ensureDayLightTexture()
+            guard !Task.isCancelled else { return }
+            applyDiffuseForCurrentLook()
+        }
     }
 
     func setCities(_ cities: [City]) {
@@ -170,7 +209,7 @@ final class EarthGlobeRenderer {
     private func buildScene() {
         scene.background.contents = UIColor.clear
 
-        buildEarth()
+        buildEarthPlaceholder()
         buildLights()
         buildCamera()
 
@@ -181,34 +220,76 @@ final class EarthGlobeRenderer {
         scene.rootNode.addChildNode(cameraNode)
     }
 
-    private func buildEarth() {
+    private func buildEarthPlaceholder() {
         let geometry = SCNSphere(radius: 1.0)
-        geometry.segmentCount = 96
-
-        earthDayTexture = loadImage(named: "earth_day")
-        earthDayLightTexture = loadImage(named: "earth_day_light")
+        geometry.segmentCount = 48
 
         let material = SCNMaterial()
-        material.diffuse.contents = earthDayTexture
+        material.diffuse.contents = UIColor(red: 0.08, green: 0.10, blue: 0.18, alpha: 1)
+        material.emission.contents = UIColor.black
+        material.lightingModel = .blinn
+        material.shininess = 0.04
+        material.specular.contents = UIColor(white: 0.06, alpha: 1)
+        material.ambient.contents = UIColor(white: 0.55, alpha: 1)
+
+        geometry.materials = [material]
+        earthNode.geometry = geometry
+    }
+
+    private func applyBaseTextures(day: UIImage, night: UIImage) {
+        guard let material = earthNode.geometry?.firstMaterial else { return }
+        material.diffuse.contents = day
         material.diffuse.wrapS = .repeat
         material.diffuse.wrapT = .clamp
         material.diffuse.magnificationFilter = .linear
         material.diffuse.minificationFilter = .linear
         material.diffuse.mipFilter = .linear
-        // Day texture is intentionally muted; lift diffuse so land/ocean stay readable.
-        material.diffuse.intensity = 1.55
-        // Population-density emission: neon purple — strongest on the night side.
-        // Never retuned when swapping the daytime diffuse texture.
-        material.emission.contents = loadImage(named: "earth_night")
+        material.diffuse.intensity = usesDaytimeLook ? 0.8 : 1.55
+        material.emission.contents = night
         material.emission.intensity = 1.45
         material.lightingModel = .blinn
         material.shininess = 0.04
         material.specular.contents = UIColor(white: 0.06, alpha: 1)
-        // Soften self-shadowing so the night hemisphere still shows continents/oceans.
         material.ambient.contents = UIColor(white: 0.55, alpha: 1)
+    }
 
-        geometry.materials = [material]
-        earthNode.geometry = geometry
+    private func applyDiffuseForCurrentLook() {
+        guard let material = earthNode.geometry?.firstMaterial else { return }
+        if usesDaytimeLook, let light = earthDayLightTexture {
+            material.diffuse.contents = light
+            material.diffuse.intensity = 0.8
+        } else {
+            material.diffuse.contents = earthDayTexture
+            material.diffuse.intensity = 1.55
+        }
+    }
+
+    private func ensureDayLightTexture() async {
+        if earthDayLightTexture != nil { return }
+        do {
+            let light = try await Self.decodeImage(named: "earth_day_light")
+            guard !Task.isCancelled else { return }
+            earthDayLightTexture = light
+        } catch {
+            // Keep dark-mode diffuse if light texture fails.
+        }
+    }
+
+    /// Prefer asset-catalog images (2K day/night) over loose 4K `Textures/` copies.
+    nonisolated private static func decodeImage(named name: String) async throws -> UIImage {
+        try await Task.detached(priority: .userInitiated) {
+            if let image = UIImage(named: name) {
+                // Force decode off the main thread before SceneKit upload.
+                _ = image.cgImage?.dataProvider?.data
+                return image
+            }
+            if let url = Bundle.main.url(forResource: name, withExtension: "jpg"),
+               let image = UIImage(contentsOfFile: url.path) {
+                _ = image.cgImage?.dataProvider?.data
+                return image
+            }
+            throw TextureLoadError.missing(name)
+        }.value
     }
 
     private func buildLights() {
@@ -334,17 +415,6 @@ final class EarthGlobeRenderer {
         return qz * qy * qx
     }
 
-    private func loadImage(named name: String) -> UIImage {
-        if let url = Bundle.main.url(forResource: name, withExtension: "jpg"),
-           let image = UIImage(contentsOfFile: url.path) {
-            return image
-        }
-        if let image = UIImage(named: name) {
-            return image
-        }
-        fatalError("Missing texture: \(name)")
-    }
-
     private func nearestMarker(to point: CGPoint, in view: SCNView) -> EarthCityMarker? {
         var best: (EarthCityMarker, CGFloat)?
         for marker in cityMarkers {
@@ -356,6 +426,10 @@ final class EarthGlobeRenderer {
         }
         return best?.0
     }
+}
+
+private enum TextureLoadError: Error {
+    case missing(String)
 }
 
 /// Geographic → SceneKit sphere point for equirectangular Earth textures on `SCNSphere`.

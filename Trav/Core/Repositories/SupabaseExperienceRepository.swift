@@ -30,6 +30,32 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let stops: [String]
         let image: StringOrArray?
         let rating: RadarRating?
+
+        enum CodingKeys: String, CodingKey {
+            case id, user_id, title, description, city, stops, image, rating
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(UUID.self, forKey: .id)
+            user_id = try container.decode(UUID.self, forKey: .user_id)
+            title = try container.decode(String.self, forKey: .title)
+            description = try container.decode(String.self, forKey: .description)
+            city = try container.decode(String.self, forKey: .city)
+            stops = try container.decode([String].self, forKey: .stops)
+            image = try container.decodeIfPresent(String.self, forKey: .image)
+
+            // Rating is stored as a flat scores dict on write. Decode leniently so one
+            // malformed row (or a missing column) does not fail the entire leaderboard fetch.
+            if let scores = try? container.decode([String: Double].self, forKey: .rating), !scores.isEmpty {
+                rating = RadarRating(scores: scores)
+            } else if let decoded = try? container.decode(RadarRating.self, forKey: .rating),
+                      !decoded.scores.isEmpty {
+                rating = decoded
+            } else {
+                rating = nil
+            }
+        }
     }
 
     private struct DBPlace: Codable {
@@ -464,6 +490,101 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         } catch {
             print("Failed to fetch user experiences for \(cityID) from Supabase: \(error)")
             return []
+        }
+    }
+
+    func fetchRankedExperiences(
+        cityID: UUID?,
+        creatorID: UUID?,
+        axis: RankingAxis,
+        page: Int
+    ) async throws -> Paginated<ExperienceSummary> {
+        let summaries = try await fetchRatedExperienceSummaries(cityID: cityID, creatorID: creatorID)
+        let sorted = RankingScore.sortedExperiences(summaries, axis: axis)
+        return RankingScore.paginate(sorted, page: page)
+    }
+
+    func fetchRankedCreators(
+        cityID: UUID?,
+        axis: RankingAxis,
+        page: Int
+    ) async throws -> Paginated<RankedCreator> {
+        let summaries = try await fetchRatedExperienceSummaries(cityID: cityID, creatorID: nil)
+        let ranked = RankingScore.rankedCreators(from: summaries, axis: axis)
+        return RankingScore.paginate(ranked, page: page)
+    }
+
+    /// Loads experiences for rankings. Ratings decode leniently; unrated rows are kept
+    /// so the leaderboard is not empty when the Feed still has posts.
+    private func fetchRatedExperienceSummaries(
+        cityID: UUID?,
+        creatorID: UUID?
+    ) async throws -> [ExperienceSummary] {
+        let allExps: [DBExperience]
+        if let creatorID {
+            allExps = try await client
+                .from("experiences")
+                .select()
+                .eq("user_id", value: creatorID)
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+        } else {
+            allExps = try await client
+                .from("experiences")
+                .select()
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+        }
+
+        let cityNameFilter: String? = cityID.flatMap { id in
+            MockData.cities.first(where: { $0.id == id })?.name
+        }
+
+        let dbExps = allExps.filter { dbExp in
+            guard let cityNameFilter else { return true }
+            let expCity = dbExp.city.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let targetCity = cityNameFilter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return expCity == targetCity || expCity.contains(targetCity) || targetCity.contains(expCity)
+        }
+
+        let userIDs = Array(Set(dbExps.map(\.user_id)))
+        let profilesMap = await fetchProfiles(for: userIDs)
+
+        return dbExps.map { dbExp in
+            let resolvedCityID = cityID
+                ?? MockData.cities.first(where: {
+                    $0.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .caseInsensitiveCompare(dbExp.city.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+                })?.id
+                ?? MockData.cities.first?.id
+                ?? UUID()
+
+            let creator = profilesMap[dbExp.user_id] ?? ProfileSummary(
+                id: dbExp.user_id,
+                username: "traveler",
+                displayName: "Traveler",
+                avatarURL: nil,
+                isVerified: false
+            )
+
+            return ExperienceSummary(
+                id: dbExp.id,
+                cityID: resolvedCityID,
+                title: dbExp.title,
+                coverImageURL: dbExp.image.flatMap { URL(string: $0) },
+                creator: creator,
+                durationMinutes: max(30, dbExp.stops.count * 30),
+                costLevel: .budget,
+                estimatedCostUSD: nil,
+                saveCount: 0,
+                likeCount: 0,
+                completionCount: 0,
+                stops: dbExp.stops.map { StopPreview(id: UUID(), name: $0, emoji: nil) },
+                rating: dbExp.rating,
+                cityName: dbExp.city
+            )
         }
     }
 

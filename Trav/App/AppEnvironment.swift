@@ -45,6 +45,11 @@ final class AppearanceStore {
     }
 
     init() {
+        UserDefaults.standard.register(defaults: [
+            "trav.settings.notificationsEnabled": true,
+            "trav.settings.hapticsEnabled": true,
+            "trav.settings.autoPlayMedia": true
+        ])
         modeRaw = UserDefaults.standard.string(forKey: Self.storageKey) ?? "dark"
     }
 

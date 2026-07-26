@@ -82,6 +82,10 @@
 		77297A37933F4FFF8826907E /* FollowListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7186DD4501EA4A58919C19AD /* FollowListView.swift */; };
 		42F0E192AF2B492C8A5C8288 /* CityAutocompleteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042EA83356B64A548B6D9EE9 /* CityAutocompleteService.swift */; };
 		92A04FFFE70947C696501520 /* CityAutocompleteField.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50C3D427B57414E9F9469D6 /* CityAutocompleteField.swift */; };
+		RANK0020000000000000001 /* RankingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = RANK0010000000000000001 /* RankingModels.swift */; };
+		RANK0020000000000000002 /* RankingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = RANK0010000000000000002 /* RankingsViewModel.swift */; };
+		RANK0020000000000000003 /* RankingRowViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = RANK0010000000000000003 /* RankingRowViews.swift */; };
+		RANK0020000000000000004 /* RankingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = RANK0010000000000000004 /* RankingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -156,6 +160,10 @@
 		7186DD4501EA4A58919C19AD /* FollowListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowListView.swift; sourceTree = "<group>"; };
 		042EA83356B64A548B6D9EE9 /* CityAutocompleteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityAutocompleteService.swift; sourceTree = "<group>"; };
 		E50C3D427B57414E9F9469D6 /* CityAutocompleteField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityAutocompleteField.swift; sourceTree = "<group>"; };
+		RANK0010000000000000001 /* RankingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingModels.swift; sourceTree = "<group>"; };
+		RANK0010000000000000002 /* RankingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingsViewModel.swift; sourceTree = "<group>"; };
+		RANK0010000000000000003 /* RankingRowViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingRowViews.swift; sourceTree = "<group>"; };
+		RANK0010000000000000004 /* RankingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -248,6 +256,17 @@
 			path = Auth;
 			sourceTree = "<group>";
 		};
+		RANK0000000000000000000 /* Rankings */ = {
+			isa = PBXGroup;
+			children = (
+				RANK0010000000000000001 /* RankingModels.swift */,
+				RANK0010000000000000002 /* RankingsViewModel.swift */,
+				RANK0010000000000000003 /* RankingRowViews.swift */,
+				RANK0010000000000000004 /* RankingsView.swift */,
+			);
+			path = Rankings;
+			sourceTree = "<group>";
+		};
 		8DEF62D69CBC4A4DAC6F1A6A /* Features */ = {
 			isa = PBXGroup;
 			children = (
@@ -259,6 +278,7 @@
 				C12D4E5F6A7B8491C3D4E5F6 /* Onboarding */,
 				BF002BE61CD74981A2F62551 /* Profile */,
 				C7EAD1EAE5A54853BC25399C /* CreateExperience */,
+				RANK0000000000000000000 /* Rankings */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -576,6 +596,10 @@
 				0F1A2B3C4D5E6F708192A3B6 /* SupabaseNotificationRepository.swift in Sources */,
 				0F1A2B3C4D5E6F708192A3B7 /* NotificationsView.swift in Sources */,
 				0F1A2B3C4D5E6F708192A3B8 /* InAppNotificationBanner.swift in Sources */,
+				RANK0020000000000000001 /* RankingModels.swift in Sources */,
+				RANK0020000000000000002 /* RankingsViewModel.swift in Sources */,
+				RANK0020000000000000003 /* RankingRowViews.swift in Sources */,
+				RANK0020000000000000004 /* RankingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

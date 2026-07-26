@@ -31,6 +31,12 @@ final class GlobeViewModel {
         }
     }
 
+    /// Decode globe textures off the main thread, then load city markers.
+    func prepare(isLightMode: Bool) async {
+        await renderer.loadTextures(preferDaytime: isLightMode)
+        await loadCities()
+    }
+
     func loadCities() async {
         loadState = .loading
         do {

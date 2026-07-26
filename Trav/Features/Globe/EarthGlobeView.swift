@@ -6,24 +6,25 @@ struct EarthGlobeView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> GlobeSCNView {
         let view = GlobeSCNView(frame: .zero, options: [:])
-        configure(view)
+        configureOnce(view)
         context.coordinator.attach(to: view)
         return view
     }
 
     func updateUIView(_ uiView: GlobeSCNView, context: Context) {
-        configure(uiView)
+        uiView.scene = controller.renderer.scene
+        uiView.pointOfView = controller.renderer.cameraNode
     }
 
-    private func configure(_ view: GlobeSCNView) {
+    private func configureOnce(_ view: GlobeSCNView) {
         view.scene = controller.renderer.scene
         view.pointOfView = controller.renderer.cameraNode
         view.backgroundColor = .clear
         view.isOpaque = false
         view.layer.isOpaque = false
         view.isMultipleTouchEnabled = true
-        view.antialiasingMode = .multisampling4X
-        view.preferredFramesPerSecond = 60
+        view.antialiasingMode = .multisampling2X
+        view.preferredFramesPerSecond = 30
         view.isPlaying = true
         view.autoenablesDefaultLighting = false
         view.allowsCameraControl = false
