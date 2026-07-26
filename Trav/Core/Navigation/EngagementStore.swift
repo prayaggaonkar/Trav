@@ -99,8 +99,9 @@ final class EngagementStore {
     }
 
     func cache(_ profile: Profile) {
+        let isStub = profile.bio == nil && profile.homeCityName == nil && profile.experienceCount == 0 && profile.followerCount == 0 && profile.followingCount == 0
+
         if var existing = profileCache[profile.id] {
-            let isStub = profile.bio == nil && profile.homeCityName == nil && profile.experienceCount == 0 && profile.followerCount == 0
             if isStub {
                 let oldFollowing = existing.isFollowing ?? followingUserIDs.contains(profile.id)
                 let newFollowing = profile.isFollowing ?? followingUserIDs.contains(profile.id)
@@ -113,13 +114,21 @@ final class EngagementStore {
                 }
                 existing.isFollowing = newFollowing
             } else {
-                existing = profile
+                var updated = profile
+                if updated.isFollowing == nil {
+                    updated.isFollowing = existing.isFollowing ?? followingUserIDs.contains(profile.id)
+                }
+                existing = updated
             }
             profileCache[profile.id] = existing
-            profileCacheByUsername[profile.username.lowercased()] = existing
-        } else {
-            profileCache[profile.id] = profile
-            profileCacheByUsername[profile.username.lowercased()] = profile
+            profileCacheByUsername[existing.username.lowercased()] = existing
+        } else if !isStub {
+            var full = profile
+            if full.isFollowing == nil {
+                full.isFollowing = followingUserIDs.contains(profile.id)
+            }
+            profileCache[profile.id] = full
+            profileCacheByUsername[full.username.lowercased()] = full
         }
         bump()
     }
@@ -277,7 +286,7 @@ final class EngagementStore {
         guard followerID != target.id else { return false }
 
         let wasFollowing = isCurrentlyFollowing ?? (followingUserIDs.contains(target.id) || (target.isFollowing ?? false))
-        var updatedTarget = target
+        var updatedTarget = profileCache[target.id] ?? target
 
         if wasFollowing {
             followingUserIDs.remove(target.id)

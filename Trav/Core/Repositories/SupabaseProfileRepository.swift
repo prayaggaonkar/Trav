@@ -25,14 +25,14 @@ struct SupabaseProfileRepository: ProfileRepository {
             .select("follower_id", count: .exact)
             .eq("following_id", value: profile.id)
             .execute()
-            .count) ?? profile.followerCount
+            .count)
 
         let followingCount = (try? await client
             .from("followers")
             .select("following_id", count: .exact)
             .eq("follower_id", value: profile.id)
             .execute()
-            .count) ?? profile.followingCount
+            .count)
 
         let createdExpCount = (try? await client
             .from("experiences")
@@ -40,11 +40,11 @@ struct SupabaseProfileRepository: ProfileRepository {
             .eq("user_id", value: profile.id)
             .neq("description", value: ProfileLimits.bookmarkDescriptionSentinel)
             .execute()
-            .count) ?? profile.experienceCount
+            .count)
 
-        profile.followerCount = followersCount
-        profile.followingCount = followingCount
-        profile.experienceCount = createdExpCount
+        if let followersCount { profile.followerCount = followersCount }
+        if let followingCount { profile.followingCount = followingCount }
+        if let createdExpCount { profile.experienceCount = createdExpCount }
         return profile
     }
 
@@ -63,14 +63,14 @@ struct SupabaseProfileRepository: ProfileRepository {
             .select("follower_id", count: .exact)
             .eq("following_id", value: id)
             .execute()
-            .count) ?? profile.followerCount
+            .count)
 
         let followingCount = (try? await client
             .from("followers")
             .select("following_id", count: .exact)
             .eq("follower_id", value: id)
             .execute()
-            .count) ?? profile.followingCount
+            .count)
 
         let createdExpCount = (try? await client
             .from("experiences")
@@ -78,11 +78,11 @@ struct SupabaseProfileRepository: ProfileRepository {
             .eq("user_id", value: id)
             .neq("description", value: ProfileLimits.bookmarkDescriptionSentinel)
             .execute()
-            .count) ?? profile.experienceCount
+            .count)
 
-        profile.followerCount = followersCount
-        profile.followingCount = followingCount
-        profile.experienceCount = createdExpCount
+        if let followersCount { profile.followerCount = followersCount }
+        if let followingCount { profile.followingCount = followingCount }
+        if let createdExpCount { profile.experienceCount = createdExpCount }
         return profile
     }
 

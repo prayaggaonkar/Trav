@@ -142,9 +142,6 @@ struct ProfileView: View {
                     },
                     onCreated: {
                         Task { await viewModel.selectTab(.created, using: environment) }
-                    },
-                    onCompleted: {
-                        Task { await viewModel.selectTab(.completed, using: environment) }
                     }
                 )
                 .padding(.horizontal, TravSpacing.xs)
@@ -164,6 +161,10 @@ struct ProfileView: View {
                             Task { await viewModel.selectTab(newValue, using: environment) }
                         }
                     ),
+                    counts: [
+                        .created: max(profile.experienceCount, viewModel.created.count),
+                        .saved: viewModel.saved.count
+                    ],
                     onSelect: { tab in
                         Task { await viewModel.selectTab(tab, using: environment) }
                     }
@@ -247,13 +248,24 @@ struct ProfileView: View {
 
     @ViewBuilder
     private var tabContent: some View {
-        LazyVStack(spacing: 0) {
+        LazyVStack(spacing: TravSpacing.md) {
             switch viewModel.selectedTab {
             case .created:
-                ProfileEmptyState(
-                    title: "No experiences yet",
-                    description: "Share your first experience with the community."
-                )
+                if viewModel.created.isEmpty {
+                    ProfileEmptyState(
+                        title: "No experiences yet",
+                        description: "Share your first experience with the community."
+                    )
+                } else {
+                    ForEach(Array(viewModel.created.enumerated()), id: \.element.id) { index, experience in
+                        experienceRow(
+                            experience: experience,
+                            badgeText: isOwnProfile ? "Created by Me" : "",
+                            index: index,
+                            isLast: experience.id == viewModel.created.last?.id
+                        )
+                    }
+                }
 
             case .saved:
                 if viewModel.saved.isEmpty {
@@ -279,9 +291,10 @@ struct ProfileView: View {
                     )
                 } else {
                     ForEach(Array(viewModel.completed.enumerated()), id: \.element.id) { index, item in
+                        let badgeText = "Completed"
                         experienceRow(
                             experience: item.experience,
-                            completedAt: item.completedAt,
+                            badgeText: badgeText,
                             index: index,
                             isLast: item.id == viewModel.completed.last?.id
                         )
@@ -296,8 +309,11 @@ struct ProfileView: View {
             }
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
+        .padding(.top, TravSpacing.md)
         .animation(TravAnimation.quick, value: viewModel.selectedTab)
+        .animation(TravAnimation.quick, value: viewModel.created.map(\.id))
         .animation(TravAnimation.quick, value: viewModel.saved.map(\.id))
+        .animation(TravAnimation.quick, value: viewModel.completed.map(\.id))
     }
 
     @ViewBuilder
@@ -305,7 +321,7 @@ struct ProfileView: View {
         ForEach(Array(items.enumerated()), id: \.element.id) { index, experience in
             experienceRow(
                 experience: experience,
-                completedAt: nil,
+                badgeText: "",
                 index: index,
                 isLast: experience.id == items.last?.id
             )
@@ -329,24 +345,47 @@ struct ProfileView: View {
                         router.openExperience(experience.id)
                     }
                 ) {
-                    ProfileExperienceCard(experience: experience)
+                    ExperienceCard(
+                        experience: experience,
+                        badgeText: "Saved",
+                        isSaved: true,
+                        onTap: {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            router.openExperience(experience.id)
+                        },
+                        onCreatorTap: {
+                            router.openProfile(experience.creator.username)
+                        },
+                        onSave: {
+                            Task { await viewModel.unsave(experience, using: environment) }
+                        }
+                    )
                 }
             } else {
-                ProfileExperienceCard(experience: experience) {
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    router.openExperience(experience.id)
-                }
+                ExperienceCard(
+                    experience: experience,
+                    badgeText: "Saved",
+                    isSaved: engagement.isSaved(experience.id),
+                    onTap: {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        router.openExperience(experience.id)
+                    },
+                    onCreatorTap: {
+                        router.openProfile(experience.creator.username)
+                    },
+                    onSave: {
+                        Task {
+                            await engagement.toggleSave(
+                                experienceID: experience.id,
+                                summary: experience,
+                                using: environment
+                            )
+                        }
+                    }
+                )
             }
         }
         .travAppear(delay: Double(min(index, 5)) * 0.03)
-        .overlay(alignment: .bottom) {
-            if !isLast {
-                Rectangle()
-                    .fill(TravColors.border.opacity(0.4))
-                    .frame(height: 0.5)
-                    .padding(.leading, 72 + TravSpacing.md)
-            }
-        }
         .onAppear {
             if isLast {
                 Task { await viewModel.loadMoreIfNeeded(using: environment) }
@@ -357,23 +396,32 @@ struct ProfileView: View {
     @ViewBuilder
     private func experienceRow(
         experience: ExperienceSummary,
-        completedAt: Date?,
+        badgeText: String,
         index: Int,
         isLast: Bool
     ) -> some View {
-        ProfileExperienceCard(experience: experience, completedAt: completedAt) {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            router.openExperience(experience.id)
-        }
-        .travAppear(delay: Double(min(index, 5)) * 0.03)
-        .overlay(alignment: .bottom) {
-            if !isLast {
-                Rectangle()
-                    .fill(TravColors.border.opacity(0.4))
-                    .frame(height: 0.5)
-                    .padding(.leading, 72 + TravSpacing.md)
+        ExperienceCard(
+            experience: experience,
+            badgeText: badgeText,
+            isSaved: engagement.isSaved(experience.id),
+            onTap: {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                router.openExperience(experience.id)
+            },
+            onCreatorTap: {
+                router.openProfile(experience.creator.username)
+            },
+            onSave: {
+                Task {
+                    await engagement.toggleSave(
+                        experienceID: experience.id,
+                        summary: experience,
+                        using: environment
+                    )
+                }
             }
-        }
+        )
+        .travAppear(delay: Double(min(index, 5)) * 0.03)
         .onAppear {
             if isLast {
                 Task { await viewModel.loadMoreIfNeeded(using: environment) }
