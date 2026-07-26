@@ -17,6 +17,8 @@ struct AvatarView: View {
                         placeholder
                     }
                 }
+                // Force a fresh load when the URL (incl. cache-buster) changes.
+                .id(url.absoluteString)
             } else {
                 placeholder
             }

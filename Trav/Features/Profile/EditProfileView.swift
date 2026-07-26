@@ -123,7 +123,7 @@ struct EditProfileView: View {
                         .scaledToFill()
                         .frame(width: 104, height: 104)
                         .clipShape(Circle())
-                } else if removeAvatar {
+                } else if removeAvatar || profile.avatarURL == nil {
                     AvatarView(url: nil, size: 104)
                 } else {
                     AvatarView(url: profile.avatarURL, size: 104)
@@ -136,15 +136,16 @@ struct EditProfileView: View {
 
             HStack(spacing: TravSpacing.md) {
                 PhotosPicker(selection: $avatarItem, matching: .images) {
-                    Text("Change Photo")
+                    Text(hasCurrentAvatarPreview ? "Change Photo" : "Add Photo")
                         .font(TravTypography.labelMedium())
                         .foregroundStyle(TravColors.accent)
                 }
-                if profile.avatarURL != nil || avatarImage != nil {
+                if hasCurrentAvatarPreview {
                     Button("Remove") {
                         avatarImage = nil
                         avatarItem = nil
                         removeAvatar = true
+                        errorMessage = nil
                     }
                     .font(TravTypography.labelMedium())
                     .foregroundStyle(TravColors.error)
@@ -152,6 +153,13 @@ struct EditProfileView: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// True when the preview is showing a real photo (existing or newly picked), not the placeholder.
+    private var hasCurrentAvatarPreview: Bool {
+        if avatarImage != nil { return true }
+        if removeAvatar { return false }
+        return profile.avatarURL != nil
     }
 
     private var fieldsSection: some View {
@@ -254,13 +262,42 @@ struct EditProfileView: View {
     private func loadAvatar(from item: PhotosPickerItem?) async {
         guard let item else { return }
         do {
-            if let data = try await item.loadTransferable(type: Data.self),
-               let image = UIImage(data: data) {
-                avatarImage = image
-                removeAvatar = false
-            }
+            let image = try await Self.loadUIImage(from: item)
+            avatarImage = Self.normalizedAvatarImage(image)
+            removeAvatar = false
+            errorMessage = nil
         } catch {
-            errorMessage = "Couldn’t load that photo."
+            errorMessage = "Couldn’t load that photo. Try a different one."
+        }
+    }
+
+    private static func loadUIImage(from item: PhotosPickerItem) async throws -> UIImage {
+        // Prefer a Transferable image representation — `Data.self` often returns nil
+        // for PhotosPicker items (especially HEIC) without throwing.
+        if let picked = try await item.loadTransferable(type: PickedAvatarImage.self) {
+            return picked.image
+        }
+        if let data = try await item.loadTransferable(type: Data.self),
+           let image = UIImage(data: data) {
+            return image
+        }
+        throw CocoaError(.fileReadCorruptFile)
+    }
+
+    /// Downscale and redraw so JPEG encoding always succeeds (handles HEIC / wide-gamut).
+    private static func normalizedAvatarImage(_ image: UIImage) -> UIImage {
+        let maxDimension: CGFloat = 1024
+        let longest = max(image.size.width, image.size.height)
+        let scale = longest > maxDimension ? maxDimension / longest : 1
+        let size = CGSize(width: max(image.size.width * scale, 1), height: max(image.size.height * scale, 1))
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        return renderer.image { _ in
+            UIColor.white.setFill()
+            UIBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
+            image.draw(in: CGRect(origin: .zero, size: size))
         }
     }
 
@@ -299,8 +336,11 @@ struct EditProfileView: View {
 
             if removeAvatar {
                 update.clearAvatar = true
-            } else if let avatarImage,
-                      let data = avatarImage.jpegData(compressionQuality: 0.85) {
+            } else if let avatarImage {
+                guard let data = avatarImage.jpegData(compressionQuality: 0.85) else {
+                    errorMessage = "Couldn’t process that photo."
+                    return
+                }
                 let url = try await environment.profiles.uploadAvatar(userID: profile.id, imageData: data)
                 update.avatarURL = url
             }
@@ -314,8 +354,31 @@ struct EditProfileView: View {
             onSaved(updated)
             dismiss()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyAvatarError(error)
             UINotificationFeedbackGenerator().notificationOccurred(.error)
+        }
+    }
+
+    private func friendlyAvatarError(_ error: Error) -> String {
+        let text = error.localizedDescription.lowercased()
+        if text.contains("bucket") || text.contains("not found") || text.contains("row-level security")
+            || text.contains("unauthorized") || text.contains("storage") {
+            return "Couldn’t upload your photo. Check that you’re signed in and try again."
+        }
+        return error.localizedDescription
+    }
+}
+
+/// PhotosPicker-friendly image transfer — more reliable than `Data.self` alone.
+private struct PickedAvatarImage: Transferable {
+    let image: UIImage
+
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(importedContentType: .image) { data in
+            guard let image = UIImage(data: data) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            return PickedAvatarImage(image: image)
         }
     }
 }
