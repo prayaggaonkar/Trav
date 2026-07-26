@@ -396,36 +396,37 @@ struct FeedView: View {
                             .padding(.bottom, 4)
                             
                             // Post Feed list
-                             LazyVStack(spacing: 0) {
-                                 ForEach(mainFeedPosts) { experience in
-                                     ExperienceCard(
-                                         experience: experience,
-                                         isSaved: engagement.isSaved(experience.id),
-                                         connectedLayout: true,
-                                         onTap: {
-                                             router.presentedRoute = .experience(experience.id)
-                                         },
-                                         onCreatorTap: {
-                                             router.openProfile(experience.creator.username)
-                                         },
-                                         onSave: {
-                                             Task {
-                                                 await engagement.toggleSave(
-                                                     experienceID: experience.id,
-                                                     summary: experience,
-                                                     using: environment
-                                                 )
-                                             }
-                                         },
-                                         onShare: {
-                                             // Share action placeholder
-                                         }
-                                     )
-                                     .onDrag {
-                                         NSItemProvider(object: experience.id.uuidString as NSString)
-                                     }
-                                 }
-                             }
+                            LazyVStack(spacing: 12) {
+                                ForEach(mainFeedPosts) { experience in
+                                    ExperienceCard(
+                                        experience: experience,
+                                        isSaved: engagement.isSaved(experience.id),
+                                        connectedLayout: false,
+                                        onTap: {
+                                            router.presentedRoute = .experience(experience.id)
+                                        },
+                                        onCreatorTap: {
+                                            router.openProfile(experience.creator.username)
+                                        },
+                                        onSave: {
+                                            Task {
+                                                await engagement.toggleSave(
+                                                    experienceID: experience.id,
+                                                    summary: experience,
+                                                    using: environment
+                                                )
+                                            }
+                                        },
+                                        onShare: {
+                                            // Share action placeholder
+                                        }
+                                    )
+                                    .onDrag {
+                                        NSItemProvider(object: experience.id.uuidString as NSString)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 12)
                         }
                         .padding(.vertical, TravSpacing.sm)
                         .padding(.bottom, draftStops.isEmpty ? TravSpacing.tabBarBottom + 20 : TravSpacing.tabBarBottom + 120)
