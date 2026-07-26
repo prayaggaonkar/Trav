@@ -740,3 +740,20 @@
 [2026-07-25 17:31:02] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 1
 [2026-07-25 17:31:02] SupabaseExperienceRepository.fetchCityFeed: matched 1 experiences for 'San Francisco'
 [2026-07-25 17:31:02] CityViewModel.load completed successfully, phase set to loaded
+[2026-07-25 17:33:10] AppEnvironment.observeAuthState started
+[2026-07-25 17:33:10] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 17:33:45] CityViewModel.load started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-25 17:33:45] SupabaseExperienceRepository.fetchCityFeed started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-25 17:33:45] SupabaseExperienceRepository.fetchCityFeed: resolved cityName: 'San Francisco'
+[2026-07-25 17:33:45] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 1
+[2026-07-25 17:33:45] SupabaseExperienceRepository.fetchCityFeed: matched 1 experiences for 'San Francisco'
+[2026-07-25 17:33:45] CityViewModel.load completed successfully, phase set to loaded
+[2026-07-25 17:35:47] AppEnvironment.observeAuthState started
+[2026-07-25 17:35:47] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 17:36:48] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 17:45:43] AppEnvironment.observeAuthState started
+[2026-07-25 17:45:44] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 18:37:48] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 19:45:17] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 20:49:48] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 21:49:10] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
