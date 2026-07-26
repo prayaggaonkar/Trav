@@ -47,17 +47,11 @@ set search_path = public
 as $$
 begin
   if tg_op = 'INSERT' then
-    update public.experiences
-      set completion_count = completion_count + 1
-      where id = new.experience_id;
     update public.profiles
       set completion_count = completion_count + 1, updated_at = now()
       where id = new.user_id;
     return new;
   elsif tg_op = 'DELETE' then
-    update public.experiences
-      set completion_count = greatest(completion_count - 1, 0)
-      where id = old.experience_id;
     update public.profiles
       set completion_count = greatest(completion_count - 1, 0), updated_at = now()
       where id = old.user_id;

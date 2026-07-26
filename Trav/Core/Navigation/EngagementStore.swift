@@ -265,6 +265,7 @@ final class EngagementStore {
             bump()
             return nowCompleted
         } catch {
+            print("🔴 EngagementStore.toggleComplete failed with error: \(error)")
             if wasCompleted {
                 completedExperienceIDs.insert(experienceID)
             } else {
