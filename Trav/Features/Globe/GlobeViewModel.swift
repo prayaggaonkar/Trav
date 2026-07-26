@@ -26,7 +26,9 @@ final class GlobeViewModel {
         self.citiesRepository = citiesRepository
         self.router = router
 
-        renderer.onCitySelected = { [weak router] city in
+        renderer.onCitySelected = { [weak self, weak router] city in
+            // Clear fly-to zoom before Feed takes over — tabs stay mounted.
+            self?.controller.resetZoom(animated: false)
             router?.openCity(city)
         }
     }
@@ -50,12 +52,13 @@ final class GlobeViewModel {
 
     func selectCity(_ city: City) {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        controller.flyTo(city: city) { [weak router] in
+        controller.flyTo(city: city) { [weak self, weak router] in
+            self?.controller.resetZoom(animated: false)
             router?.openCity(city)
         }
     }
 
     func resetZoomAfterReturningHome() {
-        controller.resetZoom(animated: true)
+        controller.resetZoom(animated: false)
     }
 }

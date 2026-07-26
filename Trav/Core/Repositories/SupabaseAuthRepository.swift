@@ -28,10 +28,15 @@ struct SupabaseAuthRepository: AuthRepository {
     }
 
     func signInWithGoogle() async throws -> Profile {
+        let callbackScheme = AppConfiguration.oauthRedirectURL?.scheme ?? "trav"
         let session = try await client.auth.signInWithOAuth(
             provider: .google,
             redirectTo: AppConfiguration.oauthRedirectURL
-        )
+        ) { @MainActor url in
+            // Present from the key window with a retained anchor so sheet-hosted
+            // auth UI does not cancel ASWebAuthenticationSession immediately.
+            try await OAuthWebSession.present(url: url, callbackScheme: callbackScheme)
+        }
         return try await fetchOrCreateProfile(for: session.user)
     }
 

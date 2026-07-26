@@ -16,7 +16,7 @@ final class RankingsViewModel {
     var axis: RankingAxis = .overall
     var selectedCity: City?
     var selectedCreator: ProfileSummary?
-    /// Free-text filter used in Creators mode (and as search input for city/creator tokens).
+    /// Free-text input for city search suggestions / city token.
     var searchText = ""
 
     private(set) var experiences: [ExperienceSummary] = []
@@ -27,22 +27,11 @@ final class RankingsViewModel {
     private var loadTask: Task<Void, Never>?
 
     var displayedCreators: [RankedCreator] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard mode == .creators, !query.isEmpty else { return creators }
-        return creators.filter {
-            $0.profile.displayName.localizedCaseInsensitiveContains(query)
-                || $0.profile.username.localizedCaseInsensitiveContains(query)
-        }
+        creators
     }
 
     func applyCreatorSearchFilter() {
-        guard mode == .creators else { return }
-        switch phase {
-        case .loaded, .empty:
-            phase = displayedCreators.isEmpty ? .empty : .loaded
-        case .idle, .loading, .failed:
-            break
-        }
+        // Rankings search is cities-only; creator list is not text-filtered.
     }
 
     var matchingCities: [City] {
@@ -67,7 +56,8 @@ final class RankingsViewModel {
         let mode = self.mode
         let axis = self.axis
         let cityID = selectedCity?.id
-        let creatorID = mode == .experiences ? selectedCreator?.id : nil
+        // City is the only search/filter dimension from the rankings search bar.
+        let creatorID: UUID? = nil
 
         loadTask = Task {
             phase = experiences.isEmpty && creators.isEmpty ? .loading : phase

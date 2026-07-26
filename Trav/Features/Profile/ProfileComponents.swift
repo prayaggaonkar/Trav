@@ -5,24 +5,39 @@ import SwiftUI
 struct ProfileTabBar: View {
     let tabs: [ProfileContentTab]
     @Binding var selection: ProfileContentTab
+    var counts: [ProfileContentTab: Int] = [:]
     var onSelect: (ProfileContentTab) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(tabs) { tab in
+                    let count = counts[tab]
                     Button {
                         withAnimation(TravAnimation.tab) {
                             selection = tab
                         }
                         onSelect(tab)
                     } label: {
-                        Text(tab.title)
-                            .font(.system(size: 14, weight: selection == tab ? .semibold : .regular, design: .rounded))
-                            .foregroundStyle(selection == tab ? TravColors.primary : TravColors.muted)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, TravSpacing.sm)
-                            .contentShape(Rectangle())
+                        HStack(spacing: 5) {
+                            Text(tab.title)
+                                .font(.system(size: 14, weight: selection == tab ? .semibold : .regular, design: .rounded))
+
+                            if let count, count > 0 {
+                                Text("\(count)")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .foregroundStyle(selection == tab ? TravColors.accent : TravColors.muted)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(
+                                        Capsule().fill(selection == tab ? TravColors.accent.opacity(0.15) : Color.gray.opacity(0.12))
+                                    )
+                            }
+                        }
+                        .foregroundStyle(selection == tab ? TravColors.primary : TravColors.muted)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, TravSpacing.sm)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -58,14 +73,13 @@ struct ProfileStatsRow: View {
     var onFollowers: () -> Void
     var onFollowing: () -> Void
     var onCreated: () -> Void
-    var onCompleted: () -> Void
+    var onCompleted: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 0) {
             statButton(value: profile.followerCount, label: "Followers", action: onFollowers)
             statButton(value: profile.followingCount, label: "Following", action: onFollowing)
             statButton(value: profile.experienceCount, label: "Created", action: onCreated)
-            statButton(value: profile.completionCount, label: "Completed", action: onCompleted)
         }
     }
 

@@ -178,14 +178,30 @@ final class EarthGlobeRenderer {
 
     /// Returns the camera to the default wide zoom (full globe in view).
     func resetZoom(animated: Bool = true) {
+        // Kill any in-flight fly-to / pinch CAAnimations on the camera.
+        cameraNode.removeAllAnimations()
+
+        let target = Self.maxZoomOutDistance
+        SCNTransaction.begin()
         if animated {
-            SCNTransaction.begin()
             SCNTransaction.animationDuration = 0.85
             SCNTransaction.animationTimingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            cameraDistance = Self.maxZoomOutDistance
-            SCNTransaction.commit()
+            SCNTransaction.disableActions = false
         } else {
-            cameraDistance = Self.maxZoomOutDistance
+            SCNTransaction.animationDuration = 0
+            SCNTransaction.disableActions = true
+        }
+        // Assign through the property so state stays in sync, then force the node
+        // transform (didSet no-ops when distance is already at max).
+        cameraDistance = target
+        cameraNode.position = SCNVector3(0, 0, target)
+        cameraNode.look(at: SCNVector3Zero)
+        SCNTransaction.commit()
+
+        if !animated {
+            // Ensure the model layer matches even if a presentation animation was mid-flight.
+            cameraNode.position = SCNVector3(0, 0, target)
+            cameraNode.look(at: SCNVector3Zero)
         }
     }
 

@@ -41,7 +41,9 @@ final class ProfileViewModel {
     }
 
     func load(using environment: AppEnvironment) async {
-        phase = .loading
+        if profile == nil {
+            phase = .loading
+        }
         do {
             var fetched = try await environment.profiles.fetchProfile(username: username)
             if let viewerID = environment.session.currentUser?.id, viewerID != fetched.id {
@@ -49,14 +51,29 @@ final class ProfileViewModel {
                     followerID: viewerID,
                     followingID: fetched.id
                 )
+            } else if environment.session.currentUser?.id == fetched.id {
+                if let current = environment.session.currentUser {
+                    if fetched.followerCount == 0 && current.followerCount > 0 { fetched.followerCount = current.followerCount }
+                    if fetched.followingCount == 0 && current.followingCount > 0 { fetched.followingCount = current.followingCount }
+                    if fetched.experienceCount == 0 && current.experienceCount > 0 { fetched.experienceCount = current.experienceCount }
+                }
+                environment.session.currentUser = fetched
+            }
+            if let existing = profile {
+                if existing.followerCount > 0 && fetched.followerCount == 0 { fetched.followerCount = existing.followerCount }
+                if existing.followingCount > 0 && fetched.followingCount == 0 { fetched.followingCount = existing.followingCount }
+                if existing.experienceCount > 0 && fetched.experienceCount == 0 { fetched.experienceCount = existing.experienceCount }
             }
             profile = fetched
             environment.engagement.cache(fetched)
             phase = .loaded
-            loadedTabs = []
-            await loadTab(selectedTab, using: environment, reset: true)
+            if loadedTabs.isEmpty {
+                await loadTab(selectedTab, using: environment, reset: true)
+            }
         } catch {
-            phase = .failed(error)
+            if profile == nil {
+                phase = .failed(error)
+            }
         }
     }
 
@@ -74,6 +91,18 @@ final class ProfileViewModel {
                         followingID: fetched.id
                     )
                 }
+            } else if environment.session.currentUser?.id == fetched.id {
+                if let current = environment.session.currentUser {
+                    if fetched.followerCount == 0 && current.followerCount > 0 { fetched.followerCount = current.followerCount }
+                    if fetched.followingCount == 0 && current.followingCount > 0 { fetched.followingCount = current.followingCount }
+                    if fetched.experienceCount == 0 && current.experienceCount > 0 { fetched.experienceCount = current.experienceCount }
+                }
+                environment.session.currentUser = fetched
+            }
+            if let existing = profile {
+                if existing.followerCount > 0 && fetched.followerCount == 0 { fetched.followerCount = existing.followerCount }
+                if existing.followingCount > 0 && fetched.followingCount == 0 { fetched.followingCount = existing.followingCount }
+                if existing.experienceCount > 0 && fetched.experienceCount == 0 { fetched.experienceCount = existing.experienceCount }
             }
             profile = fetched
             environment.engagement.cache(fetched)
@@ -113,10 +142,33 @@ final class ProfileViewModel {
         guard lastEngagementRevision != store.revision else { return }
         lastEngagementRevision = store.revision
 
-        if let cached = store.cachedProfile(username: username) {
-            var merged = cached
-            merged.isFollowing = store.isFollowing(cached.id)
-            profile = merged
+        if var current = profile {
+            if let cached = store.cachedProfile(username: username) {
+                let isCachedStub = cached.bio == nil && cached.homeCityName == nil && cached.experienceCount == 0 && cached.followerCount == 0 && cached.followingCount == 0
+                if !isCachedStub {
+                    current.followerCount = max(current.followerCount, cached.followerCount)
+                    current.followingCount = max(current.followingCount, cached.followingCount)
+                    current.experienceCount = max(current.experienceCount, cached.experienceCount)
+                    if let bio = cached.bio { current.bio = bio }
+                    if let avatar = cached.avatarURL { current.avatarURL = avatar }
+                    if let city = cached.homeCityName { current.homeCityName = city }
+                }
+            }
+            current.isFollowing = store.isFollowing(current.id)
+            if environment.session.currentUser?.id == current.id, let me = environment.session.currentUser {
+                current.followingCount = me.followingCount
+                current.followerCount = max(current.followerCount, me.followerCount)
+                current.experienceCount = max(current.experienceCount, me.experienceCount)
+            }
+            current.experienceCount = max(current.experienceCount, created.count)
+            profile = current
+        } else if let cached = store.cachedProfile(username: username) {
+            let isCachedStub = cached.bio == nil && cached.homeCityName == nil && cached.experienceCount == 0 && cached.followerCount == 0 && cached.followingCount == 0
+            if !isCachedStub {
+                var merged = cached
+                merged.isFollowing = store.isFollowing(cached.id)
+                profile = merged
+            }
         }
 
         // Own-profile saved/completed tabs should reflect engagement immediately.
@@ -187,6 +239,10 @@ final class ProfileViewModel {
                 created = reset ? result.items : created + result.items
                 createdPage = page
                 createdHasMore = result.hasMore
+                if var p = self.profile {
+                    p.experienceCount = max(p.experienceCount, created.count)
+                    self.profile = p
+                }
             case .saved:
                 guard environment.session.currentUser?.id == profile.id else {
                     saved = []
@@ -232,6 +288,10 @@ final class ProfileViewModel {
                 }
                 completedPage = page
                 completedHasMore = result.hasMore
+                if var p = self.profile {
+                    p.completionCount = max(p.completionCount, completed.count)
+                    self.profile = p
+                }
             }
             loadedTabs.insert(tab)
         } catch {

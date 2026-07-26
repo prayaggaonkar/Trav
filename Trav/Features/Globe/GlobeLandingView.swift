@@ -81,6 +81,19 @@ struct GlobeLandingView: View {
         }
         .onChange(of: isActive) { _, active in
             viewModel?.controller.setRenderingActive(active)
+            if !active {
+                viewModel?.controller.resetZoom(animated: false)
+            }
+        }
+        .onChange(of: router.exploreActivationToken) { _, _ in
+            // Driven from RootCoordinator when Explore becomes the active tab.
+            viewModel?.controller.setRenderingActive(true)
+            viewModel?.resetZoomAfterReturningHome()
+            // Second pass next frame — SceneKit can briefly keep a late presentation value.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(32))
+                viewModel?.resetZoomAfterReturningHome()
+            }
         }
         .onChange(of: appearance.isLightMode) { _, isLight in
             viewModel?.controller.renderer.setDaytimeLook(isLight)

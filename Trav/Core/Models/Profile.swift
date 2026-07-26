@@ -30,6 +30,14 @@ struct Profile: Identifiable, Codable, Sendable, Hashable {
         return nil
     }
 
+    /// True until the user has completed at least one onboarding signal.
+    var needsOnboarding: Bool {
+        let hasVibes = !(selectedVibes ?? []).isEmpty
+        let hasLocation = !(onboardingLocation ?? "").isEmpty
+        let hasHomeCity = !(homeCityName ?? "").isEmpty
+        return !(hasVibes || hasLocation || hasHomeCity)
+    }
+
     var summary: ProfileSummary {
         ProfileSummary(
             id: id,

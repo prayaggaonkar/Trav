@@ -73,6 +73,9 @@ struct RootCoordinator: View {
                 retainedTabs.insert(tab)
                 // Reset to a safe default until the new tab reports its backdrop.
                 tabBarBackdrop = defaultBackdrop(for: tab)
+                if tab == .explore {
+                    router.noteExploreActivated()
+                }
             }
             .onChange(of: router.feedNavigationToken) { _, _ in
                 activeTab = .feed
@@ -115,7 +118,7 @@ struct RootCoordinator: View {
             }
             if retainedTabs.contains(.feed) {
                 tabPane(.feed) {
-                    FeedView()
+                    FeedView(isActive: activeTab == .feed)
                 }
             }
             if retainedTabs.contains(.create) {
@@ -255,6 +258,10 @@ struct FeedView: View {
     @Environment(AppearanceStore.self) private var appearance
     @Environment(EngagementStore.self) private var engagement
 
+    /// When false (Feed tab hidden), city/user/keyword tags are cleared.
+    /// Stays true while an experience/profile cover is presented over Feed.
+    var isActive: Bool = true
+
     @State private var feedItems: [ExperienceSummary] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -288,42 +295,44 @@ struct FeedView: View {
                     .padding(.horizontal, TravSpacing.screenHorizontal)
                     .padding(.top, TravSpacing.sm)
 
-                // Filter bar
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: TravSpacing.xs) {
-                        ForEach(FeedFilter.allCases) { filter in
-                            Button {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    selectedFilter = filter
-                                }
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: filter.iconName)
-                                        .font(.system(size: 12, weight: .bold))
-                                    Text(filter.rawValue)
-                                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                                }
-                                .padding(.horizontal, TravSpacing.md)
-                                .padding(.vertical, TravSpacing.xs)
-                                .background(
-                                    Capsule()
-                                        .fill(selectedFilter == filter ? TravColors.accent : Color.white.opacity(0.08))
-                                )
-                                .foregroundStyle(selectedFilter == filter ? Color.black : .white)
-                                .overlay(
-                                    Capsule()
-                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
-                    .padding(.vertical, TravSpacing.xs)
-                }
-
+                // Filters + feed; search results sit flush under the bar and cover the chips.
                 ZStack(alignment: .top) {
-                    feedBody
+                    VStack(spacing: 0) {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: TravSpacing.xs) {
+                                ForEach(FeedFilter.allCases) { filter in
+                                    Button {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                            selectedFilter = filter
+                                        }
+                                    } label: {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: filter.iconName)
+                                                .font(.system(size: 12, weight: .bold))
+                                            Text(filter.rawValue)
+                                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                        }
+                                        .padding(.horizontal, TravSpacing.md)
+                                        .padding(.vertical, TravSpacing.xs)
+                                        .background(
+                                            Capsule()
+                                                .fill(selectedFilter == filter ? TravColors.accent : Color.white.opacity(0.08))
+                                        )
+                                        .foregroundStyle(selectedFilter == filter ? Color.black : .white)
+                                        .overlay(
+                                            Capsule()
+                                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, TravSpacing.screenHorizontal)
+                            .padding(.vertical, TravSpacing.xs)
+                        }
+
+                        feedBody
+                    }
 
                     if showSearchSuggestions {
                         searchSuggestionsOverlay
@@ -480,6 +489,16 @@ struct FeedView: View {
             searchText = router.feedKeyword
             isSearchFocused = false
             userSearchResults = []
+        }
+        .onChange(of: isActive) { _, active in
+            // Leaving Feed for another tab clears tags; opening an experience keeps them.
+            guard !active else { return }
+            router.clearFeedSearch()
+            searchText = ""
+            isSearchFocused = false
+            userSearchResults = []
+            userSearchTask?.cancel()
+            isSearchingUsers = false
         }
         .onDisappear {
             userSearchTask?.cancel()

@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 
 struct AuthSheetView: View {
@@ -165,11 +166,16 @@ struct AuthSheetView: View {
         do {
             let profile = try await environment.auth.signInWithGoogle()
             session.currentUser = profile
-            session.phase = .authenticated
+            session.phase = profile.needsOnboarding ? .onboarding : .authenticated
             environment.engagement.cache(profile)
             await environment.engagement.bootstrap(userID: profile.id, using: environment)
             router.dismissAuth()
         } catch {
+            let nsError = error as NSError
+            if nsError.domain == ASWebAuthenticationSessionError.errorDomain,
+               nsError.code == ASWebAuthenticationSessionError.canceledLogin.rawValue {
+                return
+            }
             errorMessage = error.localizedDescription
         }
     }
