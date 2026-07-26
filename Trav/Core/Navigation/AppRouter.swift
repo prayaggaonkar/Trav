@@ -29,6 +29,8 @@ final class AppRouter {
     var feedKeyword: String = ""
     /// Bumped whenever navigation should switch to the Feed tab (e.g. globe city tap).
     private(set) var feedNavigationToken: UInt = 0
+    /// Bumped whenever the Explore tab becomes active so the globe can reset framing.
+    private(set) var exploreActivationToken: UInt = 0
 
     /// Opens Feed with a strict city filter applied (globe pin / city suggestion).
     func openCity(_ city: City) {
@@ -58,6 +60,10 @@ final class AppRouter {
         selectedFeedCity = nil
         selectedFeedUser = nil
         feedKeyword = ""
+    }
+
+    func noteExploreActivated() {
+        exploreActivationToken &+= 1
     }
 
     func openExperience(_ experienceID: UUID) {

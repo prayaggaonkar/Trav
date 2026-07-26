@@ -124,6 +124,7 @@ final class EarthGlobeController: NSObject, SCNSceneRendererDelegate {
 
     /// Restores the default wide framing after returning from a city.
     func resetZoom(animated: Bool = true) {
+        isAnimatingFlyTo = false
         isDragging = false
         pinchStartDistance = nil
         momentum = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)

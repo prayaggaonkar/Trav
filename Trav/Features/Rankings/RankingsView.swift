@@ -7,15 +7,12 @@ struct RankingsView: View {
 
     @State private var viewModel = RankingsViewModel()
     @State private var isSearchFocused = false
-    @State private var userSearchResults: [ProfileSummary] = []
-    @State private var isSearchingUsers = false
-    @State private var userSearchTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            modePicker
             filterBar
+            modeTabBar
             axisChips
             content
         }
@@ -31,13 +28,6 @@ struct RankingsView: View {
         }
         .onChange(of: viewModel.selectedCity?.id) { _, _ in
             Task { await viewModel.reload(using: environment) }
-        }
-        .onChange(of: viewModel.selectedCreator?.id) { _, _ in
-            Task { await viewModel.reload(using: environment) }
-        }
-        .onChange(of: viewModel.searchText) { _, newValue in
-            scheduleUserSearch(for: newValue)
-            viewModel.applyCreatorSearchFilter()
         }
     }
 
@@ -56,162 +46,150 @@ struct RankingsView: View {
         .padding(.bottom, TravSpacing.sm)
     }
 
-    private var modePicker: some View {
-        HStack(spacing: TravSpacing.sm) {
-            ForEach(RankingMode.allCases) { mode in
-                SelectionChip(
-                    title: mode.title,
-                    isSelected: viewModel.mode == mode
-                ) {
-                    withAnimation(TravAnimation.quick) {
-                        viewModel.mode = mode
-                        if mode == .creators {
+    /// Profile-style underline tabs for Experiences / Creators.
+    private var modeTabBar: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(RankingMode.allCases) { mode in
+                    Button {
+                        withAnimation(TravAnimation.tab) {
+                            viewModel.mode = mode
                             viewModel.clearCreator()
                         }
+                    } label: {
+                        Text(mode.title)
+                            .font(.system(size: 14, weight: viewModel.mode == mode ? .semibold : .regular, design: .rounded))
+                            .foregroundStyle(viewModel.mode == mode ? TravColors.primary : TravColors.muted)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, TravSpacing.sm)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
             }
-            Spacer()
+
+            ZStack(alignment: .leading) {
+                Rectangle()
+                    .fill(TravColors.border.opacity(0.55))
+                    .frame(height: 0.5)
+
+                GeometryReader { geo in
+                    let tabs = RankingMode.allCases
+                    let width = geo.size.width / CGFloat(tabs.count)
+                    let index = tabs.firstIndex(of: viewModel.mode) ?? 0
+                    Rectangle()
+                        .fill(TravColors.primary)
+                        .frame(width: width * 0.45, height: 1.5)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .offset(x: width * CGFloat(index) + width * 0.275)
+                        .animation(TravAnimation.tab, value: viewModel.mode)
+                }
+                .frame(height: 1.5)
+            }
+            .frame(height: 1.5)
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
         .padding(.bottom, TravSpacing.sm)
     }
 
     private var filterBar: some View {
-        VStack(alignment: .leading, spacing: TravSpacing.xs) {
+        VStack(alignment: .leading, spacing: 0) {
             FeedSearchBar(
                 text: Binding(
                     get: { viewModel.searchText },
                     set: { viewModel.searchText = $0 }
                 ),
-                placeholder: viewModel.mode == .experiences
-                    ? "Filter by city or creator..."
-                    : "Filter by city or search creators...",
+                placeholder: "Search spots, cities, creators...",
                 isFocused: $isSearchFocused,
                 isLightMode: appearance.isLightMode,
                 cityToken: viewModel.selectedCity,
-                userToken: viewModel.mode == .experiences ? viewModel.selectedCreator : nil,
+                userToken: nil,
                 onClearCity: {
                     withAnimation(.easeInOut(duration: 0.15)) {
                         viewModel.clearCity()
                     }
-                },
-                onClearUser: {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        viewModel.clearCreator()
-                    }
                 }
             )
             .padding(.horizontal, TravSpacing.screenHorizontal)
+            .padding(.vertical, TravSpacing.xs)
 
-            if isSearchFocused && showsSuggestions {
-                suggestionsOverlay
+            if isSearchFocused && !viewModel.matchingCities.isEmpty {
+                citySuggestionsOverlay
                     .padding(.horizontal, TravSpacing.screenHorizontal)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .padding(.bottom, TravSpacing.sm)
+        .padding(.bottom, TravSpacing.xs)
     }
 
-    private var showsSuggestions: Bool {
-        !viewModel.matchingCities.isEmpty
-            || isSearchingUsers
-            || (!userSearchResults.isEmpty && viewModel.mode == .experiences)
-    }
-
-    private var suggestionsOverlay: some View {
-        VStack(alignment: .leading, spacing: TravSpacing.sm) {
-            if !viewModel.matchingCities.isEmpty {
-                suggestionSection(title: "CITIES") {
-                    ForEach(viewModel.matchingCities.prefix(5)) { city in
-                        Button {
-                            viewModel.selectCity(city)
-                            isSearchFocused = false
-                        } label: {
-                            suggestionRow(
-                                title: city.name,
-                                subtitle: city.locationLabel,
-                                systemImage: "mappin.circle.fill"
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-
-            if viewModel.mode == .experiences, isSearchingUsers || !userSearchResults.isEmpty {
-                suggestionSection(title: "CREATORS") {
-                    if isSearchingUsers && userSearchResults.isEmpty {
-                        ProgressView()
-                            .tint(TravColors.muted)
-                            .padding(.vertical, TravSpacing.sm)
-                    }
-                    ForEach(userSearchResults.prefix(5)) { user in
-                        Button {
-                            viewModel.selectCreator(user)
-                            isSearchFocused = false
-                        } label: {
-                            HStack(spacing: TravSpacing.sm) {
-                                AvatarView(url: user.avatarURL, size: 32)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(user.displayName)
-                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(TravColors.primary)
-                                    Text("@\(user.username)")
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(TravColors.muted)
-                                }
-                                Spacer()
-                            }
-                            .padding(.horizontal, TravSpacing.sm)
-                            .padding(.vertical, 8)
-                            .background(TravColors.surfaceElevated)
-                            .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-    }
-
-    private func suggestionSection<Content: View>(
-        title: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
+    private var citySuggestionsOverlay: some View {
         VStack(alignment: .leading, spacing: TravSpacing.xs) {
-            Text(title)
+            Text("CITIES")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .tracking(1.2)
-                .foregroundStyle(TravColors.muted)
+                .foregroundStyle(
+                    appearance.isLightMode ? Color.black.opacity(0.55) : Color.white.opacity(0.6)
+                )
                 .padding(.horizontal, TravSpacing.xs)
-            content()
-        }
-    }
 
-    private func suggestionRow(title: String, subtitle: String, systemImage: String) -> some View {
-        HStack(spacing: TravSpacing.sm) {
-            ZStack {
-                Circle()
-                    .fill(TravColors.accent.opacity(0.15))
-                    .frame(width: 32, height: 32)
-                Image(systemName: systemImage)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(TravColors.accent)
+            VStack(spacing: 6) {
+                ForEach(viewModel.matchingCities.prefix(5)) { city in
+                    Button {
+                        viewModel.selectCity(city)
+                        isSearchFocused = false
+                    } label: {
+                        HStack(spacing: TravSpacing.sm) {
+                            ZStack {
+                                Circle()
+                                    .fill(TravColors.accent.opacity(0.15))
+                                    .frame(width: 32, height: 32)
+                                Image(systemName: "mappin.circle.fill")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(TravColors.accent)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(city.name)
+                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
+                                Text(city.locationLabel)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(TravColors.muted)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(TravColors.muted.opacity(0.6))
+                        }
+                        .padding(.horizontal, TravSpacing.sm)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous)
+                                .fill(
+                                    appearance.isLightMode
+                                        ? Color.white.opacity(0.85)
+                                        : Color.white.opacity(0.08)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(TravColors.primary)
-                Text(subtitle)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(TravColors.muted)
-            }
-            Spacer()
         }
-        .padding(.horizontal, TravSpacing.sm)
-        .padding(.vertical, 8)
-        .background(TravColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+        .padding(TravSpacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .environment(\.colorScheme, appearance.isLightMode ? .light : .dark)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                .stroke(
+                    appearance.isLightMode ? Color.black.opacity(0.1) : Color.white.opacity(0.12),
+                    lineWidth: 1
+                )
+        }
+        .padding(.vertical, TravSpacing.xs)
     }
 
     private var axisChips: some View {
@@ -275,7 +253,7 @@ struct RankingsView: View {
                         }
                     }
                 case .creators:
-                    let creators = viewModel.displayedCreators
+                    let creators = viewModel.creators
                     ForEach(Array(creators.enumerated()), id: \.element.id) { index, creator in
                         RankedCreatorRow(
                             rank: index + 1,
@@ -298,40 +276,16 @@ struct RankingsView: View {
     }
 
     private var emptyTitle: String {
-        if viewModel.selectedCity != nil || viewModel.selectedCreator != nil {
+        if viewModel.selectedCity != nil {
             return "No rankings match"
         }
         return viewModel.mode == .experiences ? "No experiences yet" : "No creators yet"
     }
 
     private var emptyDescription: String {
-        if viewModel.selectedCity != nil || viewModel.selectedCreator != nil {
-            return "Try clearing a filter or picking a different axis."
+        if viewModel.selectedCity != nil {
+            return "Try clearing the city filter or picking a different axis."
         }
         return "Publish an experience to see it show up here. Ratings push posts higher in the list."
-    }
-
-    private func scheduleUserSearch(for query: String) {
-        userSearchTask?.cancel()
-        guard viewModel.mode == .experiences else {
-            userSearchResults = []
-            isSearchingUsers = false
-            return
-        }
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 2 else {
-            userSearchResults = []
-            isSearchingUsers = false
-            return
-        }
-        isSearchingUsers = true
-        userSearchTask = Task {
-            try? await Task.sleep(for: .milliseconds(280))
-            guard !Task.isCancelled else { return }
-            let results = (try? await environment.profiles.searchUsers(query: trimmed)) ?? []
-            guard !Task.isCancelled else { return }
-            userSearchResults = results
-            isSearchingUsers = false
-        }
     }
 }

@@ -156,7 +156,11 @@ final class AppEnvironment {
             debugLog("AppEnvironment.observeAuthState: received profile update: \(profile?.displayName ?? "nil") (\(profile?.id.uuidString ?? "nil"))")
             session.currentUser = profile
             if let profile {
-                session.phase = .authenticated
+                // Don't force `.authenticated` for brand-new OAuth users — that races with
+                // AuthEntryView setting `.onboarding` and can skip the onboarding flow.
+                if session.phase != .onboarding {
+                    session.phase = profile.needsOnboarding ? .onboarding : .authenticated
+                }
                 engagement.cache(profile)
                 await engagement.bootstrap(userID: profile.id, using: self)
                 await notificationStore.refreshUnreadCount(userID: profile.id, using: self)

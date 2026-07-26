@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 
 struct AuthEntryView: View {
@@ -13,6 +14,9 @@ struct AuthEntryView: View {
     @State private var password = ""
     @State private var isPasswordVisible = false
     @State private var isLoading = false
+    /// Separate from `isLoading` so we don't tear down the button hierarchy while
+    /// `ASWebAuthenticationSession` is starting (that cancels the system browser).
+    @State private var isGoogleSigningIn = false
     @State private var errorMessage: String?
 
     var isInputValid: Bool {
@@ -65,9 +69,14 @@ struct AuthEntryView: View {
                                         // Google Sign In Button
                                         Button(action: { Task { await handleGoogleSignIn() } }) {
                                             HStack(spacing: TravSpacing.sm) {
-                                                Image(systemName: "g.circle.fill")
-                                                    .font(.system(size: 20, weight: .bold))
-                                                Text("Continue with Google")
+                                                if isGoogleSigningIn {
+                                                    ProgressView()
+                                                        .tint(.white)
+                                                } else {
+                                                    Image(systemName: "g.circle.fill")
+                                                        .font(.system(size: 20, weight: .bold))
+                                                }
+                                                Text(isGoogleSigningIn ? "Opening Google…" : "Continue with Google")
                                                     .font(TravTypography.titleMedium())
                                             }
                                             .foregroundStyle(.white)
@@ -81,11 +90,14 @@ struct AuthEntryView: View {
                                             }
                                         }
                                         .buttonStyle(TravPressButtonStyle())
+                                        .disabled(isGoogleSigningIn)
+                                        .opacity(isGoogleSigningIn ? 0.85 : 1)
                                         
                                         // Email Button
                                         Button(action: {
                                             withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
                                                 showEmailForm = true
+                                                errorMessage = nil
                                             }
                                         }) {
                                             HStack(spacing: TravSpacing.sm) {
@@ -101,6 +113,16 @@ struct AuthEntryView: View {
                                             .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
                                         }
                                         .buttonStyle(TravPressButtonStyle())
+                                        .disabled(isGoogleSigningIn)
+
+                                        if let errorMessage {
+                                            Text(errorMessage)
+                                                .font(TravTypography.caption())
+                                                .foregroundStyle(TravColors.error)
+                                                .multilineTextAlignment(.center)
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.horizontal, TravSpacing.xs)
+                                        }
                                     }
                                     .transition(.asymmetric(
                                         insertion: .move(edge: .leading).combined(with: .opacity),
@@ -250,13 +272,6 @@ struct AuthEntryView: View {
         .animation(.spring(response: 0.45, dampingFraction: 0.8), value: showEmailForm)
     }
 
-    private func isProfileNewUser(_ profile: Profile) -> Bool {
-        let hasVibes = profile.selectedVibes != nil && !profile.selectedVibes!.isEmpty
-        let hasLocation = profile.onboardingLocation != nil && !profile.onboardingLocation!.isEmpty
-        let hasHomeCity = profile.homeCityName != nil && !profile.homeCityName!.isEmpty
-        return !(hasVibes || hasLocation || hasHomeCity)
-    }
-
     private func handleAuth() async {
         isLoading = true
         errorMessage = nil
@@ -270,10 +285,11 @@ struct AuthEntryView: View {
             } else {
                 let profile = try await environment.auth.signIn(email: email, password: password)
                 session.currentUser = profile
-                session.phase = .authenticated
+                let isNew = profile.needsOnboarding
+                session.phase = isNew ? .onboarding : .authenticated
                 environment.engagement.cache(profile)
                 await environment.engagement.bootstrap(userID: profile.id, using: environment)
-                onAuthSuccess(false)
+                onAuthSuccess(isNew)
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -281,19 +297,30 @@ struct AuthEntryView: View {
     }
 
     private func handleGoogleSignIn() async {
-        isLoading = true
+        // Do not swap the Stage 1 buttons for a full-screen ProgressView before
+        // ASWebAuthenticationSession starts — that cancels the system browser sheet.
         errorMessage = nil
-        defer { isLoading = false }
-        
+        isGoogleSigningIn = true
+        defer { isGoogleSigningIn = false }
+
+        // Let the current touch / layout settle before presenting the system browser.
+        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(150))
+
         do {
             let profile = try await environment.auth.signInWithGoogle()
             session.currentUser = profile
-            let isNew = isProfileNewUser(profile)
+            let isNew = profile.needsOnboarding
             session.phase = isNew ? .onboarding : .authenticated
             environment.engagement.cache(profile)
             await environment.engagement.bootstrap(userID: profile.id, using: environment)
             onAuthSuccess(isNew)
         } catch {
+            let nsError = error as NSError
+            if nsError.domain == ASWebAuthenticationSessionError.errorDomain,
+               nsError.code == ASWebAuthenticationSessionError.canceledLogin.rawValue {
+                return
+            }
             errorMessage = error.localizedDescription
         }
     }
