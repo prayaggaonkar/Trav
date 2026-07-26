@@ -1377,7 +1377,7 @@ private func imageForEventTitle(_ title: String) -> URL? {
     }
     
     // Default fallback - High-quality festival/gathering event
-    return URL(string: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=800&q=80")
+    return URL(string: "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800&q=80")
 }
 
 private func emojiForCategory(_ text: String) -> String {
