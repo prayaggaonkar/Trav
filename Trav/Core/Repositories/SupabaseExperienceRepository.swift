@@ -32,7 +32,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let rating: RadarRating?
 
         enum CodingKeys: String, CodingKey {
-            case id, user_id, title, description, city, stops, image, rating
+            case id, user_id, title, city, stops, image, rating
         }
 
         init(from decoder: Decoder) throws {
@@ -40,10 +40,9 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             id = try container.decode(UUID.self, forKey: .id)
             user_id = try container.decode(UUID.self, forKey: .user_id)
             title = try container.decode(String.self, forKey: .title)
-            description = try container.decode(String.self, forKey: .description)
             city = try container.decode(String.self, forKey: .city)
             stops = try container.decode([String].self, forKey: .stops)
-            image = try container.decodeIfPresent(String.self, forKey: .image)
+            image = try container.decodeIfPresent(StringOrArray.self, forKey: .image)
 
             // Rating is stored as a flat scores dict on write. Decode leniently so one
             // malformed row (or a missing column) does not fail the entire leaderboard fetch.
@@ -569,11 +568,12 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 isVerified: false
             )
 
+            let parsedURLs = dbExp.image?.values.compactMap { URL(string: $0) } ?? []
             return ExperienceSummary(
                 id: dbExp.id,
                 cityID: resolvedCityID,
                 title: dbExp.title,
-                coverImageURL: dbExp.image.flatMap { URL(string: $0) },
+                imageURLs: parsedURLs,
                 creator: creator,
                 durationMinutes: max(30, dbExp.stops.count * 30),
                 costLevel: .budget,
