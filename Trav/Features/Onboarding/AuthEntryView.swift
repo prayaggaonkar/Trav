@@ -270,11 +270,10 @@ struct AuthEntryView: View {
             } else {
                 let profile = try await environment.auth.signIn(email: email, password: password)
                 session.currentUser = profile
-                let isNew = isProfileNewUser(profile)
-                session.phase = isNew ? .onboarding : .authenticated
+                session.phase = .authenticated
                 environment.engagement.cache(profile)
                 await environment.engagement.bootstrap(userID: profile.id, using: environment)
-                onAuthSuccess(isNew)
+                onAuthSuccess(false)
             }
         } catch {
             errorMessage = error.localizedDescription
