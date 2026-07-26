@@ -140,12 +140,14 @@ final class EarthGlobeController: NSObject, SCNSceneRendererDelegate {
         guard Thread.isMainThread else {
             Task { @MainActor [weak self] in
                 self?.tick()
+                self?.renderer.updateCityMarkerVisibility()
                 self?.syncRenderingMode()
             }
             return
         }
         MainActor.assumeIsolated {
             tick()
+            self.renderer.updateCityMarkerVisibility()
             syncRenderingMode()
         }
     }
