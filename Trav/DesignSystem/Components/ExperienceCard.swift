@@ -424,26 +424,32 @@ struct EmojiParticleView: View {
     @State private var animate = false
     
     var body: some View {
-        ZStack {
-            ForEach(0..<25, id: \.self) { i in
-                Text("👀")
-                    .font(.system(size: CGFloat.random(in: 20...45)))
-                    .offset(
-                        x: CGFloat.random(in: -180...180),
-                        y: animate ? CGFloat.random(in: 450...800) : -400
-                    )
-                    .rotationEffect(.degrees(animate ? Double.random(in: 180...720) : 0))
-                    .animation(
-                        .linear(duration: Double.random(in: 1.2...2.5))
-                        .delay(Double.random(in: 0...0.6)),
-                        value: animate
-                    )
+        GeometryReader { geo in
+            ZStack {
+                ForEach(0..<30, id: \.self) { i in
+                    let size = CGFloat.random(in: 25...50)
+                    let xPos = CGFloat.random(in: 10...geo.size.width - 10)
+                    let startY = -size - CGFloat.random(in: 10...120)
+                    let endY = geo.size.height + size + CGFloat.random(in: 10...120)
+                    
+                    Text("👀")
+                        .font(.system(size: size))
+                        .position(x: xPos, y: animate ? endY : startY)
+                        .rotationEffect(.degrees(animate ? Double.random(in: 180...720) : 0))
+                        .animation(
+                            .linear(duration: Double.random(in: 1.8...3.0))
+                            .delay(Double.random(in: 0...0.8)),
+                            value: animate
+                        )
+                }
             }
-        }
-        .onAppear {
-            animate = true
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
+        .onAppear {
+            DispatchQueue.main.async {
+                animate = true
+            }
+        }
     }
 }
