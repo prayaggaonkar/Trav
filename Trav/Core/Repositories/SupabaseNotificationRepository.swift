@@ -35,10 +35,13 @@ struct SupabaseNotificationRepository: NotificationRepository {
             .value
 
         let actorMap = await fetchActors(ids: rows.map(\.actor_id))
+        let expIDs = rows.filter { $0.type == "new_experience" || $0.type == "watchlist" }.compactMap { $0.reference_id }
+        let experienceTitleMap = await fetchExperienceTitles(ids: expIDs)
+
         let items: [AppNotification] = rows.compactMap { row in
             guard let type = AppNotificationType(rawValue: row.type),
                   let actor = actorMap[row.actor_id] else { return nil }
-            return AppNotification(
+            var item = AppNotification(
                 id: row.id,
                 userID: row.user_id,
                 actor: actor,
@@ -47,6 +50,10 @@ struct SupabaseNotificationRepository: NotificationRepository {
                 isRead: row.is_read,
                 createdAt: row.created_at
             )
+            if let refID = row.reference_id {
+                item.experienceTitle = experienceTitleMap[refID]
+            }
+            return item
         }
 
         return Paginated(items: items, page: page, hasMore: rows.count == Self.pageSize)
@@ -182,6 +189,33 @@ struct SupabaseNotificationRepository: NotificationRepository {
             return map
         } catch {
             print("SupabaseNotificationRepository.fetchActors failed: \(error)")
+            return [:]
+        }
+    }
+
+    private func fetchExperienceTitles(ids: [UUID]) async -> [UUID: String] {
+        let unique = Array(Set(ids))
+        guard !unique.isEmpty else { return [:] }
+
+        struct ExpRow: Decodable {
+            let id: UUID
+            let title: String
+        }
+
+        do {
+            let rows: [ExpRow] = try await client
+                .from("experiences")
+                .select("id, title")
+                .in("id", values: unique.map(\.uuidString))
+                .execute()
+                .value
+            var map: [UUID: String] = [:]
+            for r in rows {
+                map[r.id] = r.title
+            }
+            return map
+        } catch {
+            print("SupabaseNotificationRepository.fetchExperienceTitles failed: \(error)")
             return [:]
         }
     }

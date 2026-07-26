@@ -286,8 +286,8 @@ struct ProfileView: View {
             case .completed:
                 if viewModel.completed.isEmpty {
                     ProfileEmptyState(
-                        title: "No completions yet",
-                        description: "Complete your first experience to start building your journey."
+                        title: "Your watchlist is empty",
+                        description: "Add experiences to your watchlist to start planning your journey."
                     )
                 } else {
                     ForEach(Array(viewModel.completed.enumerated()), id: \.element.id) { index, item in

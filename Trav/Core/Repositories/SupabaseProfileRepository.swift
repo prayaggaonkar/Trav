@@ -422,7 +422,7 @@ struct SupabaseProfileRepository: ProfileRepository {
 
             let exps: [ExperienceJoin] = (try? await client
                 .from("experiences")
-                .select("id, title, city, stops, image, save_count, completion_count, user_id")
+                .select("id, title, city, stops, image, user_id")
                 .in("id", values: expIDs)
                 .execute()
                 .value) ?? []
@@ -578,8 +578,6 @@ struct SupabaseProfileRepository: ProfileRepository {
             let city: String
             let stops: [String]
             let image: StringOrArray?
-            let save_count: Int?
-            let completion_count: Int?
             let user_id: UUID
         }
 
@@ -605,9 +603,9 @@ struct SupabaseProfileRepository: ProfileRepository {
                 durationMinutes: max(exp.stops.count, 1) * 30,
                 costLevel: .budget,
                 estimatedCostUSD: nil,
-                saveCount: exp.save_count ?? 0,
+                saveCount: 0,
                 likeCount: 0,
-                completionCount: exp.completion_count ?? 0,
+                completionCount: 0,
                 stops: exp.stops.map { StopPreview(id: UUID(), name: $0, emoji: nil) },
                 cityName: exp.city
             )

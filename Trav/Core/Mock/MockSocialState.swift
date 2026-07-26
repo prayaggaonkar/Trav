@@ -263,6 +263,7 @@ actor MockSocialState {
             note: nil
         ))
         recalculateCounts()
+        notifyWatchlistExperience(actorID: userID, experienceID: experienceID)
         return true
     }
 
@@ -341,17 +342,45 @@ actor MockSocialState {
         }
     }
 
+    /// Fan-out: notify everyone who follows `actorID` about a watchlisted experience.
+    func notifyWatchlistExperience(actorID: UUID, experienceID: UUID) {
+        seedIfNeeded()
+        guard let actor = profiles[actorID]?.summary else { return }
+        let recipients = follows
+            .filter { $0.followingID == actorID }
+            .map(\.followerID)
+        for recipientID in recipients where recipientID != actorID {
+            appendNotification(
+                recipientID: recipientID,
+                actor: actor,
+                type: .watchlist,
+                referenceID: experienceID,
+                createdAt: Date(),
+                isRead: false
+            )
+        }
+    }
+
     func notifications(for userID: UUID, page: Int, pageSize: Int) -> Paginated<AppNotification> {
         seedIfNeeded()
         let sorted = notifications
             .filter { $0.userID == userID }
             .sorted { $0.createdAt > $1.createdAt }
+        
+        let items = sorted.map { item -> AppNotification in
+            var copy = item
+            if let refID = item.referenceID, item.type == .watchlist || item.type == .newExperience {
+                copy.experienceTitle = MockData.experiences.first { $0.id == refID }?.title
+            }
+            return copy
+        }
+        
         let start = page * pageSize
-        guard start < sorted.count else {
+        guard start < items.count else {
             return Paginated(items: [], page: page, hasMore: false)
         }
-        let end = min(start + pageSize, sorted.count)
-        return Paginated(items: Array(sorted[start..<end]), page: page, hasMore: end < sorted.count)
+        let end = min(start + pageSize, items.count)
+        return Paginated(items: Array(items[start..<end]), page: page, hasMore: end < items.count)
     }
 
     func unreadCount(for userID: UUID) -> Int {

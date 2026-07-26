@@ -98,7 +98,7 @@ enum ProfileContentTab: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .created: "Created"
         case .saved: "Saved"
-        case .completed: "Completed"
+        case .completed: "Watchlist"
         }
     }
 
