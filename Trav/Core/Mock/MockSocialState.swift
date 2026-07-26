@@ -353,7 +353,7 @@ actor MockSocialState {
             appendNotification(
                 recipientID: recipientID,
                 actor: actor,
-                type: .newExperience,
+                type: .watchlist,
                 referenceID: experienceID,
                 createdAt: Date(),
                 isRead: false
@@ -366,12 +366,21 @@ actor MockSocialState {
         let sorted = notifications
             .filter { $0.userID == userID }
             .sorted { $0.createdAt > $1.createdAt }
+        
+        let items = sorted.map { item -> AppNotification in
+            var copy = item
+            if let refID = item.referenceID, item.type == .watchlist || item.type == .newExperience {
+                copy.experienceTitle = MockData.experiences.first { $0.id == refID }?.title
+            }
+            return copy
+        }
+        
         let start = page * pageSize
-        guard start < sorted.count else {
+        guard start < items.count else {
             return Paginated(items: [], page: page, hasMore: false)
         }
-        let end = min(start + pageSize, sorted.count)
-        return Paginated(items: Array(sorted[start..<end]), page: page, hasMore: end < sorted.count)
+        let end = min(start + pageSize, items.count)
+        return Paginated(items: Array(items[start..<end]), page: page, hasMore: end < items.count)
     }
 
     func unreadCount(for userID: UUID) -> Int {

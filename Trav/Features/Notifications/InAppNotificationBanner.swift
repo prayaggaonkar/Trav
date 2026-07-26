@@ -42,6 +42,8 @@ struct InAppNotificationBannerHost: View {
             } else {
                 router.openProfile(notification.actor.username)
             }
+        case .watchlist:
+            router.openProfile(notification.actor.username)
         }
     }
 }
