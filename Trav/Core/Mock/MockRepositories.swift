@@ -266,6 +266,12 @@ struct MockNotificationRepository: NotificationRepository {
     func markAllRead(userID: UUID) async throws {
         await MockSocialState.shared.markAllRead(userID: userID)
     }
+
+    func observeInserts(userID: UUID) -> AsyncStream<AppNotification> {
+        AsyncStream { continuation in
+            continuation.finish()
+        }
+    }
 }
 
 enum RepositoryError: LocalizedError {

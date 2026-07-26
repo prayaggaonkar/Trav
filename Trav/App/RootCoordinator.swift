@@ -24,6 +24,8 @@ struct RootCoordinator: View {
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
     @Environment(AppearanceStore.self) private var appearance
+    @Environment(NotificationStore.self) private var notificationStore
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var activeTab: TravTab = .explore
     @State private var tabBarBackdrop: TabBarBackdrop = .dark
@@ -45,11 +47,25 @@ struct RootCoordinator: View {
             .fullScreenCover(item: $router.presentedRoute) { route in
                 routeDestination(for: route)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+                    // Covers don't inherit @Observable environment — re-inject for toasts.
+                    .overlay(alignment: .top) {
+                        InAppNotificationBannerHost()
+                            .environment(environment.notificationStore)
+                            .environment(environment.router)
+                    }
             }
             .animation(TravAnimation.modal, value: router.presentedRoute?.id)
             .animation(TravAnimation.tab, value: activeTab)
+            // Toast above all tabs — environment is already injected by RootContent.
+            .overlay(alignment: .top) {
+                InAppNotificationBannerHost()
+                    .zIndex(999)
+            }
             .onAppear {
                 tabBarBackdrop = defaultBackdrop(for: activeTab)
+                if let userID = session.currentUser?.id {
+                    notificationStore.startListening(userID: userID, using: environment)
+                }
             }
             .onChange(of: activeTab) { _, tab in
                 // Reset to a safe default until the new tab reports its backdrop.
@@ -57,6 +73,19 @@ struct RootCoordinator: View {
             }
             .onChange(of: router.feedNavigationToken) { _, _ in
                 activeTab = .feed
+            }
+            .onChange(of: router.presentedRoute) { previous, current in
+                // Swipe-dismiss only: cover item became nil after notifications.
+                // Do not use fullScreenCover(onDismiss:) — it can fire when the cover
+                // re-renders after NotificationStore updates (which cleared dots early).
+                guard current == nil, case .notifications = previous else { return }
+                guard let userID = session.currentUser?.id else { return }
+                Task {
+                    await notificationStore.endInboxSessionIfNeeded(userID: userID, using: environment)
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                notificationStore.handleScenePhase(phase, using: environment)
             }
     }
 

@@ -82,6 +82,74 @@ struct SupabaseNotificationRepository: NotificationRepository {
             .execute()
     }
 
+    func observeInserts(userID: UUID) -> AsyncStream<AppNotification> {
+        AsyncStream { continuation in
+            let client = self.client
+            let channelName = "notifications-inserts-\(userID.uuidString.lowercased())"
+
+            let task = Task {
+                let channel = client.channel(channelName)
+                let insertions = channel.postgresChange(
+                    InsertAction.self,
+                    schema: "public",
+                    table: "notifications",
+                    filter: .eq("user_id", value: userID)
+                )
+
+                do {
+                    try await channel.subscribeWithError()
+                } catch {
+                    print("SupabaseNotificationRepository.observeInserts subscribe failed: \(error)")
+                    continuation.finish()
+                    return
+                }
+
+                for await insert in insertions {
+                    if Task.isCancelled { break }
+                    do {
+                        let row = try insert.decodeRecord(
+                            as: NotificationRow.self,
+                            decoder: AnyJSON.decoder
+                        )
+                        guard row.user_id == userID else { continue }
+                        guard let type = AppNotificationType(rawValue: row.type) else { continue }
+                        let actors = await self.fetchActors(ids: [row.actor_id])
+                        guard let actor = actors[row.actor_id] else { continue }
+                        let notification = AppNotification(
+                            id: row.id,
+                            userID: row.user_id,
+                            actor: actor,
+                            type: type,
+                            referenceID: row.reference_id,
+                            isRead: row.is_read ?? false,
+                            createdAt: row.created_at ?? insert.commitTimestamp
+                        )
+                        continuation.yield(notification)
+                    } catch {
+                        print("SupabaseNotificationRepository.observeInserts decode failed: \(error)")
+                    }
+                }
+
+                await client.removeChannel(channel)
+                continuation.finish()
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    private struct NotificationRow: Decodable {
+        let id: UUID
+        let user_id: UUID
+        let actor_id: UUID
+        let type: String
+        let reference_id: UUID?
+        let is_read: Bool?
+        let created_at: Date?
+    }
+
     private func fetchActors(ids: [UUID]) async -> [UUID: ProfileSummary] {
         let unique = Array(Set(ids))
         guard !unique.isEmpty else { return [:] }

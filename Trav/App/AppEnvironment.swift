@@ -155,6 +155,7 @@ final class AppEnvironment {
                 engagement.cache(profile)
                 await engagement.bootstrap(userID: profile.id, using: self)
                 await notificationStore.refreshUnreadCount(userID: profile.id, using: self)
+                notificationStore.startListening(userID: profile.id, using: self)
             } else {
                 session.phase = .unauthenticated
                 engagement.reset()

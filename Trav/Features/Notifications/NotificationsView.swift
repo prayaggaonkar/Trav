@@ -5,7 +5,6 @@ struct NotificationsView: View {
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
     @Environment(NotificationStore.self) private var notificationStore
-    @Environment(\.dismiss) private var dismiss
 
     @State private var items: [AppNotification] = []
     @State private var page = 0
@@ -13,7 +12,6 @@ struct NotificationsView: View {
     @State private var isLoading = true
     @State private var isLoadingMore = false
     @State private var error: Error?
-    @State private var didMarkAllRead = false
 
     var body: some View {
         NavigationStack {
@@ -36,15 +34,18 @@ struct NotificationsView: View {
                     List {
                         ForEach(items) { notification in
                             Button {
-                                handleTap(notification)
+                                Task { await openNotification(notification) }
                             } label: {
-                                NotificationRow(notification: notification)
+                                NotificationRow(
+                                    notification: notification,
+                                    showsUnreadDot: notificationStore.showsUnreadDot(for: notification.id)
+                                )
                             }
                             .buttonStyle(.plain)
                             .listRowBackground(
-                                notification.isRead
-                                    ? TravColors.surface
-                                    : TravColors.accent.opacity(0.08)
+                                notificationStore.showsUnreadDot(for: notification.id)
+                                    ? TravColors.accent.opacity(0.08)
+                                    : TravColors.surface
                             )
                             .listRowSeparatorTint(TravColors.border.opacity(0.5))
                             .onAppear {
@@ -71,15 +72,42 @@ struct NotificationsView: View {
             .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
+                notificationsBackToolbar
             }
+            .navigationBarBackButtonHidden(true)
             .task {
+                notificationStore.beginInboxSession()
                 await reload(reset: true)
-                await markAllReadIfNeeded()
             }
         }
+    }
+
+    @ToolbarContentBuilder
+    private var notificationsBackToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarLeading) {
+                notificationsBackButton
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) {
+                notificationsBackButton
+            }
+        }
+    }
+
+    private var notificationsBackButton: some View {
+        Button {
+            Task { await dismissInbox() }
+        } label: {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(TravColors.primary)
+                .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Back")
     }
 
     private func reload(reset: Bool) async {
@@ -98,7 +126,12 @@ struct NotificationsView: View {
 
         do {
             let result = try await environment.notifications.fetchNotifications(userID: userID, page: page)
-            items = reset ? result.items : items + result.items
+            if reset {
+                items = result.items
+            } else {
+                items += result.items
+            }
+            notificationStore.captureUnreadSnapshot(from: result.items)
             hasMore = result.hasMore
             error = nil
         } catch {
@@ -114,26 +147,16 @@ struct NotificationsView: View {
         await reload(reset: false)
     }
 
-    private func markAllReadIfNeeded() async {
-        guard !didMarkAllRead, let userID = session.currentUser?.id else { return }
-        didMarkAllRead = true
-        do {
-            try await environment.notifications.markAllRead(userID: userID)
-            notificationStore.markAllReadLocally()
-            for index in items.indices {
-                items[index].isRead = true
-            }
-        } catch {
-            print("NotificationsView.markAllRead failed: \(error)")
+    private func dismissInbox() async {
+        if let userID = session.currentUser?.id {
+            await notificationStore.endInboxSessionIfNeeded(userID: userID, using: environment)
         }
+        router.dismiss()
     }
 
-    private func handleTap(_ notification: AppNotification) {
-        Task {
-            try? await environment.notifications.markRead(ids: [notification.id])
-            if let index = items.firstIndex(where: { $0.id == notification.id }) {
-                items[index].isRead = true
-            }
+    private func openNotification(_ notification: AppNotification) async {
+        if let userID = session.currentUser?.id {
+            await notificationStore.endInboxSessionIfNeeded(userID: userID, using: environment)
         }
 
         switch notification.type {
@@ -151,6 +174,7 @@ struct NotificationsView: View {
 
 private struct NotificationRow: View {
     let notification: AppNotification
+    let showsUnreadDot: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: TravSpacing.md) {
@@ -158,7 +182,7 @@ private struct NotificationRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(notification.message)
-                    .font(.system(size: 15, weight: notification.isRead ? .regular : .semibold, design: .rounded))
+                    .font(.system(size: 15, weight: showsUnreadDot ? .semibold : .regular, design: .rounded))
                     .foregroundStyle(TravColors.primary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -170,11 +194,12 @@ private struct NotificationRow: View {
 
             Spacer(minLength: 0)
 
-            if !notification.isRead {
+            if showsUnreadDot {
                 Circle()
                     .fill(TravColors.accent)
                     .frame(width: 8, height: 8)
                     .padding(.top, 6)
+                    .accessibilityLabel("Unread")
             }
         }
         .padding(.vertical, 8)

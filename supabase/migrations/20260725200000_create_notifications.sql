@@ -125,6 +125,7 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- Save → notify experience owner
+-- Prefers `saved_experiences` (live app table), falls back to `experience_saves`.
 -- ---------------------------------------------------------------------------
 create or replace function public.tg_notify_on_experience_save()
 returns trigger
@@ -153,11 +154,28 @@ begin
 end;
 $$;
 
-drop trigger if exists notify_on_experience_save_ai on public.experience_saves;
-create trigger notify_on_experience_save_ai
-  after insert on public.experience_saves
-  for each row execute function public.tg_notify_on_experience_save();
+do $$
+declare
+  save_table text;
+begin
+  if to_regclass('public.saved_experiences') is not null then
+    save_table := 'saved_experiences';
+  elsif to_regclass('public.experience_saves') is not null then
+    save_table := 'experience_saves';
+  else
+    raise notice 'No saved_experiences/experience_saves table — skipping save notification trigger';
+    return;
+  end if;
 
+  execute format('drop trigger if exists notify_on_experience_save_ai on public.%I', save_table);
+  execute format(
+    'create trigger notify_on_experience_save_ai
+       after insert on public.%I
+       for each row execute function public.tg_notify_on_experience_save()',
+    save_table
+  );
+end
+$$;
 -- ---------------------------------------------------------------------------
 -- New experience → fan-out to followers (skip bookmark sentinels)
 -- ---------------------------------------------------------------------------

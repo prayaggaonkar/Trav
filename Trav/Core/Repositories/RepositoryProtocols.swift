@@ -67,4 +67,6 @@ protocol NotificationRepository: Sendable {
     func unreadCount(userID: UUID) async throws -> Int
     func markRead(ids: [UUID]) async throws
     func markAllRead(userID: UUID) async throws
+    /// Emits newly inserted notifications for `userID` (Realtime). Empty stream when unsupported.
+    func observeInserts(userID: UUID) -> AsyncStream<AppNotification>
 }

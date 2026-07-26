@@ -196,6 +196,8 @@ Unique: `(user_id, experience_id)`
 
 Populated by Postgres triggers on follow insert, `experience_saves` insert, and `experiences` insert (fan-out to followers; bookmark sentinel rows skipped). Clients may only SELECT/UPDATE their own rows.
 
+Included in the `supabase_realtime` publication so the iOS app can subscribe to inserts for live badges and in-app banners.
+
 ---
 
 ## Indexes

@@ -13,6 +13,7 @@
 		0F1A2B3C4D5E6F708192A3B5 /* NotificationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1A2B3C4D5E6F708192A3B1 /* NotificationStore.swift */; };
 		0F1A2B3C4D5E6F708192A3B6 /* SupabaseNotificationRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1A2B3C4D5E6F708192A3B2 /* SupabaseNotificationRepository.swift */; };
 		0F1A2B3C4D5E6F708192A3B7 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1A2B3C4D5E6F708192A3B3 /* NotificationsView.swift */; };
+		0F1A2B3C4D5E6F708192A3B8 /* InAppNotificationBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1A2B3C4D5E6F708192A3B9 /* InAppNotificationBanner.swift */; };
 		10474AB917424CD0AD7A2340 /* earth_day.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 496BA6B3143F4D3DB499E304 /* earth_day.jpg */; };
 		E4A7C1D0B2F84E6A9C3D5E71 /* earth_day_light.jpg in Resources */ = {isa = PBXBuildFile; fileRef = E4A7C1D0B2F84E6A9C3D5E70 /* earth_day_light.jpg */; };
 		1081907320D844448603E8A7 /* StatPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9989CC2CCE5A4311865A3993 /* StatPill.swift */; };
@@ -89,6 +90,7 @@
 		0F1A2B3C4D5E6F708192A3B1 /* NotificationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationStore.swift; sourceTree = "<group>"; };
 		0F1A2B3C4D5E6F708192A3B2 /* SupabaseNotificationRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseNotificationRepository.swift; sourceTree = "<group>"; };
 		0F1A2B3C4D5E6F708192A3B3 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
+		0F1A2B3C4D5E6F708192A3B9 /* InAppNotificationBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InAppNotificationBanner.swift; sourceTree = "<group>"; };
 		10CE54D2D476419EB5E371A9 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		11E6F8A4B25B440892DC9677 /* TravApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravApp.swift; sourceTree = "<group>"; };
 		1468F8B546604199BB6747BD /* Enums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Enums.swift; sourceTree = "<group>"; };
@@ -264,6 +266,7 @@
 		0F1A2B3C4D5E6F708192A3C0 /* Notifications */ = {
 			isa = PBXGroup;
 			children = (
+				0F1A2B3C4D5E6F708192A3B9 /* InAppNotificationBanner.swift */,
 				0F1A2B3C4D5E6F708192A3B3 /* NotificationsView.swift */,
 			);
 			path = Notifications;
@@ -572,6 +575,7 @@
 				0F1A2B3C4D5E6F708192A3B5 /* NotificationStore.swift in Sources */,
 				0F1A2B3C4D5E6F708192A3B6 /* SupabaseNotificationRepository.swift in Sources */,
 				0F1A2B3C4D5E6F708192A3B7 /* NotificationsView.swift in Sources */,
+				0F1A2B3C4D5E6F708192A3B8 /* InAppNotificationBanner.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

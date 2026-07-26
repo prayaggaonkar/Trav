@@ -219,18 +219,20 @@ struct GlobeLandingView: View {
                     .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
             }
 
+            // Small purple unread indicator near the bell.
             if notificationStore.unreadCount > 0 {
                 Circle()
                     .fill(TravColors.accent)
-                    .frame(width: 10, height: 10)
+                    .frame(width: 9, height: 9)
                     .overlay {
                         Circle()
                             .stroke(
-                                appearance.isLightMode ? Color.white : Color.black.opacity(0.4),
+                                appearance.isLightMode ? Color.white : Color(white: 0.12),
                                 lineWidth: 1.5
                             )
                     }
-                    .offset(x: 1, y: -1)
+                    .offset(x: -2, y: 2)
+                    .accessibilityHidden(true)
             }
         }
     }
