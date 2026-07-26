@@ -614,7 +614,7 @@ struct FeedView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .refreshable {
-                await loadFeed()
+                await loadFeed(forceReload: true)
             }
             .simultaneousGesture(
                 DragGesture(minimumDistance: 8).onChanged { _ in
@@ -829,7 +829,7 @@ struct FeedView: View {
                     itineraryTitle = ""
                 }
 
-                await loadFeed()
+                await loadFeed(forceReload: true)
             }
         } catch {
             print("Failed to save draft itinerary: \(error)")
@@ -1001,7 +1001,11 @@ struct FeedView: View {
         }
     }
 
-    private func loadFeed() async {
+    private func loadFeed(forceReload: Bool = false) async {
+        if !forceReload && !feedItems.isEmpty {
+            return
+        }
+
         isLoading = true
         errorMessage = nil
 
