@@ -36,7 +36,7 @@ struct InteractiveRadarChartView: View {
             GeometryReader { geometry in
                 let size = min(geometry.size.width, geometry.size.height)
                 let center = CGPoint(x: geometry.size.width / 2.0, y: geometry.size.height / 2.0)
-                let radius = (size / 2.0) - 40.0 // Padding for interactive vertex knobs and labels
+                let radius = (size / 2.0) - 48.0 // Padding for interactive vertex knobs and labels
 
                 radarPlotView(size: size, center: center, radius: radius)
                 // Gesture Overlay handling radial touch projection directly on the polygon
@@ -54,7 +54,7 @@ struct InteractiveRadarChartView: View {
                         }
                 )
             }
-            .frame(height: 270)
+            .frame(height: 275)
             .padding(.vertical, TravSpacing.xs)
         }
         .padding(TravSpacing.md)
@@ -408,7 +408,7 @@ struct DraggableKnobView: View {
     }
 
     private var labelPoint: CGPoint {
-        let labelRadius = radius + 28.0
+        let labelRadius = radius + 36.0
         return CGPoint(
             x: center.x + CGFloat(labelRadius * cos(angle)),
             y: center.y + CGFloat(labelRadius * sin(angle))
@@ -454,23 +454,23 @@ struct DraggableKnobView: View {
                 }
                 hapticFeedback.impactOccurred()
             } label: {
-                VStack(spacing: 2) {
-                    HStack(spacing: 3) {
+                VStack(spacing: 1) {
+                    HStack(spacing: 2) {
                         if let iconName = axis.iconName {
                             Image(systemName: isEnabled ? iconName : "eye.slash.fill")
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(.system(size: 9, weight: .semibold))
                                 .foregroundStyle(isEnabled ? (isActive ? TravColors.accent : TravColors.muted) : Color.gray)
                         }
                         Text(axis.name)
-                            .font(.system(size: 11, weight: isEnabled ? (isActive ? .bold : .semibold) : .medium, design: .rounded))
+                            .font(.system(size: 9.5, weight: isEnabled ? (isActive ? .bold : .semibold) : .medium, design: .rounded))
                             .foregroundStyle(isEnabled ? (isActive ? TravColors.accent : TravColors.primary) : Color.gray)
                     }
                     Text(isEnabled ? String(format: "%.1f", score) : "OFF")
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                         .foregroundStyle(isEnabled ? (isActive ? TravColors.accent : TravColors.muted) : Color.gray.opacity(0.8))
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
                 .background(isEnabled ? TravColors.surface.opacity(0.95) : Color.gray.opacity(0.15))
                 .clipShape(Capsule())
                 .overlay(
@@ -478,7 +478,7 @@ struct DraggableKnobView: View {
                         .stroke(isEnabled ? (isActive ? TravColors.accent : TravColors.border.opacity(0.5)) : Color.gray.opacity(0.4), lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(isActive ? 0.15 : 0.04), radius: isActive ? 3 : 1)
-                .scaleEffect(isActive ? 1.08 : 1.0)
+                .scaleEffect(isActive ? 1.05 : 1.0)
                 .animation(.spring(response: 0.2), value: isActive)
             }
             .buttonStyle(.plain)

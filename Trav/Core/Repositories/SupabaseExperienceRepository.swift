@@ -41,7 +41,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             id = try container.decode(UUID.self, forKey: .id)
             user_id = try container.decode(UUID.self, forKey: .user_id)
             title = try container.decode(String.self, forKey: .title)
-            description = try container.decode(String.self, forKey: .description)
+            description = (try container.decodeIfPresent(String.self, forKey: .description)) ?? ""
             city = try container.decode(String.self, forKey: .city)
             stops = try container.decode([String].self, forKey: .stops)
             image = try container.decodeIfPresent(StringOrArray.self, forKey: .image)
@@ -570,11 +570,12 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 isVerified: false
             )
 
+            let parsedURLs = dbExp.image?.values.compactMap { URL(string: $0) } ?? []
             return ExperienceSummary(
                 id: dbExp.id,
                 cityID: resolvedCityID,
                 title: dbExp.title,
-                coverImageURL: dbExp.image?.values.first.flatMap { URL(string: $0) },
+                imageURLs: parsedURLs,
                 creator: creator,
                 durationMinutes: max(30, dbExp.stops.count * 30),
                 costLevel: .budget,
