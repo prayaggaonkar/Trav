@@ -26,6 +26,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let id: UUID
         let user_id: UUID
         let title: String
+        let description: String
         let city: String
         let stops: [String]
         let image: StringOrArray?
@@ -573,7 +574,11 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 id: dbExp.id,
                 cityID: resolvedCityID,
                 title: dbExp.title,
+<<<<<<< HEAD
                 imageURLs: parsedURLs,
+=======
+                coverImageURL: dbExp.image?.values.first.flatMap { URL(string: $0) },
+>>>>>>> 9a5d229319dd8a22d17ae0c8e96eff4a9b19ac85
                 creator: creator,
                 durationMinutes: max(30, dbExp.stops.count * 30),
                 costLevel: .budget,

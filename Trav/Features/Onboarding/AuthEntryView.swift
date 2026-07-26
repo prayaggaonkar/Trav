@@ -250,6 +250,13 @@ struct AuthEntryView: View {
         .animation(.spring(response: 0.45, dampingFraction: 0.8), value: showEmailForm)
     }
 
+    private func isProfileNewUser(_ profile: Profile) -> Bool {
+        let hasVibes = profile.selectedVibes != nil && !profile.selectedVibes!.isEmpty
+        let hasLocation = profile.onboardingLocation != nil && !profile.onboardingLocation!.isEmpty
+        let hasHomeCity = profile.homeCityName != nil && !profile.homeCityName!.isEmpty
+        return !(hasVibes || hasLocation || hasHomeCity)
+    }
+
     private func handleAuth() async {
         isLoading = true
         errorMessage = nil
@@ -263,10 +270,11 @@ struct AuthEntryView: View {
             } else {
                 let profile = try await environment.auth.signIn(email: email, password: password)
                 session.currentUser = profile
-                session.phase = .authenticated
+                let isNew = isProfileNewUser(profile)
+                session.phase = isNew ? .onboarding : .authenticated
                 environment.engagement.cache(profile)
                 await environment.engagement.bootstrap(userID: profile.id, using: environment)
-                onAuthSuccess(false)
+                onAuthSuccess(isNew)
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -281,10 +289,11 @@ struct AuthEntryView: View {
         do {
             let profile = try await environment.auth.signInWithGoogle()
             session.currentUser = profile
-            session.phase = .authenticated
+            let isNew = isProfileNewUser(profile)
+            session.phase = isNew ? .onboarding : .authenticated
             environment.engagement.cache(profile)
             await environment.engagement.bootstrap(userID: profile.id, using: environment)
-            onAuthSuccess(true)
+            onAuthSuccess(isNew)
         } catch {
             errorMessage = error.localizedDescription
         }
