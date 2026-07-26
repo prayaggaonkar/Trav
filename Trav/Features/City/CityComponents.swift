@@ -228,16 +228,19 @@ struct HeroExperienceCard: View {
     }
 
     private var displayRating: Double {
+        if let ratingObj = experience.rating, ratingObj.overallScore > 0 {
+            return ratingObj.overallScore
+        }
         let hash = abs(experience.id.hashValue)
-        let score = 4.3 + Double(hash % 7) * 0.1
-        return min(score, 4.9)
+        let score = 7.5 + Double(hash % 20) * 0.1
+        return min(score, 9.8)
     }
 }
 
-/// Circular progress bar displaying experience rating out of 5.
+/// Circular progress bar displaying experience rating out of 10.0.
 struct CircularRatingView: View {
-    let rating: Double // e.g. 4.8
-    var maxRating: Double = 5.0
+    let rating: Double // e.g. 8.5 out of 10.0
+    var maxRating: Double = 10.0
     var size: CGFloat = 88 // Diameter equals width of the two top action buttons
 
     var body: some View {

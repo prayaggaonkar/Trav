@@ -41,9 +41,10 @@ struct MockExperienceRepository: ExperienceRepository {
         cityID: UUID,
         creatorID: UUID,
         stops: [StopPreview],
+        rating: RadarRating?,
         imageData: Data?
     ) async throws {
-        print("--- MockExperienceRepository.publishExperience called (using Mock Backend) ---")
+        print("--- MockExperienceRepository.publishExperience called (using Mock Backend) with rating: \(String(describing: rating)) ---")
         try await Task.sleep(for: .milliseconds(500))
     }
 

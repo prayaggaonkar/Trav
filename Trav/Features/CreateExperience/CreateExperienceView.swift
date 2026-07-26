@@ -14,6 +14,7 @@ struct CreateExperienceView: View {
     @State private var cities: [City] = []
     @State private var stops: [StopPreview] = []
     @State private var newStopName = ""
+    @State private var rating = RadarRating.defaultRating
 
     @State private var isSubmitting = false
     @State private var showSuccess = false
@@ -223,6 +224,11 @@ struct CreateExperienceView: View {
                 }
                 .travAppear(delay: 0.15)
 
+                TravFormSection(title: "Experience Ratings") {
+                    InteractiveRadarChartView(rating: $rating)
+                }
+                .travAppear(delay: 0.18)
+
                 PrimaryButton(
                     title: "Publish Experience",
                     isLoading: isSubmitting,
@@ -310,6 +316,7 @@ struct CreateExperienceView: View {
                     cityID: selectedCity.id,
                     creatorID: creatorID,
                     stops: stops,
+                    rating: rating,
                     imageData: selectedImageData
                 )
 

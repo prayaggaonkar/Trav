@@ -46,6 +46,8 @@ struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
     var likeCount: Int
     var completionCount: Int
     var stops: [StopPreview]
+    /// Multi-dimensional radar rating data stored as JSON in DB.
+    var rating: RadarRating? = nil
     /// Optional display label when city is stored as text (Supabase simplified schema).
     var cityName: String? = nil
 
@@ -89,4 +91,6 @@ struct Experience: Identifiable, Codable, Sendable, Hashable {
     var publishedAt: Date?
     var stops: [Stop]
     var routeSegments: [RouteSegment]
+    /// Multi-dimensional radar rating data stored as JSON in DB.
+    var rating: RadarRating? = nil
 }

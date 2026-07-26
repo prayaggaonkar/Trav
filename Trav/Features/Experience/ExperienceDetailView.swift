@@ -200,6 +200,15 @@ struct ExperienceDetailView: View {
             RoutePreview(stops: experience.stops.map {
                 StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji)
             })
+
+            let ratingToDisplay = experience.rating ?? .defaultRating
+            VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                Text("Experience Rating")
+                    .font(TravTypography.titleMedium())
+                    .foregroundStyle(TravColors.primary)
+                ReadOnlyRadarChartView(rating: ratingToDisplay)
+            }
+            .padding(.top, TravSpacing.xs)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, TravSpacing.screenHorizontal)

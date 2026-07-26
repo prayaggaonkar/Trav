@@ -646,3 +646,97 @@
 [2026-07-23 17:30:23] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 7
 [2026-07-23 17:30:23] SupabaseExperienceRepository.fetchCityFeed: matched 0 experiences for 'Tokyo'
 [2026-07-23 17:30:23] CityViewModel.load completed successfully, phase set to loaded
+[2026-07-23 18:28:53] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-23 19:32:24] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-23 20:34:49] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-23 21:33:02] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-23 22:31:40] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-23 23:31:55] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 00:30:08] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 01:28:27] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 02:26:36] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 03:38:10] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 04:39:23] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 05:44:58] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 06:52:54] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 08:03:10] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 09:04:43] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 10:03:55] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 11:03:39] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 12:06:45] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 13:16:02] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 14:17:16] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 15:17:11] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 16:15:15] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 17:13:18] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 18:11:21] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 19:11:22] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 20:15:46] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 21:18:38] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 22:16:43] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-24 23:15:33] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 00:13:35] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 01:15:31] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 02:18:53] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 03:17:17] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 04:21:25] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 05:20:13] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 06:19:21] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 07:26:24] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 08:34:56] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 09:35:33] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 10:34:16] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 11:37:52] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 12:38:28] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 13:38:36] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 14:38:03] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 15:40:36] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 16:38:48] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 16:40:10] AppEnvironment.observeAuthState started
+[2026-07-25 16:40:10] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 16:40:34] CityViewModel.load started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-25 16:40:34] SupabaseExperienceRepository.fetchCityFeed started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-25 16:40:34] SupabaseExperienceRepository.fetchCityFeed: resolved cityName: 'San Francisco'
+[2026-07-25 16:40:34] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 7
+[2026-07-25 16:40:34] SupabaseExperienceRepository.fetchCityFeed: matched 5 experiences for 'San Francisco'
+[2026-07-25 16:40:34] CityViewModel.load completed successfully, phase set to loaded
+[2026-07-25 16:50:25] CityViewModel.load started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-25 16:50:25] SupabaseExperienceRepository.fetchCityFeed started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-25 16:50:25] SupabaseExperienceRepository.fetchCityFeed: resolved cityName: 'San Francisco'
+[2026-07-25 16:50:25] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 7
+[2026-07-25 16:50:25] SupabaseExperienceRepository.fetchCityFeed: matched 5 experiences for 'San Francisco'
+[2026-07-25 16:50:26] CityViewModel.load completed successfully, phase set to loaded
+[2026-07-25 17:01:06] AppEnvironment.observeAuthState started
+[2026-07-25 17:01:06] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 17:06:16] AppEnvironment.observeAuthState started
+[2026-07-25 17:06:16] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 17:08:00] AppEnvironment.observeAuthState started
+[2026-07-25 17:08:00] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 17:17:45] AppEnvironment.observeAuthState started
+[2026-07-25 17:17:45] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 17:19:57] AppEnvironment.observeAuthState started
+[2026-07-25 17:19:57] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 17:23:53] AppEnvironment.observeAuthState started
+[2026-07-25 17:23:53] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 17:25:49] AppEnvironment.observeAuthState started
+[2026-07-25 17:25:50] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 17:26:45] CityViewModel.load started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-25 17:26:45] SupabaseExperienceRepository.fetchCityFeed started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-25 17:26:45] SupabaseExperienceRepository.fetchCityFeed: resolved cityName: 'San Francisco'
+[2026-07-25 17:26:45] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 8
+[2026-07-25 17:26:45] SupabaseExperienceRepository.fetchCityFeed: matched 6 experiences for 'San Francisco'
+[2026-07-25 17:26:45] CityViewModel.load completed successfully, phase set to loaded
+[2026-07-25 17:27:12] CityViewModel.load started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-25 17:27:12] SupabaseExperienceRepository.fetchCityFeed started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-25 17:27:12] SupabaseExperienceRepository.fetchCityFeed: resolved cityName: 'San Francisco'
+[2026-07-25 17:27:12] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 8
+[2026-07-25 17:27:12] SupabaseExperienceRepository.fetchCityFeed: matched 6 experiences for 'San Francisco'
+[2026-07-25 17:27:12] CityViewModel.load completed successfully, phase set to loaded
+[2026-07-25 17:30:52] AppEnvironment.observeAuthState started
+[2026-07-25 17:30:53] AppEnvironment.observeAuthState: received profile update: Vinay Rao (61B261B0-373E-461D-AADE-9C6E53D03D45)
+[2026-07-25 17:31:02] CityViewModel.load started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-25 17:31:02] SupabaseExperienceRepository.fetchCityFeed started for cityID: C1000001-0000-0000-0000-000000000001
+[2026-07-25 17:31:02] SupabaseExperienceRepository.fetchCityFeed: resolved cityName: 'San Francisco'
+[2026-07-25 17:31:02] SupabaseExperienceRepository.fetchCityFeed: total experiences in table = 1
+[2026-07-25 17:31:02] SupabaseExperienceRepository.fetchCityFeed: matched 1 experiences for 'San Francisco'
+[2026-07-25 17:31:02] CityViewModel.load completed successfully, phase set to loaded

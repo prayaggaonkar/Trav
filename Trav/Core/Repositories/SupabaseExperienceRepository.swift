@@ -20,6 +20,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let stops: [String]
         let image: String?
         let created_at: Date
+        let rating: [String: Double]?
     }
 
     private struct DBExperience: Codable {
@@ -30,6 +31,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let city: String
         let stops: [String]
         let image: String?
+        let rating: RadarRating?
     }
 
     private struct DBPlace: Codable {
@@ -102,6 +104,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         cityID: UUID,
         creatorID: UUID,
         stops: [StopPreview],
+        rating: RadarRating?,
         imageData: Data?
     ) async throws {
         print("--- SupabaseExperienceRepository.publishExperience starting ---")
@@ -137,7 +140,8 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             city: cityName,
             stops: stops.map { $0.name },
             image: publicURLString,
-            created_at: Date()
+            created_at: Date(),
+            rating: rating?.scores
         )
 
         print("Inserting experience into Supabase: \(experienceInsert)")
@@ -241,7 +245,8 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                     isPublished: true,
                     publishedAt: Date(),
                     stops: stops,
-                    routeSegments: []
+                    routeSegments: [],
+                    rating: dbExp.rating
                 )
             }
             
@@ -385,7 +390,8 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                     saveCount: 0,
                     likeCount: 0,
                     completionCount: 0,
-                    stops: stopsPreviews
+                    stops: stopsPreviews,
+                    rating: dbExp.rating
                 )
                 summaries.append(summary)
             }
@@ -442,7 +448,8 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                     saveCount: 0,
                     likeCount: 0,
                     completionCount: 0,
-                    stops: stopsPreviews
+                    stops: stopsPreviews,
+                    rating: dbExp.rating
                 )
                 summaries.append(summary)
             }

@@ -10,7 +10,7 @@ protocol CityRepository: Sendable {
 protocol ExperienceRepository: Sendable {
     func fetchExperience(id: UUID) async throws -> Experience
     func fetchCityFeed(cityID: UUID, page: Int) async throws -> Paginated<ExperienceSummary>
-    func publishExperience(title: String, description: String, cityID: UUID, creatorID: UUID, stops: [StopPreview], imageData: Data?) async throws
+    func publishExperience(title: String, description: String, cityID: UUID, creatorID: UUID, stops: [StopPreview], rating: RadarRating?, imageData: Data?) async throws
     func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary]
 }
 

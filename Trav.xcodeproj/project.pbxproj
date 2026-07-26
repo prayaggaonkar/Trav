@@ -47,6 +47,10 @@
 		C7EAD1EAE5A54853BC25399B /* CreateExperienceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EAD1EAE5A54853BC25399A /* CreateExperienceView.swift */; };
 		D6759BDEF8B24A44823FB801 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9D789CF333594AE0B2D8A18E /* Assets.xcassets */; };
 		DA6E2C6FB17F46A5B6B7D9B6 /* Experience.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCB1B49407444C75B6389332 /* Experience.swift */; };
+		RADAR0020000000000000001 /* RadarRating.swift in Sources */ = {isa = PBXBuildFile; fileRef = RADAR0010000000000000001 /* RadarRating.swift */; };
+		RADAR0020000000000000002 /* RadarChartPolygonShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = RADAR0010000000000000002 /* RadarChartPolygonShape.swift */; };
+		RADAR0020000000000000003 /* ReadOnlyRadarChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = RADAR0010000000000000003 /* ReadOnlyRadarChartView.swift */; };
+		RADAR0020000000000000004 /* InteractiveRadarChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = RADAR0010000000000000004 /* InteractiveRadarChartView.swift */; };
 		DDCA2C1874A9403DBA0A0150 /* EarthGlobeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F10A0A9C5684D13BD3B9BF8 /* EarthGlobeController.swift */; };
 		DFF1B5277CE74DFFADA18AF0 /* City.swift in Sources */ = {isa = PBXBuildFile; fileRef = 495A3A8B9C6E42DFB539E0D3 /* City.swift */; };
 		E31D4C4EC40745EF83652795 /* stars.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 5E6CEE48FF0B498FB69AAB83 /* stars.jpg */; };
@@ -111,6 +115,10 @@
 		B2C3D4E5F67890123456789 /* TravUIComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravUIComponents.swift; sourceTree = "<group>"; };
 		B2C3D4E5F6A7488990ABCDE1 /* earth-topology.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "earth-topology.png"; sourceTree = "<group>"; };
 		BCB1B49407444C75B6389332 /* Experience.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Experience.swift; sourceTree = "<group>"; };
+		RADAR0010000000000000001 /* RadarRating.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadarRating.swift; sourceTree = "<group>"; };
+		RADAR0010000000000000002 /* RadarChartPolygonShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadarChartPolygonShape.swift; sourceTree = "<group>"; };
+		RADAR0010000000000000003 /* ReadOnlyRadarChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadOnlyRadarChartView.swift; sourceTree = "<group>"; };
+		RADAR0010000000000000004 /* InteractiveRadarChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractiveRadarChartView.swift; sourceTree = "<group>"; };
 		BD9E5A3AE82F4CCFAC62711F /* Trav.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Trav.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C0BA082CA18B4C8FA2514428 /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
 		C7EAD1EAE5A54853BC25399A /* CreateExperienceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateExperienceView.swift; sourceTree = "<group>"; };
@@ -346,6 +354,7 @@
 				495A3A8B9C6E42DFB539E0D3 /* City.swift */,
 				1468F8B546604199BB6747BD /* Enums.swift */,
 				BCB1B49407444C75B6389332 /* Experience.swift */,
+				RADAR0010000000000000001 /* RadarRating.swift */,
 				1ECA72ADC07B4172BD8D8F12 /* Profile.swift */,
 			);
 			path = Models;
@@ -362,6 +371,9 @@
 				06CAAC7E093049558C61768C /* RoutePreview.swift */,
 				9989CC2CCE5A4311865A3993 /* StatPill.swift */,
 				B2C3D4E5F67890123456789 /* TravUIComponents.swift */,
+				RADAR0010000000000000002 /* RadarChartPolygonShape.swift */,
+				RADAR0010000000000000003 /* ReadOnlyRadarChartView.swift */,
+				RADAR0010000000000000004 /* InteractiveRadarChartView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -495,6 +507,10 @@
 				DFF1B5277CE74DFFADA18AF0 /* City.swift in Sources */,
 				482C3B63F39346109D16B1EE /* Enums.swift in Sources */,
 				DA6E2C6FB17F46A5B6B7D9B6 /* Experience.swift in Sources */,
+				RADAR0020000000000000001 /* RadarRating.swift in Sources */,
+				RADAR0020000000000000002 /* RadarChartPolygonShape.swift in Sources */,
+				RADAR0020000000000000003 /* ReadOnlyRadarChartView.swift in Sources */,
+				RADAR0020000000000000004 /* InteractiveRadarChartView.swift in Sources */,
 				8B190362ECF6427BB5B10288 /* Profile.swift in Sources */,
 				2D9C4391DE9B4203970F202E /* AppEnvironment.swift in Sources */,
 				876F04B073464336BA929541 /* RootCoordinator.swift in Sources */,
