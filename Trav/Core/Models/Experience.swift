@@ -54,6 +54,12 @@ struct RouteSegment: Identifiable, Codable, Sendable, Hashable {
     var transportMode: TransportMode
 }
 
+struct WatchlistUser: Identifiable, Codable, Sendable, Hashable {
+    let id: UUID
+    let name: String
+    let avatarImage: String
+}
+
 struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
     let id: UUID
     var cityID: UUID
@@ -71,6 +77,7 @@ struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
     var rating: RadarRating? = nil
     /// Optional display label when city is stored as text (Supabase simplified schema).
     var cityName: String? = nil
+    var watchlistedBy: [WatchlistUser] = []
 
     var coverImageURL: URL? {
         imageURLs.first
@@ -104,7 +111,8 @@ struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
         completionCount: Int = 0,
         stops: [StopPreview] = [],
         rating: RadarRating? = nil,
-        cityName: String? = nil
+        cityName: String? = nil,
+        watchlistedBy: [WatchlistUser] = []
     ) {
         self.id = id
         self.cityID = cityID
@@ -126,6 +134,7 @@ struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
         self.stops = stops
         self.rating = rating
         self.cityName = cityName
+        self.watchlistedBy = watchlistedBy
     }
 }
 

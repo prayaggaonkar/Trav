@@ -30,7 +30,7 @@ struct ExperienceCard: View {
                 onShare: onShare
             )
         } else {
-            StandardExperienceCard(
+            GemPostCardView(
                 experience: experience,
                 badgeText: badgeText,
                 isSaved: isSaved,
@@ -53,8 +53,8 @@ struct ExperienceCard: View {
     }
 }
 
-/// Standard experience card for non-user (system/featured/editorial) experiences.
-struct StandardExperienceCard: View {
+/// Frosted card design with a split action bar (private save + public watchlist) and facepile row.
+struct GemPostCardView: View {
     let experience: ExperienceSummary
     var badgeText: String = ""
     var isSaved: Bool = false
@@ -65,6 +65,35 @@ struct StandardExperienceCard: View {
     var onSave: (() -> Void)? = nil
     var onLike: (() -> Void)? = nil
     var onShare: (() -> Void)? = nil
+
+    @State private var isSavedLocal: Bool
+    @State private var isLikedLocal: Bool
+    @State private var isWatchlisted: Bool = false
+
+    init(
+        experience: ExperienceSummary,
+        badgeText: String = "",
+        isSaved: Bool = false,
+        isLiked: Bool = false,
+        connectedLayout: Bool = false,
+        onTap: @escaping () -> Void,
+        onCreatorTap: (() -> Void)? = nil,
+        onSave: (() -> Void)? = nil,
+        onLike: (() -> Void)? = nil,
+        onShare: (() -> Void)? = nil
+    ) {
+        self.experience = experience
+        self.badgeText = badgeText
+        self.connectedLayout = connectedLayout
+        self.onTap = onTap
+        self.onCreatorTap = onCreatorTap
+        self.onSave = onSave
+        self.onLike = onLike
+        self.onShare = onShare
+        
+        _isSavedLocal = State(initialValue: isSaved)
+        _isLikedLocal = State(initialValue: isLiked)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -106,18 +135,6 @@ struct StandardExperienceCard: View {
                     .background(Capsule().fill(Color.black.opacity(0.55)))
 
                     Spacer()
-
-                    CityCardActionButton(
-                        systemName: isSaved ? "bookmark.fill" : "bookmark",
-                        isActive: isSaved
-                    ) { onSave?() }
-
-                    if onShare != nil {
-                        CityCardActionButton(
-                            systemName: "square.and.arrow.up",
-                            isActive: false
-                        ) { onShare?() }
-                    }
                 }
                 .padding(TravSpacing.sm)
             }
@@ -159,6 +176,119 @@ struct StandardExperienceCard: View {
 
                 RoutePreview(stops: experience.stops, maxVisibleStops: 3, compact: true)
                     .padding(.top, TravSpacing.xxs)
+
+                // Facepile (Social Proof) Row
+                if !experience.watchlistedBy.isEmpty {
+                    HStack(spacing: 0) {
+                        HStack(spacing: -8) {
+                            ForEach(experience.watchlistedBy.prefix(3)) { user in
+                                AsyncImage(url: URL(string: user.avatarImage)) { image in
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                } placeholder: {
+                                    Image(systemName: "person.crop.circle.fill")
+                                        .foregroundStyle(TravColors.muted)
+                                }
+                                .frame(width: 24, height: 24)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                            }
+                        }
+                        .padding(.trailing, 6)
+
+                        Group {
+                            if experience.watchlistedBy.count == 1 {
+                                Text("Added to watchlist by ") +
+                                Text(experience.watchlistedBy[0].name)
+                                    .fontWeight(.bold)
+                            } else {
+                                Text("Added to watchlist by ") +
+                                Text(experience.watchlistedBy[0].name)
+                                    .fontWeight(.bold) +
+                                Text(" and ") +
+                                Text("\(experience.watchlistedBy.count - 1) others")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(Color.gray)
+                    }
+                    .padding(.vertical, 6)
+                }
+
+                // Split Action Bar
+                Divider()
+                    .background(Color.white.opacity(0.08))
+                    .padding(.vertical, 8)
+
+                HStack {
+                    // Left Group: Like, Save, Comment, Share
+                    HStack(spacing: 16) {
+                        Button {
+                            isLikedLocal.toggle()
+                            onLike?()
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: {
+                            Image(systemName: isLikedLocal ? "heart.fill" : "heart")
+                                .font(.system(size: 18))
+                                .foregroundStyle(isLikedLocal ? Color.red : .white.opacity(0.6))
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            isSavedLocal.toggle()
+                            onSave?()
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: {
+                            Image(systemName: isSavedLocal ? "bookmark.fill" : "bookmark")
+                                .font(.system(size: 18))
+                                .foregroundStyle(isSavedLocal ? Color.yellow : .white.opacity(0.6))
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: {
+                            Image(systemName: "bubble.right")
+                                .font(.system(size: 18))
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            onShare?()
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 18))
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Spacer()
+
+                    // Right Group: Watchlist Pill Button
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            isWatchlisted.toggle()
+                        }
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: isWatchlisted ? "checkmark.circle.fill" : "plus.circle.fill")
+                            Text(isWatchlisted ? "I'm Down" : "Watchlist")
+                        }
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        .background(isWatchlisted ? Color.gray.opacity(0.4) : TravColors.accent)
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             .padding(connectedLayout ? 20 : TravSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -182,7 +312,7 @@ struct StandardExperienceCard: View {
     }
 
     private var displaySaveCount: Int {
-        experience.saveCount + (isSaved ? 1 : 0)
+        experience.saveCount + (isSavedLocal ? 1 : 0)
     }
 
     private var displayRating: Double {
@@ -195,3 +325,4 @@ struct StandardExperienceCard: View {
     }
 }
 
+typealias StandardExperienceCard = GemPostCardView
