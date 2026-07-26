@@ -263,6 +263,7 @@ actor MockSocialState {
             note: nil
         ))
         recalculateCounts()
+        notifyWatchlistExperience(actorID: userID, experienceID: experienceID)
         return true
     }
 
@@ -330,6 +331,25 @@ actor MockSocialState {
             .filter { $0.followingID == creatorID }
             .map(\.followerID)
         for recipientID in recipients where recipientID != creatorID {
+            appendNotification(
+                recipientID: recipientID,
+                actor: actor,
+                type: .newExperience,
+                referenceID: experienceID,
+                createdAt: Date(),
+                isRead: false
+            )
+        }
+    }
+
+    /// Fan-out: notify everyone who follows `actorID` about a watchlisted experience.
+    func notifyWatchlistExperience(actorID: UUID, experienceID: UUID) {
+        seedIfNeeded()
+        guard let actor = profiles[actorID]?.summary else { return }
+        let recipients = follows
+            .filter { $0.followingID == actorID }
+            .map(\.followerID)
+        for recipientID in recipients where recipientID != actorID {
             appendNotification(
                 recipientID: recipientID,
                 actor: actor,
