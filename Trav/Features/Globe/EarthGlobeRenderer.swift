@@ -162,8 +162,10 @@ final class EarthGlobeRenderer {
             latitude: city.latitude,
             longitude: city.longitude
         )
+        // Frame the pin above center so the popup hanging under it reads as centered.
+        let framingTarget = simd_normalize(SIMD3<Float>(0, 0.28, 1))
         let lat = Float(city.latitude * .pi / 180)
-        var targetOrientation = simd_quatf(from: cityDirection, to: SIMD3(0, 0, 1))
+        var targetOrientation = simd_quatf(from: cityDirection, to: framingTarget)
         targetOrientation = simd_quatf(angle: lat * 0.25, axis: SIMD3(1, 0, 0)) * targetOrientation
 
         SCNTransaction.begin()
