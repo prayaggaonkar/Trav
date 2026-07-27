@@ -76,7 +76,6 @@ struct GemPostCardView: View {
     @State private var isSavedLocal: Bool
     @State private var isLikedLocal: Bool
     @State private var showEyesRain = false
-    @State private var showCompletionSheet = false
 
     private var isWatchlisted: Bool {
         engagement.isCompleted(experience.id)
@@ -258,19 +257,8 @@ struct GemPostCardView: View {
                     .padding(.vertical, 8)
 
                 HStack {
-                    // Left Group: Like, Save, Comment, Share
+                    // Left Group: Save, Comment, Share
                     HStack(spacing: 16) {
-                        Button {
-                            isLikedLocal.toggle()
-                            onLike?()
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        } label: {
-                            Image(systemName: isLikedLocal ? "heart.fill" : "heart")
-                                .font(.system(size: 18))
-                                .foregroundStyle(isLikedLocal ? Color.red : .white.opacity(0.6))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(isLikedLocal ? "Unlike" : "Like")
 
                         Button {
                             isSavedLocal.toggle()
@@ -312,9 +300,17 @@ struct GemPostCardView: View {
                     // Right Group: Watchlist Pill Button
                     Button {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        if isWatchlisted {
+                        if environment.session.currentUser == nil {
+                            environment.router.presentAuth()
+                        } else {
                             let expID = experience.id
                             let summary = experience
+                            if !isWatchlisted {
+                                withAnimation { showEyesRain = true }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
+                                    showEyesRain = false
+                                }
+                            }
                             Task {
                                 _ = await engagement.toggleComplete(
                                     experienceID: expID,
@@ -322,13 +318,11 @@ struct GemPostCardView: View {
                                     using: environment
                                 )
                             }
-                        } else {
-                            showCompletionSheet = true
                         }
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: isWatchlisted ? "checkmark.circle.fill" : "plus.circle.fill")
-                            Text(isWatchlisted ? "I'm Down" : "Watchlist")
+                            Text(isWatchlisted ? "In Watchlist" : "Watchlist")
                         }
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
@@ -338,18 +332,6 @@ struct GemPostCardView: View {
                         .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
-                    .sheet(isPresented: $showCompletionSheet) {
-                        CompletionSheet(experience: experience) { completed in
-                            if completed {
-                                withAnimation { showEyesRain = true }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
-                                    showEyesRain = false
-                                }
-                            }
-                        }
-                        .presentationDetents([.medium, .large])
-                        .presentationDragIndicator(.visible)
-                    }
                 }
             }
             .padding(connectedLayout ? 20 : TravSpacing.md)
