@@ -161,9 +161,6 @@ enum UsernameValidator {
 
 enum ProfileLimits {
     static let pageSize = 20
-    /// Written into `experiences.description` when a feed place is bookmarked so it can
-    /// satisfy the `experience_saves` FK without appearing in the Created tab.
-    static let bookmarkDescriptionSentinel = "__trav_bookmark__"
 }
 
 enum StableUUID {

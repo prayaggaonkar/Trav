@@ -1,21 +1,60 @@
 import SwiftUI
 import PhotosUI
 
+/// Text fields persisted between sessions so an interrupted creation resumes.
+private struct CreateDraft: Codable {
+    var title = ""
+    var description = ""
+    var citySlug: String?
+    var stops: [Stop] = []
+    var ratingScores: [String: Double]?
+
+    var isEmpty: Bool {
+        title.isEmpty && description.isEmpty && stops.isEmpty
+    }
+
+    static let storageKey = "trav.createDraft.v1"
+
+    static func load() -> CreateDraft? {
+        guard let data = UserDefaults.standard.data(forKey: storageKey) else { return nil }
+        return try? JSONDecoder().decode(CreateDraft.self, from: data)
+    }
+
+    func save() {
+        if isEmpty {
+            UserDefaults.standard.removeObject(forKey: Self.storageKey)
+            return
+        }
+        if let data = try? JSONEncoder().encode(self) {
+            UserDefaults.standard.set(data, forKey: Self.storageKey)
+        }
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: storageKey)
+    }
+}
+
 struct CreateExperienceView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(SessionStore.self) private var session
 
     @State private var title = ""
+    @State private var descriptionText = ""
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var selectedImagesData: [Data] = []
     @State private var selectedUIImages: [UIImage] = []
-    @State private var stops: [StopPreview] = []
+    @State private var stops: [Stop] = []
     @State private var rating = RadarRating.defaultRating
+
+    @State private var cities: [City] = []
+    @State private var selectedCity: City?
 
     @State private var isSubmitting = false
     @State private var showSuccess = false
     @State private var errorMessage: String?
     @State private var showErrorAlert = false
+    @State private var didRestoreDraft = false
 
     var body: some View {
         NavigationStack {
@@ -32,10 +71,18 @@ struct CreateExperienceView: View {
             .navigationBarTitleDisplayMode(.inline)
             .animation(TravAnimation.enter, value: showSuccess)
             .alert("Publish Failed", isPresented: $showErrorAlert) {
+                Button("Try Again") { submit() }
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(errorMessage ?? "An unexpected error occurred. Please try again.")
             }
+            .task { await loadCities() }
+            .onAppear(perform: restoreDraftIfNeeded)
+            .onChange(of: title) { autosaveDraft() }
+            .onChange(of: descriptionText) { autosaveDraft() }
+            .onChange(of: stops) { autosaveDraft() }
+            .onChange(of: selectedCity) { autosaveDraft() }
+            .onChange(of: rating) { autosaveDraft() }
         }
     }
 
@@ -45,16 +92,16 @@ struct CreateExperienceView: View {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("CREATE EXPERIENCE")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .font(TravTypography.overline())
                             .tracking(2.5)
                             .foregroundStyle(TravColors.accent)
-                        
+
                         Text("New Route")
                             .font(TravTypography.displayMedium())
                             .foregroundStyle(TravColors.primary)
                             .lineLimit(1)
                     }
-                    
+
                     Text("Map your favorite stops and share them with the world.")
                         .font(TravTypography.bodyMedium())
                         .foregroundStyle(TravColors.muted)
@@ -70,110 +117,34 @@ struct CreateExperienceView: View {
                             placeholder: "e.g. SF Coffee & Books Tour",
                             text: $title
                         )
+
+                        VStack(alignment: .leading, spacing: TravSpacing.xxs) {
+                            Text("Description")
+                                .font(TravTypography.labelMedium())
+                                .foregroundStyle(TravColors.muted)
+                            TextField(
+                                "What makes this route special?",
+                                text: $descriptionText,
+                                axis: .vertical
+                            )
+                            .font(TravTypography.bodyLarge())
+                            .lineLimit(3...6)
+                            .padding(TravSpacing.md)
+                            .background(TravColors.surfaceElevated)
+                            .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                                    .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
+                            }
+                        }
+
+                        cityPicker
                     }
                 }
                 .travAppear(delay: 0.05)
 
                 TravFormSection(title: "Add Media") {
-                    VStack(alignment: .leading, spacing: TravSpacing.sm) {
-                        if selectedUIImages.isEmpty {
-                            PhotosPicker(selection: $selectedItems, matching: .images) {
-                                VStack(spacing: TravSpacing.xs) {
-                                    Image(systemName: "photo.badge.plus")
-                                        .font(.system(size: 32))
-                                        .foregroundStyle(TravColors.accent)
-                                    Text("Add Media")
-                                        .font(TravTypography.labelMedium())
-                                        .foregroundStyle(TravColors.primary)
-                                    Text("Upload photos of your experience")
-                                        .font(TravTypography.caption())
-                                        .foregroundStyle(TravColors.muted)
-                                }
-                                .frame(height: 140)
-                                .frame(maxWidth: .infinity)
-                                .background(TravColors.surfaceElevated)
-                                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: TravRadius.md)
-                                        .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [6]))
-                                        .foregroundStyle(TravColors.primary.opacity(0.15))
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        } else {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: TravSpacing.sm) {
-                                    ForEach(Array(selectedUIImages.enumerated()), id: \.offset) { index, img in
-                                        ZStack(alignment: .topTrailing) {
-                                            Image(uiImage: img)
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(width: 110, height: 110)
-                                                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: TravRadius.md)
-                                                        .stroke(TravColors.primary.opacity(0.15), lineWidth: 1)
-                                                )
-
-                                            Button {
-                                                withAnimation(TravAnimation.quick) {
-                                                    if index < selectedItems.count { selectedItems.remove(at: index) }
-                                                    if index < selectedImagesData.count { selectedImagesData.remove(at: index) }
-                                                    if index < selectedUIImages.count { selectedUIImages.remove(at: index) }
-                                                }
-                                            } label: {
-                                                Image(systemName: "xmark.circle.fill")
-                                                    .font(.system(size: 22))
-                                                    .foregroundStyle(.white, Color.black.opacity(0.75))
-                                                    .padding(4)
-                                            }
-                                        }
-                                    }
-
-                                    PhotosPicker(selection: $selectedItems, matching: .images) {
-                                        VStack(spacing: TravSpacing.xxs) {
-                                            Image(systemName: "plus.circle.fill")
-                                                .font(.system(size: 24))
-                                                .foregroundStyle(TravColors.accent)
-                                            Text("Add More")
-                                                .font(TravTypography.caption())
-                                                .foregroundStyle(TravColors.primary)
-                                        }
-                                        .frame(width: 110, height: 110)
-                                        .background(TravColors.surfaceElevated)
-                                        .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: TravRadius.md)
-                                                .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [4]))
-                                                .foregroundStyle(TravColors.accent.opacity(0.4))
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-
-                            Text("\(selectedUIImages.count) photo\(selectedUIImages.count == 1 ? "" : "s") added")
-                                .font(TravTypography.caption())
-                                .foregroundStyle(TravColors.muted)
-                        }
-                    }
-                    .onChange(of: selectedItems) { _, newItems in
-                        Task {
-                            var datas: [Data] = []
-                            var uiImages: [UIImage] = []
-                            for item in newItems {
-                                if let data = try? await item.loadTransferable(type: Data.self),
-                                   let uiImage = UIImage(data: data) {
-                                    datas.append(data)
-                                    uiImages.append(uiImage)
-                                }
-                            }
-                            await MainActor.run {
-                                self.selectedImagesData = datas
-                                self.selectedUIImages = uiImages
-                            }
-                        }
-                    }
+                    mediaSection
                 }
                 .travAppear(delay: 0.08)
 
@@ -182,31 +153,7 @@ struct CreateExperienceView: View {
                         if !stops.isEmpty {
                             VStack(spacing: TravSpacing.xs) {
                                 ForEach(stops) { stop in
-                                    HStack(spacing: TravSpacing.sm) {
-                                        Image(systemName: sfSymbolForEmojiOrCategory(stop.emoji ?? stop.name))
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(TravColors.accent)
-                                        Text(stop.name)
-                                            .font(TravTypography.bodyMedium())
-                                            .foregroundStyle(TravColors.primary)
-                                            .lineLimit(1)
-                                            .minimumScaleFactor(0.9)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                        Button {
-                                            withAnimation(TravAnimation.quick) {
-                                                stops.removeAll { $0.id == stop.id }
-                                            }
-                                        } label: {
-                                            Image(systemName: "minus.circle.fill")
-                                                .foregroundStyle(TravColors.error.opacity(0.85))
-                                                .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
-                                                .contentShape(Rectangle())
-                                        }
-                                        .accessibilityLabel("Remove \(stop.name)")
-                                    }
-                                    .padding(TravSpacing.md)
-                                    .background(TravColors.surfaceElevated)
-                                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
+                                    stopRow(stop)
                                 }
                             }
                         }
@@ -220,6 +167,13 @@ struct CreateExperienceView: View {
                     InteractiveRadarChartView(rating: $rating)
                 }
                 .travAppear(delay: 0.15)
+
+                if let validationHint {
+                    Text(validationHint)
+                        .font(TravTypography.caption())
+                        .foregroundStyle(TravColors.muted)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
 
                 PrimaryButton(
                     title: "Publish Experience",
@@ -235,6 +189,199 @@ struct CreateExperienceView: View {
             .padding(.bottom, TravSpacing.xl)
             .safeAreaPadding(.bottom, TravSpacing.sm)
         }
+    }
+
+    // MARK: - City picker
+
+    private var cityPicker: some View {
+        VStack(alignment: .leading, spacing: TravSpacing.xxs) {
+            Text("City")
+                .font(TravTypography.labelMedium())
+                .foregroundStyle(TravColors.muted)
+
+            if cities.isEmpty {
+                HStack(spacing: TravSpacing.sm) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading cities…")
+                        .font(TravTypography.bodyMedium())
+                        .foregroundStyle(TravColors.muted)
+                }
+                .padding(TravSpacing.md)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: TravSpacing.xs) {
+                        ForEach(cities) { city in
+                            let isSelected = selectedCity?.id == city.id
+                            Button {
+                                withAnimation(TravAnimation.quick) {
+                                    selectedCity = city
+                                }
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            } label: {
+                                Text(city.name)
+                                    .font(TravTypography.labelMedium())
+                                    .foregroundStyle(isSelected ? .white : TravColors.primary)
+                                    .padding(.horizontal, TravSpacing.md)
+                                    .padding(.vertical, TravSpacing.xs)
+                                    .background(isSelected ? TravColors.accent : TravColors.surfaceElevated)
+                                    .clipShape(Capsule())
+                                    .overlay {
+                                        Capsule().stroke(
+                                            isSelected ? Color.clear : TravColors.border.opacity(0.5),
+                                            lineWidth: 1
+                                        )
+                                    }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(isSelected ? .isSelected : [])
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+    }
+
+    // MARK: - Media
+
+    private var mediaSection: some View {
+        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            if selectedUIImages.isEmpty {
+                PhotosPicker(selection: $selectedItems, matching: .images) {
+                    VStack(spacing: TravSpacing.xs) {
+                        Image(systemName: "photo.badge.plus")
+                            .font(.system(size: 32))
+                            .foregroundStyle(TravColors.accent)
+                        Text("Add Media")
+                            .font(TravTypography.labelMedium())
+                            .foregroundStyle(TravColors.primary)
+                        Text("Upload photos of your experience")
+                            .font(TravTypography.caption())
+                            .foregroundStyle(TravColors.muted)
+                    }
+                    .frame(height: 140)
+                    .frame(maxWidth: .infinity)
+                    .background(TravColors.surfaceElevated)
+                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: TravRadius.md)
+                            .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                            .foregroundStyle(TravColors.primary.opacity(0.15))
+                    )
+                }
+                .buttonStyle(.plain)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: TravSpacing.sm) {
+                        ForEach(Array(selectedUIImages.enumerated()), id: \.offset) { index, img in
+                            ZStack(alignment: .topTrailing) {
+                                Image(uiImage: img)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 110, height: 110)
+                                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: TravRadius.md)
+                                            .stroke(TravColors.primary.opacity(0.15), lineWidth: 1)
+                                    )
+
+                                Button {
+                                    withAnimation(TravAnimation.quick) {
+                                        if index < selectedItems.count { selectedItems.remove(at: index) }
+                                        if index < selectedImagesData.count { selectedImagesData.remove(at: index) }
+                                        if index < selectedUIImages.count { selectedUIImages.remove(at: index) }
+                                    }
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 22))
+                                        .foregroundStyle(.white, Color.black.opacity(0.75))
+                                        .padding(4)
+                                }
+                                .accessibilityLabel("Remove photo \(index + 1)")
+                            }
+                        }
+
+                        PhotosPicker(selection: $selectedItems, matching: .images) {
+                            VStack(spacing: TravSpacing.xxs) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 24))
+                                    .foregroundStyle(TravColors.accent)
+                                Text("Add More")
+                                    .font(TravTypography.caption())
+                                    .foregroundStyle(TravColors.primary)
+                            }
+                            .frame(width: 110, height: 110)
+                            .background(TravColors.surfaceElevated)
+                            .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: TravRadius.md)
+                                    .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [4]))
+                                    .foregroundStyle(TravColors.accent.opacity(0.4))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Text("\(selectedUIImages.count) photo\(selectedUIImages.count == 1 ? "" : "s") added")
+                    .font(TravTypography.caption())
+                    .foregroundStyle(TravColors.muted)
+            }
+        }
+        .onChange(of: selectedItems) { _, newItems in
+            Task {
+                var datas: [Data] = []
+                var uiImages: [UIImage] = []
+                for item in newItems {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let uiImage = UIImage(data: data) {
+                        datas.append(data)
+                        uiImages.append(uiImage)
+                    }
+                }
+                await MainActor.run {
+                    self.selectedImagesData = datas
+                    self.selectedUIImages = uiImages
+                }
+            }
+        }
+    }
+
+    private func stopRow(_ stop: Stop) -> some View {
+        HStack(spacing: TravSpacing.sm) {
+            Image(systemName: sfSymbolForEmojiOrCategory(stop.emoji ?? stop.name))
+                .font(.system(size: 12))
+                .foregroundStyle(TravColors.accent)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(stop.name)
+                    .font(TravTypography.bodyMedium())
+                    .foregroundStyle(TravColors.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                if !stop.description.isEmpty {
+                    Text(stop.description)
+                        .font(TravTypography.caption())
+                        .foregroundStyle(TravColors.muted)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                withAnimation(TravAnimation.quick) {
+                    stops.removeAll { $0.id == stop.id }
+                    reindexStops()
+                }
+            } label: {
+                Image(systemName: "minus.circle.fill")
+                    .foregroundStyle(TravColors.error.opacity(0.85))
+                    .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Remove \(stop.name)")
+        }
+        .padding(TravSpacing.md)
+        .background(TravColors.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
     }
 
     private var successView: some View {
@@ -270,43 +417,68 @@ struct CreateExperienceView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: - Validation
+
     private var canPublish: Bool {
-        !title.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !stops.isEmpty
+        !title.trimmingCharacters(in: .whitespaces).isEmpty
+            && !stops.isEmpty
+            && selectedCity != nil
+            && !isSubmitting
+    }
+
+    private var validationHint: String? {
+        if title.trimmingCharacters(in: .whitespaces).isEmpty { return "Add a title to publish." }
+        if selectedCity == nil { return "Pick a city to publish." }
+        if stops.isEmpty { return "Add at least one stop to publish." }
+        return nil
+    }
+
+    // MARK: - Actions
+
+    private func loadCities() async {
+        guard cities.isEmpty else { return }
+        do {
+            let loaded = try await environment.cities.fetchGlobeCities()
+            await MainActor.run {
+                cities = loaded
+                restoreCityFromDraft()
+            }
+        } catch {
+            // Retry on next open; hint shown by the disabled state.
+            TravLog.general.error("loadCities failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func submit() {
+        guard let city = selectedCity else { return }
         isSubmitting = true
         errorMessage = nil
 
         Task {
             do {
-                let creatorID: UUID
-                if environment.configuration.useMockBackend {
-                    creatorID = session.currentUser?.id ?? MockData.creators[0].id
-                } else {
-                    guard let userId = session.currentUser?.id else {
-                        throw RepositoryError.unauthorized
-                    }
-                    creatorID = userId
+                guard let creatorID = session.currentUser?.id else {
+                    throw RepositoryError.unauthorized
                 }
 
-                let defaultCityID = MockData.cities.first?.id ?? UUID()
-
-                try await environment.experiences.publishExperience(
-                    title: title,
-                    cityID: defaultCityID,
+                let draft = ExperienceDraft(
+                    title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                    description: descriptionText.trimmingCharacters(in: .whitespacesAndNewlines),
+                    city: city,
                     creatorID: creatorID,
                     stops: stops,
                     rating: rating,
                     imagesData: selectedImagesData
                 )
 
+                try await environment.experiences.publishExperience(draft)
+
                 await MainActor.run {
                     isSubmitting = false
+                    CreateDraft.clear()
                     withAnimation(TravAnimation.enter) {
                         showSuccess = true
                     }
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
                 }
             } catch {
                 await MainActor.run {
@@ -320,10 +492,50 @@ struct CreateExperienceView: View {
 
     private func resetForm() {
         title = ""
+        descriptionText = ""
         selectedItems = []
         selectedImagesData = []
         selectedUIImages = []
         stops = []
+        rating = RadarRating.defaultRating
         showSuccess = false
+        CreateDraft.clear()
+    }
+
+    private func reindexStops() {
+        for index in stops.indices {
+            stops[index].orderIndex = index
+        }
+    }
+
+    // MARK: - Draft persistence
+
+    private func restoreDraftIfNeeded() {
+        guard !didRestoreDraft else { return }
+        didRestoreDraft = true
+        guard let draft = CreateDraft.load() else { return }
+        title = draft.title
+        descriptionText = draft.description
+        stops = draft.stops
+        if let scores = draft.ratingScores {
+            rating = RadarRating(scores: scores)
+        }
+        restoreCityFromDraft()
+    }
+
+    private func restoreCityFromDraft() {
+        guard selectedCity == nil,
+              let slug = CreateDraft.load()?.citySlug else { return }
+        selectedCity = cities.first { $0.slug == slug }
+    }
+
+    private func autosaveDraft() {
+        var draft = CreateDraft()
+        draft.title = title
+        draft.description = descriptionText
+        draft.citySlug = selectedCity?.slug
+        draft.stops = stops
+        draft.ratingScores = rating.scores
+        draft.save()
     }
 }

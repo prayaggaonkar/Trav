@@ -472,6 +472,19 @@ struct GlobeLandingView: View {
                     .tint(appearance.isLightMode ? TravColors.accent : .white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, TravSpacing.sm)
+            } else if case .failed = viewModel?.loadState {
+                VStack(spacing: TravSpacing.sm) {
+                    Text("Couldn't load cities")
+                        .font(TravTypography.bodyMedium())
+                        .foregroundStyle(TravColors.muted)
+                    Button("Try Again") {
+                        Task { await viewModel?.loadCities() }
+                    }
+                    .font(TravTypography.labelMedium())
+                    .foregroundStyle(TravColors.accent)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, TravSpacing.sm)
             }
         }
     }

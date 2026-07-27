@@ -6,7 +6,10 @@ struct StringOrArray: Codable, Sendable {
     
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        if let array = try? container.decode([String].self) {
+        // Prefer `[String?]` so rows like `[null]` (bad uploads) don't fail the feed.
+        if let array = try? container.decode([String?].self) {
+            self.values = array.compactMap { $0 }
+        } else if let array = try? container.decode([String].self) {
             self.values = array
         } else if let single = try? container.decode(String.self) {
             self.values = [single]

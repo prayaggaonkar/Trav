@@ -1,5 +1,24 @@
 import Foundation
 
+/// Typed error for repository failures — replaces `preconditionFailure` crashes
+/// when the Supabase client is missing, and gives the UI a friendly message.
+enum RepositoryError: LocalizedError, Sendable {
+    case backendUnavailable
+    case notFound
+    case unauthorized
+
+    var errorDescription: String? {
+        switch self {
+        case .backendUnavailable:
+            return "Trav couldn't reach the server. Check your connection and try again."
+        case .notFound:
+            return "This content is no longer available."
+        case .unauthorized:
+            return "Sign in to continue."
+        }
+    }
+}
+
 protocol CityRepository: Sendable {
     func fetchGlobeCities() async throws -> [City]
     func fetchCity(id: UUID) async throws -> City
@@ -10,7 +29,13 @@ protocol CityRepository: Sendable {
 protocol ExperienceRepository: Sendable {
     func fetchExperience(id: UUID) async throws -> Experience
     func fetchCityFeed(cityID: UUID, page: Int) async throws -> Paginated<ExperienceSummary>
-    func publishExperience(title: String, cityID: UUID, creatorID: UUID, stops: [StopPreview], rating: RadarRating?, imagesData: [Data]) async throws
+    /// Global home feed: newest published experiences across all cities.
+    func fetchHomeFeed(page: Int) async throws -> Paginated<ExperienceSummary>
+    /// Curated places from the ingestion pipeline, mapped to feed summaries.
+    func fetchPlacesFeed(page: Int) async throws -> Paginated<ExperienceSummary>
+    /// Upcoming local pop-up events.
+    func fetchPopups() async throws -> [Popup]
+    func publishExperience(_ draft: ExperienceDraft) async throws
     func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary]
     /// Ranked experiences with a real rating. Unrated experiences are excluded.
     func fetchRankedExperiences(
@@ -27,9 +52,23 @@ protocol ExperienceRepository: Sendable {
     ) async throws -> Paginated<RankedCreator>
 }
 
+/// Everything needed to publish a new experience.
+struct ExperienceDraft: Sendable {
+    var title: String
+    var description: String
+    var city: City
+    var creatorID: UUID
+    var stops: [Stop]
+    var rating: RadarRating?
+    var imagesData: [Data]
+}
+
 protocol AuthRepository: Sendable {
     func signIn(email: String, password: String) async throws -> Profile
-    func signUp(email: String, password: String) async throws
+    /// Returns the profile when Supabase issues a session immediately;
+    /// `nil` when email confirmation is required before sign-in completes.
+    @discardableResult
+    func signUp(email: String, password: String) async throws -> Profile?
     func signOut() async throws
     func resetPassword(email: String) async throws
     func signInWithGoogle() async throws -> Profile
@@ -61,6 +100,7 @@ protocol ProfileRepository: Sendable {
 protocol EngagementRepository: Sendable {
     func fetchSavedIDs(userID: UUID) async throws -> Set<UUID>
     func fetchCompletedIDs(userID: UUID) async throws -> Set<UUID>
+    func fetchLikedIDs(userID: UUID) async throws -> Set<UUID>
     func fetchFollowingIDs(userID: UUID) async throws -> Set<UUID>
     func isSaved(userID: UUID, experienceID: UUID) async throws -> Bool
     func isCompleted(userID: UUID, experienceID: UUID) async throws -> Bool
@@ -69,10 +109,24 @@ protocol EngagementRepository: Sendable {
     /// Always removes the bookmark for this user (no-op if already unsaved).
     func unsave(userID: UUID, experienceID: UUID) async throws
     /// Returns the new completed state after toggle.
-    func toggleComplete(userID: UUID, experienceID: UUID) async throws -> Bool
-    /// Ensures an `experiences` row exists for `summary.id` so `experience_saves` FK succeeds
-    /// (used when bookmarking feed places that are not already published experiences).
+    func toggleComplete(userID: UUID, experienceID: UUID, note: String?, photosData: [Data]) async throws -> Bool
+    /// Returns the new liked state after toggle.
+    func toggleLike(userID: UUID, experienceID: UUID) async throws -> Bool
+    /// Ensures an `experiences` row exists for `summary.id` so save/completion FKs
+    /// succeed when bookmarking feed places. The shadow row is unpublished
+    /// (`is_published = false`) so it never appears in feeds or profiles.
     func ensureExperienceExists(for summary: ExperienceSummary, ownerID: UUID) async throws
+
+    // Comments
+    func fetchComments(experienceID: UUID, page: Int) async throws -> Paginated<Comment>
+    func addComment(experienceID: UUID, authorID: UUID, body: String, parentID: UUID?) async throws -> Comment
+    func deleteComment(id: UUID) async throws
+
+    // Moderation
+    func report(target: ReportTarget, reporterID: UUID, reason: ReportReason, details: String?) async throws
+    func block(blockerID: UUID, blockedID: UUID) async throws
+    func unblock(blockerID: UUID, blockedID: UUID) async throws
+    func fetchBlockedIDs(userID: UUID) async throws -> Set<UUID>
 }
 
 protocol NotificationRepository: Sendable {
@@ -82,4 +136,7 @@ protocol NotificationRepository: Sendable {
     func markAllRead(userID: UUID) async throws
     /// Emits newly inserted notifications for `userID` (Realtime). Empty stream when unsupported.
     func observeInserts(userID: UUID) -> AsyncStream<AppNotification>
+    /// Registers an APNs device token for push delivery.
+    func registerDeviceToken(_ token: String, userID: UUID) async throws
+    func unregisterDeviceToken(_ token: String) async throws
 }

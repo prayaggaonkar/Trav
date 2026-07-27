@@ -12,7 +12,8 @@ struct InAppToast: Identifiable, Equatable, Sendable {
     }
 }
 
-/// Unread badge, live inserts, quiet backup poll, and toast queue.
+/// Unread badge, Realtime inserts, and toast queue.
+/// Foreground refresh on scene activation replaces the old 6s backup poll.
 @Observable
 @MainActor
 final class NotificationStore {
@@ -32,13 +33,10 @@ final class NotificationStore {
     private var autoDismissTask: Task<Void, Never>?
 
     private var listenTask: Task<Void, Never>?
-    private var pollTask: Task<Void, Never>?
     private var isAppActive = true
     private var isListening = false
     private var didSeedKnownNotifications = false
 
-    /// Quiet foreground sync — one cheap COUNT (+ fetch only when count rises).
-    private static let backupPollIntervalNanoseconds: UInt64 = 6_000_000_000
     private static let toastDisplayNanoseconds: UInt64 = 3_500_000_000
     private static let toastGapNanoseconds: UInt64 = 280_000_000
     private static let realtimeRetryNanoseconds: UInt64 = 2_500_000_000
@@ -62,7 +60,7 @@ final class NotificationStore {
         do {
             unreadCount = try await environment.notifications.unreadCount(userID: userID)
         } catch {
-            print("NotificationStore.refreshUnreadCount failed: \(error)")
+            TravLog.notifications.error("refreshUnreadCount failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -70,21 +68,11 @@ final class NotificationStore {
 
     func startListening(userID: UUID, using environment: AppEnvironment) {
         lastUserID = userID
-        if isListening {
-            // Ensure poll is running even if Realtime already started.
-            if pollTask == nil, isAppActive {
-                startBackupPoll(userID: userID, using: environment)
-            }
-            return
-        }
+        if isListening { return }
         isListening = true
         startRealtime(userID: userID, using: environment)
-        // Seed known ids first so the quiet poll never toasts historical unread rows.
         Task { [weak self] in
-            guard let self else { return }
-            await self.seedKnownNotifications(userID: userID, using: environment)
-            guard self.isListening, self.pollTask == nil else { return }
-            self.startBackupPoll(userID: userID, using: environment)
+            await self?.seedKnownNotifications(userID: userID, using: environment)
         }
     }
 
@@ -92,8 +80,6 @@ final class NotificationStore {
         isListening = false
         listenTask?.cancel()
         listenTask = nil
-        pollTask?.cancel()
-        pollTask = nil
     }
 
     func handleScenePhase(_ phase: ScenePhase, using environment: AppEnvironment) {
@@ -104,12 +90,9 @@ final class NotificationStore {
             startListening(userID: userID, using: environment)
             Task {
                 await refreshUnreadCount(userID: userID, using: environment)
-                await runBackupPoll(userID: userID, using: environment, allowToast: true)
             }
         case .inactive, .background:
             isAppActive = false
-            pollTask?.cancel()
-            pollTask = nil
         @unknown default:
             break
         }
@@ -127,7 +110,7 @@ final class NotificationStore {
             unreadCount = try await environment.notifications.unreadCount(userID: userID)
         } catch {
             didSeedKnownNotifications = false
-            print("NotificationStore.seedKnownNotifications failed: \(error)")
+            TravLog.notifications.error("seedKnownNotifications failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -141,48 +124,9 @@ final class NotificationStore {
                     guard !Task.isCancelled else { return }
                     await self.handleIncoming(notification, bumpUnread: true)
                 }
-                // Stream ended (disconnect / subscribe failure) — quiet retry.
                 guard !Task.isCancelled else { return }
                 try? await Task.sleep(nanoseconds: Self.realtimeRetryNanoseconds)
             }
-        }
-    }
-
-    private func startBackupPoll(userID: UUID, using environment: AppEnvironment) {
-        pollTask?.cancel()
-        pollTask = Task { [weak self] in
-            // Poll immediately, then on an interval — no UI spinner, silent network only.
-            while !Task.isCancelled {
-                guard let self else { return }
-                if self.isAppActive, self.isListening, !self.isInboxPresented {
-                    await self.runBackupPoll(userID: userID, using: environment, allowToast: true)
-                }
-                try? await Task.sleep(nanoseconds: Self.backupPollIntervalNanoseconds)
-            }
-        }
-    }
-
-    private func runBackupPoll(
-        userID: UUID,
-        using environment: AppEnvironment,
-        allowToast: Bool
-    ) async {
-        do {
-            let previous = unreadCount
-            let count = try await environment.notifications.unreadCount(userID: userID)
-            // Only mutate when changed — avoids redrawing Explore/globe on quiet polls.
-            if count != unreadCount {
-                unreadCount = count
-            }
-            guard allowToast, count > previous else { return }
-
-            let page = try await environment.notifications.fetchNotifications(userID: userID, page: 0)
-            let fresh = page.items.filter { !$0.isRead && !seenToastIDs.contains($0.id) }
-            for notification in fresh.reversed() {
-                await handleIncoming(notification, bumpUnread: false)
-            }
-        } catch {
-            print("NotificationStore.backupPoll failed: \(error)")
         }
     }
 
@@ -199,12 +143,9 @@ final class NotificationStore {
 
     // MARK: - Toast queue
 
-    /// Enqueues a toast. Concurrent arrivals are serialized on the main actor:
-    /// the first is shown immediately; the rest wait in FIFO order (capped).
     private func enqueueToast(for notification: AppNotification) {
         guard UserDefaults.standard.bool(forKey: "trav.settings.notificationsEnabled") else { return }
         guard !seenToastIDs.contains(notification.id) else { return }
-        // Already showing or queued — ignore duplicate id.
         if currentToast?.id == notification.id { return }
         if toastQueue.contains(where: { $0.id == notification.id }) { return }
 
@@ -220,7 +161,6 @@ final class NotificationStore {
         }
 
         toastQueue.append(toast)
-        // Keep the queue bounded if a burst arrives (show newest of the overflow).
         if toastQueue.count > Self.maxQueuedToasts {
             toastQueue = Array(toastQueue.suffix(Self.maxQueuedToasts))
         }
@@ -302,7 +242,7 @@ final class NotificationStore {
         } catch {
             isInboxPresented = true
             isPersistingExit = false
-            print("NotificationStore.endInboxSessionIfNeeded failed: \(error)")
+            TravLog.notifications.error("endInboxSession failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 

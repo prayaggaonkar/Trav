@@ -99,6 +99,8 @@ enum TravTypography {
     static func labelMedium() -> Font { .system(size: 13, weight: .medium, design: .rounded) }
     static func caption() -> Font { .system(size: 12, weight: .regular, design: .rounded) }
     static func tabLabel() -> Font { .system(size: 10, weight: .medium, design: .rounded) }
+    /// Small uppercase section kicker, pair with `.tracking(2.5)`.
+    static func overline() -> Font { .system(size: 11, weight: .bold, design: .rounded) }
 }
 
 enum TravFormatters {

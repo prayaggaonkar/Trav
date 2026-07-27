@@ -34,17 +34,22 @@ struct MockExperienceRepository: ExperienceRepository {
         return Paginated(items: items, page: page, hasMore: false)
     }
 
-    func publishExperience(
-        title: String,
-        cityID: UUID,
-        creatorID: UUID,
-        stops: [StopPreview],
-        rating: RadarRating?,
-        imagesData: [Data]
-    ) async throws {
-        print("--- MockExperienceRepository.publishExperience called (using Mock Backend) with \(imagesData.count) images & rating: \(String(describing: rating)) ---")
+    func fetchHomeFeed(page: Int) async throws -> Paginated<ExperienceSummary> {
+        try await Task.sleep(for: .milliseconds(180))
+        return Paginated(items: page == 0 ? MockData.experiences : [], page: page, hasMore: false)
+    }
+
+    func fetchPlacesFeed(page: Int) async throws -> Paginated<ExperienceSummary> {
+        Paginated(items: [], page: page, hasMore: false)
+    }
+
+    func fetchPopups() async throws -> [Popup] {
+        []
+    }
+
+    func publishExperience(_ draft: ExperienceDraft) async throws {
         try await Task.sleep(for: .milliseconds(500))
-        await MockSocialState.shared.notifyNewExperience(creatorID: creatorID, experienceID: UUID())
+        await MockSocialState.shared.notifyNewExperience(creatorID: draft.creatorID, experienceID: UUID())
     }
 
     func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary] {
@@ -90,7 +95,10 @@ struct MockAuthRepository: AuthRepository {
         return profile
     }
 
-    func signUp(email: String, password: String) async throws {}
+    @discardableResult
+    func signUp(email: String, password: String) async throws -> Profile? {
+        try await signIn(email: email, password: password)
+    }
 
     func signOut() async throws {}
 
@@ -268,12 +276,54 @@ struct MockEngagementRepository: EngagementRepository {
         }
     }
 
-    func toggleComplete(userID: UUID, experienceID: UUID) async throws -> Bool {
+    func toggleComplete(userID: UUID, experienceID: UUID, note: String?, photosData: [Data]) async throws -> Bool {
         await MockSocialState.shared.toggleComplete(userID: userID, experienceID: experienceID)
+    }
+
+    func fetchLikedIDs(userID: UUID) async throws -> Set<UUID> {
+        await MockSocialState.shared.likedIDs(of: userID)
+    }
+
+    func toggleLike(userID: UUID, experienceID: UUID) async throws -> Bool {
+        await MockSocialState.shared.toggleLike(userID: userID, experienceID: experienceID)
     }
 
     func ensureExperienceExists(for summary: ExperienceSummary, ownerID: UUID) async throws {
         await MockSocialState.shared.ensureExperienceExists(for: summary, ownerID: ownerID)
+    }
+
+    func fetchComments(experienceID: UUID, page: Int) async throws -> Paginated<Comment> {
+        try await Task.sleep(for: .milliseconds(150))
+        return await MockSocialState.shared.comments(experienceID: experienceID, page: page)
+    }
+
+    func addComment(experienceID: UUID, authorID: UUID, body: String, parentID: UUID?) async throws -> Comment {
+        try await MockSocialState.shared.addComment(
+            experienceID: experienceID,
+            authorID: authorID,
+            body: body,
+            parentID: parentID
+        )
+    }
+
+    func deleteComment(id: UUID) async throws {
+        await MockSocialState.shared.deleteComment(id: id)
+    }
+
+    func report(target: ReportTarget, reporterID: UUID, reason: ReportReason, details: String?) async throws {
+        try await Task.sleep(for: .milliseconds(200))
+    }
+
+    func block(blockerID: UUID, blockedID: UUID) async throws {
+        await MockSocialState.shared.block(blockerID: blockerID, blockedID: blockedID)
+    }
+
+    func unblock(blockerID: UUID, blockedID: UUID) async throws {
+        await MockSocialState.shared.unblock(blockerID: blockerID, blockedID: blockedID)
+    }
+
+    func fetchBlockedIDs(userID: UUID) async throws -> Set<UUID> {
+        await MockSocialState.shared.blockedIDs(of: userID)
     }
 }
 
@@ -302,18 +352,9 @@ struct MockNotificationRepository: NotificationRepository {
             continuation.finish()
         }
     }
+
+    func registerDeviceToken(_ token: String, userID: UUID) async throws {}
+
+    func unregisterDeviceToken(_ token: String) async throws {}
 }
 
-enum RepositoryError: LocalizedError {
-    case notFound
-    case unauthorized
-    case network
-
-    var errorDescription: String? {
-        switch self {
-        case .notFound: "Content not found."
-        case .unauthorized: "Please sign in to continue."
-        case .network: "Check your connection and try again."
-        }
-    }
-}

@@ -14,6 +14,7 @@ struct ExperienceCard: View {
     var onSave: (() -> Void)? = nil
     var onLike: (() -> Void)? = nil
     var onShare: (() -> Void)? = nil
+    var onComment: (() -> Void)? = nil
 
     var body: some View {
         if isUserCard {
@@ -27,7 +28,8 @@ struct ExperienceCard: View {
                 onCreatorTap: onCreatorTap,
                 onSave: onSave,
                 onLike: onLike,
-                onShare: onShare
+                onShare: onShare,
+                onComment: onComment
             )
         } else {
             GemPostCardView(
@@ -40,7 +42,8 @@ struct ExperienceCard: View {
                 onCreatorTap: onCreatorTap,
                 onSave: onSave,
                 onLike: onLike,
-                onShare: onShare
+                onShare: onShare,
+                onComment: onComment
             )
         }
     }
@@ -65,6 +68,7 @@ struct GemPostCardView: View {
     var onSave: (() -> Void)? = nil
     var onLike: (() -> Void)? = nil
     var onShare: (() -> Void)? = nil
+    var onComment: (() -> Void)? = nil
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(EngagementStore.self) private var engagement
@@ -72,6 +76,7 @@ struct GemPostCardView: View {
     @State private var isSavedLocal: Bool
     @State private var isLikedLocal: Bool
     @State private var showEyesRain = false
+    @State private var showCompletionSheet = false
 
     private var isWatchlisted: Bool {
         engagement.isCompleted(experience.id)
@@ -103,7 +108,8 @@ struct GemPostCardView: View {
         onCreatorTap: (() -> Void)? = nil,
         onSave: (() -> Void)? = nil,
         onLike: (() -> Void)? = nil,
-        onShare: (() -> Void)? = nil
+        onShare: (() -> Void)? = nil,
+        onComment: (() -> Void)? = nil
     ) {
         self.experience = experience
         self.badgeText = badgeText
@@ -113,7 +119,8 @@ struct GemPostCardView: View {
         self.onSave = onSave
         self.onLike = onLike
         self.onShare = onShare
-        
+        self.onComment = onComment
+
         _isSavedLocal = State(initialValue: isSaved)
         _isLikedLocal = State(initialValue: isLiked)
     }
@@ -143,19 +150,22 @@ struct GemPostCardView: View {
                             .background(Capsule().fill(Color.black.opacity(0.45)))
                     }
 
-                    // Rating Pill Badge displaying actual experience rating from Supabase
-                    HStack(spacing: 3) {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(Color(red: 1.0, green: 0.8, blue: 0.0))
+                    // Rating pill — only shown when the experience has a real rating.
+                    if let rating = experience.rating, rating.overallScore > 0 {
+                        HStack(spacing: 3) {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Color(red: 1.0, green: 0.8, blue: 0.0))
 
-                        Text(String(format: "%.1f", displayRating))
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundStyle(.white)
+                            Text(String(format: "%.1f", rating.overallScore))
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.white)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.black.opacity(0.55)))
+                        .accessibilityLabel("Rated \(String(format: "%.1f", rating.overallScore)) out of 10")
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.black.opacity(0.55)))
 
                     Spacer()
                 }
@@ -260,6 +270,7 @@ struct GemPostCardView: View {
                                 .foregroundStyle(isLikedLocal ? Color.red : .white.opacity(0.6))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(isLikedLocal ? "Unlike" : "Like")
 
                         Button {
                             isSavedLocal.toggle()
@@ -271,8 +282,10 @@ struct GemPostCardView: View {
                                 .foregroundStyle(isSavedLocal ? Color.yellow : .white.opacity(0.6))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(isSavedLocal ? "Remove bookmark" : "Bookmark")
 
                         Button {
+                            (onComment ?? onTap)()
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         } label: {
                             Image(systemName: "bubble.right")
@@ -280,6 +293,7 @@ struct GemPostCardView: View {
                                 .foregroundStyle(.white.opacity(0.6))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Comments")
 
                         Button {
                             onShare?()
@@ -290,27 +304,27 @@ struct GemPostCardView: View {
                                 .foregroundStyle(.white.opacity(0.6))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Share")
                     }
 
                     Spacer()
 
                     // Right Group: Watchlist Pill Button
                     Button {
-                        let expID = experience.id
-                        let summary = experience
-                        let wasCompleted = isWatchlisted
-                        Task {
-                            let nowCompleted = await engagement.toggleComplete(experienceID: expID, summary: summary, using: environment)
-                            if nowCompleted && !wasCompleted {
-                                withAnimation {
-                                    showEyesRain = true
-                                }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
-                                    showEyesRain = false
-                                }
-                            }
-                        }
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        if isWatchlisted {
+                            let expID = experience.id
+                            let summary = experience
+                            Task {
+                                _ = await engagement.toggleComplete(
+                                    experienceID: expID,
+                                    summary: summary,
+                                    using: environment
+                                )
+                            }
+                        } else {
+                            showCompletionSheet = true
+                        }
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: isWatchlisted ? "checkmark.circle.fill" : "plus.circle.fill")
@@ -324,6 +338,18 @@ struct GemPostCardView: View {
                         .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
+                    .sheet(isPresented: $showCompletionSheet) {
+                        CompletionSheet(experience: experience) { completed in
+                            if completed {
+                                withAnimation { showEyesRain = true }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
+                                    showEyesRain = false
+                                }
+                            }
+                        }
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
+                    }
                 }
             }
             .padding(connectedLayout ? 20 : TravSpacing.md)
@@ -340,15 +366,6 @@ struct GemPostCardView: View {
 
     private var displaySaveCount: Int {
         experience.saveCount + (isSavedLocal ? 1 : 0)
-    }
-
-    private var displayRating: Double {
-        if let ratingObj = experience.rating, ratingObj.overallScore > 0 {
-            return ratingObj.overallScore
-        }
-        let hash = abs(experience.id.hashValue)
-        let score = 7.5 + Double(hash % 20) * 0.1
-        return min(score, 9.8)
     }
 
     @ViewBuilder

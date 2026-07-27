@@ -3,11 +3,17 @@ import SwiftUI
 struct ExperienceDetailView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
+    @Environment(SessionStore.self) private var session
     @Environment(EngagementStore.self) private var engagement
     @State private var experience: Experience?
     @State private var isLoading = true
     @State private var error: Error?
     @State private var showEyesRain = false
+    @State private var showComments = false
+    @State private var showCompletionSheet = false
+    @State private var shareItem: ShareItem?
+    @State private var showReportDialog = false
+    @State private var localCommentCount: Int?
 
     let experienceID: UUID
 
@@ -29,6 +35,11 @@ struct ExperienceDetailView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     DismissButton { router.dismiss() }
                 }
+                if let experience {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        moderationMenu(experience)
+                    }
+                }
             }
         }
         .overlay(
@@ -38,12 +49,110 @@ struct ExperienceDetailView: View {
                 }
             }
         )
+        .travShareSheet(item: $shareItem)
+        .sheet(isPresented: $showComments) {
+            CommentsSheet(experienceID: experienceID) { count in
+                localCommentCount = count
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(TravRadius.xl)
+        }
+        .sheet(isPresented: $showCompletionSheet) {
+            if let experience {
+                CompletionSheet(experience: summary(from: experience)) { completed in
+                    if completed {
+                        withAnimation { showEyesRain = true }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
+                            showEyesRain = false
+                        }
+                    }
+                }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(TravRadius.xl)
+            }
+        }
+        .confirmationDialog("Report Experience", isPresented: $showReportDialog, titleVisibility: .visible) {
+            ForEach(ReportReason.allCases) { reason in
+                Button(reason.displayName, role: reason == .other ? nil : .destructive) {
+                    Task { await report(reason: reason) }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
         .task {
             if let userID = environment.session.currentUser?.id {
                 await engagement.refreshBootstrap(userID: userID, using: environment)
             }
             await load()
         }
+    }
+
+    private func summary(from experience: Experience) -> ExperienceSummary {
+        ExperienceSummary(
+            id: experience.id,
+            cityID: experience.cityID,
+            title: experience.title,
+            imageURLs: experience.imageURLs,
+            creator: experience.creator,
+            durationMinutes: experience.durationMinutes,
+            costLevel: experience.costLevel,
+            estimatedCostUSD: experience.estimatedCostUSD,
+            saveCount: experience.saveCount,
+            likeCount: experience.likeCount,
+            completionCount: experience.completionCount,
+            stops: experience.stops.map { StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji) }
+        )
+    }
+
+    private func moderationMenu(_ experience: Experience) -> some View {
+        Menu {
+            Button {
+                shareItem = ShareItem(
+                    message: "Check out \"\(experience.title)\" on Trav",
+                    url: TravLinks.experience(experience.id)
+                )
+            } label: {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+
+            if session.currentUser?.id != experience.creator.id {
+                Button(role: .destructive) {
+                    showReportDialog = true
+                } label: {
+                    Label("Report", systemImage: "flag")
+                }
+
+                Button(role: .destructive) {
+                    Task {
+                        let blocked = await engagement.block(userID: experience.creator.id, using: environment)
+                        if blocked { router.dismiss() }
+                    }
+                } label: {
+                    Label("Block @\(experience.creator.username)", systemImage: "hand.raised")
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle.fill")
+                .font(.system(size: 22))
+                .foregroundStyle(.white.opacity(0.9), .black.opacity(0.35))
+        }
+        .accessibilityLabel("More options")
+    }
+
+    private func report(reason: ReportReason) async {
+        guard let user = session.currentUser else {
+            router.presentAuth()
+            return
+        }
+        try? await environment.engagementRepo.report(
+            target: .experience(experienceID),
+            reporterID: user.id,
+            reason: reason,
+            details: nil
+        )
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
     @ViewBuilder
@@ -101,103 +210,141 @@ struct ExperienceDetailView: View {
     private func actionBar(_ experience: Experience) -> some View {
         let isSaved = engagement.isSaved(experience.id)
         let isCompleted = engagement.isCompleted(experience.id)
-        let summary = ExperienceSummary(
-            id: experience.id,
-            cityID: experience.cityID,
-            title: experience.title,
-            imageURLs: experience.imageURLs,
-            creator: experience.creator,
-            durationMinutes: experience.durationMinutes,
-            costLevel: experience.costLevel,
-            estimatedCostUSD: experience.estimatedCostUSD,
-            saveCount: experience.saveCount,
-            likeCount: experience.likeCount,
-            completionCount: experience.completionCount,
-            stops: experience.stops.map { StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji) }
-        )
+        let isLiked = engagement.isLiked(experience.id)
+        let summary = summary(from: experience)
+        let likeCount = experience.likeCount + (isLiked ? 1 : 0)
+        let commentCount = localCommentCount ?? experience.commentCount
 
-        return HStack(spacing: TravSpacing.sm) {
-            Button {
-                Task {
-                    await engagement.toggleSave(
-                        experienceID: experience.id,
-                        summary: summary,
-                        using: environment
-                    )
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text(isSaved ? "Saved" : "Save")
-                        .font(TravTypography.labelMedium())
-                        .fontWeight(.semibold)
-                }
-                .foregroundStyle(TravColors.primary)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(TravColors.surfaceElevated)
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
-                )
-            }
-            .buttonStyle(TravPressButtonStyle())
-
-            Button {
-                let wasCompleted = isCompleted
-                Task {
-                    let nowCompleted = await engagement.toggleComplete(experienceID: experience.id, summary: summary, using: environment)
-                    if nowCompleted && !wasCompleted {
-                        withAnimation {
-                            showEyesRain = true
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
-                            showEyesRain = false
-                        }
+        return VStack(spacing: TravSpacing.sm) {
+            // Social row: like + comment with live counts.
+            HStack(spacing: TravSpacing.lg) {
+                Button {
+                    Task {
+                        await engagement.toggleLike(
+                            experienceID: experience.id,
+                            summary: summary,
+                            using: environment
+                        )
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: isLiked ? "heart.fill" : "heart")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(isLiked ? Color.red : TravColors.primary)
+                        Text(TravFormatters.count(likeCount))
+                            .font(TravTypography.labelMedium())
+                            .foregroundStyle(TravColors.primary)
                     }
                 }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "plus.circle.fill")
-                        .font(.system(size: 15, weight: .bold))
-                    Text(isCompleted ? "I'm Down" : "Watchlist")
-                        .font(TravTypography.labelMedium())
-                        .fontWeight(.bold)
-                }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(isCompleted ? Color.gray.opacity(0.4) : TravColors.accent)
-                .clipShape(Capsule())
-            }
-            .buttonStyle(TravPressButtonStyle())
+                .buttonStyle(TravPressButtonStyle())
+                .accessibilityLabel(isLiked ? "Unlike, \(likeCount) likes" : "Like, \(likeCount) likes")
 
-            Button {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text("Share")
-                        .font(TravTypography.labelMedium())
-                        .fontWeight(.semibold)
+                Button {
+                    showComments = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "bubble.right")
+                            .font(.system(size: 17, weight: .semibold))
+                        Text(TravFormatters.count(commentCount))
+                            .font(TravTypography.labelMedium())
+                    }
+                    .foregroundStyle(TravColors.primary)
                 }
-                .foregroundStyle(TravColors.primary)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(TravColors.surfaceElevated)
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
-                )
+                .buttonStyle(TravPressButtonStyle())
+                .accessibilityLabel("Comments, \(commentCount)")
+
+                Spacer()
+
+                Text("\(TravFormatters.count(experience.completionCount)) completed · \(TravFormatters.count(experience.saveCount)) saved")
+                    .font(TravTypography.caption())
+                    .foregroundStyle(TravColors.muted)
             }
-            .buttonStyle(TravPressButtonStyle())
+
+            HStack(spacing: TravSpacing.sm) {
+                Button {
+                    Task {
+                        await engagement.toggleSave(
+                            experienceID: experience.id,
+                            summary: summary,
+                            using: environment
+                        )
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(isSaved ? "Saved" : "Save")
+                            .font(TravTypography.labelMedium())
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundStyle(TravColors.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(TravColors.surfaceElevated)
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(TravPressButtonStyle())
+
+                Button {
+                    if isCompleted {
+                        // Un-completing is a quick toggle; completing opens the moment sheet.
+                        Task {
+                            await engagement.toggleComplete(experienceID: experience.id, summary: summary, using: environment)
+                        }
+                    } else if session.currentUser == nil {
+                        router.presentAuth()
+                    } else {
+                        showCompletionSheet = true
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: isCompleted ? "checkmark.circle.fill" : "plus.circle.fill")
+                            .font(.system(size: 15, weight: .bold))
+                        Text(isCompleted ? "Completed" : "Mark Done")
+                            .font(TravTypography.labelMedium())
+                            .fontWeight(.bold)
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(isCompleted ? Color.gray.opacity(0.4) : TravColors.accent)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(TravPressButtonStyle())
+
+                Button {
+                    shareItem = ShareItem(
+                        message: "Check out \"\(experience.title)\" on Trav",
+                        url: TravLinks.experience(experience.id)
+                    )
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Share")
+                            .font(TravTypography.labelMedium())
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundStyle(TravColors.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(TravColors.surfaceElevated)
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(TravPressButtonStyle())
+            }
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
         .padding(.vertical, TravSpacing.md)
         .animation(TravAnimation.quick, value: isSaved)
         .animation(TravAnimation.quick, value: isCompleted)
+        .animation(TravAnimation.quick, value: isLiked)
     }
 
     @ViewBuilder
@@ -225,14 +372,16 @@ struct ExperienceDetailView: View {
                 StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji)
             })
 
-            let ratingToDisplay = experience.rating ?? .defaultRating
-            VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                Text("Experience Rating")
-                    .font(TravTypography.titleMedium())
-                    .foregroundStyle(TravColors.primary)
-                ReadOnlyRadarChartView(rating: ratingToDisplay)
+            // Only render the radar when the creator actually rated the experience.
+            if let rating = experience.rating, rating.overallScore > 0 {
+                VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                    Text("Experience Rating")
+                        .font(TravTypography.titleMedium())
+                        .foregroundStyle(TravColors.primary)
+                    ReadOnlyRadarChartView(rating: rating)
+                }
+                .padding(.top, TravSpacing.xs)
             }
-            .padding(.top, TravSpacing.xs)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, TravSpacing.screenHorizontal)

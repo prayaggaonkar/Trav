@@ -190,7 +190,7 @@ struct CityPageView: View {
         FeaturedExperienceCard(
             experience: featured,
             isSaved: engagement.isSaved(featured.id),
-            isLiked: viewModel.isLiked(featured.id),
+            isLiked: engagement.isLiked(featured.id),
             onTap: {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 router.openExperience(featured.id)
@@ -207,7 +207,15 @@ struct CityPageView: View {
                     )
                 }
             },
-            onLike: { viewModel.toggleLike(for: featured.id) },
+            onLike: {
+                Task {
+                    await engagement.toggleLike(
+                        experienceID: featured.id,
+                        summary: featured,
+                        using: environment
+                    )
+                }
+            },
             onShare: {
                 sharePayload = SharePayload(
                     text: viewModel.shareText(for: featured, cityName: cityName)
@@ -240,7 +248,7 @@ struct CityPageView: View {
                             experience: experience,
                             badgeText: badgeText,
                             isSaved: engagement.isSaved(experience.id),
-                            isLiked: viewModel.isLiked(experience.id),
+                            isLiked: engagement.isLiked(experience.id),
                             onTap: {
                                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                                 router.openExperience(experience.id)
@@ -257,7 +265,15 @@ struct CityPageView: View {
                                     )
                                 }
                             },
-                            onLike: { viewModel.toggleLike(for: experience.id) },
+                            onLike: {
+                                Task {
+                                    await engagement.toggleLike(
+                                        experienceID: experience.id,
+                                        summary: experience,
+                                        using: environment
+                                    )
+                                }
+                            },
                             onShare: {
                                 sharePayload = SharePayload(
                                     text: viewModel.shareText(for: experience, cityName: cityName)
@@ -278,14 +294,4 @@ struct CityPageView: View {
 private struct SharePayload: Identifiable {
     let id = UUID()
     let text: String
-}
-
-private struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

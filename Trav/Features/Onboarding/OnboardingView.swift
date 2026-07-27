@@ -7,6 +7,9 @@ struct OnboardingView: View {
     @State private var navigationPath = NavigationPath()
     @State private var selectedVibes: Set<String> = []
     @State private var selectedLocation: String?
+    @State private var isSavingOnboarding = false
+    @State private var saveError: String?
+    @State private var showSaveError = false
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -43,76 +46,74 @@ struct OnboardingView: View {
                     LocationContextView(
                         selectedLocation: $selectedLocation,
                         onContinue: {
-                            navigationPath.append(OnboardingStep.socialSync)
+                            Task { await saveAndCompleteOnboarding() }
                         },
                         onSkip: {
-                            navigationPath.append(OnboardingStep.socialSync)
+                            Task { await saveAndCompleteOnboarding() }
                         },
                         onBack: {
                             navigationPath.removeLast()
                         }
                     )
-                case .socialSync:
-                    SocialSyncView(
-                        onContinue: {
-                            navigationPath.append(OnboardingStep.premiumTease)
-                        },
-                        onSkip: {
-                            navigationPath.append(OnboardingStep.premiumTease)
-                        },
-                        onBack: {
-                            navigationPath.removeLast()
-                        }
-                    )
-                case .premiumTease:
-                    PremiumTeaseView(
-                        onViewPlans: {
-                            Task {
-                                await saveAndCompleteOnboarding()
-                            }
-                        },
-                        onDismiss: {
-                            Task {
-                                await saveAndCompleteOnboarding()
-                            }
-                        }
-                    )
+                }
+            }
+            .alert("Couldn't Save Your Preferences", isPresented: $showSaveError) {
+                Button("Try Again") {
+                    Task { await saveAndCompleteOnboarding() }
+                }
+                Button("Skip for Now", role: .cancel) {
+                    session.phase = .authenticated
+                    dismiss()
+                }
+            } message: {
+                Text(saveError ?? "Check your connection and try again.")
+            }
+            .overlay {
+                if isSavingOnboarding {
+                    ZStack {
+                        Color.black.opacity(0.4).ignoresSafeArea()
+                        ProgressView()
+                            .tint(TravColors.accent)
+                            .controlSize(.large)
+                    }
+                    .transition(.opacity)
                 }
             }
         }
     }
 
     private func saveAndCompleteOnboarding() async {
+        // AuthEntryView guarantees a signed-in user before onboarding begins.
         guard let currentUser = session.currentUser else {
+            session.phase = .authenticated
             dismiss()
             return
         }
-        
-        let vibesList = Array(selectedVibes)
-        let locationName = selectedLocation
-        
+
+        isSavingOnboarding = true
+        defer { isSavingOnboarding = false }
+
         do {
             let updatedProfile = try await environment.auth.saveOnboardingData(
                 userID: currentUser.id,
-                vibes: vibesList,
-                location: locationName
+                vibes: Array(selectedVibes),
+                location: selectedLocation
             )
             session.currentUser = updatedProfile
             session.phase = .authenticated
             environment.engagement.cache(updatedProfile)
             await environment.engagement.bootstrap(userID: updatedProfile.id, using: environment)
+            dismiss()
         } catch {
-            print("Failed to save onboarding data: \(error)")
+            saveError = error.localizedDescription
+            showSaveError = true
         }
-        dismiss()
     }
 }
 
 enum OnboardingStep: Hashable {
     case vibeSelection
     case locationContext
-    case socialSync
-    case premiumTease
 }
 
 // MARK: - Shared Onboarding UI Components

@@ -9,8 +9,10 @@ import UIKit
 final class EngagementStore {
     private(set) var savedExperienceIDs: Set<UUID> = []
     private(set) var completedExperienceIDs: Set<UUID> = []
+    private(set) var likedExperienceIDs: Set<UUID> = []
     private(set) var followingUserIDs: Set<UUID> = []
     private(set) var unfollowedUserIDs: Set<UUID> = []
+    private(set) var blockedUserIDs: Set<UUID> = []
     /// Latest known profiles keyed by id — refreshed after edits / follows.
     private(set) var profileCache: [UUID: Profile] = [:]
     private(set) var profileCacheByUsername: [String: Profile] = [:]
@@ -23,6 +25,8 @@ final class EngagementStore {
 
     private(set) var bootstrappedUserID: UUID?
     private var inFlightSaveIDs: Set<UUID> = []
+    private var inFlightCompleteIDs: Set<UUID> = []
+    private var inFlightLikeIDs: Set<UUID> = []
     private var bootstrapTask: Task<Void, Never>?
 
     func reset() {
@@ -30,13 +34,17 @@ final class EngagementStore {
         bootstrapTask = nil
         savedExperienceIDs = []
         completedExperienceIDs = []
+        likedExperienceIDs = []
         followingUserIDs = []
         unfollowedUserIDs = []
+        blockedUserIDs = []
         profileCache = [:]
         profileCacheByUsername = [:]
         savedSummaries = [:]
         bootstrappedUserID = nil
         inFlightSaveIDs = []
+        inFlightCompleteIDs = []
+        inFlightLikeIDs = []
         lastSaveError = nil
         bump()
     }
@@ -77,19 +85,25 @@ final class EngagementStore {
             do {
                 async let saved = environment.engagementRepo.fetchSavedIDs(userID: userID)
                 async let completed = environment.engagementRepo.fetchCompletedIDs(userID: userID)
+                async let liked = environment.engagementRepo.fetchLikedIDs(userID: userID)
                 async let following = environment.engagementRepo.fetchFollowingIDs(userID: userID)
+                async let blocked = environment.engagementRepo.fetchBlockedIDs(userID: userID)
                 let remoteSaved = try await saved
                 let remoteCompleted = try await completed
+                let remoteLiked = try await liked
                 let remoteFollowing = try await following
+                let remoteBlocked = try await blocked
 
                 // Merge — never wipe optimistic toggles that happened during the fetch.
                 savedExperienceIDs.formUnion(remoteSaved)
                 completedExperienceIDs.formUnion(remoteCompleted)
+                likedExperienceIDs.formUnion(remoteLiked)
                 followingUserIDs.formUnion(remoteFollowing)
+                blockedUserIDs = remoteBlocked
                 bootstrappedUserID = userID
                 bump()
             } catch {
-                print("EngagementStore.bootstrap failed: \(error)")
+                TravLog.engagement.error("bootstrap failed: \(error.localizedDescription, privacy: .public)")
                 // Allow retry on next screen appear.
             }
         }
@@ -149,8 +163,89 @@ final class EngagementStore {
         completedExperienceIDs.contains(experienceID)
     }
 
+    func isLiked(_ experienceID: UUID) -> Bool {
+        likedExperienceIDs.contains(experienceID)
+    }
+
     func isFollowing(_ userID: UUID) -> Bool {
         followingUserIDs.contains(userID)
+    }
+
+    func isBlocked(_ userID: UUID) -> Bool {
+        blockedUserIDs.contains(userID)
+    }
+
+    /// Optimistic like toggle. Returns the resolved liked state.
+    @discardableResult
+    func toggleLike(
+        experienceID: UUID,
+        summary: ExperienceSummary? = nil,
+        using environment: AppEnvironment
+    ) async -> Bool {
+        guard let userID = environment.session.currentUser?.id else {
+            environment.router.presentAuth()
+            return false
+        }
+        guard !inFlightLikeIDs.contains(experienceID) else {
+            return likedExperienceIDs.contains(experienceID)
+        }
+        inFlightLikeIDs.insert(experienceID)
+        defer { inFlightLikeIDs.remove(experienceID) }
+
+        let wasLiked = likedExperienceIDs.contains(experienceID)
+        if wasLiked {
+            likedExperienceIDs.remove(experienceID)
+        } else {
+            likedExperienceIDs.insert(experienceID)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+        bump()
+
+        do {
+            if !wasLiked, let summary {
+                try await environment.engagementRepo.ensureExperienceExists(for: summary, ownerID: userID)
+            }
+            let nowLiked = try await environment.engagementRepo.toggleLike(userID: userID, experienceID: experienceID)
+            if nowLiked {
+                likedExperienceIDs.insert(experienceID)
+            } else {
+                likedExperienceIDs.remove(experienceID)
+            }
+            bump()
+            return nowLiked
+        } catch {
+            TravLog.engagement.error("toggleLike failed: \(error.localizedDescription, privacy: .public)")
+            if wasLiked {
+                likedExperienceIDs.insert(experienceID)
+            } else {
+                likedExperienceIDs.remove(experienceID)
+            }
+            bump()
+            return wasLiked
+        }
+    }
+
+    /// Blocks a user and removes them from local social state.
+    func block(userID targetID: UUID, using environment: AppEnvironment) async -> Bool {
+        guard let userID = environment.session.currentUser?.id, userID != targetID else { return false }
+        blockedUserIDs.insert(targetID)
+        followingUserIDs.remove(targetID)
+        bump()
+        do {
+            try await environment.engagementRepo.block(blockerID: userID, blockedID: targetID)
+            return true
+        } catch {
+            blockedUserIDs.remove(targetID)
+            bump()
+            return false
+        }
+    }
+
+    func unblock(userID targetID: UUID, using environment: AppEnvironment) async {
+        guard let userID = environment.session.currentUser?.id else { return }
+        blockedUserIDs.remove(targetID)
+        bump()
+        try? await environment.engagementRepo.unblock(blockerID: userID, blockedID: targetID)
     }
 
     @discardableResult
@@ -189,7 +284,7 @@ final class EngagementStore {
             // Keep the optimistic bookmark visible — legacy dual-write / retry paths may
             // still have persisted. Only revert when the server explicitly reports the
             // opposite state on a follow-up read.
-            print("EngagementStore.toggleSave error: \(error)")
+            TravLog.engagement.error("toggleSave failed: \(error.localizedDescription, privacy: .public)")
             lastSaveError = error.localizedDescription
 
             if let confirmed = try? await environment.engagementRepo.isSaved(
@@ -222,7 +317,7 @@ final class EngagementStore {
             try await environment.engagementRepo.unsave(userID: userID, experienceID: experienceID)
             lastSaveError = nil
         } catch {
-            print("EngagementStore.unsave error: \(error)")
+            TravLog.engagement.error("unsave failed: \(error.localizedDescription, privacy: .public)")
             lastSaveError = error.localizedDescription
             // Keep local unsaved — swipe already removed from the list.
         }
@@ -232,12 +327,20 @@ final class EngagementStore {
     func toggleComplete(
         experienceID: UUID,
         summary: ExperienceSummary? = nil,
+        note: String? = nil,
+        photosData: [Data] = [],
         using environment: AppEnvironment
     ) async -> Bool {
         guard let userID = environment.session.currentUser?.id else {
             environment.router.presentAuth()
             return false
         }
+        // Prevent double-taps from desyncing local and remote completion state.
+        guard !inFlightCompleteIDs.contains(experienceID) else {
+            return completedExperienceIDs.contains(experienceID)
+        }
+        inFlightCompleteIDs.insert(experienceID)
+        defer { inFlightCompleteIDs.remove(experienceID) }
 
         let wasCompleted = completedExperienceIDs.contains(experienceID)
         if wasCompleted {
@@ -264,7 +367,9 @@ final class EngagementStore {
             }
             let nowCompleted = try await environment.engagementRepo.toggleComplete(
                 userID: userID,
-                experienceID: experienceID
+                experienceID: experienceID,
+                note: note,
+                photosData: photosData
             )
             if nowCompleted {
                 completedExperienceIDs.insert(experienceID)
@@ -274,7 +379,7 @@ final class EngagementStore {
             bump()
             return nowCompleted
         } catch {
-            print("🔴 EngagementStore.toggleComplete failed with error: \(error)")
+            TravLog.engagement.error("toggleComplete failed: \(error.localizedDescription, privacy: .public)")
             if wasCompleted {
                 completedExperienceIDs.insert(experienceID)
             } else {
@@ -329,12 +434,30 @@ final class EngagementStore {
             }
             return !wasFollowing
         } catch {
+            // Roll back every optimistic mutation from above, including the
+            // explicit-unfollow marker and both sides' counters.
             if wasFollowing {
                 followingUserIDs.insert(target.id)
+                unfollowedUserIDs.remove(target.id)
+                updatedTarget.followerCount += 1
+                updatedTarget.isFollowing = true
+                if var me = environment.session.currentUser {
+                    me.followingCount += 1
+                    environment.session.currentUser = me
+                    cache(me)
+                }
             } else {
                 followingUserIDs.remove(target.id)
+                unfollowedUserIDs.insert(target.id)
+                updatedTarget.followerCount = max(0, updatedTarget.followerCount - 1)
+                updatedTarget.isFollowing = false
+                if var me = environment.session.currentUser {
+                    me.followingCount = max(0, me.followingCount - 1)
+                    environment.session.currentUser = me
+                    cache(me)
+                }
             }
-            cache(target)
+            cache(updatedTarget)
             bump()
             return wasFollowing
         }

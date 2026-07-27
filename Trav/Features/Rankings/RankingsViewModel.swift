@@ -56,7 +56,6 @@ final class RankingsViewModel {
         let mode = self.mode
         let axis = self.axis
         let cityID = selectedCity?.id
-        // City is the only search/filter dimension from the rankings search bar.
         let creatorID: UUID? = nil
 
         loadTask = Task {
@@ -64,72 +63,30 @@ final class RankingsViewModel {
             do {
                 switch mode {
                 case .experiences:
-                    var page = try await environment.experiences.fetchRankedExperiences(
+                    let page = try await environment.experiences.fetchRankedExperiences(
                         cityID: cityID,
                         creatorID: creatorID,
                         axis: axis,
                         page: 0
                     )
-                    // Until live ratings are populated, fall back to curated mock rankings.
-                    if page.items.isEmpty {
-                        page = try await MockExperienceRepository().fetchRankedExperiences(
-                            cityID: cityID,
-                            creatorID: creatorID,
-                            axis: axis,
-                            page: 0
-                        )
-                    }
                     guard !Task.isCancelled else { return }
                     experiences = page.items
                     creators = []
                     phase = page.items.isEmpty ? .empty : .loaded
                 case .creators:
-                    var page = try await environment.experiences.fetchRankedCreators(
+                    let page = try await environment.experiences.fetchRankedCreators(
                         cityID: cityID,
                         axis: axis,
                         page: 0
                     )
-                    if page.items.isEmpty {
-                        page = try await MockExperienceRepository().fetchRankedCreators(
-                            cityID: cityID,
-                            axis: axis,
-                            page: 0
-                        )
-                    }
                     guard !Task.isCancelled else { return }
                     creators = page.items
                     experiences = []
-                    let visible = displayedCreators
-                    phase = visible.isEmpty ? .empty : .loaded
+                    phase = displayedCreators.isEmpty ? .empty : .loaded
                 }
             } catch {
                 guard !Task.isCancelled else { return }
-                // Live fetch failed — still show mock rankings so the tab is usable.
-                do {
-                    switch mode {
-                    case .experiences:
-                        let page = try await MockExperienceRepository().fetchRankedExperiences(
-                            cityID: cityID,
-                            creatorID: creatorID,
-                            axis: axis,
-                            page: 0
-                        )
-                        experiences = page.items
-                        creators = []
-                        phase = page.items.isEmpty ? .empty : .loaded
-                    case .creators:
-                        let page = try await MockExperienceRepository().fetchRankedCreators(
-                            cityID: cityID,
-                            axis: axis,
-                            page: 0
-                        )
-                        creators = page.items
-                        experiences = []
-                        phase = displayedCreators.isEmpty ? .empty : .loaded
-                    }
-                } catch {
-                    phase = .failed(error)
-                }
+                phase = .failed(error)
             }
         }
         await loadTask?.value

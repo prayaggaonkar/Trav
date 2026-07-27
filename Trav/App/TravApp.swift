@@ -2,11 +2,13 @@ import SwiftUI
 
 @main
 struct TravApp: App {
+    @UIApplicationDelegateAdaptor(TravAppDelegate.self) private var appDelegate
     @State private var environment = AppEnvironment.live
 
     var body: some Scene {
         WindowGroup {
             RootContent(environment: environment)
+                .onAppear { TravAppDelegate.environment = environment }
         }
     }
 }
@@ -21,9 +23,15 @@ private struct RootContent: View {
         RootCoordinator()
             .injectAppEnvironment(environment)
             .preferredColorScheme(appearance.isLightMode ? .light : .dark)
+            .overlay(alignment: .top) {
+                OfflineBanner()
+            }
             .task { await environment.observeAuthState() }
             .onOpenURL { url in
+                // Auth callbacks (OAuth, magic link, password reset) first;
+                // then app deep links (experience / profile / city).
                 SupabaseManager.handle(url)
+                _ = environment.router.handleDeepLink(url)
             }
     }
 }

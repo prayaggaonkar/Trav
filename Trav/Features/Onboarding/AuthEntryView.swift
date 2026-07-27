@@ -18,6 +18,8 @@ struct AuthEntryView: View {
     /// `ASWebAuthenticationSession` is starting (that cancels the system browser).
     @State private var isGoogleSigningIn = false
     @State private var errorMessage: String?
+    @State private var infoMessage: String?
+    @State private var isSendingReset = false
 
     var isInputValid: Bool {
         email.contains("@") && password.count >= 6
@@ -223,7 +225,31 @@ struct AuthEntryView: View {
                                                 .multilineTextAlignment(.center)
                                                 .padding(.horizontal, TravSpacing.xs)
                                         }
-                                        
+
+                                        if let infoMessage {
+                                            Text(infoMessage)
+                                                .font(TravTypography.caption())
+                                                .foregroundStyle(TravColors.success)
+                                                .multilineTextAlignment(.center)
+                                                .padding(.horizontal, TravSpacing.xs)
+                                        }
+
+                                        if !isSignUpMode {
+                                            Button(action: { Task { await handleForgotPassword() } }) {
+                                                if isSendingReset {
+                                                    ProgressView()
+                                                        .controlSize(.small)
+                                                        .tint(TravColors.accent)
+                                                } else {
+                                                    Text("Forgot password?")
+                                                        .font(TravTypography.labelMedium())
+                                                        .foregroundStyle(TravColors.accent)
+                                                }
+                                            }
+                                            .frame(maxWidth: .infinity, alignment: .trailing)
+                                            .disabled(isSendingReset || !email.contains("@"))
+                                        }
+
                                         // Actions
                                         VStack(spacing: TravSpacing.sm) {
                                             PrimaryButton(
@@ -275,12 +301,21 @@ struct AuthEntryView: View {
     private func handleAuth() async {
         isLoading = true
         errorMessage = nil
+        infoMessage = nil
         defer { isLoading = false }
         
         do {
             if isSignUpMode {
-                try await environment.auth.signUp(email: email, password: password)
+                // Wait for the session + profile before entering onboarding so
+                // vibes/location saves always have a signed-in user to write to.
+                guard let profile = try await environment.auth.signUp(email: email, password: password) else {
+                    infoMessage = "Check your inbox — confirm your email, then sign in."
+                    withAnimation(TravAnimation.quick) { isSignUpMode = false }
+                    return
+                }
+                session.currentUser = profile
                 session.phase = .onboarding
+                environment.engagement.cache(profile)
                 onAuthSuccess(true)
             } else {
                 let profile = try await environment.auth.signIn(email: email, password: password)
@@ -291,6 +326,19 @@ struct AuthEntryView: View {
                 await environment.engagement.bootstrap(userID: profile.id, using: environment)
                 onAuthSuccess(isNew)
             }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func handleForgotPassword() async {
+        errorMessage = nil
+        infoMessage = nil
+        isSendingReset = true
+        defer { isSendingReset = false }
+        do {
+            try await environment.auth.resetPassword(email: email)
+            infoMessage = "Password reset link sent to \(email)."
         } catch {
             errorMessage = error.localizedDescription
         }
