@@ -243,7 +243,7 @@ struct CityPageView: View {
                 LazyVStack(spacing: TravSpacing.md) {
                     ForEach(Array(feed.enumerated()), id: \.element.id) { index, experience in
                         let isUserCreated = session.currentUser?.id == experience.creator.id
-                        let badgeText = isUserCreated ? "Created by Me" : ""
+                        let badgeText = isUserCreated ? "Created by You" : ""
                         ExperienceCard(
                             experience: experience,
                             badgeText: badgeText,

@@ -310,7 +310,7 @@ struct ProfileView: View {
                     ForEach(Array(viewModel.created.enumerated()), id: \.element.id) { index, experience in
                         experienceRow(
                             experience: experience,
-                            badgeText: isOwnProfile ? "Created by Me" : "",
+                            badgeText: isOwnProfile ? "Created by You" : "",
                             index: index,
                             isLast: experience.id == viewModel.created.last?.id
                         )
