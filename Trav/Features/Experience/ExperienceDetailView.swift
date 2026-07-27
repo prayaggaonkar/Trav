@@ -13,7 +13,6 @@ struct ExperienceDetailView: View {
     @State private var showComments = false
     @State private var showCompletionSheet = false
     @State private var shareItem: ShareItem?
-    @State private var showReportDialog = false
     @State private var localCommentCount: Int?
 
     let experienceID: UUID
@@ -34,14 +33,18 @@ struct ExperienceDetailView: View {
             .travScreenBackground()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    DismissButton { router.dismiss() }
-                }
-                if let experience {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        moderationMenu(experience)
+                    Button {
+                        router.dismiss()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
                     }
+                    .accessibilityLabel("Back")
                 }
             }
+            .toolbarBackground(.hidden, for: .navigationBar)
         }
         .overlay(
             Group {
@@ -74,14 +77,6 @@ struct ExperienceDetailView: View {
                 .presentationCornerRadius(TravRadius.xl)
             }
         }
-        .confirmationDialog("Report Experience", isPresented: $showReportDialog, titleVisibility: .visible) {
-            ForEach(ReportReason.allCases) { reason in
-                Button(reason.displayName, role: reason == .other ? nil : .destructive) {
-                    Task { await report(reason: reason) }
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        }
         .task {
             if let userID = environment.session.currentUser?.id {
                 await engagement.refreshBootstrap(userID: userID, using: environment)
@@ -105,55 +100,6 @@ struct ExperienceDetailView: View {
             completionCount: experience.completionCount,
             stops: experience.stops.map { StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji) }
         )
-    }
-
-    private func moderationMenu(_ experience: Experience) -> some View {
-        Menu {
-            Button {
-                shareItem = ShareItem(
-                    message: "Check out \"\(experience.title)\" on Trav",
-                    url: TravLinks.experience(experience.id)
-                )
-            } label: {
-                Label("Share", systemImage: "square.and.arrow.up")
-            }
-
-            if session.currentUser?.id != experience.creator.id {
-                Button(role: .destructive) {
-                    showReportDialog = true
-                } label: {
-                    Label("Report", systemImage: "flag")
-                }
-
-                Button(role: .destructive) {
-                    Task {
-                        let blocked = await engagement.block(userID: experience.creator.id, using: environment)
-                        if blocked { router.dismiss() }
-                    }
-                } label: {
-                    Label("Block @\(experience.creator.username)", systemImage: "hand.raised")
-                }
-            }
-        } label: {
-            Image(systemName: "ellipsis.circle.fill")
-                .font(.system(size: 22))
-                .foregroundStyle(.white.opacity(0.9), .black.opacity(0.35))
-        }
-        .accessibilityLabel("More options")
-    }
-
-    private func report(reason: ReportReason) async {
-        guard let user = session.currentUser else {
-            router.presentAuth()
-            return
-        }
-        try? await environment.engagementRepo.report(
-            target: .experience(experienceID),
-            reporterID: user.id,
-            reason: reason,
-            details: nil
-        )
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
     @ViewBuilder
@@ -428,23 +374,12 @@ private struct StopTimelineRow: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
 
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: TravSpacing.sm) {
-                        if let time = stop.recommendedTime {
-                            Label(time, systemImage: "sun.max")
-                        }
-                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
-                    }
-                    VStack(alignment: .leading, spacing: TravSpacing.xxs) {
-                        if let time = stop.recommendedTime {
-                            Label(time, systemImage: "sun.max")
-                        }
-                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
-                    }
+                if let time = stop.recommendedTime {
+                    Label(time, systemImage: "sun.max")
+                        .font(TravTypography.caption())
+                        .foregroundStyle(TravColors.muted)
+                        .lineLimit(1)
                 }
-                .font(TravTypography.caption())
-                .foregroundStyle(TravColors.muted)
-                .lineLimit(1)
             }
             .padding(.bottom, isLast ? 0 : TravSpacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
