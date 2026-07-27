@@ -20,7 +20,7 @@ struct ExperienceCard: View {
         if isUserCard {
             HeroExperienceCard(
                 experience: experience,
-                badgeText: badgeText.isEmpty ? "Created by Me" : badgeText,
+                badgeText: badgeText,
                 isSaved: isSaved,
                 isLiked: isLiked,
                 connectedLayout: connectedLayout,
@@ -50,7 +50,7 @@ struct ExperienceCard: View {
 
     private var isUserCard: Bool {
         if experience.creator.displayName.lowercased() == "rec by trav" { return true }
-        if badgeText == "Created by Me" { return true }
+        if badgeText == "Created by You" || badgeText == "Created by Me" { return true }
         let systemNames = ["system", "trav editorial", "editorial", "trav"]
         return !systemNames.contains(experience.creator.displayName.lowercased())
     }

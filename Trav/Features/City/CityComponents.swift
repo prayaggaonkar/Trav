@@ -205,11 +205,28 @@ struct HeroExperienceCard: View {
     var onShare: (() -> Void)? = nil
     var onComment: (() -> Void)? = nil
 
+    @State private var resolvedLocation: String?
+
+    /// Reserved leading slot — same width with or without a cover photo.
+    private let coverWidth: CGFloat = 96
+    /// Fixed height so "Created by You" never grows the card.
+    private let cardHeight: CGFloat = 120
+    private let cardCornerRadius: CGFloat = 18
+
     private var showRating: Bool {
         experience.creator.displayName.lowercased() != "rec by trav"
     }
 
+    private var hasCoverImage: Bool {
+        experience.coverImageURL != nil
+    }
+
+    private var isCreatedByYou: Bool {
+        !badgeText.isEmpty
+    }
+
     var body: some View {
+<<<<<<< HEAD
         HStack(alignment: .top, spacing: 14) {
             // 1. Left: Clickable Small Square Photo
             if let imageURL = experience.coverImageURL {
@@ -288,16 +305,103 @@ struct HeroExperienceCard: View {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 13))
                             .foregroundStyle(TravColors.muted)
+=======
+        HStack(alignment: .top, spacing: 0) {
+            Color.clear
+                .frame(width: coverWidth)
+                .frame(height: cardHeight)
+
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(experience.title)
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.9)
+
+                        Text(locationLabel)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.45))
+                            .lineLimit(1)
+
+                        Spacer(minLength: 0)
+
+                        // One bottom attribution line: "Created by You" or creator name.
+                        Group {
+                            if isCreatedByYou {
+                                Text(badgeText)
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(.white.opacity(0.65))
+                                    .lineLimit(1)
+                            } else {
+                                Button {
+                                    onCreatorTap?()
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        AvatarView(url: experience.creator.avatarURL, size: 18)
+                                        Text(experience.creator.displayName)
+                                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                                            .foregroundStyle(.white.opacity(0.65))
+                                            .lineLimit(1)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(onCreatorTap == nil)
+                            }
+                        }
                     }
-                    .buttonStyle(.plain)
-                }
-                
-                if showRating {
-                    CircularRatingView(rating: displayRating, size: 42)
-                        .padding(.top, 4)
+
+                    Spacer(minLength: 4)
+
+                    // Bookmark + share + rating — group midpoint centered on the card.
+                    VStack(alignment: .center, spacing: 16) {
+                        HStack(spacing: 8) {
+                            Button {
+                                onSave?()
+                            } label: {
+                                Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(isSaved ? Color.yellow : .white.opacity(0.55))
+                                    .frame(width: 22, height: 22)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(isSaved ? "Remove bookmark" : "Bookmark")
+
+                            Button {
+                                onShare?()
+                            } label: {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.55))
+                                    .frame(width: 22, height: 22)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Share")
+                        }
+
+                        if showRating {
+                            CircularRatingView(rating: displayRating, size: 40)
+                        }
+>>>>>>> 81f6ff733c22c0f60026b49c032352e834a3721a
+                    }
                 }
             }
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .frame(height: cardHeight)
+        .background(alignment: .leading) {
+            // Only paint a cover in the reserved slot; crop to that width.
+            if hasCoverImage {
+                coverImage
+                    .frame(width: coverWidth, height: cardHeight)
+                    .clipped()
+            }
+        }
+<<<<<<< HEAD
         .padding(connectedLayout ? 20 : 14)
         .background(TravColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : 18, style: .continuous))
@@ -312,15 +416,93 @@ struct HeroExperienceCard: View {
                 } else {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
-                }
-            }
+=======
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.08, green: 0.08, blue: 0.12),
+                    Color(red: 0.12, green: 0.12, blue: 0.18)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         )
+        .clipShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : cardCornerRadius, style: .continuous))
+        .overlay {
+            if connectedLayout {
+                VStack {
+                    Spacer()
+                    Divider()
+                        .background(Color.white.opacity(0.08))
+>>>>>>> 81f6ff733c22c0f60026b49c032352e834a3721a
+                }
+            } else {
+                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            }
+        }
+        .contentShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : cardCornerRadius, style: .continuous))
         .onTapGesture(perform: onTap)
+        .task(id: experience.id) {
+            resolvedLocation = await resolveLocationLabel()
+        }
     }
 
-    private var cityLabel: String {
-        if let name = experience.cityName, !name.isEmpty { return name }
-        return MockData.cities.first(where: { $0.id == experience.cityID })?.name ?? experience.displayCityName
+    @ViewBuilder
+    private var coverImage: some View {
+        ZStack {
+            Color.black.opacity(0.25)
+            if let imageURL = experience.coverImageURL {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: coverWidth, height: cardHeight)
+                            .clipped()
+                    default:
+                        EmptyView()
+                    }
+                }
+            }
+        }
+        .frame(width: coverWidth, height: cardHeight)
+        .clipped()
+        .allowsHitTesting(false)
+    }
+
+    private var locationLabel: String {
+        if let resolvedLocation, !resolvedLocation.isEmpty {
+            return resolvedLocation
+        }
+        return fallbackLocationLabel
+    }
+
+    private var fallbackLocationLabel: String {
+        if let city = MockData.cities.first(where: { $0.id == experience.cityID }) {
+            return city.locationLabel
+        }
+        if let name = experience.cityName, !name.isEmpty {
+            if let city = MockData.cities.first(where: {
+                $0.name.caseInsensitiveCompare(name) == .orderedSame
+            }) {
+                return city.locationLabel
+            }
+            return name
+        }
+        return experience.displayCityName
+    }
+
+    private func resolveLocationLabel() async -> String {
+        if let city = try? await CityCatalog.shared.city(id: experience.cityID) {
+            return city.locationLabel
+        }
+        if let name = experience.cityName,
+           let city = try? await CityCatalog.shared.city(named: name) {
+            return city.locationLabel
+        }
+        return fallbackLocationLabel
     }
 
     private var displayRating: Double {
@@ -334,74 +516,57 @@ struct HeroExperienceCard: View {
 }
 
 /// Circular progress bar displaying experience rating out of 10.0.
+/// Ring purple scales hard with score — dull at ~5, strong glowing at 10.
 struct CircularRatingView: View {
     let rating: Double // e.g. 8.5 out of 10.0
     var maxRating: Double = 10.0
-    var size: CGFloat = 88 // Diameter equals width of the two top action buttons
+    var size: CGFloat = 88
 
     var body: some View {
         let progress = min(max(rating / maxRating, 0.0), 1.0)
-        let strokeWidth = size * 0.07
+        // Ease toward the top end so 10 reads much stronger than 5.
+        let intensity = pow(progress, 1.65)
+        let strokeWidth = max(2.5, size * (0.07 + 0.04 * intensity))
         let fontSize = size * 0.3
+        let ringColor = Self.purple(intensity: intensity)
+        let glowOpacity = 0.08 + 0.85 * intensity
+        let glowRadius = size * (0.04 + 0.22 * intensity)
 
         ZStack {
-            // Glass background disk
             Circle()
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.20, green: 0.12, blue: 0.45).opacity(0.4),
-                                    Color(red: 0.10, green: 0.06, blue: 0.28).opacity(0.6)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                )
+                .fill(Color.white.opacity(0.06))
 
-            // Outer track ring
             Circle()
-                .stroke(Color.white.opacity(0.18), lineWidth: strokeWidth)
+                .stroke(ringColor.opacity(0.12 + 0.2 * intensity), lineWidth: strokeWidth)
 
-            // Circular progress bar filled up proportionately to the rating out of 5
             Circle()
                 .trim(from: 0, to: CGFloat(progress))
                 .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.78, green: 0.38, blue: 1.0), // Glowing violet
-                            Color(red: 0.38, green: 0.68, blue: 1.0)  // Glowing cyan
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
+                    ringColor,
                     style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                .shadow(color: Color(red: 0.70, green: 0.35, blue: 1.0).opacity(0.85), radius: size * 0.1, x: 0, y: 0)
+                .shadow(color: ringColor.opacity(glowOpacity), radius: glowRadius, x: 0, y: 0)
+                .shadow(color: ringColor.opacity(glowOpacity * 0.55), radius: glowRadius * 0.45, x: 0, y: 0)
 
-            // Glass rim border
-            Circle()
-                .stroke(
-                    LinearGradient(
-                        colors: [.white.opacity(0.6), .white.opacity(0.15)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: size * 0.015
-                )
-
-            // Rating number only (no star, no /5)
             Text(String(format: "%.1f", rating))
                 .font(.system(size: fontSize, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.5), radius: size * 0.03, x: 0, y: size * 0.015)
+                .monospacedDigit()
+                .foregroundStyle(.white.opacity(0.75 + 0.25 * intensity))
         }
         .frame(width: size, height: size)
-        .shadow(color: Color(red: 0.15, green: 0.08, blue: 0.35).opacity(0.4), radius: size * 0.13, x: 0, y: size * 0.07)
+        .accessibilityLabel("Rated \(String(format: "%.1f", rating)) out of 10")
+    }
+
+    /// Dull gray-purple at low intensity → rich, electric purple at full strength.
+    private static func purple(intensity t: Double) -> Color {
+        let low = (r: 0.30, g: 0.28, b: 0.36)
+        let high = (r: 0.78, g: 0.36, b: 1.0)
+        return Color(
+            red: low.r + (high.r - low.r) * t,
+            green: low.g + (high.g - low.g) * t,
+            blue: low.b + (high.b - low.b) * t
+        )
     }
 }
 
@@ -492,7 +657,7 @@ struct UserCreatedExperienceCard: View {
     var body: some View {
         HeroExperienceCard(
             experience: experience,
-            badgeText: "Created by Me",
+            badgeText: "Created by You",
             isSaved: isSaved,
             isLiked: isLiked,
             onTap: onTap,
