@@ -13,8 +13,20 @@ Package.resolved
 # macOS
 .DS_Store
 
-# Secrets
-Secrets.xcconfig
+# Secrets — never commit credentials
+**/Secrets.xcconfig
+.env
+*.env
+!*.env.example
+
+# Logs & runtime artifacts
+debug.log
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
 
 # Cursor
 .cursor/
