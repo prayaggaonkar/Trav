@@ -53,7 +53,7 @@ enum TravLayout {
     static let tabBarIconSize: CGFloat = 22
     static let heroCityHeight: CGFloat = 380
     static let heroCityHeightMin: CGFloat = 280
-    static let heroExperienceHeight: CGFloat = 360
+    static let heroExperienceHeight: CGFloat = 414 // 360 * 1.15
     static let cardImageHeight: CGFloat = 220
     static let feedCardImageHeight: CGFloat = 220
     static let featuredCardHeight: CGFloat = 280
