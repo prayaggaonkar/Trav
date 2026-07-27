@@ -49,6 +49,7 @@
 		A1B2C3D4E5F6478990ABCDEF /* earth-topology.png in Resources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7488990ABCDE1 /* earth-topology.png */; };
 		A1B2C3D4E5F6789012345678 /* TravUIComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F67890123456789 /* TravUIComponents.swift */; };
 				A6F1E30F1EB19073DC6A1A96 /* FeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78FB928744779B136394875D /* FeedViewModel.swift */; };
+		A6F1E30F1EB19073DC6A9999 /* SpotSearchComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78FB928744779B1363949999 /* SpotSearchComponents.swift */; };
 		A918A9EDBC4E475399F878FF /* CityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39CE5CA1E5C9417CBF6E98A0 /* CityViewModel.swift */; };
 		AC10E298F515465C8669B002 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC10E298F515465C8669B001 /* SupabaseManager.swift */; };
 		AC10E298F515465C8669B004 /* SupabaseAuthRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */; };
@@ -138,6 +139,7 @@
 		7186DD4501EA4A58919C19AD /* FollowListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowListView.swift; sourceTree = "<group>"; };
 		7681F8407CFB4C86AF9DD330 /* GlobeLandingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobeLandingView.swift; sourceTree = "<group>"; };
 		78FB928744779B136394875D /* FeedViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FeedViewModel.swift; sourceTree = "<group>"; };
+		78FB928744779B1363949999 /* SpotSearchComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpotSearchComponents.swift; sourceTree = "<group>"; };
 		8504B0C4FAF0439AB0EB2AB5 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		8C9C50758E87D7A5F85D3E13 /* Comment.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Comment.swift; sourceTree = "<group>"; };
 		95CEF1A3A1C74205A47D2D6D /* MockData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockData.swift; sourceTree = "<group>"; };
@@ -288,6 +290,7 @@
 			children = (
 				D0A09FFAAE4AEFDCC33C844C /* FeedView.swift */,
 				78FB928744779B136394875D /* FeedViewModel.swift */,
+				78FB928744779B1363949999 /* SpotSearchComponents.swift */,
 			);
 			name = Feed;
 			path = Feed;
@@ -642,6 +645,7 @@
 				93A7194DEA9C8C4DA4A14F85 /* ShareSheet.swift in Sources */,
 				F8926D8B86B5A09BC0905150 /* FeedView.swift in Sources */,
 				A6F1E30F1EB19073DC6A1A96 /* FeedViewModel.swift in Sources */,
+				A6F1E30F1EB19073DC6A9999 /* SpotSearchComponents.swift in Sources */,
 				1C29181213E187231347D9BA /* CommentsSheet.swift in Sources */,
 				F422B7C38BCD7FB591BA3C34 /* CompletionSheet.swift in Sources */,
 				PROD0010000000000000001 /* TravLog.swift in Sources */,

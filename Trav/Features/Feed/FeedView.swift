@@ -76,6 +76,10 @@ struct FeedView: View {
     @State private var userSearchTask: Task<Void, Never>?
     @State private var isSearchingUsers = false
 
+    // Spot Search & Rating
+    @State private var spotSearchController = SpotSearchController()
+    @State private var selectedSpotDetail: SpotSuggestion? = nil
+
     // Quick Planner state
     @State private var draftStops: [StopPreview] = []
     @State private var draftCityName: String?
@@ -124,6 +128,12 @@ struct FeedView: View {
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(TravRadius.xl)
         }
+        .sheet(item: $selectedSpotDetail) { spot in
+            SpotDetailSheet(spot: spot)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(TravRadius.xl)
+        }
         .alert("Couldn't Save Route", isPresented: Binding(
             get: { plannerError != nil },
             set: { if !$0 { plannerError = nil } }
@@ -141,12 +151,14 @@ struct FeedView: View {
         }
         .onChange(of: searchText) { _, newValue in
             router.feedKeyword = newValue
+            spotSearchController.query = newValue
             scheduleUserSearch(for: newValue)
         }
         .onChange(of: router.feedNavigationToken) { _, _ in
             searchText = router.feedKeyword
             isSearchFocused = false
             userSearchResults = []
+            spotSearchController.clear()
         }
         .onChange(of: isActive) { _, active in
             // Leaving Feed for another tab clears tags; opening an experience keeps them.
@@ -157,6 +169,7 @@ struct FeedView: View {
             userSearchResults = []
             userSearchTask?.cancel()
             isSearchingUsers = false
+            spotSearchController.clear()
         }
         .onDisappear {
             userSearchTask?.cancel()
@@ -703,6 +716,80 @@ struct FeedView: View {
 
     private var searchSuggestionsOverlay: some View {
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            if spotSearchController.isSearching || !spotSearchController.spots.isEmpty {
+                VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                    Text("SPOTS")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .tracking(1.2)
+                        .foregroundStyle(Color.white.opacity(0.55))
+                        .padding(.horizontal, TravSpacing.xs)
+
+                    if spotSearchController.isSearching && spotSearchController.spots.isEmpty {
+                        ProgressView()
+                            .tint(.white)
+                            .padding(.vertical, TravSpacing.sm)
+                    }
+
+                    VStack(spacing: 6) {
+                        ForEach(spotSearchController.spots) { spot in
+                            Button {
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                selectedSpotDetail = spot
+                            } label: {
+                                HStack(spacing: TravSpacing.sm) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(spot.category.badgeColor.opacity(0.18))
+                                            .frame(width: 32, height: 32)
+                                        Text(spot.category.emoji)
+                                            .font(.system(size: 16))
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        HStack(spacing: 6) {
+                                            Text(spot.title)
+                                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                                .foregroundStyle(.white)
+
+                                            Text(spot.category.rawValue)
+                                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                                .foregroundStyle(spot.category.badgeColor)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(spot.category.badgeColor.opacity(0.18))
+                                                .clipShape(Capsule())
+                                        }
+
+                                        Text(spot.displayLocation)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(Color.white.opacity(0.5))
+                                            .lineLimit(1)
+                                    }
+
+                                    Spacer()
+
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "star.fill")
+                                            .font(.system(size: 11, weight: .bold))
+                                        Text("Rate")
+                                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    }
+                                    .foregroundStyle(TravColors.accent)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Capsule().fill(TravColors.accent.opacity(0.18)))
+                                }
+                                .padding(.horizontal, TravSpacing.sm)
+                                .padding(.vertical, 8)
+                                .background(Color.white.opacity(0.06))
+                                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+
             if !matchingCities.isEmpty {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
                     Text("CITIES")
@@ -795,8 +882,8 @@ struct FeedView: View {
                 }
             }
 
-            if matchingCities.isEmpty && userSearchResults.isEmpty && !isSearchingUsers {
-                Text("Keep typing to filter experiences by keyword")
+            if spotSearchController.spots.isEmpty && matchingCities.isEmpty && userSearchResults.isEmpty && !isSearchingUsers && !spotSearchController.isSearching {
+                Text("Keep typing to search spots, cities, or creators")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(Color.white.opacity(0.45))
                     .padding(.horizontal, TravSpacing.xs)

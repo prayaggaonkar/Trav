@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import CoreLocation
 
 /// Text fields persisted between sessions so an interrupted creation resumes.
 private struct CreateDraft: Codable {
@@ -38,6 +39,7 @@ private struct CreateDraft: Codable {
 struct CreateExperienceView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(SessionStore.self) private var session
+    @Environment(AppRouter.self) private var router
 
     @State private var title = ""
     @State private var descriptionText = ""
@@ -76,14 +78,124 @@ struct CreateExperienceView: View {
             } message: {
                 Text(errorMessage ?? "An unexpected error occurred. Please try again.")
             }
-            .task { await loadCities() }
-            .onAppear(perform: restoreDraftIfNeeded)
+            .task {
+                await loadCities()
+                applyPendingSpotIfNeeded()
+            }
+            .onAppear {
+                restoreDraftIfNeeded()
+                applyPendingSpotIfNeeded()
+            }
+            .onChange(of: router.pendingCreateSpot) { _, _ in
+                applyPendingSpotIfNeeded()
+            }
             .onChange(of: title) { autosaveDraft() }
             .onChange(of: descriptionText) { autosaveDraft() }
-            .onChange(of: stops) { autosaveDraft() }
+            .onChange(of: stops) {
+                handleStopsChanged()
+                autosaveDraft()
+            }
             .onChange(of: selectedCity) { autosaveDraft() }
             .onChange(of: rating) { autosaveDraft() }
         }
+    }
+
+    private func handleStopsChanged() {
+        if stops.count == 1 {
+            title = stops[0].name
+        }
+        Task {
+            _ = await resolveCityFromStops()
+        }
+    }
+
+    /// Resolves the city for the experience strictly from the first spot entered by the user
+    @discardableResult
+    private func resolveCityFromStops() async -> City {
+        // 1. If stops exist, use the first stop added by the user
+        if let firstStop = stops.first {
+            // A. Try reverse geocoding via Apple Maps CLGeocoder for the first stop's coordinates
+            if firstStop.latitude != 0 && firstStop.longitude != 0 {
+                let location = CLLocation(latitude: firstStop.latitude, longitude: firstStop.longitude)
+                let geocoder = CLGeocoder()
+                if let placemarks = try? await geocoder.reverseGeocodeLocation(location),
+                   let placemark = placemarks.first,
+                   let localityName = placemark.locality ?? placemark.subAdministrativeArea ?? placemark.administrativeArea {
+                    let city = buildCity(name: localityName, latitude: firstStop.latitude, longitude: firstStop.longitude)
+                    await MainActor.run { self.selectedCity = city }
+                    return city
+                }
+            }
+
+            // B. Try pending spot city name if available
+            if let pendingCity = router.pendingCreateSpot?.cityName, !pendingCity.isEmpty {
+                let city = buildCity(name: pendingCity)
+                await MainActor.run { self.selectedCity = city }
+                return city
+            }
+
+            // C. Fallback: Parse city name from first stop's description/address string
+            let descParts = firstStop.description.components(separatedBy: ",")
+            if descParts.count >= 2 {
+                let potentialCity = descParts[0].trimmingCharacters(in: .whitespaces)
+                if !potentialCity.isEmpty {
+                    let city = buildCity(name: potentialCity)
+                    await MainActor.run { self.selectedCity = city }
+                    return city
+                }
+            }
+        }
+
+        // 2. Default fallback if no stops added yet
+        let defaultCity = cities.first ?? buildCity(name: "San Francisco")
+        return defaultCity
+    }
+
+    private func buildCity(name: String, latitude: Double = 37.7749, longitude: Double = -122.4194) -> City {
+        if let matched = cities.first(where: { $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame }) {
+            return matched
+        }
+        let slug = name.lowercased().replacingOccurrences(of: " ", with: "-")
+        return City(
+            id: UUID(),
+            name: name,
+            slug: slug,
+            countryCode: "US",
+            latitude: latitude,
+            longitude: longitude,
+            heroImageURL: nil,
+            timezone: "America/Los_Angeles",
+            experienceCount: 1,
+            creatorCount: 1
+        )
+    }
+
+    private func applyPendingSpotIfNeeded() {
+        guard let pending = router.pendingCreateSpot else { return }
+        title = pending.title
+        stops = [
+            Stop(
+                id: UUID(),
+                orderIndex: 0,
+                name: pending.title,
+                description: pending.subtitle,
+                creatorNotes: nil,
+                latitude: pending.latitude ?? 0,
+                longitude: pending.longitude ?? 0,
+                placeID: nil,
+                recommendedTime: nil,
+                durationMinutes: 60,
+                emoji: pending.emoji,
+                media: []
+            )
+        ]
+        rating = SpotRatingAxes.defaultRating
+
+        Task {
+            _ = await resolveCityFromStops()
+        }
+
+        router.pendingCreateSpot = nil
     }
 
     private var formContent: some View {
@@ -112,11 +224,20 @@ struct CreateExperienceView: View {
 
                 TravFormSection(title: "Basic Info") {
                     VStack(spacing: TravSpacing.md) {
-                        TravTextField(
-                            title: "Experience Title",
-                            placeholder: "e.g. SF Coffee & Books Tour",
-                            text: $title
-                        )
+                        VStack(alignment: .leading, spacing: 4) {
+                            TravTextField(
+                                title: "Experience Title",
+                                placeholder: "e.g. SF Coffee & Books Tour",
+                                text: $title
+                            )
+                            .disabled(stops.count == 1)
+
+                            if stops.count == 1 {
+                                Text("Named automatically after official Apple Maps place")
+                                    .font(TravTypography.caption())
+                                    .foregroundStyle(TravColors.accent)
+                            }
+                        }
 
                         VStack(alignment: .leading, spacing: TravSpacing.xxs) {
                             Text("Description")
@@ -138,7 +259,40 @@ struct CreateExperienceView: View {
                             }
                         }
 
-                        cityPicker
+                        VStack(alignment: .leading, spacing: TravSpacing.xxs) {
+                            Text("City")
+                                .font(TravTypography.labelMedium())
+                                .foregroundStyle(TravColors.muted)
+
+                            HStack(spacing: TravSpacing.sm) {
+                                Image(systemName: "mappin.and.ellipse")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(selectedCity != nil ? TravColors.accent : TravColors.muted)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    if let selectedCity {
+                                        Text(selectedCity.name)
+                                            .font(TravTypography.bodyLarge())
+                                            .foregroundStyle(TravColors.primary)
+                                        Text("Automatically set from first stop")
+                                            .font(TravTypography.caption())
+                                            .foregroundStyle(TravColors.muted)
+                                    } else {
+                                        Text("Add your first stop below to detect city")
+                                            .font(TravTypography.bodyLarge())
+                                            .foregroundStyle(TravColors.muted)
+                                    }
+                                }
+                                Spacer()
+                            }
+                            .padding(TravSpacing.md)
+                            .background(TravColors.surfaceElevated)
+                            .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                                    .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
+                            }
+                        }
                     }
                 }
                 .travAppear(delay: 0.05)
@@ -191,56 +345,7 @@ struct CreateExperienceView: View {
         }
     }
 
-    // MARK: - City picker
 
-    private var cityPicker: some View {
-        VStack(alignment: .leading, spacing: TravSpacing.xxs) {
-            Text("City")
-                .font(TravTypography.labelMedium())
-                .foregroundStyle(TravColors.muted)
-
-            if cities.isEmpty {
-                HStack(spacing: TravSpacing.sm) {
-                    ProgressView().controlSize(.small)
-                    Text("Loading cities…")
-                        .font(TravTypography.bodyMedium())
-                        .foregroundStyle(TravColors.muted)
-                }
-                .padding(TravSpacing.md)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: TravSpacing.xs) {
-                        ForEach(cities) { city in
-                            let isSelected = selectedCity?.id == city.id
-                            Button {
-                                withAnimation(TravAnimation.quick) {
-                                    selectedCity = city
-                                }
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            } label: {
-                                Text(city.name)
-                                    .font(TravTypography.labelMedium())
-                                    .foregroundStyle(isSelected ? .white : TravColors.primary)
-                                    .padding(.horizontal, TravSpacing.md)
-                                    .padding(.vertical, TravSpacing.xs)
-                                    .background(isSelected ? TravColors.accent : TravColors.surfaceElevated)
-                                    .clipShape(Capsule())
-                                    .overlay {
-                                        Capsule().stroke(
-                                            isSelected ? Color.clear : TravColors.border.opacity(0.5),
-                                            lineWidth: 1
-                                        )
-                                    }
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(isSelected ? .isSelected : [])
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-            }
-        }
-    }
 
     // MARK: - Media
 
@@ -422,13 +527,11 @@ struct CreateExperienceView: View {
     private var canPublish: Bool {
         !title.trimmingCharacters(in: .whitespaces).isEmpty
             && !stops.isEmpty
-            && selectedCity != nil
             && !isSubmitting
     }
 
     private var validationHint: String? {
         if title.trimmingCharacters(in: .whitespaces).isEmpty { return "Add a title to publish." }
-        if selectedCity == nil { return "Pick a city to publish." }
         if stops.isEmpty { return "Add at least one stop to publish." }
         return nil
     }
@@ -450,7 +553,6 @@ struct CreateExperienceView: View {
     }
 
     private func submit() {
-        guard let city = selectedCity else { return }
         isSubmitting = true
         errorMessage = nil
 
@@ -459,6 +561,8 @@ struct CreateExperienceView: View {
                 guard let creatorID = session.currentUser?.id else {
                     throw RepositoryError.unauthorized
                 }
+
+                let city = await resolveCityFromStops()
 
                 let draft = ExperienceDraft(
                     title: title.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -497,6 +601,7 @@ struct CreateExperienceView: View {
         selectedImagesData = []
         selectedUIImages = []
         stops = []
+        selectedCity = nil
         rating = RadarRating.defaultRating
         showSuccess = false
         CreateDraft.clear()
