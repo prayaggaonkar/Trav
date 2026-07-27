@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Comments for an experience: paginated list, posting, deleting your own,
-/// and reporting others'.
+/// Comments for an experience: paginated list, Instagram-style threaded replies, posting, deleting,
+/// and reporting.
 struct CommentsSheet: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(SessionStore.self) private var session
@@ -21,6 +21,8 @@ struct CommentsSheet: View {
 
     @State private var draft = ""
     @State private var isPosting = false
+    @State private var replyingTo: Comment? = nil
+    @State private var expandedParentIDs: Set<UUID> = []
     @State private var reportingComment: Comment?
     @FocusState private var composerFocused: Bool
 
@@ -61,6 +63,16 @@ struct CommentsSheet: View {
         }
     }
 
+    private var topLevelComments: [Comment] {
+        comments.filter { $0.parentID == nil }
+    }
+
+    private func replies(for parentID: UUID) -> [Comment] {
+        comments
+            .filter { $0.parentID == parentID }
+            .sorted { $0.createdAt < $1.createdAt }
+    }
+
     @ViewBuilder
     private var content: some View {
         if isLoading {
@@ -85,26 +97,13 @@ struct CommentsSheet: View {
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: TravSpacing.md) {
-                    ForEach(comments) { comment in
-                        CommentRow(
-                            comment: comment,
-                            isOwn: comment.author.id == session.currentUser?.id,
-                            onProfileTap: {
-                                dismiss()
-                                router.openProfile(comment.author.username)
-                            },
-                            onDelete: {
-                                Task { await delete(comment) }
-                            },
-                            onReport: {
-                                reportingComment = comment
+                    ForEach(topLevelComments) { comment in
+                        topLevelCommentThread(comment)
+                            .onAppear {
+                                if comment.id == topLevelComments.last?.id, hasMore {
+                                    Task { await loadMore() }
+                                }
                             }
-                        )
-                        .onAppear {
-                            if comment.id == comments.last?.id, hasMore {
-                                Task { await loadMore() }
-                            }
-                        }
                     }
 
                     if isLoadingMore {
@@ -120,9 +119,121 @@ struct CommentsSheet: View {
         }
     }
 
+    @ViewBuilder
+    private func topLevelCommentThread(_ comment: Comment) -> some View {
+        let childReplies = replies(for: comment.id)
+        let isExpanded = expandedParentIDs.contains(comment.id)
+
+        VStack(alignment: .leading, spacing: 8) {
+            CommentRow(
+                comment: comment,
+                isOwn: comment.author.id == session.currentUser?.id,
+                onProfileTap: {
+                    dismiss()
+                    router.openProfile(comment.author.username)
+                },
+                onReply: {
+                    startReply(to: comment)
+                },
+                onDelete: {
+                    Task { await delete(comment) }
+                },
+                onReport: {
+                    reportingComment = comment
+                }
+            )
+
+            if !childReplies.isEmpty {
+                Button {
+                    withAnimation(TravAnimation.quick) {
+                        if isExpanded {
+                            expandedParentIDs.remove(comment.id)
+                        } else {
+                            expandedParentIDs.insert(comment.id)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Rectangle()
+                            .fill(TravColors.muted.opacity(0.35))
+                            .frame(width: 24, height: 1)
+                        Text(isExpanded ? "Hide replies" : "View \(childReplies.count) \(childReplies.count == 1 ? "reply" : "replies")")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(TravColors.muted)
+                    }
+                    .padding(.leading, 42)
+                    .padding(.vertical, 2)
+                }
+                .buttonStyle(.plain)
+
+                if isExpanded {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(childReplies) { reply in
+                            CommentRow(
+                                comment: reply,
+                                isReply: true,
+                                isOwn: reply.author.id == session.currentUser?.id,
+                                onProfileTap: {
+                                    dismiss()
+                                    router.openProfile(reply.author.username)
+                                },
+                                onReply: {
+                                    startReply(to: reply)
+                                },
+                                onDelete: {
+                                    Task { await delete(reply) }
+                                },
+                                onReport: {
+                                    reportingComment = reply
+                                }
+                            )
+                        }
+                    }
+                    .padding(.leading, 42)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+        }
+    }
+
     private var composer: some View {
-        HStack(spacing: TravSpacing.sm) {
-            TextField("Add a comment...", text: $draft, axis: .vertical)
+        VStack(alignment: .leading, spacing: 0) {
+            if let target = replyingTo {
+                HStack {
+                    Text("Replying to ")
+                        .font(TravTypography.caption())
+                        .foregroundStyle(TravColors.muted)
+                    + Text("@\(target.author.username)")
+                        .font(TravTypography.caption())
+                        .fontWeight(.semibold)
+                        .foregroundStyle(TravColors.primary)
+
+                    Spacer()
+
+                    Button {
+                        replyingTo = nil
+                        let handle = "@\(target.author.username) "
+                        if draft.hasPrefix(handle) {
+                            draft = String(draft.dropFirst(handle.count))
+                        }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(TravColors.muted)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, TravSpacing.md)
+                .padding(.top, TravSpacing.xs)
+                .padding(.bottom, 4)
+            }
+
+            HStack(spacing: TravSpacing.sm) {
+                TextField(
+                    replyingTo != nil ? "Reply to @\(replyingTo!.author.username)..." : "Add a comment...",
+                    text: $draft,
+                    axis: .vertical
+                )
                 .lineLimit(1...4)
                 .focused($composerFocused)
                 .padding(.horizontal, TravSpacing.md)
@@ -131,25 +242,26 @@ struct CommentsSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
                 .tint(TravColors.accent)
 
-            Button {
-                Task { await post() }
-            } label: {
-                if isPosting {
-                    ProgressView()
-                        .tint(.white)
-                        .frame(width: 36, height: 36)
-                } else {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 30))
-                        .foregroundStyle(canPost ? TravColors.accent : TravColors.muted)
+                Button {
+                    Task { await post() }
+                } label: {
+                    if isPosting {
+                        ProgressView()
+                            .tint(.white)
+                            .frame(width: 36, height: 36)
+                    } else {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundStyle(canPost ? TravColors.accent : TravColors.muted)
+                    }
                 }
+                .buttonStyle(.plain)
+                .disabled(!canPost || isPosting)
+                .accessibilityLabel("Post comment")
             }
-            .buttonStyle(.plain)
-            .disabled(!canPost || isPosting)
-            .accessibilityLabel("Post comment")
+            .padding(.horizontal, TravSpacing.md)
+            .padding(.vertical, TravSpacing.sm)
         }
-        .padding(.horizontal, TravSpacing.md)
-        .padding(.vertical, TravSpacing.sm)
         .background(.ultraThinMaterial)
     }
 
@@ -159,6 +271,15 @@ struct CommentsSheet: View {
     }
 
     // MARK: - Actions
+
+    private func startReply(to comment: Comment) {
+        replyingTo = comment
+        let handle = "@\(comment.author.username) "
+        if !draft.contains(handle) {
+            draft = handle + draft
+        }
+        composerFocused = true
+    }
 
     private func load() async {
         isLoading = true
@@ -201,15 +322,21 @@ struct CommentsSheet: View {
 
         isPosting = true
         defer { isPosting = false }
+
+        let parentID = replyingTo?.parentID ?? replyingTo?.id
         do {
             let comment = try await environment.engagementRepo.addComment(
                 experienceID: experienceID,
                 authorID: user.id,
                 body: body,
-                parentID: nil
+                parentID: parentID
             )
-            comments.insert(comment, at: 0)
+            comments.append(comment)
+            if let parentID {
+                expandedParentIDs.insert(parentID)
+            }
             draft = ""
+            replyingTo = nil
             composerFocused = false
             onCountChange?(comments.count)
             UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -221,7 +348,7 @@ struct CommentsSheet: View {
 
     private func delete(_ comment: Comment) async {
         let backup = comments
-        comments.removeAll { $0.id == comment.id }
+        comments.removeAll { $0.id == comment.id || $0.parentID == comment.id }
         onCountChange?(comments.count)
         do {
             try await environment.engagementRepo.deleteComment(id: comment.id)
@@ -248,34 +375,42 @@ struct CommentsSheet: View {
 
 private struct CommentRow: View {
     let comment: Comment
+    var isReply: Bool = false
     let isOwn: Bool
     let onProfileTap: () -> Void
+    let onReply: () -> Void
     let onDelete: () -> Void
     let onReport: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: TravSpacing.sm) {
             Button(action: onProfileTap) {
-                AvatarView(url: comment.author.avatarURL, size: 34)
+                AvatarView(url: comment.author.avatarURL, size: isReply ? 28 : 34)
             }
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(comment.author.displayName)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(TravColors.primary)
-
-                    Text(Self.relativeTime(comment.createdAt))
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(TravColors.muted)
-                }
+                Text(comment.author.displayName)
+                    .font(.system(size: isReply ? 12 : 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TravColors.primary)
 
                 Text(comment.body)
-                    .font(TravTypography.bodyMedium())
+                    .font(isReply ? TravTypography.caption() : TravTypography.bodyMedium())
                     .foregroundStyle(TravColors.primary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 12) {
+                    Text(Self.relativeTime(comment.createdAt))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(TravColors.muted)
+
+                    Button("Reply", action: onReply)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(TravColors.muted)
+                        .buttonStyle(.plain)
+                }
+                .padding(.top, 2)
             }
 
             Spacer(minLength: 0)

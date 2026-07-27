@@ -210,35 +210,12 @@ struct ExperienceDetailView: View {
     private func actionBar(_ experience: Experience) -> some View {
         let isSaved = engagement.isSaved(experience.id)
         let isCompleted = engagement.isCompleted(experience.id)
-        let isLiked = engagement.isLiked(experience.id)
         let summary = summary(from: experience)
-        let likeCount = experience.likeCount + (isLiked ? 1 : 0)
         let commentCount = localCommentCount ?? experience.commentCount
 
         return VStack(spacing: TravSpacing.sm) {
-            // Social row: like + comment with live counts.
+            // Social row: comment button with live count.
             HStack(spacing: TravSpacing.lg) {
-                Button {
-                    Task {
-                        await engagement.toggleLike(
-                            experienceID: experience.id,
-                            summary: summary,
-                            using: environment
-                        )
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: isLiked ? "heart.fill" : "heart")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(isLiked ? Color.red : TravColors.primary)
-                        Text(TravFormatters.count(likeCount))
-                            .font(TravTypography.labelMedium())
-                            .foregroundStyle(TravColors.primary)
-                    }
-                }
-                .buttonStyle(TravPressButtonStyle())
-                .accessibilityLabel(isLiked ? "Unlike, \(likeCount) likes" : "Like, \(likeCount) likes")
-
                 Button {
                     showComments = true
                 } label: {
@@ -255,7 +232,7 @@ struct ExperienceDetailView: View {
 
                 Spacer()
 
-                Text("\(TravFormatters.count(experience.completionCount)) completed · \(TravFormatters.count(experience.saveCount)) saved")
+                Text("\(TravFormatters.count(experience.completionCount)) watchlisted · \(TravFormatters.count(experience.saveCount)) saved")
                     .font(TravTypography.caption())
                     .foregroundStyle(TravColors.muted)
             }
@@ -289,21 +266,24 @@ struct ExperienceDetailView: View {
                 .buttonStyle(TravPressButtonStyle())
 
                 Button {
-                    if isCompleted {
-                        // Un-completing is a quick toggle; completing opens the moment sheet.
+                    if session.currentUser == nil {
+                        router.presentAuth()
+                    } else {
+                        if !isCompleted {
+                            withAnimation { showEyesRain = true }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
+                                showEyesRain = false
+                            }
+                        }
                         Task {
                             await engagement.toggleComplete(experienceID: experience.id, summary: summary, using: environment)
                         }
-                    } else if session.currentUser == nil {
-                        router.presentAuth()
-                    } else {
-                        showCompletionSheet = true
                     }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: isCompleted ? "checkmark.circle.fill" : "plus.circle.fill")
                             .font(.system(size: 15, weight: .bold))
-                        Text(isCompleted ? "Completed" : "Mark Done")
+                        Text(isCompleted ? "In Watchlist" : "Watchlist")
                             .font(TravTypography.labelMedium())
                             .fontWeight(.bold)
                     }
@@ -344,7 +324,6 @@ struct ExperienceDetailView: View {
         .padding(.vertical, TravSpacing.md)
         .animation(TravAnimation.quick, value: isSaved)
         .animation(TravAnimation.quick, value: isCompleted)
-        .animation(TravAnimation.quick, value: isLiked)
     }
 
     @ViewBuilder
