@@ -181,30 +181,27 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func hero(_ experience: Experience) -> some View {
         HeroMediaCarousel(urls: experience.imageURLs, height: TravLayout.heroExperienceHeight) {
-            VStack(alignment: .leading, spacing: TravSpacing.sm) {
-                Text(experience.title)
-                    .font(TravTypography.displayMedium())
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.85)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Button {
-                    router.openProfile(experience.creator.username)
-                } label: {
-                    HStack(spacing: TravSpacing.xs) {
-                        AvatarView(url: experience.creator.avatarURL, size: 32)
-                        Text(experience.creator.displayName)
-                            .font(TravTypography.bodyMedium())
-                            .foregroundStyle(.white.opacity(0.9))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.9)
-                    }
+            Text(experience.title)
+                .font(TravTypography.displayMedium())
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.leading)
+                .lineLimit(3)
+                .minimumScaleFactor(0.85)
+                .fixedSize(horizontal: false, vertical: true)
+        } accessory: {
+            Button {
+                router.openProfile(experience.creator.username)
+            } label: {
+                HStack(spacing: TravSpacing.xs) {
+                    AvatarView(url: experience.creator.avatarURL, size: 32)
+                    Text(experience.creator.displayName)
+                        .font(TravTypography.bodyMedium())
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.9)
                 }
-                .buttonStyle(.plain)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(.plain)
         }
     }
 
@@ -330,24 +327,6 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-            if experience.imageURLs.count > 1 {
-                VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                    Text("Media Gallery (\(experience.imageURLs.count))")
-                        .font(TravTypography.titleMedium())
-                        .foregroundStyle(TravColors.primary)
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: TravSpacing.sm) {
-                            ForEach(Array(experience.imageURLs.enumerated()), id: \.offset) { index, url in
-                                RemoteImage(url: url, height: 110, cornerRadius: TravRadius.md)
-                                    .frame(width: 150, height: 110)
-                            }
-                        }
-                    }
-                }
-                .padding(.vertical, TravSpacing.xs)
-            }
-
             ExperienceRouteMapView(stops: experience.stops, transportMode: experience.transportMode)
 
             RoutePreview(stops: experience.stops.map {
@@ -474,59 +453,118 @@ private struct StopTimelineRow: View {
     }
 }
 
-private struct HeroMediaCarousel<Overlay: View>: View {
+private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
     let urls: [URL]
     let height: CGFloat
-    @ViewBuilder let overlay: () -> Overlay
+    @ViewBuilder let title: () -> Title
+    @ViewBuilder let accessory: () -> Accessory
 
     @State private var currentIndex = 0
+    @State private var dragOffset: CGFloat = 0
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            if urls.count > 1 {
-                TabView(selection: $currentIndex) {
-                    ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
+        GeometryReader { geo in
+            let width = max(geo.size.width, 1)
+
+            ZStack(alignment: .bottomLeading) {
+                // Image strip — owns horizontal paging so nested ScrollView can't steal swipes.
+                HStack(spacing: 0) {
+                    ForEach(Array(displayURLs.enumerated()), id: \.offset) { _, url in
                         RemoteImage(url: url, height: height, cornerRadius: 0)
-                            .tag(index)
+                            .frame(width: width, height: height)
+                            .clipped()
                     }
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-            } else {
-                RemoteImage(url: urls.first, height: height, cornerRadius: 0)
-            }
+                .offset(x: -CGFloat(currentIndex) * width + dragOffset)
+                .frame(width: width, height: height, alignment: .leading)
+                .clipped()
 
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.75)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: height)
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.75)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .allowsHitTesting(false)
 
-            overlay()
+                if displayURLs.count > 1 {
+                    HStack(spacing: TravSpacing.xs) {
+                        ForEach(0..<displayURLs.count, id: \.self) { index in
+                            Capsule()
+                                .fill(index == currentIndex ? Color.white : Color.white.opacity(0.4))
+                                .frame(width: index == currentIndex ? 16 : 6, height: 6)
+                        }
+                    }
+                    .padding(.trailing, TravSpacing.screenHorizontal)
+                    .padding(.bottom, TravSpacing.lg)
+                    .frame(maxWidth: .infinity, alignment: .bottomTrailing)
+                    .allowsHitTesting(false)
+                }
+
+                // Drag layer above non-interactive chrome; accessory button stays on top.
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(horizontalPageGesture(pageWidth: width))
+                    .allowsHitTesting(displayURLs.count > 1)
+
+                VStack(alignment: .leading, spacing: TravSpacing.sm) {
+                    title()
+                        .allowsHitTesting(false)
+                    accessory()
+                }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, TravSpacing.screenHorizontal)
                 .padding(.bottom, TravSpacing.lg)
-
-            if urls.count > 1 {
-                HStack(spacing: 4) {
-                    Image(systemName: "photo")
-                        .font(.system(size: 10))
-                    Text("\(currentIndex + 1)/\(urls.count)")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.black.opacity(0.65))
-                .clipShape(Capsule())
-                .padding(.trailing, TravSpacing.screenHorizontal)
-                .padding(.bottom, TravSpacing.lg)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             }
+            .frame(width: width, height: height)
+            .clipped()
         }
         .frame(height: height)
         .frame(maxWidth: .infinity)
         .clipped()
+        .animation(TravAnimation.quick, value: currentIndex)
+    }
+
+    private var displayURLs: [URL?] {
+        if urls.isEmpty { return [nil] }
+        return urls.map { Optional($0) }
+    }
+
+    private func horizontalPageGesture(pageWidth: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 12, coordinateSpace: .local)
+            .onChanged { value in
+                guard displayURLs.count > 1 else { return }
+                let horizontal = abs(value.translation.width) > abs(value.translation.height) * 1.15
+                guard horizontal else {
+                    dragOffset = 0
+                    return
+                }
+                var translation = value.translation.width
+                if (currentIndex == 0 && translation > 0)
+                    || (currentIndex == displayURLs.count - 1 && translation < 0) {
+                    translation *= 0.35
+                }
+                dragOffset = translation
+            }
+            .onEnded { value in
+                guard displayURLs.count > 1 else {
+                    dragOffset = 0
+                    return
+                }
+                let horizontal = abs(value.translation.width) > abs(value.translation.height) * 1.15
+                let threshold = pageWidth * 0.2
+                var next = currentIndex
+                if horizontal {
+                    if value.translation.width < -threshold {
+                        next = min(currentIndex + 1, displayURLs.count - 1)
+                    } else if value.translation.width > threshold {
+                        next = max(currentIndex - 1, 0)
+                    }
+                }
+                withAnimation(TravAnimation.quick) {
+                    currentIndex = next
+                    dragOffset = 0
+                }
+            }
     }
 }
 
