@@ -23,6 +23,12 @@ final class EarthGlobeController: NSObject, SCNSceneRendererDelegate {
     private let keyboardZoomFactor: Float = 1.12
 
     var isAnimatingFlyTo = false
+    /// When true (city preview card visible), skip idle spin and momentum so the pin stays framed.
+    var suppressesIdleMotion = false
+    /// Fired when the user starts dragging or pinching the globe.
+    var onUserInteractionStarted: (() -> Void)?
+    /// Fired at the start of a fly-to so the UI can clear the preview card.
+    var onFlyToStarted: (() -> Void)?
 
     init(renderer: EarthGlobeRenderer) {
         self.renderer = renderer
@@ -46,6 +52,7 @@ final class EarthGlobeController: NSObject, SCNSceneRendererDelegate {
 
         switch state {
         case .began:
+            onUserInteractionStarted?()
             isDragging = true
             momentum = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
             dragAnchorWorld = renderer.worldDirectionOnSphere(from: location, in: sceneView)
@@ -76,6 +83,7 @@ final class EarthGlobeController: NSObject, SCNSceneRendererDelegate {
 
         switch state {
         case .began:
+            onUserInteractionStarted?()
             pinchStartDistance = renderer.cameraDistance
             lastInteractionTime = CACurrentMediaTime()
             syncRenderingMode()
@@ -102,14 +110,16 @@ final class EarthGlobeController: NSObject, SCNSceneRendererDelegate {
 
     func handleTap(at point: CGPoint) {
         guard let sceneView, !isAnimatingFlyTo else { return }
-        if renderer.handleTap(at: point, in: sceneView) {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            lastInteractionTime = CACurrentMediaTime()
-            syncRenderingMode()
+        guard let city = renderer.city(at: point, in: sceneView) else { return }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        lastInteractionTime = CACurrentMediaTime()
+        flyTo(city: city) { [weak self] in
+            self?.renderer.onCitySelected?(city)
         }
     }
 
     func flyTo(city: City, completion: (() -> Void)? = nil) {
+        onFlyToStarted?()
         isAnimatingFlyTo = true
         isDragging = false
         momentum = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
@@ -120,6 +130,17 @@ final class EarthGlobeController: NSObject, SCNSceneRendererDelegate {
             self?.syncRenderingMode()
             completion?()
         }
+    }
+
+    /// Pin tip in the SceneKit view's coordinate space (nil if the city isn't on the globe).
+    func pinTipScreenPoint(for city: City) -> CGPoint? {
+        guard let sceneView else { return nil }
+        return renderer.pinTipScreenPoint(for: city, in: sceneView)
+    }
+
+    /// Size of the SceneKit globe view — used to map pin points into the landing layout.
+    var globeViewSize: CGSize {
+        sceneView?.bounds.size ?? .zero
     }
 
     /// Restores the default wide framing after returning from a city.
@@ -175,7 +196,7 @@ final class EarthGlobeController: NSObject, SCNSceneRendererDelegate {
     }
 
     private func tick() {
-        guard isTabActive, !isAnimatingFlyTo, !isDragging else { return }
+        guard isTabActive, !isAnimatingFlyTo, !isDragging, !suppressesIdleMotion else { return }
 
         let now = CACurrentMediaTime()
         let isIdle = (now - lastInteractionTime) > idleDelay

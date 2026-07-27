@@ -48,7 +48,7 @@
 		97366ACD8AF8400EB8AC896F /* EarthSunPosition.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF9960D8427B4F95A1C426B8 /* EarthSunPosition.swift */; };
 		A1B2C3D4E5F6478990ABCDEF /* earth-topology.png in Resources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7488990ABCDE1 /* earth-topology.png */; };
 		A1B2C3D4E5F6789012345678 /* TravUIComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F67890123456789 /* TravUIComponents.swift */; };
-				A6F1E30F1EB19073DC6A1A96 /* FeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78FB928744779B136394875D /* FeedViewModel.swift */; };
+		A6F1E30F1EB19073DC6A1A96 /* FeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78FB928744779B136394875D /* FeedViewModel.swift */; };
 		A6F1E30F1EB19073DC6A9999 /* SpotSearchComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78FB928744779B1363949999 /* SpotSearchComponents.swift */; };
 		A918A9EDBC4E475399F878FF /* CityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39CE5CA1E5C9417CBF6E98A0 /* CityViewModel.swift */; };
 		AC10E298F515465C8669B002 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC10E298F515465C8669B001 /* SupabaseManager.swift */; };
@@ -68,7 +68,7 @@
 		C7EAD1EAE5A54853BC25399B /* CreateExperienceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EAD1EAE5A54853BC25399A /* CreateExperienceView.swift */; };
 		CA221041CBD376FDE1BEE577 /* Comment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C9C50758E87D7A5F85D3E13 /* Comment.swift */; };
 		CA7ADD159DB633F1247D5CD2 /* Popup.swift in Sources */ = {isa = PBXBuildFile; fileRef = D56F2816135D445860185FA7 /* Popup.swift */; };
-				CFB4FE4EB6471049423D6716 /* SupabaseCityRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB847B2613C0153FD89ABFC2 /* SupabaseCityRepository.swift */; };
+		CFB4FE4EB6471049423D6716 /* SupabaseCityRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB847B2613C0153FD89ABFC2 /* SupabaseCityRepository.swift */; };
 		D6759BDEF8B24A44823FB801 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9D789CF333594AE0B2D8A18E /* Assets.xcassets */; };
 		D90DEB9B988A4274A720A225 /* SupabaseProfileRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 118A3664AB2548DA90972DDC /* SupabaseProfileRepository.swift */; };
 		DA6E2C6FB17F46A5B6B7D9B6 /* Experience.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCB1B49407444C75B6389332 /* Experience.swift */; };
@@ -80,12 +80,17 @@
 		E5F6A7B8C9D0488990ABCDEF /* night-sky.png in Resources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E1488990ABCDEF /* night-sky.png */; };
 		E6888FCE0E734087B26A6E2C /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8504B0C4FAF0439AB0EB2AB5 /* ProfileView.swift */; };
 		F05EC542AE7646348C0BADEA /* TravTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7BECECB35284C65AD16C0BC /* TravTheme.swift */; };
-				F422B7C38BCD7FB591BA3C34 /* CompletionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 442D26D69297F08DA7AF6F69 /* CompletionSheet.swift */; };
+		F422B7C38BCD7FB591BA3C34 /* CompletionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 442D26D69297F08DA7AF6F69 /* CompletionSheet.swift */; };
 		F78F1C88E8624B4B96982725 /* AuthEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 391BB83942334B4B8845FD1C /* AuthEntryView.swift */; };
 		F7A1B2C3D4E5461789ABCDEF /* CityComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A1B2C3D4E5461789ABCD00 /* CityComponents.swift */; };
 		F8926D8B86B5A09BC0905150 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A09FFAAE4AEFDCC33C844C /* FeedView.swift */; };
 		F9480B158BF94DAEBFFEA2B1 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27DF1837071E4ABC855B8498 /* OnboardingView.swift */; };
 		FAEEC631BDED43D580C242D5 /* AsyncContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5214E298F515465C8669751B /* AsyncContentView.swift */; };
+		PROD0010000000000000001 /* TravLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000001 /* TravLog.swift */; };
+		PROD0010000000000000002 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000002 /* NetworkMonitor.swift */; };
+		PROD0010000000000000003 /* PushNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000003 /* PushNotificationService.swift */; };
+		PROD0010000000000000004 /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000004 /* ImageCache.swift */; };
+		PROD0010000000000000005 /* OfflineBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000005 /* OfflineBanner.swift */; };
 		RADAR0020000000000000001 /* RadarRating.swift in Sources */ = {isa = PBXBuildFile; fileRef = RADAR0010000000000000001 /* RadarRating.swift */; };
 		RADAR0020000000000000002 /* RadarChartPolygonShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = RADAR0010000000000000002 /* RadarChartPolygonShape.swift */; };
 		RADAR0020000000000000003 /* ReadOnlyRadarChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = RADAR0010000000000000003 /* ReadOnlyRadarChartView.swift */; };
@@ -94,11 +99,6 @@
 		RANK0020000000000000002 /* RankingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = RANK0010000000000000002 /* RankingsViewModel.swift */; };
 		RANK0020000000000000003 /* RankingRowViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = RANK0010000000000000003 /* RankingRowViews.swift */; };
 		RANK0020000000000000004 /* RankingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = RANK0010000000000000004 /* RankingsView.swift */; };
-		PROD0010000000000000001 /* TravLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000001 /* TravLog.swift */; };
-		PROD0010000000000000002 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000002 /* NetworkMonitor.swift */; };
-		PROD0010000000000000003 /* PushNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000003 /* PushNotificationService.swift */; };
-		PROD0010000000000000004 /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000004 /* ImageCache.swift */; };
-		PROD0010000000000000005 /* OfflineBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000005 /* OfflineBanner.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -149,7 +149,6 @@
 		A31AE020CFEB4511A16E49E9 /* EarthGlobeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarthGlobeRenderer.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B001 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseAuthRepository.swift; sourceTree = "<group>"; };
-		AC10E298F515465C8669B006 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		AC10E298F515465C8669B015 /* SupabaseExperienceRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseExperienceRepository.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B020 /* OAuthWebSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthWebSession.swift; sourceTree = "<group>"; };
 		AF9960D8427B4F95A1C426B8 /* EarthSunPosition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarthSunPosition.swift; sourceTree = "<group>"; };
@@ -164,6 +163,7 @@
 		D0A09FFAAE4AEFDCC33C844C /* FeedView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
 		D4E5F6A7B8C9488990ABCDEF /* clouds.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = clouds.jpg; sourceTree = "<group>"; };
 		D56F2816135D445860185FA7 /* Popup.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Popup.swift; sourceTree = "<group>"; };
+		DE9C859A301804D50013B6BA /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		DF3D37D0EAD6463385A8FB6D /* MockSocialState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockSocialState.swift; sourceTree = "<group>"; };
 		E118DCF01C624355A779A495 /* SupabaseEngagementRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseEngagementRepository.swift; sourceTree = "<group>"; };
 		E4A7C1D0B2F84E6A9C3D5E70 /* earth_day_light.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = earth_day_light.jpg; sourceTree = "<group>"; };
@@ -177,6 +177,11 @@
 		F9A4FD5E8629270EFF4D0754 /* CommentsSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CommentsSheet.swift; sourceTree = "<group>"; };
 		FB847B2613C0153FD89ABFC2 /* SupabaseCityRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SupabaseCityRepository.swift; sourceTree = "<group>"; };
 		FBE61151F83DD3E65DAF734D /* ShareSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
+		PROD0000000000000000001 /* TravLog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TravLog.swift; sourceTree = "<group>"; };
+		PROD0000000000000000002 /* NetworkMonitor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
+		PROD0000000000000000003 /* PushNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PushNotificationService.swift; sourceTree = "<group>"; };
+		PROD0000000000000000004 /* ImageCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageCache.swift; sourceTree = "<group>"; };
+		PROD0000000000000000005 /* OfflineBanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OfflineBanner.swift; sourceTree = "<group>"; };
 		RADAR0010000000000000001 /* RadarRating.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadarRating.swift; sourceTree = "<group>"; };
 		RADAR0010000000000000002 /* RadarChartPolygonShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadarChartPolygonShape.swift; sourceTree = "<group>"; };
 		RADAR0010000000000000003 /* ReadOnlyRadarChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadOnlyRadarChartView.swift; sourceTree = "<group>"; };
@@ -185,11 +190,6 @@
 		RANK0010000000000000002 /* RankingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingsViewModel.swift; sourceTree = "<group>"; };
 		RANK0010000000000000003 /* RankingRowViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingRowViews.swift; sourceTree = "<group>"; };
 		RANK0010000000000000004 /* RankingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingsView.swift; sourceTree = "<group>"; };
-		PROD0000000000000000001 /* TravLog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TravLog.swift; sourceTree = "<group>"; };
-		PROD0000000000000000002 /* NetworkMonitor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
-		PROD0000000000000000003 /* PushNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PushNotificationService.swift; sourceTree = "<group>"; };
-		PROD0000000000000000004 /* ImageCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageCache.swift; sourceTree = "<group>"; };
-		PROD0000000000000000005 /* OfflineBanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OfflineBanner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -292,7 +292,6 @@
 				78FB928744779B136394875D /* FeedViewModel.swift */,
 				78FB928744779B1363949999 /* SpotSearchComponents.swift */,
 			);
-			name = Feed;
 			path = Feed;
 			sourceTree = "<group>";
 		};
@@ -404,9 +403,9 @@
 		D80EF0443C9F4083B79FAADB /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				DE9C859A301804D50013B6BA /* Secrets.xcconfig */,
 				9D789CF333594AE0B2D8A18E /* Assets.xcassets */,
 				F0231A4780D341A6B36005FD /* Textures */,
-				AC10E298F515465C8669B006 /* Secrets.xcconfig */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -661,7 +660,7 @@
 /* Begin XCBuildConfiguration section */
 		114920F2225D48D987834508 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = AC10E298F515465C8669B006 /* Secrets.xcconfig */;
+			baseConfigurationReference = DE9C859A301804D50013B6BA /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -674,7 +673,7 @@
 		};
 		2E535288D36A46C99A51161E /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = AC10E298F515465C8669B006 /* Secrets.xcconfig */;
+			baseConfigurationReference = DE9C859A301804D50013B6BA /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -688,11 +687,11 @@
 		578B5C25D946444CA979CC42 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ENABLE_TESTABILITY = YES;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 6.0;
-				ENABLE_TESTABILITY = YES;
 			};
 			name = Release;
 		};

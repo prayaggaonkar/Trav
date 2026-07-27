@@ -71,6 +71,7 @@ struct CreateExperienceView: View {
             }
             .travScreenBackground()
             .navigationBarTitleDisplayMode(.inline)
+
             .animation(TravAnimation.enter, value: showSuccess)
             .alert("Publish Failed", isPresented: $showErrorAlert) {
                 Button("Try Again") { submit() }
@@ -340,8 +341,7 @@ struct CreateExperienceView: View {
                 .travAppear(delay: 0.18)
             }
             .padding(.horizontal, TravSpacing.screenHorizontal)
-            .padding(.bottom, TravSpacing.xl)
-            .safeAreaPadding(.bottom, TravSpacing.sm)
+            .padding(.bottom, 140)
         }
     }
 

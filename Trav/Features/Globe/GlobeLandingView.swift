@@ -29,19 +29,45 @@ struct GlobeLandingView: View {
 
             GeometryReader { geo in
                 if let viewModel {
+                    let globeHeight = geo.size.height * 0.68
+                    let globeCenterY = geo.size.height * 0.50
+                    let globeTop = globeCenterY - globeHeight / 2
+
                     EarthGlobeView(controller: viewModel.controller)
-                        .frame(width: geo.size.width, height: geo.size.height * 0.68)
-                        // Nudged up ~1/10″ from prior seat for hero balance.
-                        .position(x: geo.size.width * 0.5, y: geo.size.height * 0.48 + 1)
+                        .frame(width: geo.size.width, height: globeHeight)
+                        .position(x: geo.size.width * 0.5, y: globeCenterY)
                         // SceneKit only — do not put this on a parent or it forces the whole screen dark.
                         .preferredColorScheme(.dark)
+
+                    if let previewCity = viewModel.previewCity,
+                       let pinInGlobe = viewModel.previewPinPoint {
+                        let anchor = CGPoint(
+                            x: pinInGlobe.x,
+                            y: pinInGlobe.y + globeTop
+                        )
+                        CityPinAnchoredPreview(
+                            city: previewCity,
+                            anchor: anchor,
+                            containerSize: geo.size,
+                            isLightMode: appearance.isLightMode,
+                            onVisit: { viewModel.visitPreviewCity() },
+                            onDismiss: { viewModel.dismissPreview(resetZoom: true) }
+                        )
+                        .transition(
+                            .asymmetric(
+                                insertion: .scale(scale: 0.94, anchor: .top).combined(with: .opacity),
+                                removal: .opacity
+                            )
+                        )
+                        .zIndex(1)
+                    }
                 }
             }
             .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 header
-                    .padding(.top, TravSpacing.sm)
+                    .padding(.top, TravSpacing.xs)
 
                 searchBar
                     .padding(.horizontal, TravSpacing.xxs)
@@ -55,14 +81,19 @@ struct GlobeLandingView: View {
                 Spacer(minLength: 0)
                     .allowsHitTesting(false)
 
-                bottomCTA
-                    .padding(.bottom, TravSpacing.md)
+                if viewModel?.previewCity == nil, viewModel?.isFlyingToCity != true {
+                    bottomCTA
+                        .padding(.bottom, TravSpacing.md)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.horizontal, TravSpacing.screenHorizontal)
-            .safeAreaPadding(.top, TravSpacing.xs)
+            .safeAreaPadding(.top, TravSpacing.xxs)
             .safeAreaPadding(.bottom, TravSpacing.xs)
         }
+        .animation(TravAnimation.enter, value: viewModel?.previewCity?.id)
+        .animation(TravAnimation.quick, value: viewModel?.previewPinPoint != nil)
         .task {
             guard viewModel == nil else { return }
             let vm = GlobeViewModel(
@@ -84,7 +115,7 @@ struct GlobeLandingView: View {
         .onChange(of: isActive) { _, active in
             viewModel?.controller.setRenderingActive(active)
             if !active {
-                viewModel?.controller.resetZoom(animated: false)
+                viewModel?.resetZoomAfterReturningHome()
             }
         }
         .onChange(of: router.exploreActivationToken) { _, _ in
@@ -237,7 +268,7 @@ struct GlobeLandingView: View {
                 .accessibilityLabel("Sign In")
             }
         }
-        .padding(.vertical, TravSpacing.sm)
+        .padding(.vertical, TravSpacing.xs)
     }
 
     private var notificationsBell: some View {
@@ -676,6 +707,184 @@ struct HomeCelestialBackground: View {
     }
 }
 
+
+private struct CityPinAnchoredPreview: View {
+    let city: City
+    let anchor: CGPoint
+    let containerSize: CGSize
+    var isLightMode: Bool = false
+    let onVisit: () -> Void
+    let onDismiss: () -> Void
+
+    private let cardWidth: CGFloat = 280
+
+    var body: some View {
+        let halfWidth = cardWidth / 2
+        let margin: CGFloat = 16
+        // Keep the card on-screen horizontally; arrow stays under the pin via midX alignment.
+        let clampedX = min(
+            max(anchor.x, halfWidth + margin),
+            containerSize.width - halfWidth - margin
+        )
+
+        CityGlobePreviewCard(
+            city: city,
+            isLightMode: isLightMode,
+            onVisit: onVisit,
+            onDismiss: onDismiss
+        )
+        .frame(width: cardWidth)
+        // Top-leading layout + offset so the view's hit box is only the card,
+        // with the caret tip sitting exactly on the pin tip.
+        .offset(x: clampedX - halfWidth, y: anchor.y)
+    }
+}
+
+private struct CityGlobePreviewCard: View {
+    let city: City
+    var isLightMode: Bool = false
+    let onVisit: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Caret tip is the top of this stack — must sit flush against the pin tip.
+            CityPreviewCaret(isLightMode: isLightMode)
+
+            VStack(alignment: .leading, spacing: TravSpacing.sm) {
+                HStack(alignment: .top, spacing: TravSpacing.sm) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(city.name)
+                            .font(TravTypography.titleMedium())
+                            .foregroundStyle(isLightMode ? Color.black : Color.white)
+                            .lineLimit(1)
+
+                        Text(city.countryName)
+                            .font(TravTypography.caption())
+                            .foregroundStyle(TravColors.muted)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: TravSpacing.sm)
+
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(TravColors.muted)
+                            .frame(width: 28, height: 28)
+                            .background(
+                                Circle()
+                                    .fill(isLightMode ? Color.black.opacity(0.06) : Color.white.opacity(0.1))
+                            )
+                    }
+                    .buttonStyle(TravPressButtonStyle(scale: 0.92))
+                    .accessibilityLabel("Dismiss")
+                }
+
+                HStack(spacing: TravSpacing.xs) {
+                    CityPreviewStat(
+                        symbol: "sparkles",
+                        value: TravFormatters.count(city.experienceCount),
+                        label: city.experienceCount == 1 ? "experience" : "experiences",
+                        isLightMode: isLightMode
+                    )
+                    CityPreviewStat(
+                        symbol: "person.2.fill",
+                        value: TravFormatters.count(city.creatorCount),
+                        label: city.creatorCount == 1 ? "creator" : "creators",
+                        isLightMode: isLightMode
+                    )
+                }
+
+                Button(action: onVisit) {
+                    Text("Visit city")
+                        .font(TravTypography.labelMedium())
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background(TravColors.accent)
+                        .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.97))
+                .accessibilityLabel("Visit \(city.name)")
+            }
+            .padding(TravSpacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .environment(\.colorScheme, isLightMode ? .light : .dark)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                    .stroke(
+                        isLightMode ? Color.black.opacity(0.1) : Color.white.opacity(0.14),
+                        lineWidth: 1
+                    )
+            }
+            .shadow(color: Color.black.opacity(isLightMode ? 0.1 : 0.35), radius: 18, y: 8)
+        }
+        .frame(width: 280)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct CityPreviewStat: View {
+    let symbol: String
+    let value: String
+    let label: String
+    var isLightMode: Bool = false
+
+    var body: some View {
+        HStack(spacing: TravSpacing.xxs) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(TravColors.accent)
+
+            Text("\(value) \(label)")
+                .font(TravTypography.caption())
+                .foregroundStyle(isLightMode ? Color.black.opacity(0.65) : Color.white.opacity(0.7))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        }
+        .padding(.horizontal, TravSpacing.xs)
+        .padding(.vertical, TravSpacing.xxs + 1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous)
+                .fill(isLightMode ? Color.black.opacity(0.04) : Color.white.opacity(0.07))
+        )
+    }
+}
+
+private struct CityPreviewCaret: View {
+    var isLightMode: Bool = false
+
+    var body: some View {
+        Triangle()
+            .fill(.ultraThinMaterial)
+            .environment(\.colorScheme, isLightMode ? .light : .dark)
+            .frame(width: 18, height: 10)
+            .overlay {
+                Triangle()
+                    .stroke(
+                        isLightMode ? Color.black.opacity(0.1) : Color.white.opacity(0.14),
+                        lineWidth: 1
+                    )
+            }
+    }
+}
+
+private struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
 
 private struct CityChip: View {
     let city: City

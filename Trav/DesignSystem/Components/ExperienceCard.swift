@@ -20,7 +20,7 @@ struct ExperienceCard: View {
         if isUserCard {
             HeroExperienceCard(
                 experience: experience,
-                badgeText: badgeText.isEmpty ? "Created by Me" : badgeText,
+                badgeText: badgeText,
                 isSaved: isSaved,
                 isLiked: isLiked,
                 connectedLayout: connectedLayout,
@@ -50,7 +50,7 @@ struct ExperienceCard: View {
 
     private var isUserCard: Bool {
         if experience.creator.displayName.lowercased() == "rec by trav" { return true }
-        if badgeText == "Created by Me" { return true }
+        if badgeText == "Created by You" || badgeText == "Created by Me" { return true }
         let systemNames = ["system", "trav editorial", "editorial", "trav"]
         return !systemNames.contains(experience.creator.displayName.lowercased())
     }
@@ -253,7 +253,7 @@ struct GemPostCardView: View {
 
                 // Split Action Bar
                 Divider()
-                    .background(Color.white.opacity(0.08))
+                    .background(TravColors.border.opacity(0.3))
                     .padding(.vertical, 8)
 
                 HStack {
@@ -267,7 +267,7 @@ struct GemPostCardView: View {
                         } label: {
                             Image(systemName: isSavedLocal ? "bookmark.fill" : "bookmark")
                                 .font(.system(size: 18))
-                                .foregroundStyle(isSavedLocal ? Color.yellow : .white.opacity(0.6))
+                                .foregroundStyle(isSavedLocal ? Color.yellow : TravColors.muted)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(isSavedLocal ? "Remove bookmark" : "Bookmark")
@@ -278,7 +278,7 @@ struct GemPostCardView: View {
                         } label: {
                             Image(systemName: "bubble.right")
                                 .font(.system(size: 18))
-                                .foregroundStyle(.white.opacity(0.6))
+                                .foregroundStyle(TravColors.muted)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Comments")
@@ -289,7 +289,7 @@ struct GemPostCardView: View {
                         } label: {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.system(size: 18))
-                                .foregroundStyle(.white.opacity(0.6))
+                                .foregroundStyle(TravColors.muted)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Share")
@@ -404,7 +404,7 @@ struct GemPostCardView: View {
             VStack {
                 Spacer()
                 Divider()
-                    .background(Color.white.opacity(0.08))
+                    .background(TravColors.border.opacity(0.3))
             }
         }
     }

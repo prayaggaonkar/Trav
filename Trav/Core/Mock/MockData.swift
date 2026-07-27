@@ -380,7 +380,11 @@ enum MockData {
     }
 
     static func fullExperience(for summary: ExperienceSummary) -> Experience {
-        Experience(
+        let city = cities.first(where: { $0.id == summary.cityID }) ?? cities[0]
+        let baseLat = city.latitude
+        let baseLon = city.longitude
+
+        return Experience(
             id: summary.id,
             cityID: summary.cityID,
             creator: summary.creator,
@@ -405,8 +409,8 @@ enum MockData {
                     name: preview.name,
                     description: "A must-visit spot on this route.",
                     creatorNotes: "Go early to beat the crowds.",
-                    latitude: 37.77 + Double(index) * 0.01,
-                    longitude: -122.42 + Double(index) * 0.008,
+                    latitude: baseLat + Double(index) * 0.006 - 0.009,
+                    longitude: baseLon + Double(index) * 0.008 - 0.01,
                     placeID: nil,
                     recommendedTime: index == 0 ? "Morning" : "Afternoon",
                     durationMinutes: 30 + index * 15,

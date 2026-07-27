@@ -93,7 +93,7 @@ struct FeedView: View {
 
     var body: some View {
         ZStack {
-            HomeCelestialBackground()
+            Color.black
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -252,25 +252,27 @@ struct FeedView: View {
 
     private var feedScrollView: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            // 40% tighter gap between Happening Soon and Experiences (16 → ~10).
+            VStack(spacing: 10) {
                 if !visiblePopups.isEmpty && selectedFilter == .all {
                     popupCarousel
                 }
 
                 HStack {
-                    Text("Your Feed")
+                    Text("Experiences")
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                     Spacer()
                 }
                 .padding(.horizontal, TravSpacing.screenHorizontal)
-                .padding(.top, TravSpacing.xs)
+                .padding(.top, visiblePopups.isEmpty || selectedFilter != .all ? TravSpacing.xs : 0)
                 .padding(.bottom, 4)
 
                 LazyVStack(spacing: 12) {
                     ForEach(filteredFeed) { experience in
                         ExperienceCard(
                             experience: experience,
+                            badgeText: ownExperienceBadge(for: experience),
                             isSaved: engagement.isSaved(experience.id),
                             isLiked: engagement.isLiked(experience.id),
                             connectedLayout: false,
@@ -364,7 +366,15 @@ struct FeedView: View {
                 .padding(.horizontal, TravSpacing.screenHorizontal)
             }
         }
-        .padding(.bottom, TravSpacing.xs)
+        .padding(.bottom, TravSpacing.xxs)
+    }
+
+    private func ownExperienceBadge(for experience: ExperienceSummary) -> String {
+        guard let currentID = session.currentUser?.id,
+              experience.creator.id == currentID else {
+            return ""
+        }
+        return "Created by You"
     }
 
     private var visiblePopups: [Popup] {
@@ -637,9 +647,7 @@ struct FeedView: View {
     }
 
     private var feedTabBarBackdrop: TabBarBackdrop {
-        let showingCards = viewModel.phase == .loaded && !filteredFeed.isEmpty
-        if showingCards { return .dark }
-        return appearance.isLightMode ? .light : .dark
+        .dark
     }
 
     // MARK: - Search
@@ -910,6 +918,7 @@ struct FeedView: View {
 /// Story-style card for the "Happening Soon" carousel.
 private struct PopupStoryCard: View {
     let popup: Popup
+    private let cornerRadius: CGFloat = 16
 
     private var isToday: Bool {
         guard let start = popup.startTime else { return false }
@@ -919,9 +928,9 @@ private struct PopupStoryCard: View {
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             if let coverURL = popupImage(for: popup.name) {
-                RemoteImage(url: coverURL, height: 160, cornerRadius: 16)
+                RemoteImage(url: coverURL, height: 160, cornerRadius: cornerRadius)
             } else {
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(Color.gray.opacity(0.2))
             }
 
@@ -930,7 +939,7 @@ private struct PopupStoryCard: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
 
             VStack {
                 HStack {
@@ -949,33 +958,22 @@ private struct PopupStoryCard: View {
                 Spacer()
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                Image(systemName: "calendar.circle.fill")
-                    .font(.system(size: 24))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(popup.name)
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.white)
-                    .background(Circle().fill(TravColors.accent))
-                    .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
-                    .padding(.leading, 8)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
 
-                Spacer()
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(popup.name)
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-
-                    Text(popup.startTimeLabel)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .lineLimit(1)
-                }
-                .padding([.horizontal, .bottom], 8)
+                Text(popup.startTimeLabel)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .lineLimit(1)
             }
+            .padding([.horizontal, .bottom], 8)
         }
         .frame(width: 110, height: 160)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .shadow(color: Color.black.opacity(0.06), radius: 6, y: 3)
     }
 }

@@ -162,8 +162,10 @@ final class EarthGlobeRenderer {
             latitude: city.latitude,
             longitude: city.longitude
         )
+        // Frame the pin above center so the popup hanging under it reads as centered.
+        let framingTarget = simd_normalize(SIMD3<Float>(0, 0.28, 1))
         let lat = Float(city.latitude * .pi / 180)
-        var targetOrientation = simd_quatf(from: cityDirection, to: SIMD3(0, 0, 1))
+        var targetOrientation = simd_quatf(from: cityDirection, to: framingTarget)
         targetOrientation = simd_quatf(angle: lat * 0.25, axis: SIMD3(1, 0, 0)) * targetOrientation
 
         SCNTransaction.begin()
@@ -206,19 +208,24 @@ final class EarthGlobeRenderer {
         }
     }
 
-    func handleTap(at point: CGPoint, in view: SCNView) -> Bool {
+    /// Hit-tests a city pin (or nearby marker) without starting fly-to.
+    func city(at point: CGPoint, in view: SCNView) -> City? {
         let hits = view.hitTest(point, options: [.searchMode: SCNHitTestSearchMode.closest.rawValue])
         for hit in hits {
             if let marker = cityMarkers.first(where: { $0.contains(hit.node) }) {
-                flyTo(city: marker.city) { [weak self] in self?.onCitySelected?(marker.city) }
-                return true
+                return marker.city
             }
         }
-        if let nearest = nearestMarker(to: point, in: view) {
-            flyTo(city: nearest.city) { [weak self] in self?.onCitySelected?(nearest.city) }
-            return true
-        }
-        return false
+        return nearestMarker(to: point, in: view)?.city
+    }
+
+    /// Screen point of a city's pin tip (bottom of the pin) in the SceneKit view's coordinates.
+    func pinTipScreenPoint(for city: City, in view: SCNView) -> CGPoint? {
+        guard let marker = cityMarkers.first(where: { $0.city.id == city.id }) else { return nil }
+        // Tip is the marker root; pin graphic extends upward from there.
+        let projected = view.projectPoint(marker.node.presentation.worldPosition)
+        guard projected.z > 0, projected.z < 1 else { return nil }
+        return CGPoint(x: CGFloat(projected.x), y: CGFloat(projected.y))
     }
 
     // MARK: - Scene
