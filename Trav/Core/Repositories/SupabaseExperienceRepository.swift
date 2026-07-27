@@ -2,55 +2,65 @@ import Foundation
 import Supabase
 
 struct SupabaseExperienceRepository: ExperienceRepository {
+    static let pageSize = 20
+
     private var client: SupabaseClient {
-        guard let client = SupabaseManager.serviceClient ?? SupabaseManager.client else {
-            preconditionFailure("SupabaseExperienceRepository used without a configured SupabaseClient.")
+        get throws {
+            guard let client = SupabaseManager.client else {
+                throw RepositoryError.backendUnavailable
+            }
+            return client
         }
-        return client
     }
 
-    // MARK: - DB Structs aligned with user's schema
+    // MARK: - Wire types
 
-    private struct DBExperienceInsert: Codable {
-        let id: UUID
-        let user_id: UUID
-        let title: String
-        let city: String
-        let stops: [String]
-        let image: [String]?
-        let created_at: Date
-        let rating: [String: Double]?
-    }
-
-    private struct DBExperience: Codable {
+    /// Full experience row with the creator profile embedded (single round trip).
+    struct DBExperienceRow: Decodable {
         let id: UUID
         let user_id: UUID
         let title: String
         let description: String
         let city: String
+        let city_id: UUID?
         let stops: [String]
         let image: StringOrArray?
         let rating: RadarRating?
+        let save_count: Int
+        let like_count: Int
+        let completion_count: Int
+        let comment_count: Int
+        let created_at: Date?
+        let creator: DBProfileSummary?
 
         enum CodingKeys: String, CodingKey {
-            case id, user_id, title, description, city, stops, image, rating
+            case id, user_id, title, description, city, city_id, stops, image, rating
+            case save_count, like_count, completion_count, comment_count
+            case created_at, creator
         }
 
         init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            id = try container.decode(UUID.self, forKey: .id)
-            user_id = try container.decode(UUID.self, forKey: .user_id)
-            title = try container.decode(String.self, forKey: .title)
-            description = (try container.decodeIfPresent(String.self, forKey: .description)) ?? ""
-            city = try container.decode(String.self, forKey: .city)
-            stops = try container.decode([String].self, forKey: .stops)
-            image = try container.decodeIfPresent(StringOrArray.self, forKey: .image)
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decode(UUID.self, forKey: .id)
+            user_id = try c.decode(UUID.self, forKey: .user_id)
+            title = try c.decode(String.self, forKey: .title)
+            description = (try c.decodeIfPresent(String.self, forKey: .description)) ?? ""
+            city = (try c.decodeIfPresent(String.self, forKey: .city)) ?? ""
+            city_id = try c.decodeIfPresent(UUID.self, forKey: .city_id)
+            stops = (try c.decodeIfPresent([String].self, forKey: .stops)) ?? []
+            image = try c.decodeIfPresent(StringOrArray.self, forKey: .image)
+            save_count = (try c.decodeIfPresent(Int.self, forKey: .save_count)) ?? 0
+            like_count = (try c.decodeIfPresent(Int.self, forKey: .like_count)) ?? 0
+            completion_count = (try c.decodeIfPresent(Int.self, forKey: .completion_count)) ?? 0
+            comment_count = (try c.decodeIfPresent(Int.self, forKey: .comment_count)) ?? 0
+            created_at = try c.decodeIfPresent(Date.self, forKey: .created_at)
+            creator = try c.decodeIfPresent(DBProfileSummary.self, forKey: .creator)
 
-            // Rating is stored as a flat scores dict on write. Decode leniently so one
-            // malformed row (or a missing column) does not fail the entire leaderboard fetch.
-            if let scores = try? container.decode([String: Double].self, forKey: .rating), !scores.isEmpty {
+            // Rating is stored as a flat scores dict. Decode leniently so one
+            // malformed row does not fail an entire feed fetch.
+            if let scores = try? c.decode([String: Double].self, forKey: .rating), !scores.isEmpty {
                 rating = RadarRating(scores: scores)
-            } else if let decoded = try? container.decode(RadarRating.self, forKey: .rating),
+            } else if let decoded = try? c.decode(RadarRating.self, forKey: .rating),
                       !decoded.scores.isEmpty {
                 rating = decoded
             } else {
@@ -59,16 +69,38 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         }
     }
 
-    private struct DBPlace: Codable {
+    struct DBProfileSummary: Decodable {
+        let id: UUID
+        let username: String
+        let display_name: String
+        let avatar_url: String?
+        let is_verified: Bool?
+
+        var summary: ProfileSummary {
+            ProfileSummary(
+                id: id,
+                username: username,
+                displayName: display_name,
+                avatarURL: avatar_url.flatMap { URL(string: $0) },
+                isVerified: is_verified ?? false
+            )
+        }
+    }
+
+    struct DBPlace: Decodable {
         let id: String
+        let client_uuid: UUID?
         let name: String
-        let basic_category: String
+        let basic_category: String?
         let latitude: Double
         let longitude: Double
+        let city: String?
+        let image_urls: [String]?
         let stops: [String]?
     }
 
-    private struct DBStop: Codable {
+    /// JSON payload stored inside `experiences.stops` / `places.stops` entries.
+    struct DBStop: Codable {
         let id: UUID
         let name: String
         let emoji: String?
@@ -77,422 +109,376 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let longitude: Double
         let place_id: String?
         let orderIndex: Int
-    }
+        let creator_notes: String?
+        let duration_minutes: Int?
 
-    private struct DBProfileSummary: Codable {
-        let id: UUID
-        let username: String
-        let display_name: String
-        let avatar_url: String?
-        let is_verified: Bool
+        init(from stop: Stop) {
+            id = stop.id
+            name = stop.name
+            emoji = stop.emoji
+            description = stop.description
+            latitude = stop.latitude
+            longitude = stop.longitude
+            place_id = stop.placeID
+            orderIndex = stop.orderIndex
+            creator_notes = stop.creatorNotes
+            duration_minutes = stop.durationMinutes
+        }
 
-        enum CodingKeys: String, CodingKey {
-            case id
-            case username
-            case display_name = "display_name"
-            case avatar_url = "avatar_url"
-            case is_verified = "is_verified"
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = (try? c.decode(UUID.self, forKey: .id)) ?? UUID()
+            name = try c.decode(String.self, forKey: .name)
+            emoji = try c.decodeIfPresent(String.self, forKey: .emoji)
+            description = (try c.decodeIfPresent(String.self, forKey: .description)) ?? ""
+            latitude = (try c.decodeIfPresent(Double.self, forKey: .latitude)) ?? 0
+            longitude = (try c.decodeIfPresent(Double.self, forKey: .longitude)) ?? 0
+            place_id = try c.decodeIfPresent(String.self, forKey: .place_id)
+            orderIndex = (try c.decodeIfPresent(Int.self, forKey: .orderIndex)) ?? 0
+            creator_notes = try c.decodeIfPresent(String.self, forKey: .creator_notes)
+            duration_minutes = try c.decodeIfPresent(Int.self, forKey: .duration_minutes)
         }
     }
 
-    private func fetchProfiles(for userIDs: [UUID]) async -> [UUID: ProfileSummary] {
-        guard !userIDs.isEmpty else { return [:] }
-        do {
-            let dbProfiles: [DBProfileSummary] = try await client
-                .from("profiles")
-                .select()
-                .in("id", values: userIDs)
-                .execute()
-                .value
-            var map: [UUID: ProfileSummary] = [:]
-            for p in dbProfiles {
-                map[p.id] = ProfileSummary(
-                    id: p.id,
-                    username: p.username,
-                    displayName: p.display_name,
-                    avatarURL: p.avatar_url.flatMap { URL(string: $0) },
-                    isVerified: p.is_verified
-                )
-            }
-            return map
-        } catch {
-            print("Failed to fetch creator profiles for IDs \(userIDs): \(error)")
-            return [:]
-        }
-    }
+    /// Column list used by every experience read.
+    ///
+    /// Creator is loaded in a follow-up `profiles` query (`hydrateCreators`)
+    /// because PostgREST cannot disambiguate `experiences ↔ profiles` when
+    /// likes/saves M2M relationships exist and `experiences_user_id_fkey` is
+    /// missing on a drifted live DB (PGRST201).
+    static let experienceSelect = """
+    id, user_id, title, description, city, city_id, stops, image, rating, \
+    save_count, like_count, completion_count, comment_count, created_at
+    """
+    // MARK: - Publish
 
-    // MARK: - ExperienceRepository Protocol Implementation
-
-    func publishExperience(
-        title: String,
-        cityID: UUID,
-        creatorID: UUID,
-        stops: [StopPreview],
-        rating: RadarRating?,
-        imagesData: [Data]
-    ) async throws {
-        print("--- SupabaseExperienceRepository.publishExperience starting ---")
+    func publishExperience(_ draft: ExperienceDraft) async throws {
+        let client = try client
         let experienceID = UUID()
 
-        // Match cityID to a name, or default to "San Francisco"
-        let cityName = MockData.cities.first(where: { $0.id == cityID })?.name ?? "San Francisco"
-
         var imageURLStrings: [String] = []
-
-        for (index, data) in imagesData.enumerated() {
-            let path = "\(experienceID.uuidString.lowercased())/photo_\(index).jpg"
-            print("Uploading image \(index + 1)/\(imagesData.count) to Supabase Storage: path=\(path), size=\(data.count) bytes")
-            
-            do {
-                _ = try await client.storage
-                    .from("experiences")
-                    .upload(
-                        path,
-                        data: data,
-                        options: FileOptions(contentType: "image/jpeg")
-                    )
-                
-                let publicURL = try client.storage.from("experiences").getPublicURL(path: path)
-                imageURLStrings.append(publicURL.absoluteString)
-                print("Successfully uploaded image \(index + 1). Public URL: \(publicURL.absoluteString)")
-            } catch {
-                print("Error uploading image \(index): \(error)")
-            }
+        for (index, data) in draft.imagesData.enumerated() {
+            // User-scoped path so storage RLS can authorize the write.
+            let path = "\(draft.creatorID.uuidString.lowercased())/\(experienceID.uuidString.lowercased())/photo_\(index).jpg"
+            _ = try await client.storage
+                .from("experiences")
+                .upload(path, data: data, options: FileOptions(contentType: "image/jpeg"))
+            let publicURL = try client.storage.from("experiences").getPublicURL(path: path)
+            imageURLStrings.append(publicURL.absoluteString)
         }
 
-        let experienceInsert = DBExperienceInsert(
-            id: experienceID,
-            user_id: creatorID,
-            title: title,
-            city: cityName,
-            stops: stops.map { $0.name },
-            image: imageURLStrings.isEmpty ? nil : imageURLStrings,
-            created_at: Date(),
-            rating: rating?.scores
-        )
+        let encoder = JSONEncoder()
+        let stopPayloads: [String] = try draft.stops
+            .sorted { $0.orderIndex < $1.orderIndex }
+            .map { stop in
+                let data = try encoder.encode(DBStop(from: stop))
+                return String(decoding: data, as: UTF8.self)
+            }
 
-        print("Inserting experience into Supabase: \(experienceInsert)")
+        struct Insert: Encodable {
+            let id: UUID
+            let user_id: UUID
+            let title: String
+            let description: String
+            let city: String
+            let city_id: UUID
+            let stops: [String]
+            let image: [String]?
+            let rating: [String: Double]?
+            let is_published: Bool
+        }
 
-        // Insert experience row into experiences table
         try await client
             .from("experiences")
-            .insert(experienceInsert)
+            .insert(Insert(
+                id: experienceID,
+                user_id: draft.creatorID,
+                title: draft.title,
+                description: draft.description,
+                city: draft.city.name,
+                city_id: draft.city.id,
+                stops: stopPayloads,
+                image: imageURLStrings.isEmpty ? nil : imageURLStrings,
+                rating: draft.rating?.scores,
+                is_published: true
+            ))
             .execute()
-            
-        print("Successfully inserted experience into Supabase experiences table!")
+
+        // Persist normalized stop rows (coordinates / place IDs) for detail maps.
+        struct StopInsert: Encodable {
+            let experience_id: UUID
+            let order_index: Int
+            let name: String
+            let description: String
+            let creator_notes: String
+            let latitude: Double?
+            let longitude: Double?
+            let place_id: String?
+            let recommended_time: String?
+            let duration_minutes: Int
+            let emoji: String?
+        }
+
+        let stopRows = draft.stops
+            .sorted { $0.orderIndex < $1.orderIndex }
+            .enumerated()
+            .map { index, stop in
+                StopInsert(
+                    experience_id: experienceID,
+                    order_index: index,
+                    name: stop.name,
+                    description: stop.description,
+                    creator_notes: stop.creatorNotes ?? "",
+                    latitude: stop.latitude,
+                    longitude: stop.longitude,
+                    place_id: stop.placeID,
+                    recommended_time: stop.recommendedTime,
+                    duration_minutes: stop.durationMinutes,
+                    emoji: stop.emoji
+                )
+            }
+
+        if !stopRows.isEmpty {
+            try await client.from("stops").insert(stopRows).execute()
+        }
     }
+
+    // MARK: - Detail
 
     func fetchExperience(id: UUID) async throws -> Experience {
-        do {
-            let idStr = id.uuidString.lowercased()
-            
-            // 1. Try to fetch from experiences table first (User Posts)
-            if let dbExp: DBExperience = try? await client
-                .from("experiences")
-                .select()
-                .eq("id", value: idStr)
-                .single()
-                .execute()
-                .value {
-                
-                // Fetch author's profile details
-                let dbProfile: DBProfileSummary? = try? await client
-                    .from("profiles")
-                    .select("id, username, display_name, avatar_url, is_verified")
-                    .eq("id", value: dbExp.user_id)
-                    .single()
-                    .execute()
-                    .value
-                
-                let userCreator = ProfileSummary(
-                    id: dbExp.user_id,
-                    username: dbProfile?.username ?? "traveler",
-                    displayName: dbProfile?.display_name ?? "Shared by Traveler",
-                    avatarURL: dbProfile?.avatar_url.flatMap { URL(string: $0) },
-                    isVerified: dbProfile?.is_verified ?? false
-                )
-                
-                let stops: [Stop] = dbExp.stops.enumerated().compactMap { (index, stopStr) in
-                    guard let data = stopStr.data(using: .utf8),
-                          let dbStop = try? JSONDecoder().decode(DBStop.self, from: data) else {
-                        // Fallback to name and assign dynamic SF Symbol if plain text string
-                        return Stop(
-                            id: UUID(),
-                            orderIndex: index,
-                            name: stopStr,
-                            description: "Curated hangout stop.",
-                            creatorNotes: nil,
-                            latitude: 0.0,
-                            longitude: 0.0,
-                            placeID: nil,
-                            recommendedTime: nil,
-                            durationMinutes: 30,
-                            emoji: sfSymbolForEmojiOrCategory(stopStr),
-                            media: []
-                        )
-                    }
-                    return Stop(
-                        id: dbStop.id,
-                        orderIndex: dbStop.orderIndex,
-                        name: dbStop.name,
-                        description: dbStop.description,
-                        creatorNotes: nil,
-                        latitude: dbStop.latitude,
-                        longitude: dbStop.longitude,
-                        placeID: dbStop.place_id,
-                        recommendedTime: nil,
-                        durationMinutes: 30,
-                        emoji: dbStop.emoji,
-                        media: []
-                    )
-                }
-                
-                let matchedCity = MockData.cities.first(where: { $0.name.localizedCaseInsensitiveCompare(dbExp.city) == .orderedSame })
-                let cityID = matchedCity?.id ?? UUID()
-                
-                let firstStopName = stops.first?.name ?? "park"
-                let parsedURLs = dbExp.image?.values.compactMap { URL(string: $0) } ?? []
-                let imageURLs = parsedURLs.isEmpty ? [defaultCoverForCategory(firstStopName)].compactMap { $0 } : parsedURLs
-                
-                return Experience(
-                    id: dbExp.id,
-                    cityID: cityID,
-                    creator: userCreator,
-                    title: dbExp.title,
-                    description: "",
-                    imageURLs: imageURLs,
-                    durationMinutes: stops.count * 30,
-                    costLevel: .moderate,
-                    estimatedCostUSD: nil,
-                    transportMode: .walking,
-                    totalDistanceMeters: 0,
-                    saveCount: 0,
-                    likeCount: 0,
-                    completionCount: 0,
-                    commentCount: 0,
-                    isPublished: true,
-                    publishedAt: Date(),
-                    stops: stops,
-                    routeSegments: [],
-                    rating: dbExp.rating
-                )
+        let client = try client
+        let idStr = id.uuidString.lowercased()
+
+        // 1. User-published experience.
+        let expRows: [DBExperienceRow] = try await client
+            .from("experiences")
+            .select(Self.experienceSelect)
+            .eq("id", value: idStr)
+            .limit(1)
+            .execute()
+            .value
+
+        if let row = expRows.first {
+            let creators = await fetchCreators(for: [row])
+            var detail = experience(from: row, creators: creators)
+            if let normalized = try? await fetchNormalizedStops(experienceID: row.id), !normalized.isEmpty {
+                detail.stops = normalized
             }
-            
-            // 2. Otherwise, fallback to public places table (System Recommendations)
-            let dbPlace: DBPlace = try await client
-                .from("places")
-                .select()
-                .eq("id", value: idStr)
-                .single()
-                .execute()
-                .value
-            
-            let recCreator = ProfileSummary(
-                id: UUID(),
-                username: "rec_by_trav",
-                displayName: "Rec by Trav",
-                avatarURL: nil,
-                isVerified: true
-            )
-
-            let stops: [Stop]
-            if let stopsArray = dbPlace.stops, !stopsArray.isEmpty {
-                stops = stopsArray.compactMap { stopStr in
-                    guard let data = stopStr.data(using: .utf8),
-                          let dbStop = try? JSONDecoder().decode(DBStop.self, from: data) else {
-                        return nil
-                    }
-                    return Stop(
-                        id: dbStop.id,
-                        orderIndex: dbStop.orderIndex,
-                        name: dbStop.name,
-                        description: dbStop.description,
-                        creatorNotes: nil,
-                        latitude: dbStop.latitude,
-                        longitude: dbStop.longitude,
-                        placeID: dbStop.place_id,
-                        recommendedTime: nil,
-                        durationMinutes: 30,
-                        emoji: dbStop.emoji,
-                        media: []
-                    )
-                }
-            } else {
-                let stop = Stop(
-                    id: UUID(),
-                    orderIndex: 0,
-                    name: dbPlace.name,
-                    description: "Curated hangout spot.",
-                    creatorNotes: nil,
-                    latitude: dbPlace.latitude,
-                    longitude: dbPlace.longitude,
-                    placeID: dbPlace.id,
-                    recommendedTime: nil,
-                    durationMinutes: 45,
-                    emoji: emojiForCategory(dbPlace.basic_category),
-                    media: []
-                )
-                stops = [stop]
-            }
-
-            let matchedCity = MockData.cities.first(where: { $0.name.localizedCaseInsensitiveCompare("Berkeley") == .orderedSame })
-            let cityID = matchedCity?.id ?? UUID()
-
-            return Experience(
-                id: id,
-                cityID: cityID,
-                creator: recCreator,
-                title: dbPlace.name,
-                description: "Explore local spots and neighborhood favorites curated by Trav.",
-                coverImageURL: defaultCoverForCategory(dbPlace.name),
-                durationMinutes: stops.count * 30,
-                costLevel: .moderate,
-                estimatedCostUSD: nil,
-                transportMode: .walking,
-                totalDistanceMeters: 0,
-                saveCount: 0,
-                likeCount: 0,
-                completionCount: 0,
-                commentCount: 0,
-                isPublished: true,
-                publishedAt: Date(),
-                stops: stops,
-                routeSegments: []
-            )
-        } catch {
-            print("Failed to fetch experience \(id) from Supabase, falling back to mock: \(error)")
-            return try await MockExperienceRepository().fetchExperience(id: id)
+            return detail
         }
+
+        // 2. Curated place (pipeline content), looked up by its stable client UUID.
+        let placeRows: [DBPlace] = try await client
+            .from("places")
+            .select()
+            .eq("client_uuid", value: idStr)
+            .limit(1)
+            .execute()
+            .value
+
+        guard let place = placeRows.first else {
+            throw RepositoryError.notFound
+        }
+        return try await experience(from: place, id: id)
     }
 
-    func fetchCityFeed(cityID: UUID, page: Int) async throws -> Paginated<ExperienceSummary> {
-        debugLog("SupabaseExperienceRepository.fetchCityFeed started for cityID: \(cityID)")
-        do {
-            // Find city name from cityID
-            let cityName = MockData.cities.first(where: { $0.id == cityID })?.name ?? "Unknown"
-            debugLog("SupabaseExperienceRepository.fetchCityFeed: resolved cityName: '\(cityName)'")
+    // MARK: - Feeds
 
-            let allExps: [DBExperience] = try await client
-                .from("experiences")
-                .select()
+    func fetchCityFeed(cityID: UUID, page: Int) async throws -> Paginated<ExperienceSummary> {
+        let client = try client
+        let range = Self.pageRange(page)
+
+        let rows: [DBExperienceRow] = try await client
+            .from("experiences")
+            .select(Self.experienceSelect)
+            .eq("city_id", value: cityID.uuidString.lowercased())
+            .eq("is_published", value: true)
+            .order("created_at", ascending: false)
+            .range(from: range.lowerBound, to: range.upperBound)
+            .execute()
+            .value
+
+        let creators = await fetchCreators(for: rows)
+        return Paginated(
+            items: rows.map { summary(from: $0, creators: creators) },
+            page: page,
+            hasMore: rows.count == Self.pageSize
+        )
+    }
+
+    func fetchHomeFeed(page: Int) async throws -> Paginated<ExperienceSummary> {
+        let client = try client
+        let range = Self.pageRange(page)
+
+        let rows: [DBExperienceRow] = try await client
+            .from("experiences")
+            .select(Self.experienceSelect)
+            .eq("is_published", value: true)
+            .order("created_at", ascending: false)
+            .range(from: range.lowerBound, to: range.upperBound)
+            .execute()
+            .value
+
+        let creators = await fetchCreators(for: rows)
+        return Paginated(
+            items: rows.map { summary(from: $0, creators: creators) },
+            page: page,
+            hasMore: rows.count == Self.pageSize
+        )
+    }
+
+    func fetchPlacesFeed(page: Int) async throws -> Paginated<ExperienceSummary> {
+        let client = try client
+        let range = Self.pageRange(page)
+
+        let places: [DBPlace]
+        do {
+            places = try await client
+                .from("places")
+                .select("id, client_uuid, name, basic_category, latitude, longitude, city, image_urls, stops")
                 .order("created_at", ascending: false)
+                .range(from: range.lowerBound, to: range.upperBound)
                 .execute()
                 .value
-
-            debugLog("SupabaseExperienceRepository.fetchCityFeed: total experiences in table = \(allExps.count)")
-
-            let dbExps = allExps.filter { dbExp in
-                let expCity = dbExp.city.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                let targetCity = cityName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                return expCity == targetCity || expCity.contains(targetCity) || targetCity.contains(expCity)
-            }
-
-            debugLog("SupabaseExperienceRepository.fetchCityFeed: matched \(dbExps.count) experiences for '\(cityName)'")
-
-            let userIDs = Array(Set(dbExps.map(\.user_id)))
-            let profilesMap = await fetchProfiles(for: userIDs)
-
-            var summaries: [ExperienceSummary] = []
-            for dbExp in dbExps {
-                let stopsPreviews = dbExp.stops.map { stopName in
-                    StopPreview(id: UUID(), name: stopName, emoji: nil)
-                }
-
-                let creator = profilesMap[dbExp.user_id] ?? ProfileSummary(
-                    id: dbExp.user_id,
-                    username: "traveler",
-                    displayName: "Traveler",
-                    avatarURL: nil,
-                    isVerified: false
-                )
-
-                let parsedURLs = dbExp.image?.values.compactMap { URL(string: $0) } ?? []
-                let imageURLs = parsedURLs.isEmpty ? [defaultCoverForCategory(dbExp.title)].compactMap { $0 } : parsedURLs
-
-                let summary = ExperienceSummary(
-                    id: dbExp.id,
-                    cityID: cityID,
-                    title: dbExp.title,
-                    imageURLs: imageURLs,
-                    creator: creator,
-                    durationMinutes: max(30, dbExp.stops.count * 30),
-                    costLevel: .budget,
-                    estimatedCostUSD: nil,
-                    saveCount: 0,
-                    likeCount: 0,
-                    completionCount: 0,
-                    stops: stopsPreviews,
-                    rating: dbExp.rating
-                )
-                summaries.append(summary)
-            }
-
-            return Paginated(items: summaries, page: page, hasMore: false)
         } catch {
-            debugLog("SupabaseExperienceRepository.fetchCityFeed failed with error: \(error)")
-            return Paginated(items: [], page: page, hasMore: false)
+            // Older place rows / missing created_at — still return catalog content.
+            TravLog.network.error("fetchPlacesFeed ordered query failed, retrying: \(error.localizedDescription, privacy: .public)")
+            places = try await client
+                .from("places")
+                .select("id, client_uuid, name, basic_category, latitude, longitude, city, image_urls, stops")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
         }
+
+        let recCreator = ProfileSummary(
+            id: StableUUID.from("rec_by_trav"),
+            username: "rec_by_trav",
+            displayName: "Rec by Trav",
+            avatarURL: nil,
+            isVerified: true
+        )
+
+        let catalog = try? await CityCatalog.shared.all()
+
+        let items: [ExperienceSummary] = places.map { place in
+            let stops = Self.parseStops(place.stops ?? [])
+            let stopPreviews = stops.isEmpty
+                ? [StopPreview(id: StableUUID.from("place:\(place.id)"), name: place.name, emoji: Self.emojiForCategory(place.basic_category))]
+                : stops.map { StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji) }
+
+            let cityName = place.city ?? "Berkeley"
+            let city = catalog?.first { $0.name.caseInsensitiveCompare(cityName) == .orderedSame }
+            let imageURLs = (place.image_urls ?? []).compactMap { URL(string: $0) }
+
+            return ExperienceSummary(
+                id: place.client_uuid ?? StableUUID.from(place.id),
+                cityID: city?.id ?? StableUUID.from("city:\(cityName.lowercased())"),
+                title: place.name,
+                imageURLs: imageURLs,
+                coverImageURL: imageURLs.first ?? Self.defaultCoverForCategory(place.name),
+                creator: recCreator,
+                durationMinutes: stopPreviews.count > 1 ? 120 : 45,
+                costLevel: stopPreviews.count > 1 ? .moderate : .budget,
+                estimatedCostUSD: nil,
+                stops: stopPreviews,
+                cityName: cityName
+            )
+        }
+
+        return Paginated(items: items, page: page, hasMore: places.count == Self.pageSize)
+    }
+
+    func fetchPopups() async throws -> [Popup] {
+        let client = try client
+
+        // Timestamps are ingested by the pipeline in inconsistent formats, so
+        // decode as strings and parse leniently.
+        struct DBPopup: Decodable {
+            let id: UUID
+            let event_name: String
+            let address: String?
+            let start_time: String?
+            let end_time: String?
+        }
+
+        func parseDate(_ raw: String?) -> Date? {
+            guard let raw else { return nil }
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = iso.date(from: raw) { return date }
+            iso.formatOptions = [.withInternetDateTime]
+            if let date = iso.date(from: raw) { return date }
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            for format in ["yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ", "yyyy-MM-dd'T'HH:mm:ssZZZZZ", "yyyy-MM-dd'T'HH:mm:ss"] {
+                formatter.dateFormat = format
+                if let date = formatter.date(from: raw) { return date }
+            }
+            return nil
+        }
+
+        let rows: [DBPopup]
+        do {
+            rows = try await client
+                .from("popups")
+                .select("id, event_name, address, start_time, end_time")
+                .order("start_time", ascending: true)
+                .limit(50)
+                .execute()
+                .value
+        } catch {
+            rows = try await client
+                .from("popups")
+                .select("id, event_name, address, start_time, end_time")
+                .limit(50)
+                .execute()
+                .value
+        }
+
+        // Keep recent + upcoming events so preexisting popups still appear.
+        let cutoff = Calendar.current.date(byAdding: .day, value: -14, to: Date()) ?? Date.distantPast
+        return rows
+            .map {
+                Popup(
+                    id: $0.id,
+                    name: $0.event_name,
+                    address: $0.address ?? "Berkeley, CA",
+                    startTime: parseDate($0.start_time),
+                    endTime: parseDate($0.end_time)
+                )
+            }
+            .filter { popup in
+                guard let start = popup.startTime else { return true }
+                return start >= cutoff
+            }
+            .sorted { lhs, rhs in
+                switch (lhs.startTime, rhs.startTime) {
+                case let (l?, r?): return l < r
+                case (_?, nil): return true
+                case (nil, _?): return false
+                case (nil, nil): return lhs.name < rhs.name
+                }
+            }
     }
 
     func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary] {
-        do {
-            let cityName = MockData.cities.first(where: { $0.id == cityID })?.name ?? "Unknown"
-
-            let allExps: [DBExperience] = try await client
-                .from("experiences")
-                .select()
-                .eq("user_id", value: userID)
-                .order("created_at", ascending: false)
-                .execute()
-                .value
-
-            let dbExps = allExps.filter { dbExp in
-                let expCity = dbExp.city.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                let targetCity = cityName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                return expCity == targetCity || expCity.contains(targetCity) || targetCity.contains(expCity)
-            }
-
-            let profilesMap = await fetchProfiles(for: [userID])
-            let creator = profilesMap[userID] ?? ProfileSummary(
-                id: userID,
-                username: "traveler",
-                displayName: "Traveler",
-                avatarURL: nil,
-                isVerified: false
-            )
-
-            var summaries: [ExperienceSummary] = []
-            for dbExp in dbExps {
-                let stopsPreviews = dbExp.stops.map { stopName in
-                    StopPreview(id: UUID(), name: stopName, emoji: nil)
-                }
-
-                let parsedURLs = dbExp.image?.values.compactMap { URL(string: $0) } ?? []
-                let imageURLs = parsedURLs.isEmpty ? [defaultCoverForCategory(dbExp.title)].compactMap { $0 } : parsedURLs
-
-                let summary = ExperienceSummary(
-                    id: dbExp.id,
-                    cityID: cityID,
-                    title: dbExp.title,
-                    imageURLs: imageURLs,
-                    creator: creator,
-                    durationMinutes: max(30, dbExp.stops.count * 30),
-                    costLevel: .budget,
-                    estimatedCostUSD: nil,
-                    saveCount: 0,
-                    likeCount: 0,
-                    completionCount: 0,
-                    stops: stopsPreviews,
-                    rating: dbExp.rating
-                )
-                summaries.append(summary)
-            }
-            return summaries
-        } catch {
-            print("Failed to fetch user experiences for \(cityID) from Supabase: \(error)")
-            return []
-        }
+        let client = try client
+        let rows: [DBExperienceRow] = try await client
+            .from("experiences")
+            .select(Self.experienceSelect)
+            .eq("city_id", value: cityID.uuidString.lowercased())
+            .eq("user_id", value: userID.uuidString.lowercased())
+            .eq("is_published", value: true)
+            .order("created_at", ascending: false)
+            .limit(50)
+            .execute()
+            .value
+        let creators = await fetchCreators(for: rows)
+        return rows.map { summary(from: $0, creators: creators) }
     }
+
+    // MARK: - Rankings
 
     func fetchRankedExperiences(
         cityID: UUID?,
@@ -515,84 +501,274 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         return RankingScore.paginate(ranked, page: page)
     }
 
-    /// Loads experiences for rankings. Ratings decode leniently; unrated rows are kept
-    /// so the leaderboard is not empty when the Feed still has posts.
+    /// Loads rated experiences for leaderboards. Filtered server-side; capped
+    /// so leaderboards stay fast as the table grows.
     private func fetchRatedExperienceSummaries(
         cityID: UUID?,
         creatorID: UUID?
     ) async throws -> [ExperienceSummary] {
-        let allExps: [DBExperience]
+        let client = try client
+        var query = client
+            .from("experiences")
+            .select(Self.experienceSelect)
+            .eq("is_published", value: true)
+            .not("rating", operator: .is, value: "null")
+
+        if let cityID {
+            query = query.eq("city_id", value: cityID.uuidString.lowercased())
+        }
         if let creatorID {
-            allExps = try await client
-                .from("experiences")
-                .select()
-                .eq("user_id", value: creatorID)
-                .order("created_at", ascending: false)
+            query = query.eq("user_id", value: creatorID.uuidString.lowercased())
+        }
+
+        let rows: [DBExperienceRow] = try await query
+            .order("created_at", ascending: false)
+            .limit(200)
+            .execute()
+            .value
+
+        let creators = await fetchCreators(for: rows)
+        return rows.map { summary(from: $0, creators: creators) }
+    }
+
+    // MARK: - Mapping
+
+    static func pageRange(_ page: Int) -> ClosedRange<Int> {
+        let from = page * pageSize
+        return from...(from + pageSize - 1)
+    }
+
+    /// Loads creator profiles in one round trip. Failures fall back to placeholders
+    /// so a profiles RLS/decode issue never blanks the whole feed.
+    private func fetchCreators(for rows: [DBExperienceRow]) async -> [UUID: DBProfileSummary] {
+        let ids = Array(Set(rows.map(\.user_id)))
+        guard !ids.isEmpty else { return [:] }
+        do {
+            let client = try client
+            let profiles: [DBProfileSummary] = try await client
+                .from("profiles")
+                .select("id, username, display_name, avatar_url, is_verified")
+                .in("id", values: ids.map { $0.uuidString.lowercased() })
                 .execute()
                 .value
-        } else {
-            allExps = try await client
-                .from("experiences")
-                .select()
-                .order("created_at", ascending: false)
-                .execute()
-                .value
+            return Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+        } catch {
+            TravLog.network.error("fetchCreators failed: \(error.localizedDescription, privacy: .public)")
+            return [:]
+        }
+    }
+
+    private func resolvedCreator(
+        for row: DBExperienceRow,
+        creators: [UUID: DBProfileSummary]
+    ) -> ProfileSummary {
+        row.creator?.summary
+            ?? creators[row.user_id]?.summary
+            ?? Self.fallbackCreator(id: row.user_id)
+    }
+
+    func summary(
+        from row: DBExperienceRow,
+        creators: [UUID: DBProfileSummary] = [:]
+    ) -> ExperienceSummary {
+        let stops = Self.parseStops(row.stops)
+        let imageURLs = (row.image?.values ?? []).compactMap { URL(string: $0) }
+        return ExperienceSummary(
+            id: row.id,
+            cityID: row.city_id ?? StableUUID.from("city:\(row.city.lowercased())"),
+            title: row.title,
+            imageURLs: imageURLs,
+            creator: resolvedCreator(for: row, creators: creators),
+            durationMinutes: Self.estimatedDuration(stops: stops),
+            costLevel: .moderate,
+            estimatedCostUSD: nil,
+            saveCount: row.save_count,
+            likeCount: row.like_count,
+            completionCount: row.completion_count,
+            stops: stops.map { StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji) },
+            rating: row.rating,
+            cityName: row.city
+        )
+    }
+
+    func experience(
+        from row: DBExperienceRow,
+        creators: [UUID: DBProfileSummary] = [:]
+    ) -> Experience {
+        let stops = Self.parseStops(row.stops)
+        let imageURLs = (row.image?.values ?? []).compactMap { URL(string: $0) }
+        return Experience(
+            id: row.id,
+            cityID: row.city_id ?? StableUUID.from("city:\(row.city.lowercased())"),
+            creator: resolvedCreator(for: row, creators: creators),
+            title: row.title,
+            description: row.description,
+            imageURLs: imageURLs,
+            durationMinutes: Self.estimatedDuration(stops: stops),
+            costLevel: .moderate,
+            estimatedCostUSD: nil,
+            transportMode: .walking,
+            totalDistanceMeters: 0,
+            saveCount: row.save_count,
+            likeCount: row.like_count,
+            completionCount: row.completion_count,
+            commentCount: row.comment_count,
+            isPublished: true,
+            publishedAt: row.created_at,
+            stops: stops,
+            routeSegments: [],
+            rating: row.rating
+        )
+    }
+
+    private func experience(from place: DBPlace, id: UUID) async throws -> Experience {
+        let recCreator = ProfileSummary(
+            id: StableUUID.from("rec_by_trav"),
+            username: "rec_by_trav",
+            displayName: "Rec by Trav",
+            avatarURL: nil,
+            isVerified: true
+        )
+
+        var stops = Self.parseStops(place.stops ?? [])
+        if stops.isEmpty {
+            stops = [Stop(
+                id: UUID(),
+                orderIndex: 0,
+                name: place.name,
+                description: "Curated hangout spot.",
+                creatorNotes: nil,
+                latitude: place.latitude,
+                longitude: place.longitude,
+                placeID: place.id,
+                recommendedTime: nil,
+                durationMinutes: 45,
+                emoji: Self.emojiForCategory(place.basic_category),
+                media: []
+            )]
         }
 
-        let cityNameFilter: String? = cityID.flatMap { id in
-            MockData.cities.first(where: { $0.id == id })?.name
+        let cityName = place.city ?? "Berkeley"
+        let city = try? await CityCatalog.shared.city(named: cityName)
+        let imageURLs = (place.image_urls ?? []).compactMap { URL(string: $0) }
+
+        return Experience(
+            id: id,
+            cityID: city?.id ?? StableUUID.from("city:\(cityName.lowercased())"),
+            creator: recCreator,
+            title: place.name,
+            description: "Explore local spots and neighborhood favorites curated by Trav.",
+            imageURLs: imageURLs,
+            coverImageURL: imageURLs.first ?? Self.defaultCoverForCategory(place.name),
+            durationMinutes: Self.estimatedDuration(stops: stops),
+            costLevel: .moderate,
+            estimatedCostUSD: nil,
+            transportMode: .walking,
+            totalDistanceMeters: 0,
+            saveCount: 0,
+            likeCount: 0,
+            completionCount: 0,
+            commentCount: 0,
+            isPublished: true,
+            publishedAt: nil,
+            stops: stops,
+            routeSegments: []
+        )
+    }
+
+    private func fetchNormalizedStops(experienceID: UUID) async throws -> [Stop] {
+        struct Row: Decodable {
+            let id: UUID
+            let order_index: Int
+            let name: String
+            let description: String?
+            let creator_notes: String?
+            let latitude: Double?
+            let longitude: Double?
+            let place_id: String?
+            let recommended_time: String?
+            let duration_minutes: Int?
+            let emoji: String?
         }
 
-        let dbExps = allExps.filter { dbExp in
-            guard let cityNameFilter else { return true }
-            let expCity = dbExp.city.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            let targetCity = cityNameFilter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            return expCity == targetCity || expCity.contains(targetCity) || targetCity.contains(expCity)
-        }
+        let rows: [Row] = try await client
+            .from("stops")
+            .select()
+            .eq("experience_id", value: experienceID.uuidString.lowercased())
+            .order("order_index", ascending: true)
+            .execute()
+            .value
 
-        let userIDs = Array(Set(dbExps.map(\.user_id)))
-        let profilesMap = await fetchProfiles(for: userIDs)
-
-        return dbExps.map { dbExp in
-            let resolvedCityID = cityID
-                ?? MockData.cities.first(where: {
-                    $0.name.trimmingCharacters(in: .whitespacesAndNewlines)
-                        .caseInsensitiveCompare(dbExp.city.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
-                })?.id
-                ?? MockData.cities.first?.id
-                ?? UUID()
-
-            let creator = profilesMap[dbExp.user_id] ?? ProfileSummary(
-                id: dbExp.user_id,
-                username: "traveler",
-                displayName: "Traveler",
-                avatarURL: nil,
-                isVerified: false
-            )
-
-            let parsedURLs = dbExp.image?.values.compactMap { URL(string: $0) } ?? []
-            return ExperienceSummary(
-                id: dbExp.id,
-                cityID: resolvedCityID,
-                title: dbExp.title,
-                imageURLs: parsedURLs,
-                creator: creator,
-                durationMinutes: max(30, dbExp.stops.count * 30),
-                costLevel: .budget,
-                estimatedCostUSD: nil,
-                saveCount: 0,
-                likeCount: 0,
-                completionCount: 0,
-                stops: dbExp.stops.map { StopPreview(id: UUID(), name: $0, emoji: nil) },
-                rating: dbExp.rating,
-                cityName: dbExp.city
+        return rows.map { row in
+            Stop(
+                id: row.id,
+                orderIndex: row.order_index,
+                name: row.name,
+                description: row.description ?? "",
+                creatorNotes: row.creator_notes,
+                latitude: row.latitude ?? 0,
+                longitude: row.longitude ?? 0,
+                placeID: row.place_id,
+                recommendedTime: row.recommended_time,
+                durationMinutes: row.duration_minutes ?? 30,
+                emoji: row.emoji,
+                media: []
             )
         }
     }
 
-    // MARK: - Helpers for Places mapping
+    /// Stops are stored as a text array whose entries are either plain names
+    /// (legacy rows) or JSON payloads with coordinates (geocoded rows).
+    static func parseStops(_ raw: [String]) -> [Stop] {
+        let decoder = JSONDecoder()
+        return raw.enumerated().map { index, entry in
+            if entry.hasPrefix("{"),
+               let data = entry.data(using: .utf8),
+               let dbStop = try? decoder.decode(DBStop.self, from: data) {
+                return Stop(
+                    id: dbStop.id,
+                    orderIndex: dbStop.orderIndex,
+                    name: dbStop.name,
+                    description: dbStop.description,
+                    creatorNotes: dbStop.creator_notes,
+                    latitude: dbStop.latitude,
+                    longitude: dbStop.longitude,
+                    placeID: dbStop.place_id,
+                    recommendedTime: nil,
+                    durationMinutes: dbStop.duration_minutes ?? 30,
+                    emoji: dbStop.emoji,
+                    media: []
+                )
+            }
+            return Stop(
+                id: StableUUID.from("stop:\(index):\(entry)"),
+                orderIndex: index,
+                name: entry,
+                description: "",
+                creatorNotes: nil,
+                latitude: 0,
+                longitude: 0,
+                placeID: nil,
+                recommendedTime: nil,
+                durationMinutes: 30,
+                emoji: nil,
+                media: []
+            )
+        }
+    }
 
-    private func defaultCoverForCategory(_ text: String) -> URL? {
+    static func estimatedDuration(stops: [Stop]) -> Int {
+        let total = stops.reduce(0) { $0 + $1.durationMinutes }
+        return max(30, total)
+    }
+
+    static func fallbackCreator(id: UUID) -> ProfileSummary {
+        ProfileSummary(id: id, username: "traveler", displayName: "Traveler", avatarURL: nil, isVerified: false)
+    }
+
+    // MARK: - Category helpers (shared with feed mapping)
+
+    static func defaultCoverForCategory(_ text: String) -> URL? {
         let textLower = text.lowercased()
         if textLower.contains("bar") || textLower.contains("pub") || textLower.contains("drink") || textLower.contains("lounge") {
             return URL(string: "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&q=80")
@@ -621,7 +797,8 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         return URL(string: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80")
     }
 
-    private func emojiForCategory(_ category: String) -> String {
+    static func emojiForCategory(_ category: String?) -> String {
+        guard let category else { return "📍" }
         let emojis: [String: String] = [
             "bar": "🍻",
             "shopping": "🛍️",

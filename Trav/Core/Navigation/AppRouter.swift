@@ -4,13 +4,57 @@ import Observation
 enum TravRoute: Identifiable, Hashable, Sendable {
     case experience(UUID)
     case profile(String)
+    case city(UUID)
     case notifications
 
     var id: String {
         switch self {
         case let .experience(id): "experience-\(id.uuidString)"
         case let .profile(username): "profile-\(username)"
+        case let .city(id): "city-\(id.uuidString)"
         case .notifications: "notifications"
+        }
+    }
+}
+
+/// Builds shareable `trav://` links. Swap the scheme for a Universal Link
+/// domain once web share pages exist.
+enum TravLinks {
+    static let scheme = "trav"
+
+    static func experience(_ id: UUID) -> URL {
+        URL(string: "\(scheme)://experience/\(id.uuidString.lowercased())")!
+    }
+
+    static func profile(_ username: String) -> URL {
+        let encoded = username.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? username
+        return URL(string: "\(scheme)://profile/\(encoded)")!
+    }
+
+    static func city(_ id: UUID) -> URL {
+        URL(string: "\(scheme)://city/\(id.uuidString.lowercased())")!
+    }
+
+    /// Parses a deep link into a route. Returns nil for unrecognized URLs.
+    static func route(for url: URL) -> TravRoute? {
+        guard url.scheme?.lowercased() == scheme else { return nil }
+        let target = url.host?.lowercased() ?? ""
+        let value = url.pathComponents.count > 1 ? url.pathComponents[1] : ""
+
+        switch target {
+        case "experience":
+            guard let id = UUID(uuidString: value) else { return nil }
+            return .experience(id)
+        case "profile":
+            guard !value.isEmpty else { return nil }
+            return .profile(value.removingPercentEncoding ?? value)
+        case "city":
+            guard let id = UUID(uuidString: value) else { return nil }
+            return .city(id)
+        case "notifications":
+            return .notifications
+        default:
+            return nil
         }
     }
 }
@@ -29,12 +73,25 @@ final class AppRouter {
     var feedKeyword: String = ""
     /// Bumped whenever navigation should switch to the Feed tab (e.g. globe city tap).
     private(set) var feedNavigationToken: UInt = 0
+    /// Bumped whenever the Explore tab becomes active so the globe can reset framing.
+    private(set) var exploreActivationToken: UInt = 0
 
-    /// Opens Feed with a strict city filter applied (globe pin / city suggestion).
+    /// Opens the immersive City Page (deep links / explicit city-page entry).
+    /// Globe pin taps use `openFeed(city:)` so Feed gets the city search tag.
     func openCity(_ city: City) {
-        selectedFeedCity = city
-        feedKeyword = ""
-        feedNavigationToken &+= 1
+        presentedRoute = .city(city.id)
+    }
+
+    func openCityPage(_ cityID: UUID) {
+        presentedRoute = .city(cityID)
+    }
+
+    /// Handles a `trav://` deep link. Returns true when routed.
+    @discardableResult
+    func handleDeepLink(_ url: URL) -> Bool {
+        guard let route = TravLinks.route(for: url) else { return false }
+        presentedRoute = route
+        return true
     }
 
     /// Switches to Feed, optionally applying a city chip.
@@ -58,6 +115,10 @@ final class AppRouter {
         selectedFeedCity = nil
         selectedFeedUser = nil
         feedKeyword = ""
+    }
+
+    func noteExploreActivated() {
+        exploreActivationToken &+= 1
     }
 
     func openExperience(_ experienceID: UUID) {
@@ -88,7 +149,9 @@ final class AppRouter {
 @Observable
 @MainActor
 final class SessionStore {
-    var phase: AuthPhase = .unauthenticated
+    /// Starts in `.loading` so the first frame doesn't flash the signed-out UI
+    /// while we restore a Supabase session.
+    var phase: AuthPhase = .loading
     var currentUser: Profile?
 
     var isAuthenticated: Bool {

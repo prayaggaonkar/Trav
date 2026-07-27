@@ -203,6 +203,7 @@ struct HeroExperienceCard: View {
     var onSave: (() -> Void)? = nil
     var onLike: (() -> Void)? = nil
     var onShare: (() -> Void)? = nil
+    var onComment: (() -> Void)? = nil
 
     private var showRating: Bool {
         experience.creator.displayName.lowercased() != "rec by trav"

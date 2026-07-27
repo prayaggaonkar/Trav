@@ -5,10 +5,12 @@ struct SupabaseNotificationRepository: NotificationRepository {
     private static let pageSize = 30
 
     private var client: SupabaseClient {
-        guard let client = SupabaseManager.client else {
-            preconditionFailure("SupabaseNotificationRepository used without a configured SupabaseClient.")
+        get throws {
+            guard let client = SupabaseManager.client else {
+                throw RepositoryError.backendUnavailable
+            }
+            return client
         }
-        return client
     }
 
     func fetchNotifications(userID: UUID, page: Int) async throws -> Paginated<AppNotification> {
@@ -35,10 +37,14 @@ struct SupabaseNotificationRepository: NotificationRepository {
             .value
 
         let actorMap = await fetchActors(ids: rows.map(\.actor_id))
+        // Every type except `follow` references an experience.
+        let expIDs = rows.filter { $0.type != "follow" }.compactMap { $0.reference_id }
+        let experienceTitleMap = await fetchExperienceTitles(ids: expIDs)
+
         let items: [AppNotification] = rows.compactMap { row in
             guard let type = AppNotificationType(rawValue: row.type),
                   let actor = actorMap[row.actor_id] else { return nil }
-            return AppNotification(
+            var item = AppNotification(
                 id: row.id,
                 userID: row.user_id,
                 actor: actor,
@@ -47,6 +53,10 @@ struct SupabaseNotificationRepository: NotificationRepository {
                 isRead: row.is_read,
                 createdAt: row.created_at
             )
+            if let refID = row.reference_id {
+                item.experienceTitle = experienceTitleMap[refID]
+            }
+            return item
         }
 
         return Paginated(items: items, page: page, hasMore: rows.count == Self.pageSize)
@@ -82,9 +92,46 @@ struct SupabaseNotificationRepository: NotificationRepository {
             .execute()
     }
 
+    func registerDeviceToken(_ token: String, userID: UUID) async throws {
+        struct Upsert: Encodable {
+            let token: String
+            let user_id: String
+            let platform: String
+            let environment: String
+        }
+        #if DEBUG
+        let environment = "sandbox"
+        #else
+        let environment = "production"
+        #endif
+        try await client
+            .from("device_tokens")
+            .upsert(
+                Upsert(
+                    token: token,
+                    user_id: userID.uuidString.lowercased(),
+                    platform: "ios",
+                    environment: environment
+                ),
+                onConflict: "token"
+            )
+            .execute()
+    }
+
+    func unregisterDeviceToken(_ token: String) async throws {
+        try await client
+            .from("device_tokens")
+            .delete()
+            .eq("token", value: token)
+            .execute()
+    }
+
     func observeInserts(userID: UUID) -> AsyncStream<AppNotification> {
         AsyncStream { continuation in
-            let client = self.client
+            guard let client = SupabaseManager.client else {
+                continuation.finish()
+                return
+            }
             let channelName = "notifications-inserts-\(userID.uuidString.lowercased())"
 
             let task = Task {
@@ -99,7 +146,7 @@ struct SupabaseNotificationRepository: NotificationRepository {
                 do {
                     try await channel.subscribeWithError()
                 } catch {
-                    print("SupabaseNotificationRepository.observeInserts subscribe failed: \(error)")
+                    TravLog.notifications.error("observeInserts subscribe failed: \(error.localizedDescription, privacy: .public)")
                     continuation.finish()
                     return
                 }
@@ -126,7 +173,7 @@ struct SupabaseNotificationRepository: NotificationRepository {
                         )
                         continuation.yield(notification)
                     } catch {
-                        print("SupabaseNotificationRepository.observeInserts decode failed: \(error)")
+                        TravLog.notifications.error("observeInserts decode failed: \(error.localizedDescription, privacy: .public)")
                     }
                 }
 
@@ -181,7 +228,34 @@ struct SupabaseNotificationRepository: NotificationRepository {
             }
             return map
         } catch {
-            print("SupabaseNotificationRepository.fetchActors failed: \(error)")
+            TravLog.notifications.error("fetchActors failed: \(error.localizedDescription, privacy: .public)")
+            return [:]
+        }
+    }
+
+    private func fetchExperienceTitles(ids: [UUID]) async -> [UUID: String] {
+        let unique = Array(Set(ids))
+        guard !unique.isEmpty else { return [:] }
+
+        struct ExpRow: Decodable {
+            let id: UUID
+            let title: String
+        }
+
+        do {
+            let rows: [ExpRow] = try await client
+                .from("experiences")
+                .select("id, title")
+                .in("id", values: unique.map(\.uuidString))
+                .execute()
+                .value
+            var map: [UUID: String] = [:]
+            for r in rows {
+                map[r.id] = r.title
+            }
+            return map
+        } catch {
+            TravLog.notifications.error("fetchExperienceTitles failed: \(error.localizedDescription, privacy: .public)")
             return [:]
         }
     }

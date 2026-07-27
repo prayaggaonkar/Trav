@@ -4,10 +4,12 @@ import Supabase
 /// Production `AuthRepository` backed by Supabase Auth and the `profiles` table.
 struct SupabaseAuthRepository: AuthRepository {
     private var client: SupabaseClient {
-        guard let client = SupabaseManager.client else {
-            preconditionFailure("SupabaseAuthRepository used without a configured SupabaseClient.")
+        get throws {
+            guard let client = SupabaseManager.client else {
+                throw RepositoryError.backendUnavailable
+            }
+            return client
         }
-        return client
     }
 
     func signIn(email: String, password: String) async throws -> Profile {
@@ -15,8 +17,14 @@ struct SupabaseAuthRepository: AuthRepository {
         return try await fetchOrCreateProfile(for: session.user)
     }
 
-    func signUp(email: String, password: String) async throws {
-        _ = try await client.auth.signUp(email: email, password: password)
+    /// Returns the profile immediately when Supabase issues a session on sign-up
+    /// (email confirmation disabled). Returns `nil` when the user must confirm
+    /// their email first — callers should show a "check your inbox" state.
+    @discardableResult
+    func signUp(email: String, password: String) async throws -> Profile? {
+        let response = try await client.auth.signUp(email: email, password: password)
+        guard response.session != nil else { return nil }
+        return try await fetchOrCreateProfile(for: response.user)
     }
 
     func signOut() async throws {
@@ -28,10 +36,15 @@ struct SupabaseAuthRepository: AuthRepository {
     }
 
     func signInWithGoogle() async throws -> Profile {
+        let callbackScheme = AppConfiguration.oauthRedirectURL?.scheme ?? "trav"
         let session = try await client.auth.signInWithOAuth(
             provider: .google,
             redirectTo: AppConfiguration.oauthRedirectURL
-        )
+        ) { @MainActor url in
+            // Present from the key window with a retained anchor so sheet-hosted
+            // auth UI does not cancel ASWebAuthenticationSession immediately.
+            try await OAuthWebSession.present(url: url, callbackScheme: callbackScheme)
+        }
         return try await fetchOrCreateProfile(for: session.user)
     }
 
@@ -39,6 +52,11 @@ struct SupabaseAuthRepository: AuthRepository {
     /// Mirrors `AuthClient.authStateChanges`, resolving each session into an app `Profile`.
     func authStateChanges() -> AsyncStream<Profile?> {
         AsyncStream { continuation in
+            guard let client = SupabaseManager.client else {
+                continuation.yield(nil)
+                continuation.finish()
+                return
+            }
             let task = Task {
                 for await (event, session) in client.auth.authStateChanges {
                     switch event {
@@ -108,17 +126,17 @@ struct SupabaseAuthRepository: AuthRepository {
         )
     }
 
+    /// Returns `nil` only when the profile genuinely does not exist. Network or
+    /// decoding failures propagate so callers never mistake an outage for a
+    /// missing profile (which previously triggered spurious placeholder upserts).
     private func fetchProfileRow(id: UUID) async throws -> ProfileRow? {
-        do {
-            return try await client
-                .from("profiles")
-                .select()
-                .eq("id", value: id)
-                .single()
-                .execute()
-                .value
-        } catch {
-            return nil
-        }
+        let rows: [ProfileRow] = try await client
+            .from("profiles")
+            .select()
+            .eq("id", value: id)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first
     }
 }

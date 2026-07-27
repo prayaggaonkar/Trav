@@ -132,7 +132,7 @@ final class AppEnvironment {
             appearance: AppearanceStore(),
             engagement: engagement,
             notificationStore: notificationStore,
-            cities: MockCityRepository(),
+            cities: config.useMockBackend ? MockCityRepository() : SupabaseCityRepository(),
             experiences: config.useMockBackend ? MockExperienceRepository() : SupabaseExperienceRepository(),
             auth: config.useMockBackend ? MockAuthRepository() : SupabaseAuthRepository(),
             profiles: profiles,
@@ -145,22 +145,35 @@ final class AppEnvironment {
     /// subsequent sign-in, sign-out, and token-refresh events. Call once at app launch;
     /// the underlying stream lives for the lifetime of the app.
     func observeAuthState() async {
-        debugLog("AppEnvironment.observeAuthState started")
+        TravLog.auth.debug("observeAuthState started")
         guard !configuration.useMockBackend else {
-            debugLog("AppEnvironment.observeAuthState: using mock backend, setting unauthenticated")
+            TravLog.auth.debug("mock backend — unauthenticated")
             session.phase = .unauthenticated
             return
         }
 
+        if session.phase != .onboarding {
+            session.phase = .loading
+        }
+
         for await profile in auth.authStateChanges() {
-            debugLog("AppEnvironment.observeAuthState: received profile update: \(profile?.displayName ?? "nil") (\(profile?.id.uuidString ?? "nil"))")
+            TravLog.auth.debug("profile update: \(profile?.displayName ?? "nil", privacy: .public)")
             session.currentUser = profile
             if let profile {
-                session.phase = .authenticated
+                // Don't force `.authenticated` for brand-new OAuth users — that races with
+                // AuthEntryView setting `.onboarding` and can skip the onboarding flow.
+                if session.phase != .onboarding {
+                    session.phase = profile.needsOnboarding ? .onboarding : .authenticated
+                }
                 engagement.cache(profile)
-                await engagement.bootstrap(userID: profile.id, using: self)
-                await notificationStore.refreshUnreadCount(userID: profile.id, using: self)
-                notificationStore.startListening(userID: profile.id, using: self)
+                // Detach bootstrap so subsequent auth events aren't stalled.
+                let env = self
+                Task { @MainActor in
+                    await env.engagement.bootstrap(userID: profile.id, using: env)
+                    await env.notificationStore.refreshUnreadCount(userID: profile.id, using: env)
+                    env.notificationStore.startListening(userID: profile.id, using: env)
+                    await PushNotificationService.shared.registerIfNeeded(userID: profile.id, using: env)
+                }
             } else {
                 session.phase = .unauthenticated
                 engagement.reset()

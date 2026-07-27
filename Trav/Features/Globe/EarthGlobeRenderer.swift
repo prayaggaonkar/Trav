@@ -110,6 +110,7 @@ final class EarthGlobeRenderer {
             earthNode.addChildNode(marker.node)
             return marker
         }
+        updateCityMarkerVisibility()
     }
 
     var currentOrientation: simd_quatf { orientation }
@@ -178,14 +179,30 @@ final class EarthGlobeRenderer {
 
     /// Returns the camera to the default wide zoom (full globe in view).
     func resetZoom(animated: Bool = true) {
+        // Kill any in-flight fly-to / pinch CAAnimations on the camera.
+        cameraNode.removeAllAnimations()
+
+        let target = Self.maxZoomOutDistance
+        SCNTransaction.begin()
         if animated {
-            SCNTransaction.begin()
             SCNTransaction.animationDuration = 0.85
             SCNTransaction.animationTimingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            cameraDistance = Self.maxZoomOutDistance
-            SCNTransaction.commit()
+            SCNTransaction.disableActions = false
         } else {
-            cameraDistance = Self.maxZoomOutDistance
+            SCNTransaction.animationDuration = 0
+            SCNTransaction.disableActions = true
+        }
+        // Assign through the property so state stays in sync, then force the node
+        // transform (didSet no-ops when distance is already at max).
+        cameraDistance = target
+        cameraNode.position = SCNVector3(0, 0, target)
+        cameraNode.look(at: SCNVector3Zero)
+        SCNTransaction.commit()
+
+        if !animated {
+            // Ensure the model layer matches even if a presentation animation was mid-flight.
+            cameraNode.position = SCNVector3(0, 0, target)
+            cameraNode.look(at: SCNVector3Zero)
         }
     }
 
@@ -359,6 +376,27 @@ final class EarthGlobeRenderer {
         earthNode.simdOrientation = orientation
     }
 
+    /// Hide pins on the far / near-limb side of the globe so they never appear
+    /// half-clipped “inside” the sphere. Call every frame (including during drag).
+    func updateCityMarkerVisibility() {
+        let cameraWorld = cameraNode.presentation.simdWorldPosition
+        let cameraFromCenter = simd_normalize(cameraWorld)
+        // Hide before the geometric limb so billboarded pins stay fully on-screen.
+        // cos(~83°) ≈ 0.12 — enough clearance for pin height without pop-in flicker.
+        let minFacing: Float = 0.12
+
+        for marker in cityMarkers {
+            let world = marker.node.presentation.simdWorldPosition
+            let length = simd_length(world)
+            guard length > 1e-5 else {
+                marker.node.isHidden = true
+                continue
+            }
+            let facing = simd_dot(world / length, cameraFromCenter)
+            marker.node.isHidden = facing < minFacing
+        }
+    }
+
     /// Shoemake arcball in camera space — single continuous projection (no ray/hybrid switching).
     private func trackballDirectionInCameraSpace(from point: CGPoint, in view: SCNView) -> SIMD3<Float> {
         let width = max(Float(view.bounds.width), 1)
@@ -417,7 +455,7 @@ final class EarthGlobeRenderer {
 
     private func nearestMarker(to point: CGPoint, in view: SCNView) -> EarthCityMarker? {
         var best: (EarthCityMarker, CGFloat)?
-        for marker in cityMarkers {
+        for marker in cityMarkers where !marker.node.isHidden {
             let projected = view.projectPoint(marker.node.presentation.worldPosition)
             guard projected.z > 0 else { continue }
             let screen = CGPoint(x: CGFloat(projected.x), y: CGFloat(projected.y))
@@ -489,8 +527,9 @@ private struct EarthCityMarker {
         pinMat.lightingModel = .constant
         pinMat.blendMode = .alpha
         pinMat.isDoubleSided = true
+        // Horizon culling owns occlusion; depth tests would half-clip pins at the limb.
         pinMat.writesToDepthBuffer = false
-        pinMat.readsFromDepthBuffer = true
+        pinMat.readsFromDepthBuffer = false
         pinMat.transparencyMode = .aOne
         pin.materials = [pinMat]
 

@@ -62,5 +62,11 @@
 	<string>$(GOOGLE_CLIENT_ID)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Trav uses your location to suggest nearby cities and experiences.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Trav uses your photos for experience covers, stop media, and completion moments.</string>
 </dict>
 </plist>

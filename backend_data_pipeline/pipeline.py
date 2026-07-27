@@ -7,7 +7,6 @@ import pandas as pd
 import geopandas as gpd
 from supabase import create_client, Client
 import overturemaps
-import ssl
 import time
 import random
 import json
@@ -15,17 +14,28 @@ import uuid
 import math
 from duckduckgo_search import DDGS
 
-# Bypass SSL certificate verification for macOS environments facing missing local issuer certificates
-try:
-    ssl._create_default_https_context = ssl._create_unverified_context
-except AttributeError:
-    pass
-
 # Load environment variables
 load_dotenv()
 
 # Berkeley BBox by default: (west, south, east, north)
 DEFAULT_BBOX = (-122.28, 37.86, -122.24, 37.88)
+
+# Named city bboxes for multi-city ingestion: (west, south, east, north)
+CITY_BBOXES = {
+    "berkeley": (-122.32, 37.84, -122.23, 37.91),
+    "san_francisco": (-122.52, 37.70, -122.35, 37.83),
+    "oakland": (-122.32, 37.75, -122.18, 37.89),
+}
+
+
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in kilometers."""
+    r = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
 
 # Excluded massive chains (case-insensitive checks)
 EXCLUDED_CHAINS = {
@@ -44,22 +54,33 @@ ALLOWED_CATEGORIES = {
 def parse_args():
     parser = argparse.ArgumentParser(description="Overture Maps to Supabase Data Pipeline")
     parser.add_argument(
-        "--bbox", 
-        type=str, 
-        default="-122.28,37.86,-122.24,37.88",
-        help="Bounding box as 'west,south,east,north' (default: Berkeley area)"
+        "--bbox",
+        type=str,
+        default=None,
+        help="Bounding box as 'west,south,east,north' (overrides --city)"
     )
     parser.add_argument(
-        "--dry-run", 
-        action="store_true", 
+        "--city",
+        type=str,
+        choices=sorted(CITY_BBOXES.keys()),
+        default="berkeley",
+        help="Named city bbox when --bbox is not provided",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
         help="Fetch and filter data, but do not push to the database"
     )
     parser.add_argument(
-        "--fetch-images", 
-        action="store_true", 
+        "--fetch-images",
+        action="store_true",
         help="Automatically fetch up to 3 image URLs for each matched hangout spot"
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.bbox is None:
+        west, south, east, north = CITY_BBOXES[args.city]
+        args.bbox = f"{west},{south},{east},{north}"
+    return args
 
 def fetch_image_urls(query, limit=3):
     try:
@@ -121,18 +142,21 @@ def create_itineraries_from_places(places, creator_id):
     itineraries = []
     used_ids = set()
     
-    def get_distance(p1, p2):
-        return math.sqrt((p1["latitude"] - p2["latitude"])**2 + (p1["longitude"] - p2["longitude"])**2)
-        
+    # ~1.3 km clustering radius (replaces crude degree Euclidean distance).
+    cluster_radius_km = 1.3
+
     for p1 in places:
         if p1["id"] in used_ids:
             continue
-            
+
         neighbors = []
         for p2 in places:
             if p2["id"] != p1["id"] and p2["id"] not in used_ids:
-                dist = get_distance(p1, p2)
-                if dist < 0.012:
+                dist = haversine_km(
+                    p1["latitude"], p1["longitude"],
+                    p2["latitude"], p2["longitude"],
+                )
+                if dist < cluster_radius_km:
                     neighbors.append((p2, dist))
                     
         neighbors.sort(key=lambda x: x[1])

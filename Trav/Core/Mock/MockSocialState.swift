@@ -7,7 +7,10 @@ actor MockSocialState {
     private var profiles: [UUID: Profile] = [:]
     private var follows: Set<FollowEdge> = []
     private var saves: Set<SaveEdge> = []
+    private var likes: Set<SaveEdge> = []
     private var completions: [CompletionEdge] = []
+    private var commentsStore: [Comment] = []
+    private var blocks: Set<FollowEdge> = []
     private var notifications: [AppNotification] = []
     /// Extra summaries (e.g. bookmarked feed places) not present in MockData.experiences.
     private var bookmarkedSummaries: [UUID: ExperienceSummary] = [:]
@@ -263,12 +266,105 @@ actor MockSocialState {
             note: nil
         ))
         recalculateCounts()
+        notifyWatchlistExperience(actorID: userID, experienceID: experienceID)
         return true
     }
 
     func isSaved(userID: UUID, experienceID: UUID) -> Bool {
         seedIfNeeded()
         return saves.contains(SaveEdge(userID: userID, experienceID: experienceID))
+    }
+
+    func likedIDs(of userID: UUID) -> Set<UUID> {
+        seedIfNeeded()
+        return Set(likes.filter { $0.userID == userID }.map(\.experienceID))
+    }
+
+    func toggleLike(userID: UUID, experienceID: UUID) -> Bool {
+        seedIfNeeded()
+        let edge = SaveEdge(userID: userID, experienceID: experienceID)
+        if likes.contains(edge) {
+            likes.remove(edge)
+            return false
+        }
+        likes.insert(edge)
+        if let ownerID = experienceOwnerID(experienceID),
+           ownerID != userID,
+           let actor = profiles[userID]?.summary {
+            appendNotification(
+                recipientID: ownerID,
+                actor: actor,
+                type: .like,
+                referenceID: experienceID,
+                createdAt: Date(),
+                isRead: false
+            )
+        }
+        return true
+    }
+
+    func comments(experienceID: UUID, page: Int) -> Paginated<Comment> {
+        seedIfNeeded()
+        let all = commentsStore
+            .filter { $0.experienceID == experienceID }
+            .sorted { $0.createdAt > $1.createdAt }
+        let size = CommentLimits.pageSize
+        let start = page * size
+        guard start < all.count else {
+            return Paginated(items: [], page: page, hasMore: false)
+        }
+        let end = min(start + size, all.count)
+        return Paginated(items: Array(all[start..<end]), page: page, hasMore: end < all.count)
+    }
+
+    func addComment(experienceID: UUID, authorID: UUID, body: String, parentID: UUID?) throws -> Comment {
+        seedIfNeeded()
+        guard let author = profiles[authorID]?.summary else {
+            throw RepositoryError.notFound
+        }
+        let comment = Comment(
+            id: UUID(),
+            experienceID: experienceID,
+            author: author,
+            parentID: parentID,
+            body: body,
+            createdAt: Date()
+        )
+        commentsStore.append(comment)
+        if let ownerID = experienceOwnerID(experienceID), ownerID != authorID {
+            appendNotification(
+                recipientID: ownerID,
+                actor: author,
+                type: .comment,
+                referenceID: experienceID,
+                createdAt: Date(),
+                isRead: false
+            )
+        }
+        return comment
+    }
+
+    func deleteComment(id: UUID) {
+        seedIfNeeded()
+        commentsStore.removeAll { $0.id == id }
+    }
+
+    func block(blockerID: UUID, blockedID: UUID) {
+        seedIfNeeded()
+        blocks.insert(FollowEdge(followerID: blockerID, followingID: blockedID))
+        follows.remove(FollowEdge(followerID: blockerID, followingID: blockedID))
+        follows.remove(FollowEdge(followerID: blockedID, followingID: blockerID))
+        recalculateCounts()
+    }
+
+    func unblock(blockerID: UUID, blockedID: UUID) {
+        seedIfNeeded()
+        blocks.remove(FollowEdge(followerID: blockerID, followingID: blockedID))
+    }
+
+    func blockedIDs(of userID: UUID) -> Set<UUID> {
+        seedIfNeeded()
+        return Set(blocks.filter { $0.followerID == userID }.map(\.followingID))
     }
 
     func isCompleted(userID: UUID, experienceID: UUID) -> Bool {
@@ -341,17 +437,45 @@ actor MockSocialState {
         }
     }
 
+    /// Fan-out: notify everyone who follows `actorID` about a watchlisted experience.
+    func notifyWatchlistExperience(actorID: UUID, experienceID: UUID) {
+        seedIfNeeded()
+        guard let actor = profiles[actorID]?.summary else { return }
+        let recipients = follows
+            .filter { $0.followingID == actorID }
+            .map(\.followerID)
+        for recipientID in recipients where recipientID != actorID {
+            appendNotification(
+                recipientID: recipientID,
+                actor: actor,
+                type: .watchlist,
+                referenceID: experienceID,
+                createdAt: Date(),
+                isRead: false
+            )
+        }
+    }
+
     func notifications(for userID: UUID, page: Int, pageSize: Int) -> Paginated<AppNotification> {
         seedIfNeeded()
         let sorted = notifications
             .filter { $0.userID == userID }
             .sorted { $0.createdAt > $1.createdAt }
+        
+        let items = sorted.map { item -> AppNotification in
+            var copy = item
+            if let refID = item.referenceID, item.type == .watchlist || item.type == .newExperience {
+                copy.experienceTitle = MockData.experiences.first { $0.id == refID }?.title
+            }
+            return copy
+        }
+        
         let start = page * pageSize
-        guard start < sorted.count else {
+        guard start < items.count else {
             return Paginated(items: [], page: page, hasMore: false)
         }
-        let end = min(start + pageSize, sorted.count)
-        return Paginated(items: Array(sorted[start..<end]), page: page, hasMore: end < sorted.count)
+        let end = min(start + pageSize, items.count)
+        return Paginated(items: Array(items[start..<end]), page: page, hasMore: end < items.count)
     }
 
     func unreadCount(for userID: UUID) -> Int {

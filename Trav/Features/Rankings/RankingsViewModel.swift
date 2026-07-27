@@ -16,7 +16,7 @@ final class RankingsViewModel {
     var axis: RankingAxis = .overall
     var selectedCity: City?
     var selectedCreator: ProfileSummary?
-    /// Free-text filter used in Creators mode (and as search input for city/creator tokens).
+    /// Free-text input for city search suggestions / city token.
     var searchText = ""
 
     private(set) var experiences: [ExperienceSummary] = []
@@ -27,22 +27,11 @@ final class RankingsViewModel {
     private var loadTask: Task<Void, Never>?
 
     var displayedCreators: [RankedCreator] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard mode == .creators, !query.isEmpty else { return creators }
-        return creators.filter {
-            $0.profile.displayName.localizedCaseInsensitiveContains(query)
-                || $0.profile.username.localizedCaseInsensitiveContains(query)
-        }
+        creators
     }
 
     func applyCreatorSearchFilter() {
-        guard mode == .creators else { return }
-        switch phase {
-        case .loaded, .empty:
-            phase = displayedCreators.isEmpty ? .empty : .loaded
-        case .idle, .loading, .failed:
-            break
-        }
+        // Rankings search is cities-only; creator list is not text-filtered.
     }
 
     var matchingCities: [City] {
@@ -67,79 +56,37 @@ final class RankingsViewModel {
         let mode = self.mode
         let axis = self.axis
         let cityID = selectedCity?.id
-        let creatorID = mode == .experiences ? selectedCreator?.id : nil
+        let creatorID: UUID? = nil
 
         loadTask = Task {
             phase = experiences.isEmpty && creators.isEmpty ? .loading : phase
             do {
                 switch mode {
                 case .experiences:
-                    var page = try await environment.experiences.fetchRankedExperiences(
+                    let page = try await environment.experiences.fetchRankedExperiences(
                         cityID: cityID,
                         creatorID: creatorID,
                         axis: axis,
                         page: 0
                     )
-                    // Until live ratings are populated, fall back to curated mock rankings.
-                    if page.items.isEmpty {
-                        page = try await MockExperienceRepository().fetchRankedExperiences(
-                            cityID: cityID,
-                            creatorID: creatorID,
-                            axis: axis,
-                            page: 0
-                        )
-                    }
                     guard !Task.isCancelled else { return }
                     experiences = page.items
                     creators = []
                     phase = page.items.isEmpty ? .empty : .loaded
                 case .creators:
-                    var page = try await environment.experiences.fetchRankedCreators(
+                    let page = try await environment.experiences.fetchRankedCreators(
                         cityID: cityID,
                         axis: axis,
                         page: 0
                     )
-                    if page.items.isEmpty {
-                        page = try await MockExperienceRepository().fetchRankedCreators(
-                            cityID: cityID,
-                            axis: axis,
-                            page: 0
-                        )
-                    }
                     guard !Task.isCancelled else { return }
                     creators = page.items
                     experiences = []
-                    let visible = displayedCreators
-                    phase = visible.isEmpty ? .empty : .loaded
+                    phase = displayedCreators.isEmpty ? .empty : .loaded
                 }
             } catch {
                 guard !Task.isCancelled else { return }
-                // Live fetch failed — still show mock rankings so the tab is usable.
-                do {
-                    switch mode {
-                    case .experiences:
-                        let page = try await MockExperienceRepository().fetchRankedExperiences(
-                            cityID: cityID,
-                            creatorID: creatorID,
-                            axis: axis,
-                            page: 0
-                        )
-                        experiences = page.items
-                        creators = []
-                        phase = page.items.isEmpty ? .empty : .loaded
-                    case .creators:
-                        let page = try await MockExperienceRepository().fetchRankedCreators(
-                            cityID: cityID,
-                            axis: axis,
-                            page: 0
-                        )
-                        creators = page.items
-                        experiences = []
-                        phase = displayedCreators.isEmpty ? .empty : .loaded
-                    }
-                } catch {
-                    phase = .failed(error)
-                }
+                phase = .failed(error)
             }
         }
         await loadTask?.value

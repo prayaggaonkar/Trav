@@ -30,6 +30,14 @@ struct Profile: Identifiable, Codable, Sendable, Hashable {
         return nil
     }
 
+    /// True until the user has completed at least one onboarding signal.
+    var needsOnboarding: Bool {
+        let hasVibes = !(selectedVibes ?? []).isEmpty
+        let hasLocation = !(onboardingLocation ?? "").isEmpty
+        let hasHomeCity = !(homeCityName ?? "").isEmpty
+        return !(hasVibes || hasLocation || hasHomeCity)
+    }
+
     var summary: ProfileSummary {
         ProfileSummary(
             id: id,
@@ -90,7 +98,7 @@ enum ProfileContentTab: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .created: "Created"
         case .saved: "Saved"
-        case .completed: "Completed"
+        case .completed: "Watchlist"
         }
     }
 
@@ -153,9 +161,6 @@ enum UsernameValidator {
 
 enum ProfileLimits {
     static let pageSize = 20
-    /// Written into `experiences.description` when a feed place is bookmarked so it can
-    /// satisfy the `experience_saves` FK without appearing in the Created tab.
-    static let bookmarkDescriptionSentinel = "__trav_bookmark__"
 }
 
 enum StableUUID {

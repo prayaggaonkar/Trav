@@ -334,6 +334,12 @@ struct RemoteImage: View {
     let url: URL?
     var height: CGFloat = TravLayout.cardImageHeight
     var cornerRadius: CGFloat = TravRadius.md
+    /// Cap decoded pixel size for grid/list thumbnails.
+    var maxPixelSize: CGFloat = 900
+
+    @State private var image: UIImage?
+    @State private var failed = false
+    @State private var loadToken = 0
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -346,25 +352,50 @@ struct RemoteImage: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .clipped()
+            .task(id: url?.absoluteString) {
+                await load()
+            }
     }
 
     @ViewBuilder
     private var imageContent: some View {
-        if let url {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                case .failure:
-                    EmptyView()
-                case .empty:
-                    ProgressView().tint(TravColors.muted)
-                @unknown default:
-                    EmptyView()
+        if let image {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+        } else if failed {
+            VStack(spacing: TravSpacing.xs) {
+                Image(systemName: "photo")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(TravColors.muted)
+                Button("Retry") {
+                    loadToken &+= 1
+                    Task { await load() }
                 }
+                .font(TravTypography.labelMedium())
+                .foregroundStyle(TravColors.accent)
             }
+            .accessibilityLabel("Image failed to load. Retry.")
+        } else if url != nil {
+            ProgressView().tint(TravColors.muted)
+        }
+    }
+
+    private func load() async {
+        guard let url else {
+            image = nil
+            failed = false
+            return
+        }
+        failed = false
+        image = nil
+        let token = loadToken
+        let result = await ImageCache.shared.image(for: url, maxPixelSize: maxPixelSize)
+        guard token == loadToken else { return }
+        if let result {
+            image = result
+        } else {
+            failed = true
         }
     }
 }

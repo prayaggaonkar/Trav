@@ -255,6 +255,8 @@ struct StopSuggestion: Identifiable, Hashable, Sendable {
     let id: String
     let title: String
     let subtitle: String
+    var latitude: Double?
+    var longitude: Double?
 
     var displayLabel: String {
         let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -389,6 +391,29 @@ final class StopAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
         }
     }
 
+    /// Resolves coordinates for a suggestion that came from the fast prefix
+    /// completer (which carries no placemark).
+    func resolveCoordinates(for suggestion: StopSuggestion) async -> (latitude: Double, longitude: Double)? {
+        if let lat = suggestion.latitude, let lng = suggestion.longitude {
+            return (lat, lng)
+        }
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = suggestion.displayLabel
+        if let location = locationManager.location {
+            request.region = MKCoordinateRegion(
+                center: location.coordinate,
+                latitudinalMeters: 50_000,
+                longitudinalMeters: 50_000
+            )
+        }
+        guard let response = try? await MKLocalSearch(request: request).start(),
+              let item = response.mapItems.first else {
+            return nil
+        }
+        let coordinate = item.placemark.coordinate
+        return (coordinate.latitude, coordinate.longitude)
+    }
+
     /// Primary search function using Apple Maps Search API (MKLocalSearch).
     private func performAppleMapsSearch(for queryText: String) async {
         let request = MKLocalSearch.Request()
@@ -413,10 +438,13 @@ final class StopAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
             for item in response.mapItems {
                 guard let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
                 let subtitle = Self.formatSubtitle(for: item)
+                let coordinate = item.placemark.coordinate
                 let suggestion = StopSuggestion(
                     id: "maps_api|\(name)|\(subtitle)",
                     title: name,
-                    subtitle: subtitle
+                    subtitle: subtitle,
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude
                 )
                 let key = suggestion.displayLabel.lowercased()
                 guard !seen.contains(key) else { continue }
@@ -462,9 +490,10 @@ final class StopAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
 }
 
 /// Search and autocomplete field for adding experience stops using Apple Maps API.
+/// Selected suggestions are geocoded so published stops carry real coordinates.
 struct StopAutocompleteField: View {
-    @Binding var stops: [StopPreview]
-    var placeholder: String = "Search Apple Maps (e.g. Chipotle SF, Septime Paris)..."
+    @Binding var stops: [Stop]
+    var placeholder: String = "Search places (e.g. Blue Bottle, Dolores Park)..."
 
     private static let suggestionRowHeight: CGFloat = 52
     private static let maxVisibleSuggestions = 5
@@ -592,24 +621,57 @@ struct StopAutocompleteField: View {
     }
 
     private func select(_ suggestion: StopSuggestion) {
-        let name = suggestion.displayLabel
+        let name = suggestion.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
-        withAnimation(TravAnimation.enter) {
-            stops.append(StopPreview(id: UUID(), name: name, emoji: nil))
+        appendStop(name: name, description: suggestion.subtitle, latitude: suggestion.latitude, longitude: suggestion.longitude)
+
+        // Resolve coordinates in the background for prefix-completer suggestions.
+        if suggestion.latitude == nil {
+            let stopName = name
+            Task {
+                guard let coords = await controller.resolveCoordinates(for: suggestion) else { return }
+                if let index = stops.lastIndex(where: { $0.name == stopName && $0.latitude == 0 && $0.longitude == 0 }) {
+                    stops[index].latitude = coords.latitude
+                    stops[index].longitude = coords.longitude
+                }
+            }
         }
-        draft = ""
-        controller.clear()
-        showSuggestions = false
-        isFocused = false
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        clearField()
     }
 
     private func addCustomStop() {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        withAnimation(TravAnimation.enter) {
-            stops.append(StopPreview(id: UUID(), name: trimmed, emoji: nil))
+        // Prefer the top suggestion (has coordinates) over a raw text stop.
+        if let top = controller.suggestions.first,
+           top.title.lowercased().hasPrefix(trimmed.lowercased()) || top.latitude != nil {
+            select(top)
+            return
         }
+        appendStop(name: trimmed, description: "", latitude: nil, longitude: nil)
+        clearField()
+    }
+
+    private func appendStop(name: String, description: String, latitude: Double?, longitude: Double?) {
+        withAnimation(TravAnimation.enter) {
+            stops.append(Stop(
+                id: UUID(),
+                orderIndex: stops.count,
+                name: name,
+                description: description,
+                creatorNotes: nil,
+                latitude: latitude ?? 0,
+                longitude: longitude ?? 0,
+                placeID: nil,
+                recommendedTime: nil,
+                durationMinutes: 30,
+                emoji: nil,
+                media: []
+            ))
+        }
+    }
+
+    private func clearField() {
         draft = ""
         controller.clear()
         showSuggestions = false

@@ -336,8 +336,8 @@ struct ProfileView: View {
             case .completed:
                 if viewModel.completed.isEmpty {
                     ProfileEmptyState(
-                        title: "No completions yet",
-                        description: "Complete your first experience to start building your journey."
+                        title: "Your watchlist is empty",
+                        description: "Add experiences to your watchlist to start planning your journey."
                     )
                 } else {
                     ForEach(Array(viewModel.completed.enumerated()), id: \.element.id) { index, item in
@@ -521,6 +521,7 @@ struct SettingsSheetView: View {
     @State private var notificationsEnabled = UserDefaults.standard.bool(forKey: "trav.settings.notificationsEnabled")
     @State private var hapticsEnabled = UserDefaults.standard.bool(forKey: "trav.settings.hapticsEnabled")
     @State private var autoPlayMedia = UserDefaults.standard.bool(forKey: "trav.settings.autoPlayMedia")
+    @State private var showBlockedUsers = false
 
     var body: some View {
         VStack(spacing: TravSpacing.md) {
@@ -558,6 +559,16 @@ struct SettingsSheetView: View {
                         title: "Notifications"
                     ) { newValue in
                         UserDefaults.standard.set(newValue, forKey: "trav.settings.notificationsEnabled")
+                        Task {
+                            if newValue, let userID = environment.session.currentUser?.id {
+                                await PushNotificationService.shared.registerIfNeeded(
+                                    userID: userID,
+                                    using: environment
+                                )
+                            } else {
+                                await PushNotificationService.shared.unregister(using: environment)
+                            }
+                        }
                     }
 
                     Divider()
@@ -631,6 +642,40 @@ struct SettingsSheetView: View {
                     }
                     .buttonStyle(.plain)
 
+                    Button {
+                        showBlockedUsers = true
+                    } label: {
+                        HStack(spacing: TravSpacing.md) {
+                            Image(systemName: "hand.raised.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(TravColors.accent)
+                                .frame(width: 32, height: 32)
+                                .background(TravColors.surfaceElevated)
+                                .clipShape(Circle())
+
+                            Text("Blocked Users")
+                                .font(TravTypography.bodyMedium())
+                                .foregroundStyle(TravColors.primary)
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(TravColors.muted)
+                        }
+                        .padding(.horizontal, TravSpacing.md)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(TravColors.surface)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+
                     // Sign out button
                     Button {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -671,6 +716,108 @@ struct SettingsSheetView: View {
             Spacer()
         }
         .travScreenBackground()
+        .sheet(isPresented: $showBlockedUsers) {
+            BlockedUsersView()
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+// MARK: - Blocked users
+
+struct BlockedUsersView: View {
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var blocked: [ProfileSummary] = []
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if isLoading {
+                    ProgressView().tint(TravColors.accent)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let errorMessage {
+                    ErrorStateView(message: errorMessage) {
+                        Task { await load() }
+                    }
+                } else if blocked.isEmpty {
+                    EmptyStateView(
+                        icon: "hand.raised",
+                        title: "No blocked users",
+                        description: "People you block won't be able to interact with you on Trav."
+                    )
+                } else {
+                    List {
+                        ForEach(blocked) { profile in
+                            HStack(spacing: TravSpacing.md) {
+                                AvatarView(url: profile.avatarURL, size: 40)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(profile.displayName)
+                                        .font(TravTypography.bodyMedium())
+                                    Text("@\(profile.username)")
+                                        .font(TravTypography.labelMedium())
+                                        .foregroundStyle(TravColors.muted)
+                                }
+                                Spacer()
+                                Button("Unblock") {
+                                    Task { await unblock(profile) }
+                                }
+                                .font(TravTypography.labelMedium())
+                                .foregroundStyle(TravColors.accent)
+                            }
+                            .listRowBackground(TravColors.surface)
+                        }
+                    }
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .travScreenBackground()
+            .navigationTitle("Blocked Users")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(TravColors.accent)
+                }
+            }
+            .task { await load() }
+        }
+    }
+
+    private func load() async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        guard let userID = environment.session.currentUser?.id else {
+            blocked = []
+            return
+        }
+        do {
+            let ids = try await environment.engagementRepo.fetchBlockedIDs(userID: userID)
+            var profiles: [ProfileSummary] = []
+            for id in ids {
+                if let profile = try? await environment.profiles.fetchProfile(id: id) {
+                    profiles.append(profile.summary)
+                }
+            }
+            blocked = profiles.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func unblock(_ profile: ProfileSummary) async {
+        guard let userID = environment.session.currentUser?.id else { return }
+        do {
+            try await environment.engagementRepo.unblock(blockerID: userID, blockedID: profile.id)
+            blocked.removeAll { $0.id == profile.id }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }
 

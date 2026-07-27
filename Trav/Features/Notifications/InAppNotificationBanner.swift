@@ -36,12 +36,14 @@ struct InAppNotificationBannerHost: View {
         switch notification.type {
         case .follow:
             router.openProfile(notification.actor.username)
-        case .save, .newExperience:
+        case .save, .newExperience, .like, .comment:
             if let experienceID = notification.referenceID {
                 router.openExperience(experienceID)
             } else {
                 router.openProfile(notification.actor.username)
             }
+        case .watchlist:
+            router.openProfile(notification.actor.username)
         }
     }
 }

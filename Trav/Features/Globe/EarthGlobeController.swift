@@ -124,6 +124,7 @@ final class EarthGlobeController: NSObject, SCNSceneRendererDelegate {
 
     /// Restores the default wide framing after returning from a city.
     func resetZoom(animated: Bool = true) {
+        isAnimatingFlyTo = false
         isDragging = false
         pinchStartDistance = nil
         momentum = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
@@ -139,12 +140,14 @@ final class EarthGlobeController: NSObject, SCNSceneRendererDelegate {
         guard Thread.isMainThread else {
             Task { @MainActor [weak self] in
                 self?.tick()
+                self?.renderer.updateCityMarkerVisibility()
                 self?.syncRenderingMode()
             }
             return
         }
         MainActor.assumeIsolated {
             tick()
+            self.renderer.updateCityMarkerVisibility()
             syncRenderingMode()
         }
     }
@@ -165,9 +168,10 @@ final class EarthGlobeController: NSObject, SCNSceneRendererDelegate {
 
         let interactive = isDragging || pinchStartDistance != nil || isAnimatingFlyTo || hasActiveMomentum
         view.isPlaying = true
-        view.rendersContinuously = true
-        // 60fps while interacting / coasting; 30fps for idle auto-spin.
-        view.preferredFramesPerSecond = interactive ? 60 : 30
+        // Continuous rendering only while the user (or momentum) is moving the globe.
+        // Idle auto-spin steps one frame at a time so we don't burn GPU at 30fps forever.
+        view.rendersContinuously = interactive
+        view.preferredFramesPerSecond = interactive ? 60 : 15
     }
 
     private func tick() {
@@ -192,8 +196,14 @@ final class EarthGlobeController: NSObject, SCNSceneRendererDelegate {
                 momentum = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
             }
             lastInteractionTime = now
+            syncRenderingMode()
         } else if isIdle {
             renderer.applyIdleRotation(speed: autoRotateSpeed)
+            // Single-frame render for idle spin — no continuous GPU loop.
+            sceneView?.rendersContinuously = false
+            sceneView?.isPlaying = true
+        } else {
+            syncRenderingMode()
         }
     }
 }
