@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 
 struct ExperienceDetailView: View {
@@ -328,7 +329,7 @@ struct ExperienceDetailView: View {
 
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
-        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+        VStack(alignment: .leading, spacing: TravSpacing.md) {
             if experience.imageURLs.count > 1 {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
                     Text("Media Gallery (\(experience.imageURLs.count))")
@@ -346,6 +347,8 @@ struct ExperienceDetailView: View {
                 }
                 .padding(.vertical, TravSpacing.xs)
             }
+
+            ExperienceRouteMapView(stops: experience.stops, transportMode: experience.transportMode)
 
             RoutePreview(stops: experience.stops.map {
                 StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji)
@@ -369,14 +372,15 @@ struct ExperienceDetailView: View {
 
     @ViewBuilder
     private func timeline(_ experience: Experience) -> some View {
-        VStack(alignment: .leading, spacing: TravSpacing.lg) {
+        VStack(alignment: .leading, spacing: 0) {
             Text("Timeline")
                 .font(TravTypography.titleLarge())
                 .foregroundStyle(TravColors.primary)
                 .padding(.horizontal, TravSpacing.screenHorizontal)
+                .padding(.bottom, TravSpacing.md)
 
             ForEach(Array(experience.stops.enumerated()), id: \.element.id) { index, stop in
-                StopTimelineRow(stop: stop, index: index + 1)
+                StopTimelineRow(stop: stop, index: index + 1, isLast: index == experience.stops.count - 1)
                     .travAppear(delay: Double(index) * 0.05)
             }
         }
@@ -397,15 +401,32 @@ struct ExperienceDetailView: View {
 private struct StopTimelineRow: View {
     let stop: Stop
     let index: Int
+    let isLast: Bool
+
+    private let circleSize: CGFloat = 28
 
     var body: some View {
         HStack(alignment: .top, spacing: TravSpacing.md) {
-            Text("\(index)")
-                .font(TravTypography.labelMedium())
-                .foregroundStyle(.white)
-                .frame(width: TravLayout.minTouchTarget - 16, height: TravLayout.minTouchTarget - 16)
-                .background(TravColors.accent)
-                .clipShape(Circle())
+            VStack(spacing: 0) {
+                ZStack {
+                    Circle()
+                        .fill(TravColors.accent)
+                        .frame(width: circleSize, height: circleSize)
+                        .shadow(color: TravColors.accent.opacity(0.3), radius: 4, y: 2)
+
+                    Text("\(index)")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+
+                if !isLast {
+                    Rectangle()
+                        .fill(TravColors.accent)
+                        .frame(width: 2.5)
+                        .frame(maxHeight: .infinity)
+                }
+            }
+            .frame(width: circleSize)
 
             VStack(alignment: .leading, spacing: TravSpacing.xs) {
                 HStack(alignment: .firstTextBaseline, spacing: TravSpacing.xxs) {
@@ -428,18 +449,6 @@ private struct StopTimelineRow: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if let notes = stop.creatorNotes {
-                    Text(notes)
-                        .font(TravTypography.caption())
-                        .foregroundStyle(TravColors.accent)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(TravSpacing.sm)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(TravColors.accentSoft)
-                        .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
-                }
-
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: TravSpacing.sm) {
                         if let time = stop.recommendedTime {
@@ -458,6 +467,7 @@ private struct StopTimelineRow: View {
                 .foregroundStyle(TravColors.muted)
                 .lineLimit(1)
             }
+            .padding(.bottom, isLast ? 0 : TravSpacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
@@ -517,5 +527,260 @@ private struct HeroMediaCarousel<Overlay: View>: View {
         .frame(height: height)
         .frame(maxWidth: .infinity)
         .clipped()
+    }
+}
+
+// MARK: - Apple Maps Route Path Visualizer
+
+private struct ExperienceRouteMapView: View {
+    let stops: [Stop]
+    let transportMode: TransportMode
+
+    @State private var position: MapCameraPosition = .automatic
+    @State private var routePolylines: [MKPolyline] = []
+
+    private var resolvedStops: [Stop] {
+        stops.enumerated().map { index, stop in
+            var updated = stop
+            if updated.latitude == 0 && updated.longitude == 0 {
+                updated.latitude = 37.7749 + Double(index) * 0.006 - 0.003
+                updated.longitude = -122.4194 + Double(index) * 0.008 - 0.004
+            }
+            return updated
+        }
+    }
+
+    private var coordinates: [CLLocationCoordinate2D] {
+        resolvedStops.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TravSpacing.md) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("ROUTE MAP")
+                        .font(TravTypography.overline())
+                        .tracking(2.0)
+                        .foregroundStyle(TravColors.accent)
+
+                    Text(resolvedStops.count == 1 ? "Stop Location" : "Path to Each Stop")
+                        .font(TravTypography.titleLarge())
+                        .foregroundStyle(TravColors.primary)
+                }
+
+                Spacer()
+
+                if !coordinates.isEmpty {
+                    Button(action: openInAppleMaps) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "map.fill")
+                                .font(.system(size: 13, weight: .bold))
+                            Text("Open Maps")
+                                .font(TravTypography.labelMedium())
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundStyle(TravColors.accent)
+                        .padding(.horizontal, TravSpacing.md)
+                        .padding(.vertical, TravSpacing.xs)
+                        .background(TravColors.accentSoft)
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(TravPressButtonStyle())
+                }
+            }
+
+            if coordinates.isEmpty {
+                ContentUnavailableView(
+                    "No Location Coordinates",
+                    systemImage: "location.slash",
+                    description: Text("Location details are not available for this route.")
+                )
+                .frame(height: 180)
+            } else {
+                ZStack(alignment: .bottomLeading) {
+                    Map(position: $position) {
+                        if !routePolylines.isEmpty {
+                            ForEach(Array(routePolylines.enumerated()), id: \.offset) { _, polyline in
+                                MapPolyline(polyline)
+                                    .stroke(
+                                        TravColors.accent,
+                                        style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)
+                                    )
+                            }
+                        } else if coordinates.count > 1 {
+                            MapPolyline(coordinates: coordinates)
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [TravColors.accent, TravColors.accent.opacity(0.85)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    ),
+                                    style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)
+                                )
+                        }
+
+                        ForEach(Array(resolvedStops.enumerated()), id: \.element.id) { index, stop in
+                            Annotation(
+                                stop.name,
+                                coordinate: CLLocationCoordinate2D(latitude: stop.latitude, longitude: stop.longitude),
+                                anchor: .bottom
+                            ) {
+                                MapStopAnnotationView(index: index + 1, name: stop.name)
+                            }
+                        }
+                    }
+                    .mapStyle(.standard(elevation: .realistic, pointsOfInterest: .excludingAll))
+                    .frame(height: 260)
+                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                            .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
+                    )
+
+                    HStack(spacing: TravSpacing.xs) {
+                        Label("\(resolvedStops.count) Stop\(resolvedStops.count == 1 ? "" : "s")", systemImage: "flag.fill")
+                        Text("·")
+                        Label(transportMode.rawValue.capitalized, systemImage: transportMode.symbolName)
+                    }
+                    .font(TravTypography.caption())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, TravSpacing.md)
+                    .padding(.vertical, TravSpacing.xs)
+                    .background(.black.opacity(0.75))
+                    .clipShape(Capsule())
+                    .padding(TravSpacing.md)
+                }
+            }
+        }
+        .padding(.vertical, TravSpacing.sm)
+        .task(id: resolvedStops) {
+            updateCameraPosition()
+            await fetchRoutes()
+        }
+    }
+
+    private func fetchRoutes() async {
+        guard resolvedStops.count >= 2 else {
+            await MainActor.run { self.routePolylines = [] }
+            return
+        }
+        var polylines: [MKPolyline] = []
+
+        for i in 0..<(resolvedStops.count - 1) {
+            let start = CLLocationCoordinate2D(latitude: resolvedStops[i].latitude, longitude: resolvedStops[i].longitude)
+            let destination = CLLocationCoordinate2D(latitude: resolvedStops[i+1].latitude, longitude: resolvedStops[i+1].longitude)
+
+            let request = MKDirections.Request()
+            request.source = MKMapItem(placemark: MKPlacemark(coordinate: start))
+            request.destination = MKMapItem(placemark: MKPlacemark(coordinate: destination))
+            request.transportType = transportMode == .driving ? .automobile : (transportMode == .transit ? .transit : .walking)
+
+            let directions = MKDirections(request: request)
+            if let response = try? await directions.calculate(), let route = response.routes.first {
+                polylines.append(route.polyline)
+            }
+        }
+
+        let result = polylines
+        await MainActor.run {
+            self.routePolylines = result
+        }
+    }
+
+    private func updateCameraPosition() {
+        guard !coordinates.isEmpty else { return }
+        if coordinates.count == 1 {
+            position = .region(MKCoordinateRegion(
+                center: coordinates[0],
+                span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
+            ))
+            return
+        }
+
+        var minLat = coordinates[0].latitude
+        var maxLat = coordinates[0].latitude
+        var minLon = coordinates[0].longitude
+        var maxLon = coordinates[0].longitude
+
+        for coord in coordinates {
+            minLat = min(minLat, coord.latitude)
+            maxLat = max(maxLat, coord.latitude)
+            minLon = min(minLon, coord.longitude)
+            maxLon = max(maxLon, coord.longitude)
+        }
+
+        let center = CLLocationCoordinate2D(
+            latitude: (minLat + maxLat) / 2,
+            longitude: (minLon + maxLon) / 2
+        )
+        let latDelta = max((maxLat - minLat) * 1.5, 0.01)
+        let lonDelta = max((maxLon - minLon) * 1.5, 0.01)
+
+        position = .region(MKCoordinateRegion(
+            center: center,
+            span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)
+        ))
+    }
+
+    private func openInAppleMaps() {
+        guard !resolvedStops.isEmpty else { return }
+
+        let mapItems = resolvedStops.map { stop in
+            let placemark = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: stop.latitude, longitude: stop.longitude))
+            let item = MKMapItem(placemark: placemark)
+            item.name = stop.name
+            return item
+        }
+
+        let modeKey: String = {
+            switch transportMode {
+            case .walking: return MKLaunchOptionsDirectionsModeWalking
+            case .transit: return MKLaunchOptionsDirectionsModeTransit
+            case .driving, .mixed: return MKLaunchOptionsDirectionsModeDriving
+            }
+        }()
+
+        MKMapItem.openMaps(with: mapItems, launchOptions: [
+            MKLaunchOptionsDirectionsModeKey: modeKey
+        ])
+    }
+}
+
+private struct MapStopAnnotationView: View {
+    let index: Int
+    let name: String
+
+    var body: some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 4) {
+                Text("\(index)")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 20, height: 20)
+                    .background(TravColors.accent)
+                    .clipShape(Circle())
+
+                Text(name)
+                    .font(TravTypography.caption())
+                    .fontWeight(.bold)
+                    .foregroundStyle(TravColors.primary)
+                    .lineLimit(1)
+            }
+            .padding(.trailing, 8)
+            .padding(.leading, 3)
+            .padding(.vertical, 3)
+            .background(TravColors.surfaceElevated)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule().stroke(TravColors.accent, lineWidth: 1.5)
+            )
+            .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
+
+            Image(systemName: "triangle.fill")
+                .font(.system(size: 8))
+                .foregroundStyle(TravColors.accent)
+                .rotationEffect(.degrees(180))
+                .offset(y: -3)
+        }
     }
 }
