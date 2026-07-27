@@ -29,7 +29,7 @@ final class GlobeViewModel {
         renderer.onCitySelected = { [weak self, weak router] city in
             // Clear fly-to zoom before Feed takes over — tabs stay mounted.
             self?.controller.resetZoom(animated: false)
-            router?.openCity(city)
+            router?.openFeed(city: city)
         }
     }
 
@@ -54,7 +54,7 @@ final class GlobeViewModel {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         controller.flyTo(city: city) { [weak self, weak router] in
             self?.controller.resetZoom(animated: false)
-            router?.openCity(city)
+            router?.openFeed(city: city)
         }
     }
 

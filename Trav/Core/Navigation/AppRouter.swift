@@ -76,7 +76,8 @@ final class AppRouter {
     /// Bumped whenever the Explore tab becomes active so the globe can reset framing.
     private(set) var exploreActivationToken: UInt = 0
 
-    /// Opens the immersive City Page (globe pin / city suggestion).
+    /// Opens the immersive City Page (deep links / explicit city-page entry).
+    /// Globe pin taps use `openFeed(city:)` so Feed gets the city search tag.
     func openCity(_ city: City) {
         presentedRoute = .city(city.id)
     }
