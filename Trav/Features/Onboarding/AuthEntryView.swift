@@ -345,15 +345,9 @@ struct AuthEntryView: View {
     }
 
     private func handleGoogleSignIn() async {
-        // Do not swap the Stage 1 buttons for a full-screen ProgressView before
-        // ASWebAuthenticationSession starts — that cancels the system browser sheet.
         errorMessage = nil
         isGoogleSigningIn = true
         defer { isGoogleSigningIn = false }
-
-        // Let the current touch / layout settle before presenting the system browser.
-        await Task.yield()
-        try? await Task.sleep(for: .milliseconds(150))
 
         do {
             let profile = try await environment.auth.signInWithGoogle()
