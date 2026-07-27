@@ -15,6 +15,7 @@ struct ProfileView: View {
     @State private var followListMode: FollowListMode?
     @State private var saveConfirmation = false
     @State private var showSettings = false
+    @State private var showCreateExperience = false
 
     private var tabs: [ProfileContentTab] {
         if isOwnProfile {
@@ -79,6 +80,9 @@ struct ProfileView: View {
                 .presentationDetents([.height(440)])
                 .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $showCreateExperience) {
+                CreateExperienceView()
+            }
             .overlay(alignment: .top) {
                 if saveConfirmation {
                     Text("Profile updated")
@@ -115,7 +119,7 @@ struct ProfileView: View {
     @ViewBuilder
     private func profileScroll(_ profile: Profile) -> some View {
         ScrollView {
-            VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
                 if isOwnProfile {
                     HStack {
                         Spacer(minLength: 0)
@@ -127,26 +131,8 @@ struct ProfileView: View {
 
                 header(profile)
                     .padding(.horizontal, TravSpacing.screenHorizontal)
-                    .padding(.top, isOwnProfile ? TravSpacing.sm : TravSpacing.md)
+                    .padding(.top, isOwnProfile ? TravSpacing.xs : TravSpacing.sm)
                     .travAppear()
-
-                ProfileStatsRow(
-                    profile: profile,
-                    onFollowers: {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        followListMode = .followers
-                    },
-                    onFollowing: {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        followListMode = .following
-                    },
-                    onCreated: {
-                        Task { await viewModel.selectTab(.created, using: environment) }
-                    }
-                )
-                .padding(.horizontal, TravSpacing.xs)
-                .padding(.top, TravSpacing.lg)
-                .travAppear(delay: 0.05)
 
                 actionRow(profile)
                     .padding(.horizontal, TravSpacing.screenHorizontal)
@@ -169,7 +155,7 @@ struct ProfileView: View {
                         Task { await viewModel.selectTab(tab, using: environment) }
                     }
                 )
-                .padding(.top, TravSpacing.xl)
+                .padding(.top, TravSpacing.lg)
                 .travAppear(delay: 0.1)
 
                 tabContent
@@ -183,65 +169,129 @@ struct ProfileView: View {
 
     @ViewBuilder
     private func header(_ profile: Profile) -> some View {
-        VStack(spacing: TravSpacing.md) {
-            AvatarView(url: profile.avatarURL, size: 88)
+        VStack(alignment: .leading, spacing: TravSpacing.md) {
+            // Top Row: Large avatar on left, Display Name & Stats on right
+            HStack(alignment: .center, spacing: TravSpacing.lg) {
+                AvatarView(url: profile.avatarURL, size: 84)
 
-            VStack(spacing: 6) {
-                HStack(spacing: 5) {
-                    Text(profile.displayName)
-                        .font(.system(size: 24, weight: .semibold, design: .rounded))
-                        .foregroundStyle(TravColors.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                    if profile.isVerified {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 14))
-                            .foregroundStyle(TravColors.muted)
+                VStack(alignment: .leading, spacing: TravSpacing.xs + 2) {
+                    HStack(spacing: 4) {
+                        Text(profile.displayName)
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+                            .lineLimit(1)
+                        if profile.isVerified {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(TravColors.accent)
+                        }
                     }
+
+                    ProfileStatsRow(
+                        profile: profile,
+                        createdCount: max(profile.experienceCount, viewModel.created.count),
+                        onFollowers: {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            followListMode = .followers
+                        },
+                        onFollowing: {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            followListMode = .following
+                        },
+                        onCreated: {
+                            Task { await viewModel.selectTab(.created, using: environment) }
+                        }
+                    )
                 }
+            }
 
-                Text("@\(profile.username)")
-                    .font(.system(size: 14, weight: .regular, design: .rounded))
-                    .foregroundStyle(TravColors.muted)
-
+            // Bio & Location Chip below avatar
+            VStack(alignment: .leading, spacing: 8) {
                 if let bio = profile.bio, !bio.isEmpty {
                     Text(bio)
                         .font(.system(size: 14, weight: .regular, design: .rounded))
-                        .foregroundStyle(TravColors.primary.opacity(0.85))
-                        .multilineTextAlignment(.center)
+                        .foregroundStyle(TravColors.primary.opacity(0.9))
                         .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 4)
-                        .padding(.horizontal, TravSpacing.sm)
                 }
 
                 if let city = profile.homeCityLabel {
-                    Text(city)
-                        .font(.system(size: 13, weight: .regular, design: .rounded))
-                        .foregroundStyle(TravColors.muted)
-                        .padding(.top, 2)
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin.and.ellipse")
+                            .font(.system(size: 11))
+                            .foregroundStyle(TravColors.accent)
+                        Text(city)
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+                    }
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 6)
+                    .background(TravColors.surfaceElevated)
+                    .clipShape(Capsule())
                 }
             }
-            .frame(maxWidth: .infinity)
         }
     }
 
     @ViewBuilder
     private func actionRow(_ profile: Profile) -> some View {
         if isOwnProfile {
-            HStack {
-                Spacer(minLength: 0)
-                ProfileEditButton(title: "Edit profile") {
+            HStack(spacing: TravSpacing.sm) {
+                Button {
                     showEditProfile = true
+                } label: {
+                    Text("Edit profile")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(TravColors.primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 38)
+                        .background(TravColors.surfaceElevated)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
-                Spacer(minLength: 0)
+                .buttonStyle(TravPressButtonStyle(scale: 0.98))
+
+                ShareLink(item: URL(string: "https://trav.app/user/\(profile.username)")!) {
+                    Text("Share profile")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(TravColors.primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 38)
+                        .background(TravColors.surfaceElevated)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.98))
+
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "person.badge.plus")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(TravColors.primary)
+                        .frame(width: 38, height: 38)
+                        .background(TravColors.surfaceElevated)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.98))
             }
         } else {
-            ProfileFollowButton(
-                isFollowing: profile.isFollowing == true || engagement.isFollowing(profile.id),
-                isLoading: viewModel.isFollowLoading
-            ) {
-                Task { await viewModel.toggleFollow(using: environment) }
+            HStack(spacing: TravSpacing.sm) {
+                ProfileFollowButton(
+                    isFollowing: profile.isFollowing == true || engagement.isFollowing(profile.id),
+                    isLoading: viewModel.isFollowLoading
+                ) {
+                    Task { await viewModel.toggleFollow(using: environment) }
+                }
+
+                ShareLink(item: URL(string: "https://trav.app/user/\(profile.username)")!) {
+                    Text("Share profile")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(TravColors.primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 38)
+                        .background(TravColors.surfaceElevated)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.98))
             }
         }
     }

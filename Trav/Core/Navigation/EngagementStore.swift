@@ -151,6 +151,41 @@ final class EngagementStore {
         profileCacheByUsername[username.lowercased()]
     }
 
+    /// Increments the logged-in user's follower count and triggers real-time UI updates when a follow notification arrives.
+    func handleFollowNotification(notification: AppNotification, using environment: AppEnvironment) {
+        guard let currentUserID = environment.session.currentUser?.id,
+              notification.userID == currentUserID,
+              notification.type == .follow else { return }
+
+        if var me = environment.session.currentUser {
+            me.followerCount += 1
+            environment.session.currentUser = me
+            cache(me)
+        } else if var cached = profileCache[currentUserID] {
+            cached.followerCount += 1
+            cache(cached)
+        } else {
+            bump()
+        }
+    }
+
+    /// Decrements the logged-in user's follower count and triggers real-time UI updates when someone unfollows.
+    func handleUnfollowEvent(followerID: UUID, followingID: UUID, using environment: AppEnvironment) {
+        guard let currentUserID = environment.session.currentUser?.id,
+              followingID == currentUserID else { return }
+
+        if var me = environment.session.currentUser {
+            me.followerCount = max(0, me.followerCount - 1)
+            environment.session.currentUser = me
+            cache(me)
+        } else if var cached = profileCache[currentUserID] {
+            cached.followerCount = max(0, cached.followerCount - 1)
+            cache(cached)
+        } else {
+            bump()
+        }
+    }
+
     func cachedSummary(for experienceID: UUID) -> ExperienceSummary? {
         savedSummaries[experienceID]
     }

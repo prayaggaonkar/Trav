@@ -122,7 +122,7 @@ final class NotificationStore {
                 let stream = environment.notifications.observeInserts(userID: userID)
                 for await notification in stream {
                     guard !Task.isCancelled else { return }
-                    await self.handleIncoming(notification, bumpUnread: true)
+                    await self.handleIncoming(notification, bumpUnread: true, using: environment)
                 }
                 guard !Task.isCancelled else { return }
                 try? await Task.sleep(nanoseconds: Self.realtimeRetryNanoseconds)
@@ -130,9 +130,71 @@ final class NotificationStore {
         }
     }
 
+<<<<<<< HEAD
+    private func startBackupPoll(userID: UUID, using environment: AppEnvironment) {
+        pollTask?.cancel()
+        pollTask = Task { [weak self] in
+            // Poll immediately, then on an interval — no UI spinner, silent network only.
+            while !Task.isCancelled {
+                guard let self else { return }
+                if self.isAppActive, self.isListening, !self.isInboxPresented {
+                    await self.runBackupPoll(userID: userID, using: environment, allowToast: true)
+                }
+                try? await Task.sleep(nanoseconds: Self.backupPollIntervalNanoseconds)
+            }
+        }
+    }
+
+    private func runBackupPoll(
+        userID: UUID,
+        using environment: AppEnvironment,
+        allowToast: Bool
+    ) async {
+        do {
+            let previous = unreadCount
+            let count = try await environment.notifications.unreadCount(userID: userID)
+            // Only mutate when changed — avoids redrawing Explore/globe on quiet polls.
+            if count != unreadCount {
+                unreadCount = count
+            }
+
+            // Real-time sync of follower & following counts from backend
+            if let freshProfile = try? await environment.profiles.fetchProfile(id: userID),
+               let me = environment.session.currentUser, me.id == userID {
+                if freshProfile.followerCount != me.followerCount || freshProfile.followingCount != me.followingCount {
+                    var updated = me
+                    updated.followerCount = freshProfile.followerCount
+                    updated.followingCount = freshProfile.followingCount
+                    environment.session.currentUser = updated
+                    environment.engagement.cache(updated)
+                }
+            }
+
+            guard allowToast, count > previous else { return }
+
+            let page = try await environment.notifications.fetchNotifications(userID: userID, page: 0)
+            let fresh = page.items.filter { !$0.isRead && !seenToastIDs.contains($0.id) }
+            for notification in fresh.reversed() {
+                await handleIncoming(notification, bumpUnread: false, using: environment)
+            }
+        } catch {
+            print("NotificationStore.backupPoll failed: \(error)")
+        }
+    }
+
+    private func handleIncoming(
+        _ notification: AppNotification,
+        bumpUnread: Bool,
+        using environment: AppEnvironment? = nil
+    ) async {
+=======
     private func handleIncoming(_ notification: AppNotification, bumpUnread: Bool) async {
+>>>>>>> b4072544029a2a5418e9d5a30b46383aba2eff07
         if bumpUnread, !notification.isRead, !seenToastIDs.contains(notification.id) {
             unreadCount += 1
+        }
+        if notification.type == .follow, let environment {
+            environment.engagement.handleFollowNotification(notification: notification, using: environment)
         }
         guard !isInboxPresented else {
             seenToastIDs.insert(notification.id)
