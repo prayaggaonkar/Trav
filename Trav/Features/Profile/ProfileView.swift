@@ -73,12 +73,10 @@ struct ProfileView: View {
                     FollowListView(profile: profile, mode: mode)
                 }
             }
-            .sheet(isPresented: $showSettings) {
+            .fullScreenCover(isPresented: $showSettings) {
                 SettingsSheetView {
                     Task { await viewModel.signOut(using: environment) }
                 }
-                .presentationDetents([.height(440)])
-                .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showCreateExperience) {
                 CreateExperienceView()
@@ -264,7 +262,7 @@ struct ProfileView: View {
                 Button {
                     showSettings = true
                 } label: {
-                    Image(systemName: "person.badge.plus")
+                    Image(systemName: "gearshape")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(TravColors.primary)
                         .frame(width: 38, height: 38)
@@ -519,208 +517,314 @@ struct SettingsSheetView: View {
     let onSignOut: () -> Void
 
     @State private var notificationsEnabled = UserDefaults.standard.bool(forKey: "trav.settings.notificationsEnabled")
+    @State private var notifyFollows = UserDefaults.standard.object(forKey: "trav.settings.notifyFollows") as? Bool ?? true
+    @State private var notifyReplies = UserDefaults.standard.object(forKey: "trav.settings.notifyReplies") as? Bool ?? true
+    @State private var notifyLikes = UserDefaults.standard.object(forKey: "trav.settings.notifyLikes") as? Bool ?? true
+    @State private var notifyUpdates = UserDefaults.standard.object(forKey: "trav.settings.notifyUpdates") as? Bool ?? true
+
     @State private var hapticsEnabled = UserDefaults.standard.bool(forKey: "trav.settings.hapticsEnabled")
     @State private var autoPlayMedia = UserDefaults.standard.bool(forKey: "trav.settings.autoPlayMedia")
     @State private var showBlockedUsers = false
 
     var body: some View {
-        VStack(spacing: TravSpacing.md) {
-            // Header
-            HStack {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(TravColors.accent)
-                Text("Settings")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(TravColors.primary)
-                Spacer()
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundStyle(TravColors.muted)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, TravSpacing.screenHorizontal)
-            .padding(.top, TravSpacing.lg)
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: TravSpacing.lg) {
+                    // MARK: - Notification Preferences Section
+                    VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                        Text("NOTIFICATION PREFERENCES")
+                            .font(TravTypography.overline())
+                            .tracking(1.5)
+                            .foregroundStyle(TravColors.muted)
+                            .padding(.horizontal, TravSpacing.xs)
 
-            Divider()
-                .background(TravColors.border.opacity(0.3))
+                        VStack(spacing: 0) {
+                            ToggleRow(
+                                isOn: $notificationsEnabled,
+                                icon: "bell.fill",
+                                iconColor: TravColors.accent,
+                                title: "Push Notifications"
+                            ) { newValue in
+                                UserDefaults.standard.set(newValue, forKey: "trav.settings.notificationsEnabled")
+                                Task {
+                                    if newValue, let userID = environment.session.currentUser?.id {
+                                        await PushNotificationService.shared.registerIfNeeded(
+                                            userID: userID,
+                                            using: environment
+                                        )
+                                    } else {
+                                        await PushNotificationService.shared.unregister(using: environment)
+                                    }
+                                }
+                            }
 
-            VStack(spacing: TravSpacing.md) {
-                // Grouped preference box
-                VStack(spacing: 0) {
-                    ToggleRow(
-                        isOn: $notificationsEnabled,
-                        icon: "bell.fill",
-                        iconColor: Color.blue,
-                        title: "Notifications"
-                    ) { newValue in
-                        UserDefaults.standard.set(newValue, forKey: "trav.settings.notificationsEnabled")
-                        Task {
-                            if newValue, let userID = environment.session.currentUser?.id {
-                                await PushNotificationService.shared.registerIfNeeded(
-                                    userID: userID,
-                                    using: environment
-                                )
-                            } else {
-                                await PushNotificationService.shared.unregister(using: environment)
+                            if notificationsEnabled {
+                                Divider()
+                                    .background(TravColors.border.opacity(0.2))
+                                    .padding(.leading, 48)
+
+                                ToggleSubRow(
+                                    isOn: $notifyFollows,
+                                    icon: "person.badge.plus.fill",
+                                    iconColor: TravColors.accent,
+                                    title: "New Followers",
+                                    subtitle: "When someone starts following your profile"
+                                ) { newValue in
+                                    UserDefaults.standard.set(newValue, forKey: "trav.settings.notifyFollows")
+                                }
+
+                                Divider()
+                                    .background(TravColors.border.opacity(0.2))
+                                    .padding(.leading, 48)
+
+                                ToggleSubRow(
+                                    isOn: $notifyReplies,
+                                    icon: "bubble.left.and.bubble.right.fill",
+                                    iconColor: TravColors.accent,
+                                    title: "Replies & Comments",
+                                    subtitle: "When someone comments or replies on your posts"
+                                ) { newValue in
+                                    UserDefaults.standard.set(newValue, forKey: "trav.settings.notifyReplies")
+                                }
+
+                                Divider()
+                                    .background(TravColors.border.opacity(0.2))
+                                    .padding(.leading, 48)
+
+                                ToggleSubRow(
+                                    isOn: $notifyLikes,
+                                    icon: "heart.fill",
+                                    iconColor: TravColors.accent,
+                                    title: "Likes & Saves",
+                                    subtitle: "When someone likes or saves your experiences"
+                                ) { newValue in
+                                    UserDefaults.standard.set(newValue, forKey: "trav.settings.notifyLikes")
+                                }
+
+                                Divider()
+                                    .background(TravColors.border.opacity(0.2))
+                                    .padding(.leading, 48)
+
+                                ToggleSubRow(
+                                    isOn: $notifyUpdates,
+                                    icon: "sparkles",
+                                    iconColor: TravColors.accent,
+                                    title: "Experience Updates",
+                                    subtitle: "Activity on creators and routes you follow"
+                                ) { newValue in
+                                    UserDefaults.standard.set(newValue, forKey: "trav.settings.notifyUpdates")
+                                }
                             }
                         }
+                        .background(TravColors.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
+                        )
                     }
 
-                    Divider()
-                        .background(TravColors.border.opacity(0.2))
-                        .padding(.leading, 48)
+                    // MARK: - App Preferences
+                    VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                        Text("APP PREFERENCES")
+                            .font(TravTypography.overline())
+                            .tracking(1.5)
+                            .foregroundStyle(TravColors.muted)
+                            .padding(.horizontal, TravSpacing.xs)
 
-                    ToggleRow(
-                        isOn: $hapticsEnabled,
-                        icon: "waveform",
-                        iconColor: Color.orange,
-                        title: "Haptic Feedback"
-                    ) { newValue in
-                        UserDefaults.standard.set(newValue, forKey: "trav.settings.hapticsEnabled")
+                        VStack(spacing: 0) {
+                            ToggleRow(
+                                isOn: Binding(
+                                    get: { !environment.appearance.isLightMode },
+                                    set: { isDark in
+                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                        if isDark {
+                                            environment.appearance.modeRaw = "dark"
+                                        } else {
+                                            environment.appearance.modeRaw = "light"
+                                        }
+                                    }
+                                ),
+                                icon: "moon.fill",
+                                iconColor: TravColors.accent,
+                                title: "Dark Mode"
+                            ) { _ in }
+
+                            Divider()
+                                .background(TravColors.border.opacity(0.2))
+                                .padding(.leading, 48)
+
+                            ToggleRow(
+                                isOn: $hapticsEnabled,
+                                icon: "waveform",
+                                iconColor: TravColors.accent,
+                                title: "Haptic Feedback"
+                            ) { newValue in
+                                UserDefaults.standard.set(newValue, forKey: "trav.settings.hapticsEnabled")
+                            }
+
+                            Divider()
+                                .background(TravColors.border.opacity(0.2))
+                                .padding(.leading, 48)
+
+                            ToggleRow(
+                                isOn: $autoPlayMedia,
+                                icon: "play.circle.fill",
+                                iconColor: TravColors.accent,
+                                title: "Auto-Play Media"
+                            ) { newValue in
+                                UserDefaults.standard.set(newValue, forKey: "trav.settings.autoPlayMedia")
+                            }
+                        }
+                        .background(TravColors.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
+                        )
                     }
 
-                    Divider()
-                        .background(TravColors.border.opacity(0.2))
-                        .padding(.leading, 48)
+                    // MARK: - Privacy & Safety
+                    VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                        Text("PRIVACY & SAFETY")
+                            .font(TravTypography.overline())
+                            .tracking(1.5)
+                            .foregroundStyle(TravColors.muted)
+                            .padding(.horizontal, TravSpacing.xs)
 
-                    ToggleRow(
-                        isOn: $autoPlayMedia,
-                        icon: "play.circle.fill",
-                        iconColor: Color.green,
-                        title: "Auto-Play Experiences"
-                    ) { newValue in
-                        UserDefaults.standard.set(newValue, forKey: "trav.settings.autoPlayMedia")
+                        VStack(spacing: 0) {
+                            Button {
+                                showBlockedUsers = true
+                            } label: {
+                                HStack(spacing: TravSpacing.md) {
+                                    Image(systemName: "hand.raised.fill")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundStyle(TravColors.accent)
+                                        .frame(width: 24, alignment: .center)
+
+                                    Text("Blocked Users")
+                                        .font(TravTypography.bodyMedium())
+                                        .foregroundStyle(TravColors.primary)
+
+                                    Spacer()
+
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(TravColors.muted)
+                                }
+                                .padding(.horizontal, TravSpacing.md)
+                                .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .background(TravColors.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
+                        )
+                    }
+
+                    // MARK: - Account Actions
+                    VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                        Text("ACCOUNT")
+                            .font(TravTypography.overline())
+                            .tracking(1.5)
+                            .foregroundStyle(TravColors.muted)
+                            .padding(.horizontal, TravSpacing.xs)
+
+                        Button {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            dismiss()
+                            onSignOut()
+                        } label: {
+                            HStack(spacing: TravSpacing.md) {
+                                Image(systemName: "rectangle.portrait.and.arrow.right")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Color.red)
+                                    .frame(width: 24, alignment: .center)
+
+                                Text("Sign Out")
+                                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                                    .foregroundStyle(Color.red)
+
+                                Spacer()
+                            }
+                            .padding(.horizontal, TravSpacing.md)
+                            .padding(.vertical, 12)
+                            .background(TravColors.surface)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(Color.red.opacity(0.2), lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
-                .background(TravColors.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
-                )
-
-                // Actions Box
-                VStack(spacing: TravSpacing.sm) {
-                    // Toggle theme button
-                    Button {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        environment.appearance.toggle()
-                    } label: {
-                        HStack(spacing: TravSpacing.md) {
-                            Image(systemName: environment.appearance.isLightMode ? "moon.fill" : "sun.max.fill")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(TravColors.accent)
-                                .frame(width: 32, height: 32)
-                                .background(TravColors.surfaceElevated)
-                                .clipShape(Circle())
-
-                            Text(environment.appearance.isLightMode ? "Dark Mode" : "Light Mode")
-                                .font(.system(size: 15, weight: .medium, design: .rounded))
-                                .foregroundStyle(TravColors.primary)
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(TravColors.muted)
-                        }
-                        .padding(.horizontal, TravSpacing.md)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(TravColors.surface)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
-                                )
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        showBlockedUsers = true
-                    } label: {
-                        HStack(spacing: TravSpacing.md) {
-                            Image(systemName: "hand.raised.fill")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(TravColors.accent)
-                                .frame(width: 32, height: 32)
-                                .background(TravColors.surfaceElevated)
-                                .clipShape(Circle())
-
-                            Text("Blocked Users")
-                                .font(TravTypography.bodyMedium())
-                                .foregroundStyle(TravColors.primary)
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(TravColors.muted)
-                        }
-                        .padding(.horizontal, TravSpacing.md)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(TravColors.surface)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
-                                )
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    // Sign out button
-                    Button {
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                .padding(.horizontal, TravSpacing.screenHorizontal)
+                .padding(.vertical, TravSpacing.lg)
+            }
+            .travScreenBackground()
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
                         dismiss()
-                        onSignOut()
-                    } label: {
-                        HStack(spacing: TravSpacing.md) {
-                            Image(systemName: "rectangle.portrait.and.arrow.right")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(Color.red)
-                                .frame(width: 32, height: 32)
-                                .background(Color.red.opacity(0.1))
-                                .clipShape(Circle())
-
-                            Text("Sign Out")
-                                .font(.system(size: 15, weight: .medium, design: .rounded))
-                                .foregroundStyle(Color.red)
-
-                            Spacer()
-                        }
-                        .padding(.horizontal, TravSpacing.md)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(TravColors.surface)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(Color.red.opacity(0.2), lineWidth: 1)
-                                )
-                        )
                     }
-                    .buttonStyle(.plain)
+                    .font(TravTypography.titleMedium())
+                    .fontWeight(.bold)
+                    .foregroundStyle(TravColors.accent)
                 }
             }
-            .padding(.horizontal, TravSpacing.screenHorizontal)
-            .padding(.top, TravSpacing.sm)
+            .sheet(isPresented: $showBlockedUsers) {
+                BlockedUsersView()
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+        }
+    }
+}
+
+private struct ToggleSubRow: View {
+    @Binding var isOn: Bool
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let subtitle: String
+    let onChange: (Bool) -> Void
+
+    var body: some View {
+        HStack(spacing: TravSpacing.md) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(iconColor)
+                .frame(width: 24, alignment: .center)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .foregroundStyle(TravColors.primary)
+
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundStyle(TravColors.muted)
+                    .lineLimit(2)
+            }
 
             Spacer()
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .tint(TravColors.accent)
+                .onChange(of: isOn) { _, newValue in
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    onChange(newValue)
+                }
         }
-        .travScreenBackground()
-        .sheet(isPresented: $showBlockedUsers) {
-            BlockedUsersView()
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
+        .padding(.horizontal, TravSpacing.md)
+        .padding(.vertical, 10)
     }
 }
 
@@ -831,11 +935,9 @@ struct ToggleRow: View {
     var body: some View {
         HStack(spacing: TravSpacing.md) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(iconColor)
-                .frame(width: 28, height: 28)
-                .background(iconColor.opacity(0.12))
-                .clipShape(Circle())
+                .frame(width: 24, alignment: .center)
 
             Text(title)
                 .font(.system(size: 15, weight: .medium, design: .rounded))

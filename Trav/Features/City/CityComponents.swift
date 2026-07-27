@@ -223,7 +223,7 @@ struct HeroExperienceCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                            .stroke(TravColors.border.opacity(0.3), lineWidth: 1)
                     )
                 }
                 .buttonStyle(.plain)
@@ -240,7 +240,7 @@ struct HeroExperienceCard: View {
                 
                 Text(experience.title)
                     .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(TravColors.primary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
@@ -255,7 +255,7 @@ struct HeroExperienceCard: View {
                             .foregroundStyle(TravColors.accent)
                         Text("by \(experience.creator.displayName)")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(TravColors.muted)
                     }
                 }
                 .buttonStyle(.plain)
@@ -264,7 +264,7 @@ struct HeroExperienceCard: View {
                 
                 Text(cityLabel)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(TravColors.muted)
                     .padding(.top, 4)
             }
             
@@ -278,7 +278,7 @@ struct HeroExperienceCard: View {
                     } label: {
                         Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
                             .font(.system(size: 13))
-                            .foregroundStyle(isSaved ? Color.yellow : .white.opacity(0.5))
+                            .foregroundStyle(isSaved ? Color.yellow : TravColors.muted)
                     }
                     .buttonStyle(.plain)
                     
@@ -287,7 +287,7 @@ struct HeroExperienceCard: View {
                     } label: {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(TravColors.muted)
                     }
                     .buttonStyle(.plain)
                 }
@@ -299,16 +299,7 @@ struct HeroExperienceCard: View {
             }
         }
         .padding(connectedLayout ? 20 : 14)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 0.08, green: 0.08, blue: 0.12),
-                    Color(red: 0.12, green: 0.12, blue: 0.18)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
+        .background(TravColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : 18, style: .continuous))
         .overlay(
             Group {
@@ -316,11 +307,11 @@ struct HeroExperienceCard: View {
                     VStack {
                         Spacer()
                         Divider()
-                            .background(Color.white.opacity(0.08))
+                            .background(TravColors.border.opacity(0.3))
                     }
                 } else {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
                 }
             }
         )

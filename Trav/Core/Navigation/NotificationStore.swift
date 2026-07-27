@@ -152,6 +152,22 @@ final class NotificationStore {
 
     private func enqueueToast(for notification: AppNotification) {
         guard UserDefaults.standard.bool(forKey: "trav.settings.notificationsEnabled") else { return }
+
+        let defaults = UserDefaults.standard
+        let isAllowed: Bool = {
+            switch notification.type {
+            case .follow:
+                return defaults.object(forKey: "trav.settings.notifyFollows") as? Bool ?? true
+            case .comment:
+                return defaults.object(forKey: "trav.settings.notifyReplies") as? Bool ?? true
+            case .like, .save:
+                return defaults.object(forKey: "trav.settings.notifyLikes") as? Bool ?? true
+            case .newExperience, .watchlist:
+                return defaults.object(forKey: "trav.settings.notifyUpdates") as? Bool ?? true
+            }
+        }()
+        guard isAllowed else { return }
+
         guard !seenToastIDs.contains(notification.id) else { return }
         if currentToast?.id == notification.id { return }
         if toastQueue.contains(where: { $0.id == notification.id }) { return }
