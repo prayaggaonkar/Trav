@@ -19,15 +19,15 @@ struct ProfileTabBar: View {
                         }
                         onSelect(tab)
                     } label: {
-                        HStack(spacing: 5) {
-                            Text(tab.title)
-                                .font(.system(size: 14, weight: selection == tab ? .semibold : .regular, design: .rounded))
+                        HStack(spacing: 6) {
+                            Image(systemName: tabIcon(for: tab))
+                                .font(.system(size: 18, weight: selection == tab ? .bold : .medium))
 
                             if let count, count > 0 {
                                 Text("\(count)")
                                     .font(.system(size: 11, weight: .bold, design: .rounded))
                                     .foregroundStyle(selection == tab ? TravColors.accent : TravColors.muted)
-                                    .padding(.horizontal, 6)
+                                    .padding(.horizontal, 5)
                                     .padding(.vertical, 2)
                                     .background(
                                         Capsule().fill(selection == tab ? TravColors.accent.opacity(0.15) : Color.gray.opacity(0.12))
@@ -36,7 +36,7 @@ struct ProfileTabBar: View {
                         }
                         .foregroundStyle(selection == tab ? TravColors.primary : TravColors.muted)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, TravSpacing.sm)
+                        .padding(.vertical, TravSpacing.sm + 2)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -45,7 +45,7 @@ struct ProfileTabBar: View {
 
             ZStack(alignment: .leading) {
                 Rectangle()
-                    .fill(TravColors.border.opacity(0.55))
+                    .fill(TravColors.border.opacity(0.35))
                     .frame(height: 0.5)
 
                 GeometryReader { geo in
@@ -53,16 +53,24 @@ struct ProfileTabBar: View {
                     let index = tabs.firstIndex(of: selection) ?? 0
                     Rectangle()
                         .fill(TravColors.primary)
-                        .frame(width: width * 0.45, height: 1.5)
+                        .frame(width: width * 0.45, height: 2)
                         .frame(maxHeight: .infinity, alignment: .bottom)
                         .offset(x: width * CGFloat(index) + width * 0.275)
                         .animation(TravAnimation.tab, value: selection)
                 }
-                .frame(height: 1.5)
+                .frame(height: 2)
             }
-            .frame(height: 1.5)
+            .frame(height: 2)
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
+    }
+
+    private func tabIcon(for tab: ProfileContentTab) -> String {
+        switch tab {
+        case .created: "square.grid.3x3.fill"
+        case .saved: "bookmark.fill"
+        case .completed: "checkmark.circle.fill"
+        }
     }
 }
 
@@ -70,32 +78,33 @@ struct ProfileTabBar: View {
 
 struct ProfileStatsRow: View {
     let profile: Profile
+    var createdCount: Int? = nil
     var onFollowers: () -> Void
     var onFollowing: () -> Void
     var onCreated: () -> Void
     var onCompleted: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 0) {
-            statButton(value: profile.followerCount, label: "Followers", action: onFollowers)
-            statButton(value: profile.followingCount, label: "Following", action: onFollowing)
-            statButton(value: profile.experienceCount, label: "Created", action: onCreated)
+        HStack(spacing: TravSpacing.md) {
+            statButton(value: createdCount ?? profile.experienceCount, label: "created", action: onCreated)
+            statButton(value: profile.followerCount, label: "followers", action: onFollowers)
+            statButton(value: profile.followingCount, label: "following", action: onFollowing)
         }
     }
 
     private func statButton(value: Int, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(TravFormatters.count(value))
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(TravColors.primary)
                     .contentTransition(.numericText())
                 Text(label)
-                    .font(.system(size: 11, weight: .regular, design: .rounded))
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
                     .foregroundStyle(TravColors.muted)
                     .lineLimit(1)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(TravPressButtonStyle(scale: 0.97))

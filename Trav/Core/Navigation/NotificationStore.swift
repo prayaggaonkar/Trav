@@ -139,7 +139,7 @@ final class NotificationStore {
                 let stream = environment.notifications.observeInserts(userID: userID)
                 for await notification in stream {
                     guard !Task.isCancelled else { return }
-                    await self.handleIncoming(notification, bumpUnread: true)
+                    await self.handleIncoming(notification, bumpUnread: true, using: environment)
                 }
                 // Stream ended (disconnect / subscribe failure) — quiet retry.
                 guard !Task.isCancelled else { return }
@@ -174,21 +174,41 @@ final class NotificationStore {
             if count != unreadCount {
                 unreadCount = count
             }
+
+            // Real-time sync of follower & following counts from backend
+            if let freshProfile = try? await environment.profiles.fetchProfile(id: userID),
+               let me = environment.session.currentUser, me.id == userID {
+                if freshProfile.followerCount != me.followerCount || freshProfile.followingCount != me.followingCount {
+                    var updated = me
+                    updated.followerCount = freshProfile.followerCount
+                    updated.followingCount = freshProfile.followingCount
+                    environment.session.currentUser = updated
+                    environment.engagement.cache(updated)
+                }
+            }
+
             guard allowToast, count > previous else { return }
 
             let page = try await environment.notifications.fetchNotifications(userID: userID, page: 0)
             let fresh = page.items.filter { !$0.isRead && !seenToastIDs.contains($0.id) }
             for notification in fresh.reversed() {
-                await handleIncoming(notification, bumpUnread: false)
+                await handleIncoming(notification, bumpUnread: false, using: environment)
             }
         } catch {
             print("NotificationStore.backupPoll failed: \(error)")
         }
     }
 
-    private func handleIncoming(_ notification: AppNotification, bumpUnread: Bool) async {
+    private func handleIncoming(
+        _ notification: AppNotification,
+        bumpUnread: Bool,
+        using environment: AppEnvironment? = nil
+    ) async {
         if bumpUnread, !notification.isRead, !seenToastIDs.contains(notification.id) {
             unreadCount += 1
+        }
+        if notification.type == .follow, let environment {
+            environment.engagement.handleFollowNotification(notification: notification, using: environment)
         }
         guard !isInboxPresented else {
             seenToastIDs.insert(notification.id)
