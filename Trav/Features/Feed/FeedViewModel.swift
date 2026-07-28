@@ -57,7 +57,18 @@ final class FeedViewModel {
 
         let exp = await experiencesResult
         let pla = await placesResult
-        popups = await popupsResult
+        let rawPopups = await popupsResult
+
+        var uniquePopups: [Popup] = []
+        for p in rawPopups {
+            let norm = p.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if !uniquePopups.contains(where: {
+                $0.id == p.id || ($0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == norm && $0.startTime == p.startTime)
+            }) {
+                uniquePopups.append(p)
+            }
+        }
+        popups = uniquePopups
 
         experiences = exp?.items ?? []
         experiencePage = 0

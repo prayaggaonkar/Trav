@@ -1,23 +1,35 @@
 import Foundation
 import SwiftUI
 
-/// Categories of pop-up events and local meetups.
+/// Expanded categories of pop-up events, social activities, and community meetups.
 enum PopupCategory: String, Codable, Sendable, Hashable, CaseIterable {
     case sports
     case music
-    case meetups
     case food
+    case meetups
+    case comedy
+    case outdoor
     case art
+    case nightlife
+    case gaming
+    case movies
+    case shopping
     case general
 
     var displayName: String {
         switch self {
         case .sports: return "Sports & Rec"
-        case .music: return "Live Music"
-        case .meetups: return "Social & Games"
+        case .music: return "Concerts & Live Music"
         case .food: return "Food & Drink"
-        case .art: return "Arts & Culture"
-        case .general: return "Meetups & Popups"
+        case .meetups: return "Social & Games"
+        case .comedy: return "Comedy & Improv"
+        case .outdoor: return "Outdoor & Hiking"
+        case .art: return "Arts & Crafts"
+        case .nightlife: return "Nightlife & Parties"
+        case .gaming: return "Gaming & Esports"
+        case .movies: return "Movies & Screenings"
+        case .shopping: return "Markets & Vintage"
+        case .general: return "Local Happenings"
         }
     }
 
@@ -25,9 +37,15 @@ enum PopupCategory: String, Codable, Sendable, Hashable, CaseIterable {
         switch self {
         case .sports: return "🏓"
         case .music: return "🎵"
-        case .meetups: return "🍻"
         case .food: return "🌮"
+        case .meetups: return "🍻"
+        case .comedy: return "🎙️"
+        case .outdoor: return "🌲"
         case .art: return "🎨"
+        case .nightlife: return "💃"
+        case .gaming: return "🎮"
+        case .movies: return "🍿"
+        case .shopping: return "🛍️"
         case .general: return "🎉"
         }
     }
@@ -36,15 +54,21 @@ enum PopupCategory: String, Codable, Sendable, Hashable, CaseIterable {
         switch self {
         case .sports: return Color.green
         case .music: return Color.purple
-        case .meetups: return Color.orange
-        case .food: return Color.red
+        case .food: return Color.orange
+        case .meetups: return Color.blue
+        case .comedy: return Color.yellow
+        case .outdoor: return Color.teal
         case .art: return Color.pink
+        case .nightlife: return Color.indigo
+        case .gaming: return Color.mint
+        case .movies: return Color.red
+        case .shopping: return Color.brown
         case .general: return TravColors.accent
         }
     }
 }
 
-/// A local pop-up event or community meetup (sports tournaments, live concerts, markets, game nights, etc.).
+/// A local pop-up event or community meetup (pickleball tournaments, live concerts, markets, game nights, etc.).
 struct Popup: Identifiable, Codable, Sendable, Hashable {
     let id: UUID
     var name: String
@@ -97,8 +121,8 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
         guard let startTime else { return false }
         let now = Date()
         let startOfToday = Calendar.current.startOfDay(for: now)
-        let threeDaysOut = Calendar.current.date(byAdding: .day, value: 7, to: now) ?? now
-        return startTime >= startOfToday && startTime <= threeDaysOut
+        let sevenDaysOut = Calendar.current.date(byAdding: .day, value: 7, to: now) ?? now
+        return startTime >= startOfToday && startTime <= sevenDaysOut
     }
 
     var startTimeLabel: String {

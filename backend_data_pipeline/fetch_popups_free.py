@@ -254,7 +254,7 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "source": "meetup"
         },
         
-        # 5. Arts & Culture
+        # 5. Arts & Crafts
         {
             "event_name": f"{city_name} First Friday Art Walk & Pottery DIY",
             "address": f"Arts & Cultural District, {city}",
@@ -268,6 +268,102 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "external_url": "https://luma.ma",
             "image_url": "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&q=80",
             "source": "luma"
+        },
+
+        # 6. Comedy & Improv
+        {
+            "event_name": f"Underground Standup Comedy & Open Mic",
+            "address": f"The Black Cat Lounge, {city}",
+            "city": city,
+            "latitude": base_lat - 0.005,
+            "longitude": base_lng + 0.004,
+            "category": "comedy",
+            "description": "Hilarious showcase featuring touring headliners and local comedy talent. Drink specials all night!",
+            "start_time": (now + datetime.timedelta(days=2, hours=7)).isoformat(),
+            "end_time": (now + datetime.timedelta(days=2, hours=9)).isoformat(),
+            "external_url": "https://eventbrite.com",
+            "image_url": "https://images.unsplash.com/photo-1585699324551-f6c309eedeca?w=800&q=80",
+            "source": "eventbrite"
+        },
+
+        # 7. Outdoor & Hiking
+        {
+            "event_name": f"{city_name} Ridge Trail Sunrise Hike & Picnic",
+            "address": f"Skyline Trailhead, {city}",
+            "city": city,
+            "latitude": base_lat + 0.015,
+            "longitude": base_lng + 0.010,
+            "category": "outdoor",
+            "description": "Moderate 4-mile scenic morning hike through redwood groves with panoramic valley viewpoints.",
+            "start_time": (now + datetime.timedelta(days=3, hours=1)).isoformat(),
+            "end_time": (now + datetime.timedelta(days=3, hours=4)).isoformat(),
+            "external_url": "https://alltrails.com",
+            "image_url": "https://images.unsplash.com/photo-1551632811-561732d1e306?w=800&q=80",
+            "source": "community"
+        },
+
+        # 8. Gaming & Esports
+        {
+            "event_name": f"Retro Arcade & Fighting Game Tournament",
+            "address": f"Joystick Lounge, {city}",
+            "city": city,
+            "latitude": base_lat - 0.006,
+            "longitude": base_lng - 0.005,
+            "category": "gaming",
+            "description": "Smash Bros, Street Fighter, and retro pinball tournament with custom trophy prizes and casual setups.",
+            "start_time": (now + datetime.timedelta(days=4, hours=6)).isoformat(),
+            "end_time": (now + datetime.timedelta(days=4, hours=10)).isoformat(),
+            "external_url": "https://start.gg",
+            "image_url": "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&q=80",
+            "source": "community"
+        },
+
+        # 9. Outdoor Movies & Screenings
+        {
+            "event_name": f"Rooftop Sunset Cinema & Cult Classics",
+            "address": f"Central Plaza Terrace, {city}",
+            "city": city,
+            "latitude": base_lat + 0.004,
+            "longitude": base_lng - 0.002,
+            "category": "movies",
+            "description": "Outdoor big screen movie night under the stars! Free popcorn, beanbags, and food truck vendors.",
+            "start_time": (now + datetime.timedelta(days=3, hours=6)).isoformat(),
+            "end_time": (now + datetime.timedelta(days=3, hours=9)).isoformat(),
+            "external_url": "https://eventbrite.com",
+            "image_url": "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&q=80",
+            "source": "eventbrite"
+        },
+
+        # 10. Vintage & Flea Markets
+        {
+            "event_name": f"{city_name} Vintage Flea Market & Thrift Swap",
+            "address": f"Civic Center Plaza, {city}",
+            "city": city,
+            "latitude": base_lat - 0.002,
+            "longitude": base_lng - 0.007,
+            "category": "shopping",
+            "description": "Curated 90s vintage clothing, handmade jewelry, rare vinyl records, plant sales, and local art stalls.",
+            "start_time": (now + datetime.timedelta(days=5, hours=2)).isoformat(),
+            "end_time": (now + datetime.timedelta(days=5, hours=7)).isoformat(),
+            "external_url": "https://eventbrite.com",
+            "image_url": "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=800&q=80",
+            "source": "community"
+        },
+
+        # 11. Nightlife & Parties
+        {
+            "event_name": f"Silent Disco Beach Party & Neon Glow",
+            "address": f"Ocean Esplanade, {city}",
+            "city": city,
+            "latitude": base_lat - 0.010,
+            "longitude": base_lng - 0.012,
+            "category": "nightlife",
+            "description": "3 channel wireless headphone dance party on the shore featuring house, hip-hop, and throwback 2000s jams.",
+            "start_time": (now + datetime.timedelta(days=4, hours=8)).isoformat(),
+            "end_time": (now + datetime.timedelta(days=4, hours=12)).isoformat(),
+            "external_url": "https://eventbrite.com",
+            "image_url": "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80",
+            "source": "eventbrite"
         }
     ]
     return events
