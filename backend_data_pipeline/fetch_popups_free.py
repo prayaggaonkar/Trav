@@ -371,7 +371,15 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
     return events
 
 
+import argparse
+
 def run_ingestion_pipeline():
+    parser = argparse.ArgumentParser(description="Dynamic Multi-Source Event Ingestion Pipeline")
+    parser.add_argument("--city", type=str, default="Berkeley, CA", help="Target city (e.g. 'Austin, TX', 'London', 'Seattle, WA')")
+    parser.add_argument("--lat", type=float, default=37.8715, help="Latitude")
+    parser.add_argument("--lng", type=float, default=-122.2730, help="Longitude")
+    args = parser.parse_args()
+
     load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
     supabase_url = os.environ.get("SUPABASE_URL")
     supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
@@ -382,29 +390,27 @@ def run_ingestion_pipeline():
 
     supabase: Client = create_client(supabase_url.strip(), supabase_key.strip())
     
-    print(f"🚀 Starting Multi-Source Event Ingestion Pipeline -> {supabase_url}")
+    city_clean = args.city.split(",")[0].strip()
+    state_code = args.city.split(",")[1].strip() if "," in args.city else ""
+    
+    print(f"🚀 Dynamic Ingestion for '{args.city}' ({args.lat}, {args.lng}) -> {supabase_url}")
     
     all_candidates = []
     
-    # 1. Fetch live events from Ticketmaster API
-    tm_events = fetch_ticketmaster_events(city="Berkeley", state_code="CA")
-    print(f"Fetched {len(tm_events)} events from Ticketmaster API.")
+    # 1. Fetch live events from Ticketmaster API for target city
+    tm_events = fetch_ticketmaster_events(city=city_clean, state_code=state_code)
+    print(f"Fetched {len(tm_events)} live events from Ticketmaster for {city_clean}.")
     all_candidates.extend(tm_events)
     
-    # 2. Fetch live events via Schema.org JSON-LD structured data
-    eb_berkeley = fetch_schema_jsonld_events("https://www.eventbrite.com/d/ca--berkeley/all-events/", "Berkeley, CA")
-    eb_sf = fetch_schema_jsonld_events("https://www.eventbrite.com/d/ca--san-francisco/all-events/", "San Francisco, CA")
-    print(f"Fetched {len(eb_berkeley) + len(eb_sf)} structured web events from Eventbrite.")
-    all_candidates.extend(eb_berkeley)
-    all_candidates.extend(eb_sf)
+    # 2. Fetch live events via Schema.org JSON-LD structured data for target city
+    city_slug = city_clean.lower().replace(" ", "-")
+    eb_events = fetch_schema_jsonld_events(f"https://www.eventbrite.com/d/{city_slug}/all-events/", args.city)
+    print(f"Fetched {len(eb_events)} structured web events from Eventbrite for {city_clean}.")
+    all_candidates.extend(eb_events)
     
-    # 3. Add location-tailored general community events across categories
-    rich_berkeley = generate_rich_city_events("Berkeley, CA", 37.8715, -122.2730)
-    rich_sf = generate_rich_city_events("San Francisco, CA", 37.7749, -122.4194)
-    rich_oakland = generate_rich_city_events("Oakland, CA", 37.8044, -122.2712)
-    all_candidates.extend(rich_berkeley)
-    all_candidates.extend(rich_sf)
-    all_candidates.extend(rich_oakland)
+    # 3. Add location-tailored general community events across categories for target city
+    rich_events = generate_rich_city_events(args.city, args.lat, args.lng)
+    all_candidates.extend(rich_events)
     
     unique_candidates = []
     seen = set()

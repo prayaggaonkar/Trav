@@ -524,38 +524,64 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
         var rows: [DBPopup] = []
 
-        // 1. Try RPC function fetch_popups_near
+        // 1. Invoke Supabase Edge Function API `fetch-location-popups` for live dynamic events
         do {
-            struct RPCParams: Encodable {
-                let user_lat: Double
-                let user_lng: Double
+            struct FunctionBody: Encodable {
+                let latitude: Double
+                let longitude: Double
+                let city: String
                 let radius_miles: Double
-                let limit_count: Int
             }
-            rows = try await client
-                .rpc(
-                    "fetch_popups_near",
-                    params: RPCParams(
-                        user_lat: userLat,
-                        user_lng: userLng,
-                        radius_miles: 50.0,
-                        limit_count: 50
+            struct FunctionResponse: Decodable {
+                let popups: [DBPopup]
+            }
+
+            let res: FunctionResponse = try await client.functions.invoke(
+                "fetch-location-popups",
+                options: FunctionInvokeOptions(
+                    body: FunctionBody(
+                        latitude: userLat,
+                        longitude: userLng,
+                        city: targetCity,
+                        radius_miles: 50.0
                     )
                 )
-                .execute()
-                .value
+            )
+            rows = res.popups
         } catch {
-            // 2. Fallback to direct table query
+            // 2. Fallback to RPC function fetch_popups_near
             do {
+                struct RPCParams: Encodable {
+                    let user_lat: Double
+                    let user_lng: Double
+                    let radius_miles: Double
+                    let limit_count: Int
+                }
                 rows = try await client
-                    .from("popups")
-                    .select("id, event_name, address, city, latitude, longitude, category, description, start_time, end_time, external_url, image_url, source")
-                    .order("start_time", ascending: true)
-                    .limit(50)
+                    .rpc(
+                        "fetch_popups_near",
+                        params: RPCParams(
+                            user_lat: userLat,
+                            user_lng: userLng,
+                            radius_miles: 50.0,
+                            limit_count: 50
+                        )
+                    )
                     .execute()
                     .value
             } catch {
-                rows = []
+                // 3. Fallback to direct table query
+                do {
+                    rows = try await client
+                        .from("popups")
+                        .select("id, event_name, address, city, latitude, longitude, category, description, start_time, end_time, external_url, image_url, source")
+                        .order("start_time", ascending: true)
+                        .limit(50)
+                        .execute()
+                        .value
+                } catch {
+                    rows = []
+                }
             }
         }
 
