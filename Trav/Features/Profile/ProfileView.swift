@@ -54,6 +54,7 @@ struct ProfileView: View {
             }
             .travScreenBackground()
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(showDismissButton ? .automatic : .hidden, for: .navigationBar)
             .toolbar { toolbarContent }
             .sheet(isPresented: $showEditProfile) {
                 if let profile = viewModel.profile {
@@ -116,53 +117,64 @@ struct ProfileView: View {
 
     @ViewBuilder
     private func profileScroll(_ profile: Profile) -> some View {
+        // Chrome lives in a top safeAreaInset so ScrollView / Map cards in any tab
+        // cannot change its position or inject extra top inset.
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                if isOwnProfile {
-                    HStack {
-                        Spacer(minLength: 0)
-                        profileMenu
-                    }
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
-                    .padding(.top, TravSpacing.xs)
-                }
-
-                header(profile)
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
-                    .padding(.top, isOwnProfile ? TravSpacing.xs : TravSpacing.sm)
-                    .travAppear()
-
-                actionRow(profile)
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
-                    .padding(.top, TravSpacing.md)
-                    .travAppear(delay: 0.08)
-
-                ProfileTabBar(
-                    tabs: tabs,
-                    selection: Binding(
-                        get: { viewModel.selectedTab },
-                        set: { newValue in
-                            Task { await viewModel.selectTab(newValue, using: environment) }
-                        }
-                    ),
-                    counts: [
-                        .created: max(profile.experienceCount, viewModel.created.count),
-                        .saved: viewModel.saved.count
-                    ],
-                    onSelect: { tab in
-                        Task { await viewModel.selectTab(tab, using: environment) }
-                    }
-                )
-                .padding(.top, TravSpacing.lg)
-                .travAppear(delay: 0.1)
-
-                tabContent
-                    .padding(.bottom, TravSpacing.xxl + TravSpacing.lg)
-            }
+            tabContent
+                .id(viewModel.selectedTab)
+                .padding(.bottom, TravSpacing.xxl + TravSpacing.lg)
+        }
+        .scrollIndicators(.hidden)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            profileChrome(profile)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(TravColors.surface)
         }
         .refreshable {
             await viewModel.refresh(using: environment)
         }
+    }
+
+    @ViewBuilder
+    private func profileChrome(_ profile: Profile) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if isOwnProfile {
+                HStack {
+                    Spacer(minLength: 0)
+                    profileMenu
+                }
+                .padding(.horizontal, TravSpacing.screenHorizontal)
+                .padding(.top, TravSpacing.xs)
+                .frame(height: 36, alignment: .center)
+            }
+
+            header(profile)
+                .padding(.horizontal, TravSpacing.screenHorizontal)
+                .padding(.top, isOwnProfile ? TravSpacing.xs : TravSpacing.sm)
+
+            actionRow(profile)
+                .padding(.horizontal, TravSpacing.screenHorizontal)
+                .padding(.top, TravSpacing.md)
+
+            ProfileTabBar(
+                tabs: tabs,
+                selection: Binding(
+                    get: { viewModel.selectedTab },
+                    set: { newValue in
+                        Task { await viewModel.selectTab(newValue, using: environment) }
+                    }
+                ),
+                counts: [
+                    .created: max(profile.experienceCount, viewModel.created.count),
+                    .saved: viewModel.saved.count
+                ],
+                onSelect: { tab in
+                    Task { await viewModel.selectTab(tab, using: environment) }
+                }
+            )
+            .padding(.top, TravSpacing.lg)
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
@@ -358,10 +370,6 @@ struct ProfileView: View {
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
         .padding(.top, TravSpacing.md)
-        .animation(TravAnimation.quick, value: viewModel.selectedTab)
-        .animation(TravAnimation.quick, value: viewModel.created.map(\.id))
-        .animation(TravAnimation.quick, value: viewModel.saved.map(\.id))
-        .animation(TravAnimation.quick, value: viewModel.completed.map(\.id))
     }
 
     @ViewBuilder
@@ -433,7 +441,6 @@ struct ProfileView: View {
                 )
             }
         }
-        .travAppear(delay: Double(min(index, 5)) * 0.03)
         .onAppear {
             if isLast {
                 Task { await viewModel.loadMoreIfNeeded(using: environment) }
@@ -469,7 +476,6 @@ struct ProfileView: View {
                 }
             }
         )
-        .travAppear(delay: Double(min(index, 5)) * 0.03)
         .onAppear {
             if isLast {
                 Task { await viewModel.loadMoreIfNeeded(using: environment) }

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Bake a daytime land/ocean diffuse for light mode from earth_day.jpg.
 
-Oceans are recolored to daylight blues; land is lifted to a sunlit look.
+Oceans are recolored to daylight blues; land is lifted to a sunlit look
+with highlight compression so Sahara / Arabia / other arid regions stay natural.
 Does not touch earth_night (purple network).
 """
 
@@ -19,8 +20,29 @@ OUT_ASSET_DIR = ROOT / "Trav/Resources/Assets.xcassets/earth_day_light.imageset"
 OUT_ASSET = OUT_ASSET_DIR / "earth_day_light.jpg"
 
 
+def compress_arid_highlights(rgb: np.ndarray) -> np.ndarray:
+    """Pull chalky Sahara / Arabia sand toward natural dusty beige."""
+    r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+    lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    warmth = r - b
+    greenish = g - np.maximum(r, b)
+    arid = (
+        np.clip((lum - 95.0) / 90.0, 0, 1)
+        * np.clip((warmth - 10.0) / 55.0, 0, 1)
+        * np.clip(1.0 - greenish / 20.0, 0, 1)
+        * np.clip(1.0 - np.abs(r - g) / 55.0, 0.4, 1.0)
+    )
+    detail = rgb - lum[..., None]
+    base = np.array([128.0, 112.0, 92.0], dtype=np.float32)
+    target = np.clip(base + detail * 0.45 + (rgb - base) * 0.2, 0, 255)
+    dest = target * 0.7 + lum[..., None] * 0.3
+    mix = (np.power(np.clip(arid, 0, 1), 0.85) * 0.9)[..., None]
+    return rgb * (1.0 - mix) + dest * mix
+
+
 def bake(source: Image.Image) -> Image.Image:
     a = np.asarray(source.convert("RGB"), dtype=np.float32)
+    a = compress_arid_highlights(a)
     r, g, b = a[:, :, 0], a[:, :, 1], a[:, :, 2]
     lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
 
@@ -45,13 +67,23 @@ def bake(source: Image.Image) -> Image.Image:
     detail = (a - lum[..., None]) * 0.55
     ocean_col = np.clip(ocean_col + detail * ocean_score, 0, 255)
 
-    # Sunlit land — preserve structure, warmer greens/tans.
-    land = np.clip(a * 1.35 + 18, 0, 255)
-    land[:, :, 1] = np.clip(land[:, :, 1] * 1.08 + 6, 0, 255)
-    land[:, :, 0] = np.clip(land[:, :, 0] * 1.05 + 4, 0, 255)
-    land[:, :, 2] = np.clip(land[:, :, 2] * 0.92, 0, 255)
+    # Sunlit land — lift shadows/midtones; skip warm boost on arid sand.
+    shadow = 1.0 - np.clip(lum / 190.0, 0, 1)
+    lift = 1.08 + 0.22 * shadow
+    bias = 8.0 * shadow
+    land = np.clip(a * lift[..., None] + bias[..., None], 0, 255)
+    warmth = land[:, :, 0] - land[:, :, 2]
+    arid_w = np.clip((lum - 90.0) / 85.0, 0, 1) * np.clip((warmth - 8.0) / 50.0, 0, 1)
+    warm_amt = (1.0 - arid_w)[..., None]
+    land_warm = land.copy()
+    land_warm[:, :, 1] = np.clip(land[:, :, 1] * 1.05 + 4, 0, 255)
+    land_warm[:, :, 0] = np.clip(land[:, :, 0] * 1.03 + 2, 0, 255)
+    land_warm[:, :, 2] = np.clip(land[:, :, 2] * 0.94, 0, 255)
+    land = land * (1.0 - warm_amt) + land_warm * warm_amt
+    land = compress_arid_highlights(land)
 
     out = ocean_col * ocean_score + land * (1.0 - ocean_score)
+    out = compress_arid_highlights(out)
     return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "RGB")
 
 

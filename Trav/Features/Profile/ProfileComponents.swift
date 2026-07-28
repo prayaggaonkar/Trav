@@ -14,9 +14,7 @@ struct ProfileTabBar: View {
                 ForEach(tabs) { tab in
                     let count = counts[tab]
                     Button {
-                        withAnimation(TravAnimation.tab) {
-                            selection = tab
-                        }
+                        selection = tab
                         onSelect(tab)
                     } label: {
                         HStack(spacing: 6) {
@@ -36,7 +34,7 @@ struct ProfileTabBar: View {
                         }
                         .foregroundStyle(selection == tab ? TravColors.primary : TravColors.muted)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, TravSpacing.sm + 2)
+                        .frame(height: 44)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

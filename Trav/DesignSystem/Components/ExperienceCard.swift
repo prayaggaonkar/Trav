@@ -513,10 +513,14 @@ struct ExperienceStopsMapView: View {
             }
         }
         .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+        .mapControls {
+            // No controls — keep card maps from requesting extra chrome / safe-area.
+        }
         .onAppear {
             setupCamera()
         }
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private func getCityBaseCoordinate() -> CLLocationCoordinate2D {
