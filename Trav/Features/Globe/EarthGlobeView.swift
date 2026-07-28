@@ -23,7 +23,7 @@ struct EarthGlobeView: UIViewRepresentable {
         view.isOpaque = false
         view.layer.isOpaque = false
         view.isMultipleTouchEnabled = true
-        view.antialiasingMode = .multisampling2X
+        view.antialiasingMode = .multisampling4X
         view.preferredFramesPerSecond = 30
         view.isPlaying = true
         view.autoenablesDefaultLighting = false

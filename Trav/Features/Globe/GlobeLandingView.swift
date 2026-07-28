@@ -29,13 +29,11 @@ struct GlobeLandingView: View {
 
             GeometryReader { geo in
                 if let viewModel {
-                    let globeHeight = geo.size.height * 0.68
-                    let globeCenterY = geo.size.height * 0.50
-                    let globeTop = globeCenterY - globeHeight / 2
-
+                    // Full-bleed SceneKit view so a zoomed globe can extend under the
+                    // Trav header / tab bar instead of being clipped by a short viewport.
                     EarthGlobeView(controller: viewModel.controller)
-                        .frame(width: geo.size.width, height: globeHeight)
-                        .position(x: geo.size.width * 0.5, y: globeCenterY)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .position(x: geo.size.width * 0.5, y: geo.size.height * 0.5)
                         // SceneKit only — do not put this on a parent or it forces the whole screen dark.
                         .preferredColorScheme(.dark)
 
@@ -43,7 +41,7 @@ struct GlobeLandingView: View {
                        let pinInGlobe = viewModel.previewPinPoint {
                         let anchor = CGPoint(
                             x: pinInGlobe.x,
-                            y: pinInGlobe.y + globeTop
+                            y: pinInGlobe.y
                         )
                         CityPinAnchoredPreview(
                             city: previewCity,
@@ -822,10 +820,66 @@ private struct CityGlobePreviewCard: View {
                         lineWidth: 1
                     )
             }
+            .overlay {
+                CityPreviewTracingGlow(cornerRadius: TravRadius.lg)
+                    .allowsHitTesting(false)
+            }
             .shadow(color: Color.black.opacity(isLightMode ? 0.1 : 0.35), radius: 18, y: 8)
         }
         .frame(width: 280)
         .accessibilityElement(children: .contain)
+    }
+}
+
+/// Short glowing accent segment that continuously traces the card perimeter.
+private struct CityPreviewTracingGlow: View {
+    let cornerRadius: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let lapDuration: TimeInterval = 2.8
+    private let segmentLength: CGFloat = 0.14
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: reduceMotion ? 1.0 / 12.0 : 1.0 / 60.0)) { context in
+            let phase: CGFloat = {
+                if reduceMotion { return 0.08 }
+                let t = context.date.timeIntervalSinceReferenceDate
+                return CGFloat(t.truncatingRemainder(dividingBy: lapDuration) / lapDuration)
+            }()
+
+            ZStack {
+                glowStroke(from: phase, length: segmentLength, lineWidth: 2.5, blur: 6, opacity: 0.55)
+                glowStroke(from: phase, length: segmentLength, lineWidth: 1.6, blur: 2, opacity: 1.0)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func glowStroke(
+        from phase: CGFloat,
+        length: CGFloat,
+        lineWidth: CGFloat,
+        blur: CGFloat,
+        opacity: Double
+    ) -> some View {
+        let start = phase.truncatingRemainder(dividingBy: 1)
+        let end = start + length
+        let style = StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
+        let color = TravColors.accent.opacity(opacity)
+
+        ZStack {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .trim(from: start, to: min(end, 1))
+                .stroke(color, style: style)
+
+            if end > 1 {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .trim(from: 0, to: end - 1)
+                    .stroke(color, style: style)
+            }
+        }
+        .shadow(color: TravColors.accent.opacity(opacity * 0.9), radius: blur)
+        .shadow(color: TravColors.accent.opacity(opacity * 0.45), radius: blur * 1.8)
     }
 }
 

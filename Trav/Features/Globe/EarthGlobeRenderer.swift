@@ -3,7 +3,7 @@ import UIKit
 import simd
 
 /// SceneKit scene for the interactive Earth globe.
-/// Uses bundled 2K textures and no custom shader modifiers — avoids SceneKit shader failures.
+/// Uses bundled 4K textures and no custom shader modifiers — avoids SceneKit shader failures.
 @MainActor
 final class EarthGlobeRenderer {
     let scene = SCNScene()
@@ -29,10 +29,12 @@ final class EarthGlobeRenderer {
     var onCitySelected: ((City) -> Void)?
 
     /// Default / maximum zoom-out distance (full globe in view).
-    /// Default / max zoom-out — 8% closer than 5.0 so the globe reads larger at rest.
-    static let maxZoomOutDistance: Float = 4.63
-    /// Minimum zoom-in for 2K textures without visible upscaling blur.
-    static let maxZoomInDistance: Float = 2.2
+    /// Full-bleed SceneKit viewport is taller than the old 0.68-height band, so this is
+    /// scaled from the prior resting distance, then tuned ~3% closer than a 5% farther out pass.
+    static let maxZoomOutDistance: Float = 6.94
+    /// Closest allowed zoom — farther than the old 1.65 (≈2.43 full-bleed equivalent)
+    /// so max zoom-in is moderately less close.
+    static let maxZoomInDistance: Float = 3.0
 
     var cameraDistance: Float = maxZoomOutDistance {
         didSet { updateCameraPosition() }
@@ -175,7 +177,8 @@ final class EarthGlobeRenderer {
 
         orientation = targetOrientation
         applyOrientation()
-        cameraDistance = 3.2
+        // Matches the old 3.2 framing under the full-bleed viewport scale.
+        cameraDistance = 4.7
         SCNTransaction.commit()
     }
 
@@ -246,14 +249,14 @@ final class EarthGlobeRenderer {
 
     private func buildEarthPlaceholder() {
         let geometry = SCNSphere(radius: 1.0)
-        geometry.segmentCount = 48
+        geometry.segmentCount = 96
 
         let material = SCNMaterial()
         material.diffuse.contents = UIColor(red: 0.08, green: 0.10, blue: 0.18, alpha: 1)
         material.emission.contents = UIColor.black
         material.lightingModel = .blinn
-        material.shininess = 0.04
-        material.specular.contents = UIColor(white: 0.06, alpha: 1)
+        material.shininess = 0.12
+        material.specular.contents = UIColor(white: 0.14, alpha: 1)
         material.ambient.contents = UIColor(white: 0.55, alpha: 1)
 
         geometry.materials = [material]
@@ -272,8 +275,8 @@ final class EarthGlobeRenderer {
         material.emission.contents = night
         material.emission.intensity = 1.45
         material.lightingModel = .blinn
-        material.shininess = 0.04
-        material.specular.contents = UIColor(white: 0.06, alpha: 1)
+        material.shininess = 0.12
+        material.specular.contents = UIColor(white: 0.14, alpha: 1)
         material.ambient.contents = UIColor(white: 0.55, alpha: 1)
     }
 
@@ -351,13 +354,13 @@ final class EarthGlobeRenderer {
         camera.zFar = 100
         camera.fieldOfView = 40
         camera.wantsDepthOfField = false
-        // Mild bloom so neon population hubs glow without washing the diffuse topo.
+        // Light bloom so neon hubs glow while 4K network lines stay readable up close.
         camera.wantsHDR = true
         camera.wantsExposureAdaptation = false
         camera.exposureOffset = 0.35
-        camera.bloomIntensity = 0.28
-        camera.bloomThreshold = 0.55
-        camera.bloomBlurRadius = 4.0
+        camera.bloomIntensity = 0.18
+        camera.bloomThreshold = 0.6
+        camera.bloomBlurRadius = 2.2
         cameraNode.camera = camera
         updateCameraPosition()
     }
