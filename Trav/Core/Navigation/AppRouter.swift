@@ -59,11 +59,24 @@ enum TravLinks {
     }
 }
 
+struct PrefilledSpot: Identifiable, Equatable, Sendable {
+    let id = UUID()
+    let title: String
+    let subtitle: String
+    let emoji: String
+    let latitude: Double?
+    let longitude: Double?
+    let cityName: String?
+}
+
 @Observable
 @MainActor
 final class AppRouter {
     var presentedRoute: TravRoute?
     var isAuthPresented = false
+
+    /// Spot payload when transferring from Feed search to Create page with autocompleted spot.
+    var pendingCreateSpot: PrefilledSpot? = nil
 
     /// Strict city scope for the Feed tab (catalog city only — never free-typed).
     var selectedFeedCity: City?
@@ -75,6 +88,17 @@ final class AppRouter {
     private(set) var feedNavigationToken: UInt = 0
     /// Bumped whenever the Explore tab becomes active so the globe can reset framing.
     private(set) var exploreActivationToken: UInt = 0
+
+    func openCreateWithSpot(title: String, subtitle: String, emoji: String, latitude: Double?, longitude: Double?, cityName: String?) {
+        pendingCreateSpot = PrefilledSpot(
+            title: title,
+            subtitle: subtitle,
+            emoji: emoji,
+            latitude: latitude,
+            longitude: longitude,
+            cityName: cityName
+        )
+    }
 
     /// Opens the immersive City Page (deep links / explicit city-page entry).
     /// Globe pin taps use `openFeed(city:)` so Feed gets the city search tag.

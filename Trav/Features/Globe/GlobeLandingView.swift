@@ -14,6 +14,8 @@ struct GlobeLandingView: View {
     @State private var viewModel: GlobeViewModel?
     @State private var showOnboarding = false
     @State private var searchText = ""
+    @State private var spotSearchController = SpotSearchController()
+    @State private var selectedSpotDetail: SpotSuggestion? = nil
     @State private var userSearchResults: [ProfileSummary] = []
     @State private var isSearchingUsers = false
     @State private var userSearchTask: Task<Void, Never>?
@@ -141,6 +143,7 @@ struct GlobeLandingView: View {
             }
         }
         .onChange(of: searchText) { _, newValue in
+            spotSearchController.query = newValue
             userSearchTask?.cancel()
             cityFilterTask?.cancel()
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -180,6 +183,12 @@ struct GlobeLandingView: View {
         }
         .fullScreenCover(isPresented: $showOnboarding) {
             OnboardingView()
+        }
+        .sheet(item: $selectedSpotDetail) { spot in
+            SpotDetailSheet(spot: spot)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(TravRadius.xl)
         }
     }
 
@@ -347,6 +356,90 @@ struct GlobeLandingView: View {
 
     private var searchResultsOverlay: some View {
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            // MARK: - Spots Section
+            if spotSearchController.isSearching || !spotSearchController.spots.isEmpty {
+                VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                    HStack {
+                        Text("SPOTS")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .tracking(1.2)
+                            .foregroundStyle(appearance.isLightMode ? Color.black.opacity(0.55) : Color.white.opacity(0.6))
+
+                        Spacer()
+
+                        if spotSearchController.isSearching {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                                .tint(appearance.isLightMode ? TravColors.accent : .white)
+                        }
+                    }
+                    .padding(.horizontal, TravSpacing.xs)
+
+                    VStack(spacing: 6) {
+                        ForEach(spotSearchController.spots.prefix(4)) { spot in
+                            Button {
+                                searchText = ""
+                                userSearchResults = []
+                                spotSearchController.clear()
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                selectedSpotDetail = spot
+                            } label: {
+                                HStack(spacing: TravSpacing.sm) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(spot.category.badgeColor.opacity(0.18))
+                                            .frame(width: 32, height: 32)
+                                        Text(spot.category.emoji)
+                                            .font(.system(size: 16))
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        HStack(spacing: 6) {
+                                            Text(spot.title)
+                                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                                .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
+
+                                            Text(spot.category.rawValue)
+                                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                                .foregroundStyle(spot.category.badgeColor)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(spot.category.badgeColor.opacity(0.18))
+                                                .clipShape(Capsule())
+                                        }
+
+                                        Text(spot.displayLocation)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(TravColors.muted)
+                                            .lineLimit(1)
+                                    }
+
+                                    Spacer()
+
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "star.fill")
+                                            .font(.system(size: 11, weight: .bold))
+                                        Text("Rate")
+                                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    }
+                                    .foregroundStyle(TravColors.accent)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Capsule().fill(TravColors.accent.opacity(0.18)))
+                                }
+                                .padding(.horizontal, TravSpacing.sm)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous)
+                                        .fill(appearance.isLightMode ? Color.white.opacity(0.85) : Color.white.opacity(0.08))
+                                )
+                            }
+                            .buttonStyle(TravPressButtonStyle(scale: 0.98))
+                        }
+                    }
+                }
+            }
+
             // MARK: - Cities Section
             if !matchingCities.isEmpty {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
@@ -361,6 +454,7 @@ struct GlobeLandingView: View {
                             Button {
                                 searchText = ""
                                 userSearchResults = []
+                                spotSearchController.clear()
                                 viewModel?.selectCity(city)
                             } label: {
                                 HStack(spacing: TravSpacing.sm) {
@@ -421,8 +515,8 @@ struct GlobeLandingView: View {
                 }
                 .padding(.horizontal, TravSpacing.xs)
 
-                if userSearchResults.isEmpty && !isSearchingUsers && matchingCities.isEmpty {
-                    Text("No matching cities or users found for '\(searchText)'")
+                if spotSearchController.spots.isEmpty && userSearchResults.isEmpty && !isSearchingUsers && !spotSearchController.isSearching && matchingCities.isEmpty {
+                    Text("No matching spots, cities, or users found for '\(searchText)'")
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.muted)
                         .padding(.horizontal, TravSpacing.xs)
@@ -433,6 +527,7 @@ struct GlobeLandingView: View {
                             GlobeUserSearchResultRow(user: user) {
                                 searchText = ""
                                 userSearchResults = []
+                                spotSearchController.clear()
                                 router.openProfile(user.username)
                             }
                             .padding(.horizontal, TravSpacing.sm)

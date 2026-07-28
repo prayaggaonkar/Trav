@@ -124,7 +124,16 @@ drop policy if exists "Cities are publicly readable" on public.cities;
 create policy "Cities are publicly readable"
   on public.cities for select using (true);
 
-grant select on public.cities to anon, authenticated;
+drop policy if exists "Authenticated users can insert cities" on public.cities;
+create policy "Authenticated users can insert cities"
+  on public.cities for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists "Authenticated users can update cities" on public.cities;
+create policy "Authenticated users can update cities"
+  on public.cities for update using (auth.role() = 'authenticated');
+
+grant select on public.cities to anon;
+grant select, insert, update on public.cities to authenticated;
 
 insert into public.cities (id, name, slug, country_code, latitude, longitude, hero_image_url, timezone) values
   ('c1000001-0000-0000-0000-000000000001', 'San Francisco', 'san-francisco', 'US', 37.7749, -122.4194, 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=1200&q=80', 'America/Los_Angeles'),

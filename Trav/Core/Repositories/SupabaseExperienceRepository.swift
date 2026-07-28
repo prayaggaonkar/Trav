@@ -156,6 +156,8 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let client = try client
         let experienceID = UUID()
 
+        let cityID = try await ensureCityExists(draft.city, client: client)
+
         var imageURLStrings: [String] = []
         for (index, data) in draft.imagesData.enumerated() {
             // User-scoped path so storage RLS can authorize the write.
@@ -196,7 +198,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 title: draft.title,
                 description: draft.description,
                 city: draft.city.name,
-                city_id: draft.city.id,
+                city_id: cityID,
                 stops: stopPayloads,
                 image: imageURLStrings.isEmpty ? nil : imageURLStrings,
                 rating: draft.rating?.scores,
@@ -240,6 +242,93 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
         if !stopRows.isEmpty {
             try await client.from("stops").insert(stopRows).execute()
+        }
+    }
+
+    // MARK: - City FK Helper
+
+    private func ensureCityExists(_ city: City, client: SupabaseClient) async throws -> UUID {
+        // 1. Try matching against cached catalog by ID
+        if let existing = try? await CityCatalog.shared.city(id: city.id) {
+            return existing.id
+        }
+
+        // 2. Try matching against cached catalog by Name
+        if let existing = try? await CityCatalog.shared.city(named: city.name) {
+            return existing.id
+        }
+
+        let cleanName = city.name.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? city.name
+        if let existing = try? await CityCatalog.shared.city(named: cleanName) {
+            return existing.id
+        }
+
+        let slug = city.slug.isEmpty ? cleanName.lowercased().replacingOccurrences(of: " ", with: "-") : city.slug
+
+        // 3. Query Supabase `cities` table directly by slug or name
+        struct CityIdRow: Decodable { let id: UUID }
+        if let existingRows: [CityIdRow] = try? await client
+            .from("cities")
+            .select("id")
+            .or("slug.eq.\(slug),name.ilike.\(cleanName)")
+            .limit(1)
+            .execute()
+            .value,
+           let existing = existingRows.first {
+            await CityCatalog.shared.invalidate()
+            return existing.id
+        }
+
+        // 4. If city does not exist in DB yet, insert it into `cities` table to satisfy FK
+        struct CityInsert: Encodable {
+            let id: UUID
+            let name: String
+            let slug: String
+            let country_code: String
+            let latitude: Double
+            let longitude: Double
+            let hero_image_url: String?
+            let timezone: String
+            let experience_count: Int
+            let creator_count: Int
+            let is_active: Bool
+        }
+
+        let newID = city.id
+        let insertData = CityInsert(
+            id: newID,
+            name: cleanName,
+            slug: slug,
+            country_code: city.countryCode.isEmpty ? "US" : city.countryCode,
+            latitude: city.latitude,
+            longitude: city.longitude,
+            hero_image_url: city.heroImageURL?.absoluteString,
+            timezone: city.timezone.isEmpty ? "America/Los_Angeles" : city.timezone,
+            experience_count: 1,
+            creator_count: 1,
+            is_active: true
+        )
+
+        do {
+            try await client
+                .from("cities")
+                .insert(insertData)
+                .execute()
+            await CityCatalog.shared.invalidate()
+            return newID
+        } catch {
+            // In case of conflict or duplicate slug, query ID one last time
+            if let fallbackRows: [CityIdRow] = try? await client
+                .from("cities")
+                .select("id")
+                .eq("slug", value: slug)
+                .limit(1)
+                .execute()
+                .value,
+               let fallback = fallbackRows.first {
+                return fallback.id
+            }
+            throw error
         }
     }
 

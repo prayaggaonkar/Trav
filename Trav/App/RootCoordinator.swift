@@ -199,6 +199,11 @@ private struct RootChromeModifier: ViewModifier {
             .onChange(of: router.feedNavigationToken) { _, _ in
                 activeTab = .feed
             }
+            .onChange(of: router.pendingCreateSpot) { _, spot in
+                if spot != nil {
+                    activeTab = .create
+                }
+            }
             .onChange(of: router.presentedRoute) { previous, current in
                 guard current == nil, case .notifications = previous else { return }
                 guard let userID = session.currentUser?.id else { return }

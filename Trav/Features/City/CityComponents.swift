@@ -318,14 +318,31 @@ struct HeroExperienceCard: View {
                 .frame(width: coverWidth, height: cardHeight)
                 .clipped()
         }
+<<<<<<< HEAD
         .background(TravColors.surfaceElevated)
+=======
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.08, green: 0.08, blue: 0.12),
+                    Color(red: 0.12, green: 0.12, blue: 0.18)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+>>>>>>> 2bcbeafdbe97c791e7a7f8ba2f81d436535b6dda
         .clipShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : cardCornerRadius, style: .continuous))
         .overlay {
             if connectedLayout {
                 VStack {
                     Spacer()
                     Divider()
+<<<<<<< HEAD
                         .background(TravColors.border.opacity(0.3))
+=======
+                        .background(Color.white.opacity(0.08))
+>>>>>>> 2bcbeafdbe97c791e7a7f8ba2f81d436535b6dda
                 }
             } else {
                 RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)

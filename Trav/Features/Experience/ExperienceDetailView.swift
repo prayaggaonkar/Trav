@@ -13,7 +13,6 @@ struct ExperienceDetailView: View {
     @State private var showComments = false
     @State private var showCompletionSheet = false
     @State private var shareItem: ShareItem?
-    @State private var showReportDialog = false
     @State private var localCommentCount: Int?
     @State private var activeImagePreview: ImagePreviewItem?
 
@@ -35,14 +34,18 @@ struct ExperienceDetailView: View {
             .travScreenBackground()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    DismissButton { router.dismiss() }
-                }
-                if let experience {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        moderationMenu(experience)
+                    Button {
+                        router.dismiss()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
                     }
+                    .accessibilityLabel("Back")
                 }
             }
+            .toolbarBackground(.hidden, for: .navigationBar)
         }
         .overlay(
             Group {
@@ -75,6 +78,7 @@ struct ExperienceDetailView: View {
                 .presentationCornerRadius(TravRadius.xl)
             }
         }
+<<<<<<< HEAD
         .confirmationDialog("Report Experience", isPresented: $showReportDialog, titleVisibility: .visible) {
             ForEach(ReportReason.allCases) { reason in
                 Button(reason.displayName, role: reason == .other ? nil : .destructive) {
@@ -88,6 +92,8 @@ struct ExperienceDetailView: View {
                 activeImagePreview = nil
             }
         }
+=======
+>>>>>>> 2bcbeafdbe97c791e7a7f8ba2f81d436535b6dda
         .task {
             if let userID = environment.session.currentUser?.id {
                 await engagement.refreshBootstrap(userID: userID, using: environment)
@@ -140,55 +146,6 @@ struct ExperienceDetailView: View {
         )
     }
 
-    private func moderationMenu(_ experience: Experience) -> some View {
-        Menu {
-            Button {
-                shareItem = ShareItem(
-                    message: "Check out \"\(experience.title)\" on Trav",
-                    url: TravLinks.experience(experience.id)
-                )
-            } label: {
-                Label("Share", systemImage: "square.and.arrow.up")
-            }
-
-            if session.currentUser?.id != experience.creator.id {
-                Button(role: .destructive) {
-                    showReportDialog = true
-                } label: {
-                    Label("Report", systemImage: "flag")
-                }
-
-                Button(role: .destructive) {
-                    Task {
-                        let blocked = await engagement.block(userID: experience.creator.id, using: environment)
-                        if blocked { router.dismiss() }
-                    }
-                } label: {
-                    Label("Block @\(experience.creator.username)", systemImage: "hand.raised")
-                }
-            }
-        } label: {
-            Image(systemName: "ellipsis.circle.fill")
-                .font(.system(size: 22))
-                .foregroundStyle(.white.opacity(0.9), .black.opacity(0.35))
-        }
-        .accessibilityLabel("More options")
-    }
-
-    private func report(reason: ReportReason) async {
-        guard let user = session.currentUser else {
-            router.presentAuth()
-            return
-        }
-        try? await environment.engagementRepo.report(
-            target: .experience(experienceID),
-            reporterID: user.id,
-            reason: reason,
-            details: nil
-        )
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
-    }
-
     @ViewBuilder
     private func experienceContent(_ experience: Experience) -> some View {
         ScrollView {
@@ -213,6 +170,7 @@ struct ExperienceDetailView: View {
 
     @ViewBuilder
     private func hero(_ experience: Experience) -> some View {
+<<<<<<< HEAD
         HeroMediaCarousel(
             urls: experience.imageURLs,
             height: TravLayout.heroExperienceHeight,
@@ -242,10 +200,30 @@ struct ExperienceDetailView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.9)
                     }
+=======
+        HeroMediaCarousel(urls: experience.imageURLs, height: TravLayout.heroExperienceHeight) {
+            Text(experience.title)
+                .font(TravTypography.displayMedium())
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.leading)
+                .lineLimit(3)
+                .minimumScaleFactor(0.85)
+                .fixedSize(horizontal: false, vertical: true)
+        } accessory: {
+            Button {
+                router.openProfile(experience.creator.username)
+            } label: {
+                HStack(spacing: TravSpacing.xs) {
+                    AvatarView(url: experience.creator.avatarURL, size: 32)
+                    Text(experience.creator.displayName)
+                        .font(TravTypography.bodyMedium())
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.9)
+>>>>>>> 2bcbeafdbe97c791e7a7f8ba2f81d436535b6dda
                 }
-                .buttonStyle(.plain)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(.plain)
         }
     }
 
@@ -371,6 +349,7 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
+<<<<<<< HEAD
             if experience.imageURLs.count > 1 {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
                     Text("Media Gallery (\(experience.imageURLs.count))")
@@ -394,6 +373,8 @@ struct ExperienceDetailView: View {
                 .padding(.vertical, TravSpacing.xs)
             }
 
+=======
+>>>>>>> 2bcbeafdbe97c791e7a7f8ba2f81d436535b6dda
             ExperienceRouteMapView(stops: experience.stops, transportMode: experience.transportMode)
 
             RoutePreview(stops: experience.stops.map {
@@ -505,6 +486,7 @@ private struct StopTimelineRow: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
 
+<<<<<<< HEAD
                 if !stop.media.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: TravSpacing.xs) {
@@ -535,10 +517,14 @@ private struct StopTimelineRow: View {
                         }
                         Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
                     }
+=======
+                if let time = stop.recommendedTime {
+                    Label(time, systemImage: "sun.max")
+                        .font(TravTypography.caption())
+                        .foregroundStyle(TravColors.muted)
+                        .lineLimit(1)
+>>>>>>> 2bcbeafdbe97c791e7a7f8ba2f81d436535b6dda
                 }
-                .font(TravTypography.caption())
-                .foregroundStyle(TravColors.muted)
-                .lineLimit(1)
             }
             .padding(.bottom, isLast ? 0 : TravSpacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -547,20 +533,30 @@ private struct StopTimelineRow: View {
     }
 }
 
-private struct HeroMediaCarousel<Overlay: View>: View {
+private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
     let urls: [URL]
     let height: CGFloat
+<<<<<<< HEAD
     var onImageTap: ((Int) -> Void)? = nil
     @ViewBuilder let overlay: () -> Overlay
+=======
+    @ViewBuilder let title: () -> Title
+    @ViewBuilder let accessory: () -> Accessory
+>>>>>>> 2bcbeafdbe97c791e7a7f8ba2f81d436535b6dda
 
     @State private var currentIndex = 0
+    @State private var dragOffset: CGFloat = 0
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            if urls.count > 1 {
-                TabView(selection: $currentIndex) {
-                    ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
+        GeometryReader { geo in
+            let width = max(geo.size.width, 1)
+
+            ZStack(alignment: .bottomLeading) {
+                // Image strip — owns horizontal paging so nested ScrollView can't steal swipes.
+                HStack(spacing: 0) {
+                    ForEach(Array(displayURLs.enumerated()), id: \.offset) { _, url in
                         RemoteImage(url: url, height: height, cornerRadius: 0)
+<<<<<<< HEAD
                             .tag(index)
                             .contentShape(Rectangle())
                             .onTapGesture {
@@ -576,39 +572,102 @@ private struct HeroMediaCarousel<Overlay: View>: View {
                         onImageTap?(0)
                     }
             }
+=======
+                            .frame(width: width, height: height)
+                            .clipped()
+                    }
+                }
+                .offset(x: -CGFloat(currentIndex) * width + dragOffset)
+                .frame(width: width, height: height, alignment: .leading)
+                .clipped()
 
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.75)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: height)
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.75)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .allowsHitTesting(false)
+>>>>>>> 2bcbeafdbe97c791e7a7f8ba2f81d436535b6dda
 
-            overlay()
+                if displayURLs.count > 1 {
+                    HStack(spacing: TravSpacing.xs) {
+                        ForEach(0..<displayURLs.count, id: \.self) { index in
+                            Capsule()
+                                .fill(index == currentIndex ? Color.white : Color.white.opacity(0.4))
+                                .frame(width: index == currentIndex ? 16 : 6, height: 6)
+                        }
+                    }
+                    .padding(.trailing, TravSpacing.screenHorizontal)
+                    .padding(.bottom, TravSpacing.lg)
+                    .frame(maxWidth: .infinity, alignment: .bottomTrailing)
+                    .allowsHitTesting(false)
+                }
+
+                // Drag layer above non-interactive chrome; accessory button stays on top.
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(horizontalPageGesture(pageWidth: width))
+                    .allowsHitTesting(displayURLs.count > 1)
+
+                VStack(alignment: .leading, spacing: TravSpacing.sm) {
+                    title()
+                        .allowsHitTesting(false)
+                    accessory()
+                }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, TravSpacing.screenHorizontal)
                 .padding(.bottom, TravSpacing.lg)
-
-            if urls.count > 1 {
-                HStack(spacing: 4) {
-                    Image(systemName: "photo")
-                        .font(.system(size: 10))
-                    Text("\(currentIndex + 1)/\(urls.count)")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.black.opacity(0.65))
-                .clipShape(Capsule())
-                .padding(.trailing, TravSpacing.screenHorizontal)
-                .padding(.bottom, TravSpacing.lg)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             }
+            .frame(width: width, height: height)
+            .clipped()
         }
         .frame(height: height)
         .frame(maxWidth: .infinity)
         .clipped()
+        .animation(TravAnimation.quick, value: currentIndex)
+    }
+
+    private var displayURLs: [URL?] {
+        if urls.isEmpty { return [nil] }
+        return urls.map { Optional($0) }
+    }
+
+    private func horizontalPageGesture(pageWidth: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 12, coordinateSpace: .local)
+            .onChanged { value in
+                guard displayURLs.count > 1 else { return }
+                let horizontal = abs(value.translation.width) > abs(value.translation.height) * 1.15
+                guard horizontal else {
+                    dragOffset = 0
+                    return
+                }
+                var translation = value.translation.width
+                if (currentIndex == 0 && translation > 0)
+                    || (currentIndex == displayURLs.count - 1 && translation < 0) {
+                    translation *= 0.35
+                }
+                dragOffset = translation
+            }
+            .onEnded { value in
+                guard displayURLs.count > 1 else {
+                    dragOffset = 0
+                    return
+                }
+                let horizontal = abs(value.translation.width) > abs(value.translation.height) * 1.15
+                let threshold = pageWidth * 0.2
+                var next = currentIndex
+                if horizontal {
+                    if value.translation.width < -threshold {
+                        next = min(currentIndex + 1, displayURLs.count - 1)
+                    } else if value.translation.width > threshold {
+                        next = max(currentIndex - 1, 0)
+                    }
+                }
+                withAnimation(TravAnimation.quick) {
+                    currentIndex = next
+                    dragOffset = 0
+                }
+            }
     }
 }
 
