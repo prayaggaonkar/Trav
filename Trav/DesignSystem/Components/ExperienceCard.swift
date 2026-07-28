@@ -163,7 +163,7 @@ struct GemPostCardView: View {
                                 .foregroundStyle(Color(red: 1.0, green: 0.8, blue: 0.0))
 
                             Text(String(format: "%.1f", rating.overallScore))
-                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
                                 .foregroundStyle(.white)
                         }
                         .padding(.horizontal, 8)
@@ -491,30 +491,49 @@ struct ExperienceStopsMapView: View {
     }
 
     var body: some View {
-        Map(position: $position, interactionModes: []) {
-            ForEach(Array(resolvedCoordinates.enumerated()), id: \.offset) { index, coord in
-                Annotation("", coordinate: coord) {
-                    ZStack {
-                        Circle()
-                            .fill(TravColors.accent)
-                            .frame(width: 18, height: 18)
-                            .shadow(color: .black.opacity(0.35), radius: 2)
+        ZStack(alignment: .bottomLeading) {
+            Map(position: $position, interactionModes: []) {
+                ForEach(Array(resolvedCoordinates.enumerated()), id: \.offset) { index, coord in
+                    Annotation("", coordinate: coord) {
+                        ZStack {
+                            Circle()
+                                .fill(TravColors.accent)
+                                .frame(width: 18, height: 18)
+                                .shadow(color: .black.opacity(0.35), radius: 2)
 
-                        Text("\(index + 1)")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
+                            Text("\(index + 1)")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
                     }
                 }
+
+                if resolvedCoordinates.count >= 2 {
+                    MapPolyline(coordinates: resolvedCoordinates)
+                        .stroke(TravColors.accent, lineWidth: 2.5)
+                }
+            }
+            .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+            .mapControls {
+                // No controls — keep card maps from requesting extra chrome / safe-area.
             }
 
             if resolvedCoordinates.count >= 2 {
-                MapPolyline(coordinates: resolvedCoordinates)
-                    .stroke(TravColors.accent, lineWidth: 2.5)
+                let routeInfo = RouteTravelCalculator.calculate(for: resolvedCoordinates)
+                HStack(spacing: 4) {
+                    Image(systemName: routeInfo.iconName)
+                        .font(.system(size: 9, weight: .bold))
+                    Text(routeInfo.timeAndModeLabel)
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(Color.black.opacity(0.7)))
+                .padding(6)
             }
-        }
-        .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
-        .mapControls {
-            // No controls — keep card maps from requesting extra chrome / safe-area.
         }
         .onAppear {
             setupCamera()

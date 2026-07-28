@@ -266,17 +266,13 @@ struct InteractiveRadarChartView: View {
                         }
                         hapticFeedback.impactOccurred()
                     } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: isEnabled ? (axis.iconName ?? "checkmark.circle.fill") : "xmark.circle.fill")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(isEnabled ? TravColors.accent : Color.gray)
-
+                        HStack(spacing: 4) {
                             Text(axis.name)
                                 .font(.system(size: 11, weight: isEnabled ? .bold : .medium, design: .rounded))
                                 .foregroundStyle(isEnabled ? TravColors.primary : Color.gray)
 
                             Text(isEnabled ? String(format: "%.1f", rating.score(for: axis.id)) : "OFF")
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .font(.system(size: 10.5, weight: .bold, design: .rounded))
                                 .foregroundStyle(isEnabled ? TravColors.accent : Color.gray.opacity(0.7))
                         }
                         .padding(.horizontal, 10)
@@ -426,7 +422,7 @@ struct DraggableKnobView: View {
 
                     // Floating Tooltip badge showing live continuous decimal value
                     Text(String(format: "%.1f", score))
-                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -455,18 +451,12 @@ struct DraggableKnobView: View {
                 hapticFeedback.impactOccurred()
             } label: {
                 VStack(spacing: 1) {
-                    HStack(spacing: 2) {
-                        if let iconName = axis.iconName {
-                            Image(systemName: isEnabled ? iconName : "eye.slash.fill")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(isEnabled ? (isActive ? TravColors.accent : TravColors.muted) : Color.gray)
-                        }
-                        Text(axis.name)
-                            .font(.system(size: 9.5, weight: isEnabled ? (isActive ? .bold : .semibold) : .medium, design: .rounded))
-                            .foregroundStyle(isEnabled ? (isActive ? TravColors.accent : TravColors.primary) : Color.gray)
-                    }
+                    Text(axis.name)
+                        .font(.system(size: 10, weight: isEnabled ? (isActive ? .bold : .semibold) : .medium, design: .rounded))
+                        .foregroundStyle(isEnabled ? (isActive ? TravColors.accent : TravColors.primary) : Color.gray)
+
                     Text(isEnabled ? String(format: "%.1f", score) : "OFF")
-                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
                         .foregroundStyle(isEnabled ? (isActive ? TravColors.accent : TravColors.muted) : Color.gray.opacity(0.8))
                 }
                 .padding(.horizontal, 6)

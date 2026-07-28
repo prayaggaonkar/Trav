@@ -117,10 +117,7 @@ struct ProfileView: View {
 
     @ViewBuilder
     private func profileScroll(_ profile: Profile) -> some View {
-        // Chrome lives in a top safeAreaInset so ScrollView / Map cards in any tab
-        // cannot change its position or inject extra top inset.
         ScrollView {
-<<<<<<< HEAD
             VStack(alignment: .leading, spacing: 0) {
                 if isOwnProfile {
                     HStack {
@@ -160,17 +157,6 @@ struct ProfileView: View {
                 tabContent
                     .padding(.bottom, TravSpacing.xxl + TravSpacing.lg)
             }
-=======
-            tabContent
-                .id(viewModel.selectedTab)
-                .padding(.bottom, TravSpacing.xxl + TravSpacing.lg)
-        }
-        .scrollIndicators(.hidden)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            profileChrome(profile)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(TravColors.surface)
->>>>>>> 3e12f948e357a48f5b71bfa8d3d98484989e9908
         }
         .refreshable {
             await viewModel.refresh(using: environment)

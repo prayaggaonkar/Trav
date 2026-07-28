@@ -209,7 +209,7 @@ struct ReadOnlyRadarChartView: View {
                 .foregroundStyle(isEnabled ? TravColors.muted : Color.gray.opacity(0.6))
 
             Text(isEnabled ? String(format: "%.1f", score) : "OFF")
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(isEnabled ? TravColors.primary : Color.gray)
         }
         .frame(maxWidth: .infinity)
@@ -324,18 +324,12 @@ struct ReadOnlyPerimeterLabelView: View {
 
     var body: some View {
         VStack(spacing: 2) {
-            HStack(spacing: 3) {
-                if let iconName = axis.iconName {
-                    Image(systemName: isEnabled ? iconName : "eye.slash.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(isEnabled ? TravColors.accent : Color.gray)
-                }
-                Text(axis.name)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(isEnabled ? TravColors.primary : Color.gray)
-            }
+            Text(axis.name)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(isEnabled ? TravColors.primary : Color.gray)
+
             Text(isEnabled ? String(format: "%.1f", score) : "OFF")
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(isEnabled ? TravColors.accent : Color.gray.opacity(0.8))
         }
         .padding(.horizontal, 6)

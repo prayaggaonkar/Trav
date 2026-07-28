@@ -268,7 +268,7 @@ struct RateSpotSheet: View {
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundStyle(Color.yellow)
                                 Text(String(format: "%.1f / 10", rating.overallScore))
-                                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                                    .font(.system(size: 14, weight: .bold, design: .rounded))
                                     .foregroundStyle(.white)
                             }
                             .padding(.horizontal, 10)
@@ -779,7 +779,7 @@ struct SpotDetailSheet: View {
                             .font(.system(size: 11))
                             .foregroundStyle(Color.yellow)
                         Text(String(format: "%.1f", overall))
-                            .font(.system(size: 13, weight: .bold, design: .monospaced))
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                     }
                     .padding(.horizontal, 8)
@@ -833,7 +833,7 @@ struct SpotDetailSheet: View {
                             .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(Color.yellow)
                         Text(String(format: "%.1f", score))
-                            .font(.system(size: 22, weight: .bold, design: .monospaced))
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                         Text("/ 10")
                             .font(.system(size: 12, weight: .semibold))
@@ -919,7 +919,7 @@ struct SpotDetailSheet: View {
                                                     .font(.system(size: 10))
                                                     .foregroundStyle(Color.yellow)
                                                 Text(String(format: "%.1f", overall))
-                                                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                                    .font(.system(size: 12, weight: .bold, design: .rounded))
                                                     .foregroundStyle(.white)
                                             }
                                             .padding(.horizontal, 7)
