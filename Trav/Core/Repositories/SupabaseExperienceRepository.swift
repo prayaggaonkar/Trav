@@ -597,7 +597,48 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             }
 
         if parsed.isEmpty {
-            return Self.generateFallbackPopups(latitude: userLat, longitude: userLng, city: targetCity)
+            let fallbacks = Self.generateFallbackPopups(latitude: userLat, longitude: userLng, city: targetCity)
+            
+            // Auto-sync fallbacks directly into Supabase database in background task
+            Task {
+                struct DBOupsert: Encodable {
+                    let event_name: String
+                    let address: String
+                    let city: String
+                    let latitude: Double?
+                    let longitude: Double?
+                    let category: String
+                    let description: String?
+                    let start_time: String?
+                    let external_url: String?
+                    let image_url: String?
+                    let source: String
+                }
+
+                let isoFormatter = ISO8601DateFormatter()
+                let rowsToInsert = fallbacks.map { p in
+                    DBOupsert(
+                        event_name: p.name,
+                        address: p.address,
+                        city: p.city ?? targetCity,
+                        latitude: p.latitude,
+                        longitude: p.longitude,
+                        category: p.category.rawValue,
+                        description: p.description,
+                        start_time: p.startTime.map { isoFormatter.string(from: $0) },
+                        external_url: p.externalURL?.absoluteString,
+                        image_url: p.imageURL?.absoluteString,
+                        source: p.source ?? "auto_sync"
+                    )
+                }
+                
+                try? await client
+                    .from("popups")
+                    .upsert(rowsToInsert, onConflict: "event_name,start_time")
+                    .execute()
+            }
+            
+            return fallbacks
         }
 
         return parsed
