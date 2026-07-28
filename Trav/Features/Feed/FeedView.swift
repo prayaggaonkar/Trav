@@ -938,11 +938,6 @@ private struct PopupStoryCard: View {
     let popup: Popup
     private let cornerRadius: CGFloat = 16
 
-    private var isToday: Bool {
-        guard let start = popup.startTime else { return false }
-        return Calendar.current.isDateInToday(start)
-    }
-
     private var displayImageURL: URL? {
         popup.imageURL ?? popupImage(for: popup.name)
     }
@@ -957,63 +952,42 @@ private struct PopupStoryCard: View {
             }
 
             LinearGradient(
-                colors: [.clear, .black.opacity(0.85)],
+                colors: [.clear, .black.opacity(0.90)],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
 
-            VStack {
-                HStack(spacing: 4) {
-                    Text("\(popup.category.emoji) \(popup.category.displayName.uppercased())")
-                        .font(.system(size: 7, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 3)
-                        .background(
-                            Capsule()
-                                .fill(popup.category.badgeColor)
-                        )
-                    Spacer()
-                    if isToday {
-                        Text("TODAY")
-                            .font(.system(size: 7, weight: .black, design: .rounded))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 3)
-                            .background(Capsule().fill(Color.red))
-                    }
-                }
-                .padding(6)
-                Spacer()
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(popup.name)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
+                    .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
 
-                HStack(spacing: 4) {
-                    Text(popup.startTimeLabel)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .lineLimit(1)
+                HStack(spacing: 3) {
+                    Text(popup.shortDateLabel)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.95))
 
-                    if let dist = popup.distanceLabel {
-                        Text("• \(dist)")
-                            .font(.system(size: 8, weight: .medium))
+                    if let dist = popup.shortDistanceLabel {
+                        Text("•")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.6))
+                        Text(dist)
+                            .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(TravColors.accent)
-                            .lineLimit(1)
                     }
                 }
+                .lineLimit(1)
             }
-            .padding([.horizontal, .bottom], 8)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 10)
         }
-        .frame(width: 120, height: 160)
+        .frame(width: 124, height: 160)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .shadow(color: Color.black.opacity(0.06), radius: 6, y: 3)
+        .shadow(color: Color.black.opacity(0.12), radius: 6, y: 3)
     }
 }
 

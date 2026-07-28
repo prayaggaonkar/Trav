@@ -143,6 +143,27 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
         return formatter.string(from: startTime)
     }
 
+    var shortDateLabel: String {
+        guard let startTime else { return "TBA" }
+        if Calendar.current.isDateInToday(startTime) {
+            return "Today"
+        }
+        if Calendar.current.isDateInTomorrow(startTime) {
+            return "Tomorrow"
+        }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM. d"
+        return formatter.string(from: startTime)
+    }
+
+    var shortDistanceLabel: String? {
+        guard let distanceMiles, distanceMiles > 0 else { return nil }
+        if distanceMiles < 0.1 {
+            return "Nearby"
+        }
+        return String(format: "%.1f mi", distanceMiles)
+    }
+
     var distanceLabel: String? {
         guard let distanceMiles, distanceMiles > 0 else { return nil }
         if distanceMiles < 0.1 {
