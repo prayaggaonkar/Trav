@@ -52,7 +52,7 @@ serve(async (req) => {
 
     console.log(`[fetch-location-popups] Dynamic location request for (${lat}, ${lng}) in '${rawCity}'`);
 
-    // 1. Check existing popups in DB within spatial radius
+    // 1. Check existing popups in DB within spatial radius (Shared Cache)
     const { data: cachedPopups } = await supabase.rpc("fetch_popups_near", {
       user_lat: lat,
       user_lng: lng,
@@ -60,9 +60,15 @@ serve(async (req) => {
       limit_count: 50,
     });
 
-    // 2. If cached DB events are low (< 5), dynamically fetch live external events for user's lat/lng & city
-    let newlyDiscovered: DBPopup[] = [];
-    if (!cachedPopups || cachedPopups.length < 5) {
+    // Zero-Cost Scaling: If shared database cache already has events for this area, return them immediately!
+    // This ensures 1,000,000 users in the same city result in ZERO external API calls.
+    if (cachedPopups && cachedPopups.length >= 5) {
+      console.log(`[Zero-Cost Cache Hit] Serving ${cachedPopups.length} popups from shared DB cache for (${lat}, ${lng}).`);
+      return new Response(JSON.stringify({ popups: cachedPopups }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
       console.log(`Cache low (${cachedPopups?.length || 0} events). Fetching live external events for (${lat}, ${lng})...`);
       
       const tmEvents = await fetchTicketmasterLiveEvents(lat, lng, cityClean);
