@@ -590,6 +590,98 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         return RankingScore.paginate(ranked, page: page)
     }
 
+    func fetchLeaderboardEntries(cityID: UUID?, cityName: String?) async throws -> [LeaderboardEntry] {
+        let client = try client
+
+        // Fetch published experiences from Supabase database
+        struct ExperienceRow: Decodable {
+            let id: UUID
+            let user_id: UUID
+            let city_id: UUID?
+            let city: String?
+        }
+
+        let rows: [ExperienceRow] = (try? await client
+            .from("experiences")
+            .select("id, user_id, city_id, city")
+            .eq("is_published", value: true)
+            .execute()
+            .value) ?? []
+
+        let searchCity: String? = {
+            guard let cityName, !cityName.isEmpty, cityName != LocationOption.allLocations.name else { return nil }
+            return cityName.lowercased().components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces)
+        }()
+        let isFilteredByCity = (cityID != nil || searchCity != nil)
+
+        // Filter rows by city if a specific city was chosen
+        let filteredRows: [ExperienceRow]
+        if let cityID {
+            filteredRows = rows.filter { $0.city_id == cityID }
+        } else if let searchCity {
+            filteredRows = rows.filter { row in
+                guard let c = row.city?.lowercased() else { return false }
+                return c.contains(searchCity) || searchCity.contains(c)
+            }
+        } else {
+            filteredRows = rows
+        }
+
+        // Count experiences created in that city per user
+        var userCounts: [UUID: Int] = [:]
+        for row in filteredRows {
+            userCounts[row.user_id, default: 0] += 1
+        }
+
+        // Fetch registered user profiles from Supabase profiles table
+        struct DetailedDBProfile: Decodable {
+            let id: UUID
+            let username: String
+            let display_name: String?
+            let avatar_url: String?
+            let is_verified: Bool?
+            let onboarding_location: String?
+        }
+
+        let profiles: [DetailedDBProfile] = (try? await client
+            .from("profiles")
+            .select("id, username, display_name, avatar_url, is_verified, onboarding_location")
+            .execute()
+            .value) ?? []
+
+        var realEntries: [LeaderboardEntry] = []
+        for profile in profiles {
+            let count = userCounts[profile.id] ?? 0
+
+            if isFilteredByCity {
+                let userLoc = profile.onboarding_location?.lowercased() ?? ""
+                let matchesLocation = searchCity.map { userLoc.contains($0) } ?? false
+                guard count > 0 || matchesLocation else { continue }
+            }
+
+            realEntries.append(LeaderboardEntry(
+                id: profile.id,
+                username: profile.username,
+                displayName: profile.display_name ?? profile.username,
+                avatarURL: profile.avatar_url.flatMap { URL(string: $0) },
+                experienceCount: count,
+                cityName: cityName ?? profile.onboarding_location,
+                cityID: cityID,
+                isFriend: false
+            ))
+        }
+
+        // Sort descending by number of experiences created in this location
+        realEntries.sort { lhs, rhs in
+            if lhs.experienceCount != rhs.experienceCount {
+                return lhs.experienceCount > rhs.experienceCount
+            }
+            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+        }
+
+        return realEntries
+    }
+
     /// Loads rated experiences for leaderboards. Filtered server-side; capped
     /// so leaderboards stay fast as the table grows.
     private func fetchRatedExperienceSummaries(

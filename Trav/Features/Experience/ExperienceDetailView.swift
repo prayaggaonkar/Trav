@@ -78,22 +78,11 @@ struct ExperienceDetailView: View {
                 .presentationCornerRadius(TravRadius.xl)
             }
         }
-<<<<<<< HEAD
-        .confirmationDialog("Report Experience", isPresented: $showReportDialog, titleVisibility: .visible) {
-            ForEach(ReportReason.allCases) { reason in
-                Button(reason.displayName, role: reason == .other ? nil : .destructive) {
-                    Task { await report(reason: reason) }
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        }
         .fullScreenCover(item: $activeImagePreview) { item in
             FullScreenImageViewer(urls: item.urls, initialIndex: item.initialIndex) {
                 activeImagePreview = nil
             }
         }
-=======
->>>>>>> 2bcbeafdbe97c791e7a7f8ba2f81d436535b6dda
         .task {
             if let userID = environment.session.currentUser?.id {
                 await engagement.refreshBootstrap(userID: userID, using: environment)
@@ -170,7 +159,6 @@ struct ExperienceDetailView: View {
 
     @ViewBuilder
     private func hero(_ experience: Experience) -> some View {
-<<<<<<< HEAD
         HeroMediaCarousel(
             urls: experience.imageURLs,
             height: TravLayout.heroExperienceHeight,
@@ -180,28 +168,6 @@ struct ExperienceDetailView: View {
                 }
             }
         ) {
-            VStack(alignment: .leading, spacing: TravSpacing.sm) {
-                Text(experience.title)
-                    .font(TravTypography.displayMedium())
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.85)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Button {
-                    router.openProfile(experience.creator.username)
-                } label: {
-                    HStack(spacing: TravSpacing.xs) {
-                        AvatarView(url: experience.creator.avatarURL, size: 32)
-                        Text(experience.creator.displayName)
-                            .font(TravTypography.bodyMedium())
-                            .foregroundStyle(.white.opacity(0.9))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.9)
-                    }
-=======
-        HeroMediaCarousel(urls: experience.imageURLs, height: TravLayout.heroExperienceHeight) {
             Text(experience.title)
                 .font(TravTypography.displayMedium())
                 .foregroundStyle(.white)
@@ -220,7 +186,6 @@ struct ExperienceDetailView: View {
                         .foregroundStyle(.white.opacity(0.9))
                         .lineLimit(1)
                         .minimumScaleFactor(0.9)
->>>>>>> 2bcbeafdbe97c791e7a7f8ba2f81d436535b6dda
                 }
             }
             .buttonStyle(.plain)
@@ -349,7 +314,6 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-<<<<<<< HEAD
             if experience.imageURLs.count > 1 {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
                     Text("Media Gallery (\(experience.imageURLs.count))")
@@ -372,9 +336,6 @@ struct ExperienceDetailView: View {
                 }
                 .padding(.vertical, TravSpacing.xs)
             }
-
-=======
->>>>>>> 2bcbeafdbe97c791e7a7f8ba2f81d436535b6dda
             ExperienceRouteMapView(stops: experience.stops, transportMode: experience.transportMode)
 
             RoutePreview(stops: experience.stops.map {
@@ -486,7 +447,6 @@ private struct StopTimelineRow: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
 
-<<<<<<< HEAD
                 if !stop.media.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: TravSpacing.xs) {
@@ -504,26 +464,11 @@ private struct StopTimelineRow: View {
                     .padding(.vertical, TravSpacing.xxs)
                 }
 
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: TravSpacing.sm) {
-                        if let time = stop.recommendedTime {
-                            Label(time, systemImage: "sun.max")
-                        }
-                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
-                    }
-                    VStack(alignment: .leading, spacing: TravSpacing.xxs) {
-                        if let time = stop.recommendedTime {
-                            Label(time, systemImage: "sun.max")
-                        }
-                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
-                    }
-=======
                 if let time = stop.recommendedTime {
                     Label(time, systemImage: "sun.max")
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.muted)
                         .lineLimit(1)
->>>>>>> 2bcbeafdbe97c791e7a7f8ba2f81d436535b6dda
                 }
             }
             .padding(.bottom, isLast ? 0 : TravSpacing.lg)
@@ -536,13 +481,9 @@ private struct StopTimelineRow: View {
 private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
     let urls: [URL]
     let height: CGFloat
-<<<<<<< HEAD
     var onImageTap: ((Int) -> Void)? = nil
-    @ViewBuilder let overlay: () -> Overlay
-=======
     @ViewBuilder let title: () -> Title
     @ViewBuilder let accessory: () -> Accessory
->>>>>>> 2bcbeafdbe97c791e7a7f8ba2f81d436535b6dda
 
     @State private var currentIndex = 0
     @State private var dragOffset: CGFloat = 0
@@ -554,27 +495,14 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
             ZStack(alignment: .bottomLeading) {
                 // Image strip — owns horizontal paging so nested ScrollView can't steal swipes.
                 HStack(spacing: 0) {
-                    ForEach(Array(displayURLs.enumerated()), id: \.offset) { _, url in
+                    ForEach(Array(displayURLs.enumerated()), id: \.offset) { index, url in
                         RemoteImage(url: url, height: height, cornerRadius: 0)
-<<<<<<< HEAD
-                            .tag(index)
+                            .frame(width: width, height: height)
+                            .clipped()
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 onImageTap?(index)
                             }
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-            } else if let firstURL = urls.first {
-                RemoteImage(url: firstURL, height: height, cornerRadius: 0)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onImageTap?(0)
-                    }
-            }
-=======
-                            .frame(width: width, height: height)
-                            .clipped()
                     }
                 }
                 .offset(x: -CGFloat(currentIndex) * width + dragOffset)
@@ -587,7 +515,6 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
                     endPoint: .bottom
                 )
                 .allowsHitTesting(false)
->>>>>>> 2bcbeafdbe97c791e7a7f8ba2f81d436535b6dda
 
                 if displayURLs.count > 1 {
                     HStack(spacing: TravSpacing.xs) {

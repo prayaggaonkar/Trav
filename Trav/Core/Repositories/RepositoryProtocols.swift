@@ -37,6 +37,8 @@ protocol ExperienceRepository: Sendable {
     func fetchPopups() async throws -> [Popup]
     func publishExperience(_ draft: ExperienceDraft) async throws
     func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary]
+    /// Leaders sorted by total published experience count.
+    func fetchLeaderboardEntries(cityID: UUID?, cityName: String?) async throws -> [LeaderboardEntry]
     /// Ranked experiences with a real rating. Unrated experiences are excluded.
     func fetchRankedExperiences(
         cityID: UUID?,

@@ -87,6 +87,21 @@ struct MockExperienceRepository: ExperienceRepository {
         let ranked = RankingScore.rankedCreators(from: items, axis: axis)
         return RankingScore.paginate(ranked, page: page)
     }
+
+    func fetchLeaderboardEntries(cityID: UUID?, cityName: String?) async throws -> [LeaderboardEntry] {
+        try await Task.sleep(for: .milliseconds(120))
+        var entries = MockLeaderboardData.entries
+        if let cityID {
+            entries = entries.filter { $0.cityID == cityID }
+        } else if let cityName, !cityName.isEmpty, cityName != LocationOption.allLocations.name {
+            let lower = cityName.lowercased().components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? cityName.lowercased()
+            entries = entries.filter { entry in
+                guard let cName = entry.cityName?.lowercased() else { return false }
+                return cName.contains(lower) || lower.contains(cName.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? lower)
+            }
+        }
+        return entries
+    }
 }
 
 struct MockAuthRepository: AuthRepository {

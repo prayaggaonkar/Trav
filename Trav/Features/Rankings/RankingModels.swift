@@ -1,5 +1,7 @@
 import Foundation
 
+// MARK: - Legacy / Repository Compatibility Models
+
 enum RankingMode: String, CaseIterable, Identifiable, Sendable {
     case experiences
     case creators
@@ -14,7 +16,6 @@ enum RankingMode: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// Sort key for rankings — overall average or a single radar axis.
 enum RankingAxis: String, CaseIterable, Identifiable, Sendable {
     case overall
     case cost
@@ -36,7 +37,6 @@ enum RankingAxis: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Radar axis ID in `RadarRating.scores`, or `nil` for overall.
     var radarAxisID: String? {
         switch self {
         case .overall: return nil
@@ -52,13 +52,10 @@ enum RankingAxis: String, CaseIterable, Identifiable, Sendable {
 struct RankedCreator: Identifiable, Codable, Sendable, Hashable {
     var id: UUID { profile.id }
     let profile: ProfileSummary
-    /// Mean score across rated experiences for the selected axis.
     let averageScore: Double
     let ratedExperienceCount: Int
 }
 
-/// Abstraction over how a ranking score is derived from an experience rating.
-/// Today: creator-authored radar. Later: can swap to community averages.
 enum RankingScore {
     static func value(from rating: RadarRating, axis: RankingAxis) -> Double? {
         switch axis {
@@ -137,7 +134,6 @@ enum RankingScore {
                 )
             }
             .sorted { lhs, rhs in
-                // Creators with real ratings sort above those without.
                 let lhsRated = lhs.ratedExperienceCount > 0
                 let rhsRated = rhs.ratedExperienceCount > 0
                 if lhsRated != rhsRated { return lhsRated && !rhsRated }
@@ -167,4 +163,189 @@ enum RankingScore {
             hasMore: end < items.count
         )
     }
+}
+
+// MARK: - Leaderboard UI Models
+
+/// Filter for member scope in the leaderboard (All Members vs. Friends).
+enum MemberScopeFilter: String, CaseIterable, Identifiable, Sendable {
+    case allMembers = "All Members"
+    case friends = "Friends"
+
+    var id: String { rawValue }
+    var title: String { rawValue }
+
+    var subtitle: String {
+        switch self {
+        case .allMembers: return "Show rankings for all community members"
+        case .friends: return "Show rankings for people you follow"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .allMembers: return "person.3.fill"
+        case .friends: return "person.2.fill"
+        }
+    }
+}
+
+/// Representation of a user on the Leaderboard.
+struct LeaderboardEntry: Identifiable, Codable, Sendable, Hashable {
+    let id: UUID
+    let username: String
+    let displayName: String
+    let avatarURL: URL?
+    let experienceCount: Int
+    let cityName: String?
+    let cityID: UUID?
+    let isFriend: Bool
+}
+
+/// Catalog location option for the location filter pill.
+struct LocationOption: Identifiable, Hashable, Sendable {
+    let id: String
+    let name: String
+    let subtitle: String?
+
+    static let allLocations = LocationOption(id: "all", name: "All Locations", subtitle: "Worldwide")
+}
+
+enum MockLeaderboardData {
+    static let defaultLocation = LocationOption(id: "dublin_ca", name: "Dublin, CA", subtitle: "California, USA")
+
+    static let entries: [LeaderboardEntry] = [
+        LeaderboardEntry(
+            id: UUID(uuidString: "B1000001-0000-0000-0000-000000000001")!,
+            username: "daniellkang",
+            displayName: "Daniel Kang",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop"),
+            experienceCount: 124,
+            cityName: "Dublin, CA",
+            cityID: UUID(uuidString: "C1000001-0000-0000-0000-000000000001"),
+            isFriend: true
+        ),
+        LeaderboardEntry(
+            id: UUID(uuidString: "B1000002-0000-0000-0000-000000000002")!,
+            username: "KevinKngows",
+            displayName: "Kevin Kngows",
+            avatarURL: nil,
+            experienceCount: 85,
+            cityName: "Dublin, CA",
+            cityID: UUID(uuidString: "C1000001-0000-0000-0000-000000000001"),
+            isFriend: true
+        ),
+        LeaderboardEntry(
+            id: UUID(uuidString: "B1000003-0000-0000-0000-000000000003")!,
+            username: "prachiti415",
+            displayName: "Prachiti",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop"),
+            experienceCount: 82,
+            cityName: "Dublin, CA",
+            cityID: UUID(uuidString: "C1000001-0000-0000-0000-000000000001"),
+            isFriend: false
+        ),
+        LeaderboardEntry(
+            id: UUID(uuidString: "B1000004-0000-0000-0000-000000000004")!,
+            username: "Yezybear",
+            displayName: "Yezy Bear",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop"),
+            experienceCount: 72,
+            cityName: "Dublin, CA",
+            cityID: UUID(uuidString: "C1000001-0000-0000-0000-000000000001"),
+            isFriend: true
+        ),
+        LeaderboardEntry(
+            id: UUID(uuidString: "B1000005-0000-0000-0000-000000000005")!,
+            username: "adityakatkol",
+            displayName: "Aditya Katkol",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop"),
+            experienceCount: 69,
+            cityName: "Dublin, CA",
+            cityID: UUID(uuidString: "C1000001-0000-0000-0000-000000000001"),
+            isFriend: false
+        ),
+        LeaderboardEntry(
+            id: UUID(uuidString: "B1000006-0000-0000-0000-000000000006")!,
+            username: "preson",
+            displayName: "Preson",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=200&h=200&fit=crop"),
+            experienceCount: 65,
+            cityName: "Dublin, CA",
+            cityID: UUID(uuidString: "C1000001-0000-0000-0000-000000000001"),
+            isFriend: true
+        ),
+        LeaderboardEntry(
+            id: UUID(uuidString: "B1000007-0000-0000-0000-000000000007")!,
+            username: "nikkingvyen",
+            displayName: "Nikki Nguyen",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&h=200&fit=crop"),
+            experienceCount: 65,
+            cityName: "San Francisco, CA",
+            cityID: UUID(uuidString: "C1000001-0000-0000-0000-000000000001"),
+            isFriend: false
+        ),
+        LeaderboardEntry(
+            id: UUID(uuidString: "B1000008-0000-0000-0000-000000000008")!,
+            username: "kaylinhoang",
+            displayName: "Kaylin Hoang",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop"),
+            experienceCount: 58,
+            cityName: "Dublin, CA",
+            cityID: UUID(uuidString: "C1000001-0000-0000-0000-000000000001"),
+            isFriend: true
+        ),
+        LeaderboardEntry(
+            id: UUID(uuidString: "A1000001-0000-0000-0000-000000000001")!,
+            username: "maya.chen",
+            displayName: "Maya Chen",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop"),
+            experienceCount: 48,
+            cityName: "San Francisco, CA",
+            cityID: UUID(uuidString: "C1000001-0000-0000-0000-000000000001"),
+            isFriend: true
+        ),
+        LeaderboardEntry(
+            id: UUID(uuidString: "A1000002-0000-0000-0000-000000000002")!,
+            username: "jordan.lee",
+            displayName: "Jordan Lee",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop"),
+            experienceCount: 39,
+            cityName: "New York, NY",
+            cityID: UUID(uuidString: "C1000004-0000-0000-0000-000000000004"),
+            isFriend: false
+        ),
+        LeaderboardEntry(
+            id: UUID(uuidString: "A1000003-0000-0000-0000-000000000003")!,
+            username: "sam.okafor",
+            displayName: "Sam Okafor",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop"),
+            experienceCount: 31,
+            cityName: "Tokyo, Japan",
+            cityID: UUID(uuidString: "C1000002-0000-0000-0000-000000000002"),
+            isFriend: true
+        ),
+        LeaderboardEntry(
+            id: UUID(uuidString: "A1000004-0000-0000-0000-000000000004")!,
+            username: "yuki.tanaka",
+            displayName: "Yuki Tanaka",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop"),
+            experienceCount: 27,
+            cityName: "Tokyo, Japan",
+            cityID: UUID(uuidString: "C1000002-0000-0000-0000-000000000002"),
+            isFriend: false
+        )
+    ]
+
+    static let locationOptions: [LocationOption] = [
+        LocationOption.allLocations,
+        defaultLocation,
+        LocationOption(id: "sf_ca", name: "San Francisco, CA", subtitle: "California, USA"),
+        LocationOption(id: "ny_ny", name: "New York, NY", subtitle: "New York, USA"),
+        LocationOption(id: "tokyo", name: "Tokyo, Japan", subtitle: "Kanto, Japan"),
+        LocationOption(id: "paris", name: "Paris, France", subtitle: "Île-de-France"),
+        LocationOption(id: "london", name: "London, UK", subtitle: "England, UK"),
+        LocationOption(id: "sydney", name: "Sydney, Australia", subtitle: "NSW, Australia"),
+        LocationOption(id: "barcelona", name: "Barcelona, Spain", subtitle: "Catalonia, Spain")
+    ]
 }

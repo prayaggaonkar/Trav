@@ -130,19 +130,17 @@ struct ProfileView: View {
                 header(profile)
                     .padding(.horizontal, TravSpacing.screenHorizontal)
                     .padding(.top, isOwnProfile ? TravSpacing.xs : TravSpacing.sm)
-                    .travAppear()
 
                 actionRow(profile)
                     .padding(.horizontal, TravSpacing.screenHorizontal)
                     .padding(.top, TravSpacing.md)
-                    .travAppear(delay: 0.08)
 
                 ProfileTabBar(
                     tabs: tabs,
                     selection: Binding(
                         get: { viewModel.selectedTab },
                         set: { newValue in
-                            Task { await viewModel.selectTab(newValue, using: environment) }
+                            viewModel.selectedTab = newValue
                         }
                     ),
                     counts: [
@@ -154,7 +152,6 @@ struct ProfileView: View {
                     }
                 )
                 .padding(.top, TravSpacing.lg)
-                .travAppear(delay: 0.1)
 
                 tabContent
                     .padding(.bottom, TravSpacing.xxl + TravSpacing.lg)

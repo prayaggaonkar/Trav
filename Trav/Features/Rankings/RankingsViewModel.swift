@@ -12,101 +12,78 @@ final class RankingsViewModel {
         case failed(Error)
     }
 
-    var mode: RankingMode = .experiences
-    var axis: RankingAxis = .overall
-    var selectedCity: City?
-    var selectedCreator: ProfileSummary?
-    /// Free-text input for city search suggestions / city token.
-    var searchText = ""
+    var memberScope: MemberScopeFilter = .allMembers
+    var selectedLocation: LocationOption = MockLeaderboardData.defaultLocation
 
-    private(set) var experiences: [ExperienceSummary] = []
-    private(set) var creators: [RankedCreator] = []
-    private(set) var phase: LoadPhase = .idle
-    private(set) var catalogCities: [City] = []
+    private(set) var allEntries: [LeaderboardEntry] = []
+    private(set) var availableLocations: [LocationOption] = MockLeaderboardData.locationOptions
+    private(set) var phase: LoadPhase = .loaded
 
-    private var loadTask: Task<Void, Never>?
+    private var currentEnvironment: AppEnvironment?
 
-    var displayedCreators: [RankedCreator] {
-        creators
-    }
+    var filteredEntries: [LeaderboardEntry] {
+        var items = allEntries
 
-    func applyCreatorSearchFilter() {
-        // Rankings search is cities-only; creator list is not text-filtered.
-    }
+        // Member Scope Filter (All Members vs Friends)
+        if memberScope == .friends {
+            items = items.filter { $0.isFriend }
+        }
 
-    var matchingCities: [City] {
-        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [] }
-        return catalogCities.filter { city in
-            city.name.localizedCaseInsensitiveContains(trimmed)
-                || city.countryName.localizedCaseInsensitiveContains(trimmed)
-                || city.locationLabel.localizedCaseInsensitiveContains(trimmed)
+        // Sort descending by number of experiences created in the selected location
+        return items.sorted { lhs, rhs in
+            if lhs.experienceCount != rhs.experienceCount {
+                return lhs.experienceCount > rhs.experienceCount
+            }
+            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
         }
     }
 
     func bootstrap(using environment: AppEnvironment) async {
-        if catalogCities.isEmpty {
-            catalogCities = (try? await environment.cities.fetchGlobeCities()) ?? MockData.cities
-        }
+        self.currentEnvironment = environment
         await reload(using: environment)
     }
 
     func reload(using environment: AppEnvironment) async {
-        loadTask?.cancel()
-        let mode = self.mode
-        let axis = self.axis
-        let cityID = selectedCity?.id
-        let creatorID: UUID? = nil
+        self.currentEnvironment = environment
+        phase = .loading
+        do {
+            // Load globe cities for default location suggestions
+            let fetchedCities = (try? await environment.cities.fetchGlobeCities()) ?? []
+            var locs: [LocationOption] = [LocationOption.allLocations, MockLeaderboardData.defaultLocation]
 
-        loadTask = Task {
-            phase = experiences.isEmpty && creators.isEmpty ? .loading : phase
-            do {
-                switch mode {
-                case .experiences:
-                    let page = try await environment.experiences.fetchRankedExperiences(
-                        cityID: cityID,
-                        creatorID: creatorID,
-                        axis: axis,
-                        page: 0
-                    )
-                    guard !Task.isCancelled else { return }
-                    experiences = page.items
-                    creators = []
-                    phase = page.items.isEmpty ? .empty : .loaded
-                case .creators:
-                    let page = try await environment.experiences.fetchRankedCreators(
-                        cityID: cityID,
-                        axis: axis,
-                        page: 0
-                    )
-                    guard !Task.isCancelled else { return }
-                    creators = page.items
-                    experiences = []
-                    phase = displayedCreators.isEmpty ? .empty : .loaded
+            for city in fetchedCities {
+                let name = "\(city.name), \(city.countryName)"
+                if !locs.contains(where: { $0.name.lowercased() == name.lowercased() || $0.name.lowercased() == city.name.lowercased() }) {
+                    locs.append(LocationOption(id: city.id.uuidString, name: city.name, subtitle: city.countryName))
                 }
-            } catch {
-                guard !Task.isCancelled else { return }
-                phase = .failed(error)
+            }
+            availableLocations = locs
+
+            // Fetch real users and city-specific experience counts strictly from Supabase database
+            let cityID: UUID? = (selectedLocation.id == LocationOption.allLocations.id) ? nil : UUID(uuidString: selectedLocation.id)
+            let fetchedEntries = (try? await environment.experiences.fetchLeaderboardEntries(
+                cityID: cityID,
+                cityName: selectedLocation.id == LocationOption.allLocations.id ? nil : selectedLocation.name
+            )) ?? []
+
+            allEntries = fetchedEntries
+            phase = filteredEntries.isEmpty ? .empty : .loaded
+        } catch {
+            allEntries = []
+            phase = .empty
+        }
+    }
+
+    func selectMemberScope(_ scope: MemberScopeFilter) {
+        memberScope = scope
+    }
+
+    func selectLocation(_ location: LocationOption) {
+        selectedLocation = location
+        if let currentEnvironment {
+            Task {
+                await reload(using: currentEnvironment)
             }
         }
-        await loadTask?.value
-    }
-
-    func selectCity(_ city: City) {
-        selectedCity = city
-        searchText = ""
-    }
-
-    func selectCreator(_ creator: ProfileSummary) {
-        selectedCreator = creator
-        searchText = ""
-    }
-
-    func clearCity() {
-        selectedCity = nil
-    }
-
-    func clearCreator() {
-        selectedCreator = nil
     }
 }

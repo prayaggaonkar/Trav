@@ -14,9 +14,7 @@ struct ProfileTabBar: View {
                 ForEach(tabs) { tab in
                     let count = counts[tab]
                     Button {
-                        withAnimation(TravAnimation.tab) {
-                            selection = tab
-                        }
+                        selection = tab
                         onSelect(tab)
                     } label: {
                         HStack(spacing: 6) {
