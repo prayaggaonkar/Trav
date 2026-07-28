@@ -89,7 +89,7 @@ struct FeedView: View {
 
     var body: some View {
         ZStack {
-            Color.black
+            TravColors.surface
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -184,12 +184,12 @@ struct FeedView: View {
                         .padding(.vertical, TravSpacing.xs)
                         .background(
                             Capsule()
-                                .fill(selectedFilter == filter ? TravColors.accent : Color.white.opacity(0.08))
+                                .fill(selectedFilter == filter ? TravColors.accent : TravColors.surfaceElevated)
                         )
-                        .foregroundStyle(selectedFilter == filter ? Color.black : .white)
+                        .foregroundStyle(selectedFilter == filter ? Color.white : TravColors.primary)
                         .overlay(
                             Capsule()
-                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                .stroke(TravColors.border, lineWidth: 1)
                         )
                     }
                     .buttonStyle(.plain)
@@ -248,7 +248,7 @@ struct FeedView: View {
                 HStack {
                     Text("Experiences")
                         .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(TravColors.primary)
                     Spacer()
                 }
                 .padding(.horizontal, TravSpacing.screenHorizontal)
@@ -334,7 +334,7 @@ struct FeedView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Happening Soon")
                 .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(TravColors.primary)
                 .padding(.horizontal, TravSpacing.screenHorizontal)
                 .padding(.top, TravSpacing.xs)
 
@@ -391,7 +391,7 @@ struct FeedView: View {
 
                             Text(plannerSubtitle)
                                 .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(TravColors.primary)
                         }
 
                         Spacer()
@@ -414,7 +414,7 @@ struct FeedView: View {
                     .padding(.vertical, TravSpacing.sm)
 
                     Divider()
-                        .background(Color.white.opacity(0.1))
+                        .background(TravColors.border)
 
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
@@ -425,14 +425,14 @@ struct FeedView: View {
                                         .padding(5)
                                         .background(TravColors.accent)
                                         .clipShape(Circle())
-                                        .foregroundStyle(.black)
+                                        .foregroundStyle(.white)
 
                                     Image(systemName: sfSymbolForEmojiOrCategory(stop.emoji ?? ""))
                                         .font(.system(size: 11))
                                         .foregroundStyle(TravColors.accent)
                                     Text(stop.name)
                                         .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(TravColors.primary)
 
                                     Button {
                                         draftStops.remove(at: index)
@@ -449,11 +449,11 @@ struct FeedView: View {
                                 }
                                 .padding(.horizontal, TravSpacing.sm)
                                 .padding(.vertical, 6)
-                                .background(Color.white.opacity(0.06))
+                                .background(TravColors.surfaceElevated)
                                 .clipShape(Capsule())
                                 .overlay(
                                     Capsule()
-                                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                        .stroke(TravColors.border, lineWidth: 1)
                                 )
                             }
                         }
@@ -462,12 +462,12 @@ struct FeedView: View {
                     }
 
                     HStack(spacing: TravSpacing.sm) {
-                        TextField("", text: $itineraryTitle, prompt: Text("Itinerary Name...").foregroundColor(Color.white.opacity(0.3)))
+                        TextField("", text: $itineraryTitle, prompt: Text("Itinerary Name...").foregroundColor(TravColors.muted))
                             .padding(.horizontal, TravSpacing.md)
                             .padding(.vertical, 8)
-                            .background(Color.white.opacity(0.08))
+                            .background(TravColors.surfaceElevated)
                             .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(TravColors.primary)
                             .tint(TravColors.accent)
 
                         Button {
@@ -476,7 +476,7 @@ struct FeedView: View {
                             HStack {
                                 if isSavingItinerary {
                                     ProgressView()
-                                        .tint(.black)
+                                        .tint(.white)
                                         .scaleEffect(0.8)
                                 } else {
                                     Image(systemName: "checkmark.circle.fill")
@@ -487,7 +487,7 @@ struct FeedView: View {
                             .padding(.horizontal, TravSpacing.md)
                             .padding(.vertical, 10)
                             .background(TravColors.accent)
-                            .foregroundStyle(.black)
+                            .foregroundStyle(.white)
                             .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
                         }
                         .disabled(isSavingItinerary)
@@ -496,11 +496,11 @@ struct FeedView: View {
                     .padding(.horizontal, TravSpacing.screenHorizontal)
                     .padding(.bottom, TravSpacing.sm + 10)
                 }
-                .background(.ultraThinMaterial)
+                .background(TravColors.surfaceElevated)
                 .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                        .stroke(TravColors.border, lineWidth: 1)
                 )
                 .padding(.horizontal, TravSpacing.sm)
                 .padding(.bottom, TravSpacing.tabBarBottom + 5)
@@ -634,7 +634,7 @@ struct FeedView: View {
     }
 
     private var feedTabBarBackdrop: TabBarBackdrop {
-        .dark
+        appearance.isLightMode ? .light : .dark
     }
 
     // MARK: - Search
@@ -716,7 +716,7 @@ struct FeedView: View {
                     Text("CITIES")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .tracking(1.2)
-                        .foregroundStyle(Color.white.opacity(0.55))
+                        .foregroundStyle(TravColors.muted)
                         .padding(.horizontal, TravSpacing.xs)
 
                     VStack(spacing: 6) {
@@ -736,16 +736,16 @@ struct FeedView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(city.name)
                                             .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(TravColors.primary)
                                         Text(city.locationLabel)
                                             .font(.system(size: 12, weight: .medium))
-                                            .foregroundStyle(Color.white.opacity(0.5))
+                                            .foregroundStyle(TravColors.muted)
                                     }
                                     Spacer()
                                 }
                                 .padding(.horizontal, TravSpacing.sm)
                                 .padding(.vertical, 8)
-                                .background(Color.white.opacity(0.06))
+                                .background(TravColors.surfaceElevated)
                                 .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
                             }
                             .buttonStyle(.plain)
@@ -759,12 +759,12 @@ struct FeedView: View {
                     Text("PEOPLE")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .tracking(1.2)
-                        .foregroundStyle(Color.white.opacity(0.55))
+                        .foregroundStyle(TravColors.muted)
                         .padding(.horizontal, TravSpacing.xs)
 
                     if isSearchingUsers && userSearchResults.isEmpty {
                         ProgressView()
-                            .tint(.white)
+                            .tint(TravColors.accent)
                             .padding(.vertical, TravSpacing.sm)
                     }
 
@@ -785,16 +785,16 @@ struct FeedView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(user.displayName)
                                             .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(TravColors.primary)
                                         Text("@\(user.username)")
                                             .font(.system(size: 12, weight: .medium))
-                                            .foregroundStyle(Color.white.opacity(0.5))
+                                            .foregroundStyle(TravColors.muted)
                                     }
                                     Spacer()
                                 }
                                 .padding(.horizontal, TravSpacing.sm)
                                 .padding(.vertical, 8)
-                                .background(Color.white.opacity(0.06))
+                                .background(TravColors.surfaceElevated)
                                 .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
                             }
                             .buttonStyle(.plain)
@@ -806,7 +806,7 @@ struct FeedView: View {
             if matchingCities.isEmpty && userSearchResults.isEmpty && !isSearchingUsers {
                 Text("Keep typing to filter experiences by keyword")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color.white.opacity(0.45))
+                    .foregroundStyle(TravColors.muted)
                     .padding(.horizontal, TravSpacing.xs)
                     .padding(.vertical, TravSpacing.xs)
             }
@@ -815,14 +815,13 @@ struct FeedView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .environment(\.colorScheme, .dark)
+                .fill(TravColors.surfaceElevated)
         )
         .overlay {
             RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                .stroke(TravColors.border, lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.35), radius: 16, y: 8)
+        .shadow(color: .black.opacity(0.15), radius: 16, y: 8)
     }
 }
 

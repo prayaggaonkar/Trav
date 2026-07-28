@@ -365,7 +365,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             let stops = Self.parseStops(place.stops ?? [])
             let stopPreviews = stops.isEmpty
                 ? [StopPreview(id: StableUUID.from("place:\(place.id)"), name: place.name, emoji: Self.emojiForCategory(place.basic_category))]
-                : stops.map { StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji) }
+                : stops.map { StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji, latitude: $0.latitude, longitude: $0.longitude) }
 
             let cityName = place.city ?? "Berkeley"
             let city = catalog?.first { $0.name.caseInsensitiveCompare(cityName) == .orderedSame }
@@ -585,7 +585,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             saveCount: row.save_count,
             likeCount: row.like_count,
             completionCount: row.completion_count,
-            stops: stops.map { StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji) },
+            stops: stops.map { StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji, latitude: $0.latitude, longitude: $0.longitude) },
             rating: row.rating,
             cityName: row.city
         )

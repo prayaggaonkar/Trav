@@ -145,6 +145,8 @@ struct StopPreview: Identifiable, Codable, Sendable, Hashable {
     let id: UUID
     var name: String
     var emoji: String?
+    var latitude: Double? = nil
+    var longitude: Double? = nil
 }
 
 struct Experience: Identifiable, Codable, Sendable, Hashable {

@@ -226,86 +226,6 @@ struct HeroExperienceCard: View {
     }
 
     var body: some View {
-<<<<<<< HEAD
-        HStack(alignment: .top, spacing: 14) {
-            // 1. Left: Clickable Small Square Photo
-            if let imageURL = experience.coverImageURL {
-                Button(action: onTap) {
-                    RemoteImage(
-                        url: imageURL,
-                        height: 72,
-                        cornerRadius: 12
-                    )
-                    .frame(width: 72, height: 72)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(TravColors.border.opacity(0.3), lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-            
-            // 2. Center details
-            VStack(alignment: .leading, spacing: 4) {
-                if !badgeText.isEmpty {
-                    Text(badgeText.uppercased())
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
-                        .tracking(1.0)
-                        .foregroundStyle(TravColors.accent)
-                }
-                
-                Text(experience.title)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(TravColors.primary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 2)
-                
-                // Author row
-                Button {
-                    onCreatorTap?()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(TravColors.accent)
-                        Text("by \(experience.creator.displayName)")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(TravColors.muted)
-                    }
-                }
-                .buttonStyle(.plain)
-                .disabled(onCreatorTap == nil)
-                .padding(.top, 2)
-                
-                Text(cityLabel)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(TravColors.muted)
-                    .padding(.top, 4)
-            }
-            
-            Spacer(minLength: 0)
-            
-            // 3. Right: Circular Rating + Action Buttons
-            VStack(alignment: .trailing, spacing: 8) {
-                HStack(spacing: 8) {
-                    Button {
-                        onSave?()
-                    } label: {
-                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 13))
-                            .foregroundStyle(isSaved ? Color.yellow : TravColors.muted)
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Button {
-                        onShare?()
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 13))
-                            .foregroundStyle(TravColors.muted)
-=======
         HStack(alignment: .top, spacing: 0) {
             Color.clear
                 .frame(width: coverWidth)
@@ -316,13 +236,13 @@ struct HeroExperienceCard: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(experience.title)
                             .font(.system(size: 17, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(TravColors.primary)
                             .lineLimit(2)
                             .minimumScaleFactor(0.9)
 
                         Text(locationLabel)
                             .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.45))
+                            .foregroundStyle(TravColors.muted)
                             .lineLimit(1)
 
                         Spacer(minLength: 0)
@@ -332,7 +252,7 @@ struct HeroExperienceCard: View {
                             if isCreatedByYou {
                                 Text(badgeText)
                                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                                    .foregroundStyle(.white.opacity(0.65))
+                                    .foregroundStyle(TravColors.muted)
                                     .lineLimit(1)
                             } else {
                                 Button {
@@ -342,7 +262,7 @@ struct HeroExperienceCard: View {
                                         AvatarView(url: experience.creator.avatarURL, size: 18)
                                         Text(experience.creator.displayName)
                                             .font(.system(size: 12, weight: .medium, design: .rounded))
-                                            .foregroundStyle(.white.opacity(0.65))
+                                            .foregroundStyle(TravColors.muted)
                                             .lineLimit(1)
                                     }
                                 }
@@ -362,7 +282,7 @@ struct HeroExperienceCard: View {
                             } label: {
                                 Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
                                     .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(isSaved ? Color.yellow : .white.opacity(0.55))
+                                    .foregroundStyle(isSaved ? Color.yellow : TravColors.muted)
                                     .frame(width: 22, height: 22)
                             }
                             .buttonStyle(.plain)
@@ -373,7 +293,7 @@ struct HeroExperienceCard: View {
                             } label: {
                                 Image(systemName: "square.and.arrow.up")
                                     .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.55))
+                                    .foregroundStyle(TravColors.muted)
                                     .frame(width: 22, height: 22)
                             }
                             .buttonStyle(.plain)
@@ -383,7 +303,6 @@ struct HeroExperienceCard: View {
                         if showRating {
                             CircularRatingView(rating: displayRating, size: 40)
                         }
->>>>>>> 81f6ff733c22c0f60026b49c032352e834a3721a
                     }
                 }
             }
@@ -394,51 +313,23 @@ struct HeroExperienceCard: View {
         }
         .frame(height: cardHeight)
         .background(alignment: .leading) {
-            // Only paint a cover in the reserved slot; crop to that width.
-            if hasCoverImage {
-                coverImage
-                    .frame(width: coverWidth, height: cardHeight)
-                    .clipped()
-            }
+            // Paint photo cover or stops map cover in the reserved slot; crop to width.
+            coverImage
+                .frame(width: coverWidth, height: cardHeight)
+                .clipped()
         }
-<<<<<<< HEAD
-        .padding(connectedLayout ? 20 : 14)
         .background(TravColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : 18, style: .continuous))
-        .overlay(
-            Group {
-                if connectedLayout {
-                    VStack {
-                        Spacer()
-                        Divider()
-                            .background(TravColors.border.opacity(0.3))
-                    }
-                } else {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
-=======
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 0.08, green: 0.08, blue: 0.12),
-                    Color(red: 0.12, green: 0.12, blue: 0.18)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
         .clipShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : cardCornerRadius, style: .continuous))
         .overlay {
             if connectedLayout {
                 VStack {
                     Spacer()
                     Divider()
-                        .background(Color.white.opacity(0.08))
->>>>>>> 81f6ff733c22c0f60026b49c032352e834a3721a
+                        .background(TravColors.border.opacity(0.3))
                 }
             } else {
                 RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : cardCornerRadius, style: .continuous))
@@ -451,7 +342,6 @@ struct HeroExperienceCard: View {
     @ViewBuilder
     private var coverImage: some View {
         ZStack {
-            Color.black.opacity(0.25)
             if let imageURL = experience.coverImageURL {
                 AsyncImage(url: imageURL) { phase in
                     switch phase {
@@ -462,9 +352,13 @@ struct HeroExperienceCard: View {
                             .frame(width: coverWidth, height: cardHeight)
                             .clipped()
                     default:
-                        EmptyView()
+                        ExperienceStopsMapView(experience: experience)
+                            .frame(width: coverWidth, height: cardHeight)
                     }
                 }
+            } else {
+                ExperienceStopsMapView(experience: experience)
+                    .frame(width: coverWidth, height: cardHeight)
             }
         }
         .frame(width: coverWidth, height: cardHeight)
@@ -534,7 +428,7 @@ struct CircularRatingView: View {
 
         ZStack {
             Circle()
-                .fill(Color.white.opacity(0.06))
+                .fill(TravColors.border.opacity(0.2))
 
             Circle()
                 .stroke(ringColor.opacity(0.12 + 0.2 * intensity), lineWidth: strokeWidth)
@@ -552,7 +446,7 @@ struct CircularRatingView: View {
             Text(String(format: "%.1f", rating))
                 .font(.system(size: fontSize, weight: .bold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(.white.opacity(0.75 + 0.25 * intensity))
+                .foregroundStyle(TravColors.primary)
         }
         .frame(width: size, height: size)
         .accessibilityLabel("Rated \(String(format: "%.1f", rating)) out of 10")

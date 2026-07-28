@@ -1,4 +1,5 @@
 import SwiftUI
+import MapKit
 
 /// Full-width experience card used across feeds.
 /// Renders user-created experiences with the frosted glassmorphic card design & circular rating progress bar,
@@ -127,11 +128,16 @@ struct GemPostCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topTrailing) {
-                RemoteImage(
-                    url: experience.coverImageURL,
-                    height: TravLayout.feedCardImageHeight,
-                    cornerRadius: 0
-                )
+                if let coverURL = experience.coverImageURL {
+                    RemoteImage(
+                        url: coverURL,
+                        height: TravLayout.feedCardImageHeight,
+                        cornerRadius: 0
+                    )
+                } else {
+                    ExperienceStopsMapView(experience: experience)
+                        .frame(height: TravLayout.feedCardImageHeight)
+                }
 
                 LinearGradient(
                     colors: [.black.opacity(0.35), .clear],
@@ -450,5 +456,114 @@ struct EmojiParticleView: View {
                 animate = true
             }
         }
+    }
+}
+
+/// Mini map view displayed on experience cards when no cover image media is available.
+/// Displays markers and connecting polyline route for the experience stops.
+struct ExperienceStopsMapView: View {
+    let experience: ExperienceSummary
+
+    @State private var position: MapCameraPosition = .automatic
+
+    private var resolvedCoordinates: [CLLocationCoordinate2D] {
+        let cityBase = getCityBaseCoordinate()
+        var coords: [CLLocationCoordinate2D] = []
+
+        for (index, stop) in experience.stops.enumerated() {
+            if let lat = stop.latitude, let lon = stop.longitude, lat != 0 || lon != 0 {
+                coords.append(CLLocationCoordinate2D(latitude: lat, longitude: lon))
+            } else {
+                // Offset around city base coordinate to show distinct stop locations
+                let latOffset = (Double(index * 7 + 4) / 1000.0) * (index % 2 == 0 ? 1 : -1)
+                let lonOffset = (Double(index * 9 + 5) / 1000.0) * (index % 3 == 0 ? -1 : 1)
+                coords.append(CLLocationCoordinate2D(
+                    latitude: cityBase.latitude + latOffset,
+                    longitude: cityBase.longitude + lonOffset
+                ))
+            }
+        }
+
+        if coords.isEmpty {
+            coords.append(cityBase)
+        }
+        return coords
+    }
+
+    var body: some View {
+        Map(position: $position, interactionModes: []) {
+            ForEach(Array(resolvedCoordinates.enumerated()), id: \.offset) { index, coord in
+                Annotation("", coordinate: coord) {
+                    ZStack {
+                        Circle()
+                            .fill(TravColors.accent)
+                            .frame(width: 18, height: 18)
+                            .shadow(color: .black.opacity(0.35), radius: 2)
+
+                        Text("\(index + 1)")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                }
+            }
+
+            if resolvedCoordinates.count >= 2 {
+                MapPolyline(coordinates: resolvedCoordinates)
+                    .stroke(TravColors.accent, lineWidth: 2.5)
+            }
+        }
+        .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+        .onAppear {
+            setupCamera()
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func getCityBaseCoordinate() -> CLLocationCoordinate2D {
+        if let city = MockData.cities.first(where: { $0.id == experience.cityID }) {
+            return CLLocationCoordinate2D(latitude: city.latitude, longitude: city.longitude)
+        }
+        if let cityName = experience.cityName,
+           let city = MockData.cities.first(where: { $0.name.caseInsensitiveCompare(cityName) == .orderedSame }) {
+            return CLLocationCoordinate2D(latitude: city.latitude, longitude: city.longitude)
+        }
+        return CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
+    }
+
+    private func setupCamera() {
+        let coords = resolvedCoordinates
+        guard !coords.isEmpty else { return }
+
+        if coords.count == 1 {
+            position = .region(MKCoordinateRegion(
+                center: coords[0],
+                span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
+            ))
+            return
+        }
+
+        var minLat = coords[0].latitude
+        var maxLat = coords[0].latitude
+        var minLon = coords[0].longitude
+        var maxLon = coords[0].longitude
+
+        for coord in coords {
+            minLat = min(minLat, coord.latitude)
+            maxLat = max(maxLat, coord.latitude)
+            minLon = min(minLon, coord.longitude)
+            maxLon = max(maxLon, coord.longitude)
+        }
+
+        let center = CLLocationCoordinate2D(
+            latitude: (minLat + maxLat) / 2,
+            longitude: (minLon + maxLon) / 2
+        )
+        let latDelta = max((maxLat - minLat) * 1.5, 0.012)
+        let lonDelta = max((maxLon - minLon) * 1.5, 0.012)
+
+        position = .region(MKCoordinateRegion(
+            center: center,
+            span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)
+        ))
     }
 }

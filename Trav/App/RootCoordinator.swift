@@ -67,7 +67,7 @@ struct RootCoordinator: View {
     private func defaultBackdrop(for tab: TravTab) -> TabBarBackdrop {
         switch tab {
         case .feed:
-            return .dark
+            return appearance.isLightMode ? .light : .dark
         case .explore:
             return appearance.isLightMode ? .light : .dark
         case .create, .rankings, .profile:

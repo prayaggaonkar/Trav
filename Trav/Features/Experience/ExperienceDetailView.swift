@@ -15,6 +15,7 @@ struct ExperienceDetailView: View {
     @State private var shareItem: ShareItem?
     @State private var showReportDialog = false
     @State private var localCommentCount: Int?
+    @State private var activeImagePreview: ImagePreviewItem?
 
     let experienceID: UUID
 
@@ -82,6 +83,11 @@ struct ExperienceDetailView: View {
             }
             Button("Cancel", role: .cancel) {}
         }
+        .fullScreenCover(item: $activeImagePreview) { item in
+            FullScreenImageViewer(urls: item.urls, initialIndex: item.initialIndex) {
+                activeImagePreview = nil
+            }
+        }
         .task {
             if let userID = environment.session.currentUser?.id {
                 await engagement.refreshBootstrap(userID: userID, using: environment)
@@ -103,7 +109,34 @@ struct ExperienceDetailView: View {
             saveCount: experience.saveCount,
             likeCount: experience.likeCount,
             completionCount: experience.completionCount,
-            stops: experience.stops.map { StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji) }
+            stops: experience.stops.map { StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji, latitude: $0.latitude, longitude: $0.longitude) }
+        )
+    }
+
+    private var allExperienceImageURLs: [URL] {
+        guard let experience else { return [] }
+        var urls: [URL] = []
+        for url in experience.imageURLs {
+            if !urls.contains(url) {
+                urls.append(url)
+            }
+        }
+        for stop in experience.stops {
+            for item in stop.media {
+                if !urls.contains(item.url) {
+                    urls.append(item.url)
+                }
+            }
+        }
+        return urls
+    }
+
+    private func openImagePreview(url: URL) {
+        let allURLs = allExperienceImageURLs
+        let initialIndex = allURLs.firstIndex(of: url) ?? 0
+        activeImagePreview = ImagePreviewItem(
+            urls: allURLs.isEmpty ? [url] : allURLs,
+            initialIndex: initialIndex
         )
     }
 
@@ -180,7 +213,15 @@ struct ExperienceDetailView: View {
 
     @ViewBuilder
     private func hero(_ experience: Experience) -> some View {
-        HeroMediaCarousel(urls: experience.imageURLs, height: TravLayout.heroExperienceHeight) {
+        HeroMediaCarousel(
+            urls: experience.imageURLs,
+            height: TravLayout.heroExperienceHeight,
+            onImageTap: { index in
+                if index < experience.imageURLs.count {
+                    openImagePreview(url: experience.imageURLs[index])
+                }
+            }
+        ) {
             VStack(alignment: .leading, spacing: TravSpacing.sm) {
                 Text(experience.title)
                     .font(TravTypography.displayMedium())
@@ -339,8 +380,13 @@ struct ExperienceDetailView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: TravSpacing.sm) {
                             ForEach(Array(experience.imageURLs.enumerated()), id: \.offset) { index, url in
-                                RemoteImage(url: url, height: 110, cornerRadius: TravRadius.md)
-                                    .frame(width: 150, height: 110)
+                                Button {
+                                    openImagePreview(url: url)
+                                } label: {
+                                    RemoteImage(url: url, height: 110, cornerRadius: TravRadius.md)
+                                        .frame(width: 150, height: 110)
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -351,7 +397,7 @@ struct ExperienceDetailView: View {
             ExperienceRouteMapView(stops: experience.stops, transportMode: experience.transportMode)
 
             RoutePreview(stops: experience.stops.map {
-                StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji)
+                StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji, latitude: $0.latitude, longitude: $0.longitude)
             })
 
             // Only render the radar when the creator actually rated the experience.
@@ -380,8 +426,17 @@ struct ExperienceDetailView: View {
                 .padding(.bottom, TravSpacing.md)
 
             ForEach(Array(experience.stops.enumerated()), id: \.element.id) { index, stop in
-                StopTimelineRow(stop: stop, index: index + 1, isLast: index == experience.stops.count - 1)
-                    .travAppear(delay: Double(index) * 0.05)
+                StopTimelineRow(
+                    stop: stop,
+                    index: index + 1,
+                    isLast: index == experience.stops.count - 1,
+                    onImageTap: { urls, mediaIndex in
+                        if mediaIndex < urls.count {
+                            openImagePreview(url: urls[mediaIndex])
+                        }
+                    }
+                )
+                .travAppear(delay: Double(index) * 0.05)
             }
         }
     }
@@ -402,6 +457,7 @@ private struct StopTimelineRow: View {
     let stop: Stop
     let index: Int
     let isLast: Bool
+    var onImageTap: ((_ urls: [URL], _ index: Int) -> Void)? = nil
 
     private let circleSize: CGFloat = 28
 
@@ -449,6 +505,23 @@ private struct StopTimelineRow: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
 
+                if !stop.media.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: TravSpacing.xs) {
+                            ForEach(Array(stop.media.enumerated()), id: \.element.id) { mediaIndex, mediaItem in
+                                Button {
+                                    onImageTap?(stop.media.map(\.url), mediaIndex)
+                                } label: {
+                                    RemoteImage(url: mediaItem.url, height: 90, cornerRadius: TravRadius.sm)
+                                        .frame(width: 120, height: 90)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(.vertical, TravSpacing.xxs)
+                }
+
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: TravSpacing.sm) {
                         if let time = stop.recommendedTime {
@@ -477,6 +550,7 @@ private struct StopTimelineRow: View {
 private struct HeroMediaCarousel<Overlay: View>: View {
     let urls: [URL]
     let height: CGFloat
+    var onImageTap: ((Int) -> Void)? = nil
     @ViewBuilder let overlay: () -> Overlay
 
     @State private var currentIndex = 0
@@ -488,11 +562,19 @@ private struct HeroMediaCarousel<Overlay: View>: View {
                     ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
                         RemoteImage(url: url, height: height, cornerRadius: 0)
                             .tag(index)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                onImageTap?(index)
+                            }
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-            } else {
-                RemoteImage(url: urls.first, height: height, cornerRadius: 0)
+            } else if let firstURL = urls.first {
+                RemoteImage(url: firstURL, height: height, cornerRadius: 0)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onImageTap?(0)
+                    }
             }
 
             LinearGradient(
