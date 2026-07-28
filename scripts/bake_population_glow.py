@@ -517,11 +517,11 @@ def main() -> None:
 
     out_hi = ROOT / "Textures/earth_night.jpg"
     out_lo = ROOT / "Assets.xcassets/earth_night.imageset/earth_night.jpg"
-    Image.fromarray(night_out).save(out_hi, "JPEG", quality=96, optimize=True)
-    Image.fromarray(night_out).resize((2048, 1024), Image.LANCZOS).save(
-        out_lo, "JPEG", quality=94, optimize=True
-    )
+    Image.fromarray(night_out).save(out_hi, "JPEG", quality=96, optimize=True, subsampling=0)
+    # Keep catalog at full 4K so zoomed emission stays sharp.
+    Image.fromarray(night_out).save(out_lo, "JPEG", quality=96, optimize=True, subsampling=0)
     print("wrote", out_hi)
+    print("wrote", out_lo)
 
     def region(name, la0, la1, lo0, lo1):
         x0 = int((lo0 + 180) / 360 * W) % W
