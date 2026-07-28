@@ -69,6 +69,12 @@ struct CityPageView: View {
         }
         .task {
             await viewModel.load(using: environment)
+            if case let .loaded(content) = viewModel.phase {
+                let didSeed = await AutoSeedManager.shared.checkAndSeedCity(city: content.city.name)
+                if didSeed {
+                    await viewModel.load(using: environment)
+                }
+            }
         }
         .onChange(of: session.currentUser) { _, _ in
             Task {
@@ -243,7 +249,8 @@ struct CityPageView: View {
                 LazyVStack(spacing: TravSpacing.md) {
                     ForEach(Array(feed.enumerated()), id: \.element.id) { index, experience in
                         let isUserCreated = session.currentUser?.id == experience.creator.id
-                        let badgeText = isUserCreated ? "Created by You" : ""
+                        let isTravRec = experience.creator.id == ExperienceInsert.travAdminID || experience.creator.username.lowercased() == "trav"
+                        let badgeText = isTravRec ? "Rec by Trav" : (isUserCreated ? "Created by You" : "")
                         ExperienceCard(
                             experience: experience,
                             badgeText: badgeText,

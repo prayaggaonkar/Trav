@@ -79,6 +79,7 @@ struct FeedView: View {
     // Spot Search & Rating
     @State private var spotSearchController = SpotSearchController()
     @State private var cityLocator = CurrentCityLocator()
+    @State private var currentCity: String? = nil
     @State private var selectedSpotDetail: SpotSuggestion? = nil
 
     // Quick Planner state
@@ -151,6 +152,13 @@ struct FeedView: View {
 
             // Load feed and popups for active app location
             await reloadPopupsForActiveAppLocation()
+        }
+        .task(id: currentCity) {
+            guard let city = currentCity, !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            let didSeed = await AutoSeedManager.shared.checkAndSeedCity(city: city)
+            if didSeed {
+                await reloadPopupsForActiveAppLocation()
+            }
         }
         .onChange(of: searchText) { _, newValue in
             router.feedKeyword = newValue
@@ -378,6 +386,9 @@ struct FeedView: View {
     }
 
     private func ownExperienceBadge(for experience: ExperienceSummary) -> String {
+        if experience.creator.id == ExperienceInsert.travAdminID || experience.creator.username.lowercased() == "trav" {
+            return "Rec by Trav"
+        }
         guard let currentID = session.currentUser?.id,
               experience.creator.id == currentID else {
             return ""
@@ -395,26 +406,38 @@ struct FeedView: View {
     }
 
     private func reloadPopupsForActiveAppLocation() async {
+        let activeCity: String?
+        let activeLat: Double?
+        let activeLng: Double?
+
         if let selectedCity = router.selectedFeedCity {
             // Priority 1: User put/selected a location in the app!
-            await viewModel.load(
-                using: environment,
-                latitude: selectedCity.latitude,
-                longitude: selectedCity.longitude,
-                city: selectedCity.name
-            )
+            activeCity = selectedCity.name
+            activeLat = selectedCity.latitude
+            activeLng = selectedCity.longitude
         } else if let userCoord = await cityLocator.requestLocationCoordinate() {
             // Priority 2: Fallback to device GPS when no city is selected in the app
-            let cityLabel = await cityLocator.requestCityLabel()
-            await viewModel.load(
-                using: environment,
-                latitude: userCoord.latitude,
-                longitude: userCoord.longitude,
-                city: cityLabel
-            )
+            activeCity = await cityLocator.requestCityLabel()
+            activeLat = userCoord.latitude
+            activeLng = userCoord.longitude
         } else {
-            await viewModel.load(using: environment)
+            activeCity = catalogCities.first?.name
+            activeLat = nil
+            activeLng = nil
         }
+
+        if let city = activeCity {
+            self.currentCity = city
+            // Ensure Rec by Trav itinerary is auto-seeded BEFORE loading feed data
+            await AutoSeedManager.shared.checkAndSeedCity(city: city)
+        }
+
+        await viewModel.load(
+            using: environment,
+            latitude: activeLat,
+            longitude: activeLng,
+            city: activeCity
+        )
     }
 
     // MARK: - Quick Planner
@@ -622,7 +645,14 @@ struct FeedView: View {
             items = items.filter { engagement.isSaved($0.id) }
         }
 
-        return items
+        return items.sorted { a, b in
+            let aIsTrav = a.creator.id == ExperienceInsert.travAdminID || a.creator.username.lowercased() == "trav"
+            let bIsTrav = b.creator.id == ExperienceInsert.travAdminID || b.creator.username.lowercased() == "trav"
+            if aIsTrav != bIsTrav {
+                return aIsTrav
+            }
+            return false
+        }
     }
 
     private func experienceMatchesCity(_ experience: ExperienceSummary, city: City) -> Bool {
