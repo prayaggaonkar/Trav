@@ -533,3 +533,167 @@ struct ProfileUserRow: View {
         .padding(.vertical, 6)
     }
 }
+
+// MARK: - Suggested users
+
+struct SuggestedUsersSection: View {
+    let users: [SuggestedUser]
+    var isLoading: Bool
+    var contactsAuthorization: ContactAuthorizationStatus
+    var onSelect: (SuggestedUser) -> Void
+    var onFollow: (SuggestedUser) -> Void
+    var onDismiss: (SuggestedUser) -> Void
+    var onSyncContacts: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            HStack(alignment: .center) {
+                Text("Suggested for you")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TravColors.primary)
+
+                Spacer(minLength: 0)
+
+                if contactsAuthorization != .authorized {
+                    Button(action: onSyncContacts) {
+                        Text(contactsAuthorization == .notDetermined ? "Allow Contacts" : "Sync Contacts")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(TravColors.accent)
+                    }
+                    .buttonStyle(TravPressButtonStyle(scale: 0.97))
+                }
+            }
+            .padding(.horizontal, TravSpacing.screenHorizontal)
+
+            if isLoading && users.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: TravSpacing.md) {
+                        ForEach(0..<4, id: \.self) { _ in
+                            SuggestedUserCardSkeleton()
+                        }
+                    }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                }
+            } else if users.isEmpty {
+                Text(emptyMessage)
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .foregroundStyle(TravColors.muted)
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                    .padding(.vertical, TravSpacing.xs)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: TravSpacing.md) {
+                        ForEach(users) { user in
+                            SuggestedUserCard(
+                                suggestion: user,
+                                onSelect: { onSelect(user) },
+                                onFollow: { onFollow(user) },
+                                onDismiss: { onDismiss(user) }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                }
+            }
+        }
+        .padding(.top, TravSpacing.md)
+        .padding(.bottom, TravSpacing.xs)
+    }
+
+    private var emptyMessage: String {
+        switch contactsAuthorization {
+        case .authorized:
+            return "No suggestions right now. Check back later."
+        case .notDetermined:
+            return "Allow contacts to find people you know."
+        case .denied, .restricted:
+            return "Enable contacts in Settings, or follow mutuals below when available."
+        }
+    }
+}
+
+private struct SuggestedUserCard: View {
+    let suggestion: SuggestedUser
+    var onSelect: () -> Void
+    var onFollow: () -> Void
+    var onDismiss: () -> Void
+
+    var body: some View {
+        VStack(spacing: TravSpacing.xs) {
+            ZStack(alignment: .topTrailing) {
+                Button(action: onSelect) {
+                    VStack(spacing: TravSpacing.xs) {
+                        AvatarView(url: suggestion.profile.avatarURL, size: 56)
+
+                        Text(suggestion.profile.displayName)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .multilineTextAlignment(.center)
+
+                        Text(suggestion.reasonText)
+                            .font(.system(size: 11, weight: .regular, design: .rounded))
+                            .foregroundStyle(TravColors.muted)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.85)
+                            .multilineTextAlignment(.center)
+                            .frame(height: 28, alignment: .top)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(TravColors.muted)
+                        .frame(width: 22, height: 22)
+                        .background(TravColors.surfaceElevated)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.9))
+                .offset(x: 4, y: -4)
+            }
+
+            Button(action: onFollow) {
+                Text("Follow")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 30)
+                    .background(TravColors.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(TravPressButtonStyle(scale: 0.96))
+        }
+        .padding(TravSpacing.sm)
+        .frame(width: 132)
+        .background(TravColors.surfaceElevated.opacity(0.65))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(suggestion.profile.displayName), \(suggestion.reasonText)")
+    }
+}
+
+private struct SuggestedUserCardSkeleton: View {
+    var body: some View {
+        VStack(spacing: TravSpacing.xs) {
+            Circle()
+                .fill(TravColors.surfaceElevated)
+                .frame(width: 56, height: 56)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(TravColors.surfaceElevated)
+                .frame(width: 72, height: 12)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(TravColors.surfaceElevated)
+                .frame(width: 88, height: 10)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(TravColors.surfaceElevated)
+                .frame(height: 30)
+        }
+        .padding(TravSpacing.sm)
+        .frame(width: 132)
+        .redacted(reason: .placeholder)
+    }
+}

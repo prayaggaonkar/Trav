@@ -314,31 +314,6 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-<<<<<<< HEAD
-            if experience.imageURLs.count > 1 {
-                VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                    Text("Media Gallery (\(experience.imageURLs.count))")
-                        .font(TravTypography.titleMedium())
-                        .foregroundStyle(TravColors.primary)
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: TravSpacing.sm) {
-                            ForEach(Array(experience.imageURLs.enumerated()), id: \.offset) { index, url in
-                                Button {
-                                    openImagePreview(url: url)
-                                } label: {
-                                    RemoteImage(url: url, height: 110, cornerRadius: TravRadius.md)
-                                        .frame(width: 150, height: 110)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
-                .padding(.vertical, TravSpacing.xs)
-            }
-=======
->>>>>>> 3e12f948e357a48f5b71bfa8d3d98484989e9908
             ExperienceRouteMapView(stops: experience.stops, transportMode: experience.transportMode)
 
             RoutePreview(stops: experience.stops.map {
@@ -467,13 +442,6 @@ private struct StopTimelineRow: View {
                     .padding(.vertical, TravSpacing.xxs)
                 }
 
-<<<<<<< HEAD
-                if let time = stop.recommendedTime {
-                    Label(time, systemImage: "sun.max")
-                        .font(TravTypography.caption())
-                        .foregroundStyle(TravColors.muted)
-                        .lineLimit(1)
-=======
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: TravSpacing.sm) {
                         if let time = stop.recommendedTime {
@@ -487,7 +455,6 @@ private struct StopTimelineRow: View {
                         }
                         Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
                     }
->>>>>>> 3e12f948e357a48f5b71bfa8d3d98484989e9908
                 }
                 .font(TravTypography.caption())
                 .foregroundStyle(TravColors.muted)
@@ -517,17 +484,10 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
             ZStack(alignment: .bottomLeading) {
                 // Image strip — owns horizontal paging so nested ScrollView can't steal swipes.
                 HStack(spacing: 0) {
-                    ForEach(Array(displayURLs.enumerated()), id: \.offset) { index, url in
+                    ForEach(Array(displayURLs.enumerated()), id: \.offset) { _, url in
                         RemoteImage(url: url, height: height, cornerRadius: 0)
                             .frame(width: width, height: height)
                             .clipped()
-<<<<<<< HEAD
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                onImageTap?(index)
-                            }
-=======
->>>>>>> 3e12f948e357a48f5b71bfa8d3d98484989e9908
                     }
                 }
                 .offset(x: -CGFloat(currentIndex) * width + dragOffset)

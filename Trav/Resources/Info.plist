@@ -68,5 +68,7 @@
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Trav uses your photos for experience covers, stop media, and completion moments.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Trav uses your contacts to suggest people you may know on Trav.</string>
 </dict>
 </plist>
