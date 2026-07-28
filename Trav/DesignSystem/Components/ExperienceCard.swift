@@ -465,6 +465,7 @@ struct ExperienceStopsMapView: View {
     let experience: ExperienceSummary
 
     @State private var position: MapCameraPosition = .automatic
+    @State private var showInteractiveMap = false
 
     private var resolvedCoordinates: [CLLocationCoordinate2D] {
         let cityBase = getCityBaseCoordinate()
@@ -474,7 +475,6 @@ struct ExperienceStopsMapView: View {
             if let lat = stop.latitude, let lon = stop.longitude, lat != 0 || lon != 0 {
                 coords.append(CLLocationCoordinate2D(latitude: lat, longitude: lon))
             } else {
-                // Offset around city base coordinate to show distinct stop locations
                 let latOffset = (Double(index * 7 + 4) / 1000.0) * (index % 2 == 0 ? 1 : -1)
                 let lonOffset = (Double(index * 9 + 5) / 1000.0) * (index % 3 == 0 ? -1 : 1)
                 coords.append(CLLocationCoordinate2D(
@@ -514,9 +514,7 @@ struct ExperienceStopsMapView: View {
                 }
             }
             .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
-            .mapControls {
-                // No controls — keep card maps from requesting extra chrome / safe-area.
-            }
+            .mapControls {}
 
             if resolvedCoordinates.count >= 2 {
                 let routeInfo = RouteTravelCalculator.calculate(for: resolvedCoordinates)
@@ -535,11 +533,17 @@ struct ExperienceStopsMapView: View {
                 .padding(6)
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            showInteractiveMap = true
+        }
+        .sheet(isPresented: $showInteractiveMap) {
+            InAppInteractiveMapView(title: experience.title, stopPreviews: experience.stops)
+        }
         .onAppear {
             setupCamera()
         }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 
     private func getCityBaseCoordinate() -> CLLocationCoordinate2D {
@@ -588,5 +592,414 @@ struct ExperienceStopsMapView: View {
             center: center,
             span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)
         ))
+    }
+}
+
+// MARK: - In-App Interactive Map Viewer
+
+/// Full-screen in-app interactive map viewer.
+/// Allows users to pan, pinch-zoom, switch map styles, inspect nearby places (POIs),
+/// tap stop markers, and cycle through stops via a bottom carousel.
+struct InAppInteractiveMapView: View {
+    let title: String
+    let stops: [Stop]
+    var initialSelectedStopID: UUID? = nil
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var position: MapCameraPosition = .automatic
+    @State private var selectedStopID: UUID?
+    @State private var mapStyleOption: MapStyleOption = .standard
+    @State private var routePolylines: [MKPolyline] = []
+    @State private var mapKitTravelTimeMinutes: Int? = nil
+
+    enum MapStyleOption: String, CaseIterable, Identifiable {
+        case standard = "Standard"
+        case satellite = "Satellite"
+        case hybrid = "Hybrid"
+
+        var id: String { rawValue }
+
+        var mapStyle: MapStyle {
+            switch self {
+            case .standard:
+                return .standard(elevation: .realistic, pointsOfInterest: .all)
+            case .satellite:
+                return .imagery(elevation: .realistic)
+            case .hybrid:
+                return .hybrid(elevation: .realistic, pointsOfInterest: .all)
+            }
+        }
+    }
+
+    private var resolvedStops: [Stop] {
+        stops.enumerated().map { index, stop in
+            var updated = stop
+            if updated.latitude == 0 && updated.longitude == 0 {
+                let cityBase = getCityBaseCoordinate()
+                let latOffset = (Double(index * 7 + 4) / 1000.0) * (index % 2 == 0 ? 1 : -1)
+                let lonOffset = (Double(index * 9 + 5) / 1000.0) * (index % 3 == 0 ? -1 : 1)
+                updated.latitude = cityBase.latitude + latOffset
+                updated.longitude = cityBase.longitude + lonOffset
+            }
+            return updated
+        }
+    }
+
+    private var coordinates: [CLLocationCoordinate2D] {
+        resolvedStops.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+    }
+
+    private var routeInfo: RouteTravelInfo {
+        RouteTravelCalculator.calculate(for: coordinates)
+    }
+
+    init(title: String, stops: [Stop], initialSelectedStopID: UUID? = nil) {
+        self.title = title
+        self.stops = stops
+        self.initialSelectedStopID = initialSelectedStopID
+        _selectedStopID = State(initialValue: initialSelectedStopID ?? stops.first?.id)
+    }
+
+    init(title: String, stopPreviews: [StopPreview], initialSelectedStopID: UUID? = nil) {
+        let convertedStops = stopPreviews.enumerated().map { index, preview in
+            Stop(
+                id: preview.id,
+                orderIndex: index + 1,
+                name: preview.name,
+                description: "",
+                creatorNotes: nil,
+                latitude: preview.latitude ?? 0,
+                longitude: preview.longitude ?? 0,
+                placeID: nil,
+                recommendedTime: nil,
+                durationMinutes: 0,
+                emoji: preview.emoji,
+                media: []
+            )
+        }
+        self.init(title: title, stops: convertedStops, initialSelectedStopID: initialSelectedStopID)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack(alignment: .bottom) {
+                // Main Map with full interaction modes
+                Map(position: $position, interactionModes: .all, selection: $selectedStopID) {
+                    // Polylines between stops
+                    if !routePolylines.isEmpty {
+                        ForEach(Array(routePolylines.enumerated()), id: \.offset) { _, polyline in
+                            MapPolyline(polyline)
+                                .stroke(
+                                    TravColors.accent,
+                                    style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)
+                                )
+                        }
+                    } else if coordinates.count > 1 {
+                        MapPolyline(coordinates: coordinates)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [TravColors.accent, TravColors.accent.opacity(0.85)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ),
+                                style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)
+                            )
+                    }
+
+                    // Annotations for each stop
+                    ForEach(Array(resolvedStops.enumerated()), id: \.element.id) { index, stop in
+                        let isSelected = selectedStopID == stop.id
+                        Annotation(
+                            stop.name,
+                            coordinate: CLLocationCoordinate2D(latitude: stop.latitude, longitude: stop.longitude),
+                            anchor: .bottom
+                        ) {
+                            InteractiveStopAnnotationView(
+                                index: index + 1,
+                                stop: stop,
+                                isSelected: isSelected
+                            )
+                            .onTapGesture {
+                                withAnimation(TravAnimation.quick) {
+                                    selectedStopID = stop.id
+                                    focusOnStop(stop)
+                                }
+                            }
+                        }
+                        .tag(stop.id)
+                    }
+                }
+                .mapStyle(mapStyleOption.mapStyle)
+                .mapControls {
+                    MapCompass()
+                    MapUserLocationButton()
+                    MapPitchToggle()
+                    MapScaleView()
+                }
+                .ignoresSafeArea(edges: .bottom)
+
+                // Bottom Controls & Carousel Overlay
+                VStack(spacing: TravSpacing.xs) {
+                    HStack {
+                        // Re-center button
+                        Button {
+                            withAnimation(TravAnimation.quick) {
+                                setupCameraToFitAll()
+                            }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "arrow.counterclockwise")
+                                    .font(.system(size: 11, weight: .bold))
+                                Text("Fit Route")
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                            }
+                            .foregroundStyle(TravColors.primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Capsule())
+                            .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+                        }
+                        .buttonStyle(TravPressButtonStyle(scale: 0.96))
+
+                        Spacer()
+
+                        // Transport Info Badge
+                        if coordinates.count >= 2 {
+                            let travelMins = mapKitTravelTimeMinutes ?? routeInfo.estimatedTravelTimeMinutes
+                            let travelTimeStr = travelMins >= 60 ? TravFormatters.duration(travelMins) : "\(travelMins) min"
+                            HStack(spacing: 5) {
+                                Image(systemName: routeInfo.iconName)
+                                    .font(.system(size: 11, weight: .bold))
+                                Text("\(travelTimeStr) \(routeInfo.isDriving ? "drive" : "walk")")
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(Capsule().fill(Color.black.opacity(0.75)))
+                        }
+                    }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+
+                    // Bottom Stop Carousel
+                    if !resolvedStops.isEmpty {
+                        ScrollViewReader { scrollProxy in
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: TravSpacing.sm) {
+                                    ForEach(Array(resolvedStops.enumerated()), id: \.element.id) { index, stop in
+                                        let isSelected = selectedStopID == stop.id
+                                        Button {
+                                            withAnimation(TravAnimation.quick) {
+                                                selectedStopID = stop.id
+                                                focusOnStop(stop)
+                                            }
+                                        } label: {
+                                            HStack(spacing: TravSpacing.xs) {
+                                                ZStack {
+                                                    Circle()
+                                                        .fill(isSelected ? TravColors.accent : Color.gray.opacity(0.3))
+                                                        .frame(width: 26, height: 26)
+
+                                                    Text("\(index + 1)")
+                                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                                        .foregroundStyle(.white)
+                                                }
+
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    HStack(spacing: 4) {
+                                                        if let emoji = stop.emoji, !emoji.isEmpty {
+                                                            Image(systemName: sfSymbolForEmojiOrCategory(emoji))
+                                                                .font(.system(size: 11))
+                                                                .foregroundStyle(isSelected ? TravColors.accent : TravColors.primary)
+                                                        }
+                                                        Text(stop.name)
+                                                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                                                            .foregroundStyle(TravColors.primary)
+                                                            .lineLimit(1)
+                                                    }
+
+                                                    if let time = stop.recommendedTime {
+                                                        Text(time)
+                                                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                                                            .foregroundStyle(TravColors.muted)
+                                                            .lineLimit(1)
+                                                    }
+                                                }
+                                            }
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 10)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                    .fill(isSelected ? TravColors.surfaceElevated : TravColors.surfaceElevated.opacity(0.85))
+                                            )
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                    .stroke(isSelected ? TravColors.accent : TravColors.border.opacity(0.4), lineWidth: isSelected ? 2 : 1)
+                                            )
+                                            .shadow(color: isSelected ? TravColors.accent.opacity(0.25) : .black.opacity(0.08), radius: 6, y: 3)
+                                        }
+                                        .buttonStyle(TravPressButtonStyle(scale: 0.97))
+                                        .id(stop.id)
+                                    }
+                                }
+                                .padding(.horizontal, TravSpacing.screenHorizontal)
+                                .padding(.vertical, 4)
+                            }
+                            .onChange(of: selectedStopID) { _, newID in
+                                if let newID {
+                                    withAnimation(TravAnimation.quick) {
+                                        scrollProxy.scrollTo(newID, anchor: .center)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.bottom, TravSpacing.md)
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Picker("Style", selection: $mapStyleOption) {
+                        ForEach(MapStyleOption.allCases) { style in
+                            Text(style.rawValue).tag(style)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 190)
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(TravColors.muted)
+                    }
+                }
+            }
+        }
+        .task {
+            setupCameraToFitAll()
+            await fetchRoutes()
+        }
+    }
+
+    private func getCityBaseCoordinate() -> CLLocationCoordinate2D {
+        if let firstWithCoord = stops.first(where: { $0.latitude != 0 || $0.longitude != 0 }) {
+            return CLLocationCoordinate2D(latitude: firstWithCoord.latitude, longitude: firstWithCoord.longitude)
+        }
+        return CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
+    }
+
+    private func focusOnStop(_ stop: Stop) {
+        position = .region(MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: stop.latitude, longitude: stop.longitude),
+            span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)
+        ))
+    }
+
+    private func setupCameraToFitAll() {
+        let coords = coordinates
+        guard !coords.isEmpty else { return }
+
+        if coords.count == 1 {
+            position = .region(MKCoordinateRegion(
+                center: coords[0],
+                span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
+            ))
+            return
+        }
+
+        var minLat = coords[0].latitude
+        var maxLat = coords[0].latitude
+        var minLon = coords[0].longitude
+        var maxLon = coords[0].longitude
+
+        for coord in coords {
+            minLat = min(minLat, coord.latitude)
+            maxLat = max(maxLat, coord.latitude)
+            minLon = min(minLon, coord.longitude)
+            maxLon = max(maxLon, coord.longitude)
+        }
+
+        let center = CLLocationCoordinate2D(
+            latitude: (minLat + maxLat) / 2,
+            longitude: (minLon + maxLon) / 2
+        )
+        let latDelta = max((maxLat - minLat) * 1.5, 0.015)
+        let lonDelta = max((maxLon - minLon) * 1.5, 0.015)
+
+        position = .region(MKCoordinateRegion(
+            center: center,
+            span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)
+        ))
+    }
+
+    private func fetchRoutes() async {
+        guard resolvedStops.count >= 2 else { return }
+        var polylines: [MKPolyline] = []
+        var totalSeconds: TimeInterval = 0
+
+        for i in 0..<(resolvedStops.count - 1) {
+            let src = resolvedStops[i]
+            let dst = resolvedStops[i + 1]
+            let request = MKDirections.Request()
+            request.source = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: src.latitude, longitude: src.longitude)))
+            request.destination = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: dst.latitude, longitude: dst.longitude)))
+            request.transportType = routeInfo.isDriving ? .automobile : .walking
+
+            if let response = try? await MKDirections(request: request).calculate(),
+               let route = response.routes.first {
+                polylines.append(route.polyline)
+                totalSeconds += route.expectedTravelTime
+            }
+        }
+
+        let mins = Int(round(totalSeconds / 60.0))
+        await MainActor.run {
+            if !polylines.isEmpty {
+                self.routePolylines = polylines
+                if mins > 0 {
+                    self.mapKitTravelTimeMinutes = mins
+                }
+            }
+        }
+    }
+}
+
+/// Custom annotation marker for stops on the interactive map
+private struct InteractiveStopAnnotationView: View {
+    let index: Int
+    let stop: Stop
+    let isSelected: Bool
+
+    var body: some View {
+        VStack(spacing: 2) {
+            ZStack {
+                Circle()
+                    .fill(isSelected ? TravColors.accent : TravColors.primary)
+                    .frame(width: isSelected ? 32 : 26, height: isSelected ? 32 : 26)
+                    .shadow(color: isSelected ? TravColors.accent.opacity(0.4) : .black.opacity(0.3), radius: isSelected ? 6 : 3)
+
+                Text("\(index)")
+                    .font(.system(size: isSelected ? 13 : 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+
+            Text(stop.name)
+                .font(.system(size: 10, weight: isSelected ? .bold : .semibold, design: .rounded))
+                .foregroundStyle(isSelected ? TravColors.accent : TravColors.primary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.15), radius: 2)
+        }
+        .scaleEffect(isSelected ? 1.15 : 1.0)
+        .animation(TravAnimation.quick, value: isSelected)
     }
 }

@@ -314,7 +314,6 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-<<<<<<< HEAD
             if experience.imageURLs.count > 1 {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
                     Text("Media Gallery (\(experience.imageURLs.count))")
@@ -338,9 +337,6 @@ struct ExperienceDetailView: View {
                 .padding(.vertical, TravSpacing.xs)
             }
             ExperienceRouteMapView(stops: experience.stops)
-=======
-            ExperienceRouteMapView(stops: experience.stops, transportMode: experience.transportMode)
->>>>>>> ae4edda4b59665767ef182ef479e6ff3c8544102
 
             RoutePreview(stops: experience.stops.map {
                 StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji, latitude: $0.latitude, longitude: $0.longitude)
@@ -468,27 +464,11 @@ private struct StopTimelineRow: View {
                     .padding(.vertical, TravSpacing.xxs)
                 }
 
-<<<<<<< HEAD
                 if let time = stop.recommendedTime {
                     Label(time, systemImage: "sun.max")
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.muted)
                         .lineLimit(1)
-=======
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: TravSpacing.sm) {
-                        if let time = stop.recommendedTime {
-                            Label(time, systemImage: "sun.max")
-                        }
-                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
-                    }
-                    VStack(alignment: .leading, spacing: TravSpacing.xxs) {
-                        if let time = stop.recommendedTime {
-                            Label(time, systemImage: "sun.max")
-                        }
-                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
-                    }
->>>>>>> ae4edda4b59665767ef182ef479e6ff3c8544102
                 }
             }
             .padding(.bottom, isLast ? 0 : TravSpacing.lg)
@@ -515,17 +495,14 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
             ZStack(alignment: .bottomLeading) {
                 // Image strip — owns horizontal paging so nested ScrollView can't steal swipes.
                 HStack(spacing: 0) {
-                    ForEach(Array(displayURLs.enumerated()), id: \.offset) { _, url in
+                    ForEach(Array(displayURLs.enumerated()), id: \.offset) { index, url in
                         RemoteImage(url: url, height: height, cornerRadius: 0)
                             .frame(width: width, height: height)
                             .clipped()
-<<<<<<< HEAD
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 onImageTap?(index)
                             }
-=======
->>>>>>> ae4edda4b59665767ef182ef479e6ff3c8544102
                     }
                 }
                 .offset(x: -CGFloat(currentIndex) * width + dragOffset)
@@ -632,6 +609,7 @@ private struct ExperienceRouteMapView: View {
     @State private var position: MapCameraPosition = .automatic
     @State private var routePolylines: [MKPolyline] = []
     @State private var mapKitTravelTimeMinutes: Int? = nil
+    @State private var showInteractiveMap = false
 
     private var resolvedStops: [Stop] {
         stops.enumerated().map { index, stop in
@@ -670,9 +648,9 @@ private struct ExperienceRouteMapView: View {
 
                 if !coordinates.isEmpty {
                     Button(action: openInAppleMaps) {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 5) {
                             Image(systemName: "map.fill")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.system(size: 11, weight: .bold))
                             Text("Open Maps")
                                 .font(TravTypography.labelMedium())
                                 .fontWeight(.semibold)
@@ -696,7 +674,7 @@ private struct ExperienceRouteMapView: View {
                 .frame(height: 180)
             } else {
                 ZStack(alignment: .bottomLeading) {
-                    Map(position: $position) {
+                    Map(position: $position, interactionModes: []) {
                         if !routePolylines.isEmpty {
                             ForEach(Array(routePolylines.enumerated()), id: \.offset) { _, polyline in
                                 MapPolyline(polyline)
@@ -753,9 +731,17 @@ private struct ExperienceRouteMapView: View {
                     .clipShape(Capsule())
                     .padding(TravSpacing.md)
                 }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    showInteractiveMap = true
+                }
             }
         }
         .padding(.vertical, TravSpacing.sm)
+        .sheet(isPresented: $showInteractiveMap) {
+            InAppInteractiveMapView(title: "Route Map", stops: resolvedStops)
+        }
         .task(id: resolvedStops) {
             updateCameraPosition()
             await fetchRoutes()

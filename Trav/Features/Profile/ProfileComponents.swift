@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Segmented tabs
+// MARK: - Segmented Pill Tab Bar (Icon Only)
 
 struct ProfileTabBar: View {
     let tabs: [ProfileContentTab]
@@ -9,58 +9,44 @@ struct ProfileTabBar: View {
     var onSelect: (ProfileContentTab) -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                ForEach(tabs) { tab in
-                    let count = counts[tab]
-                    Button {
+        HStack(spacing: 8) {
+            ForEach(tabs) { tab in
+                let isSelected = selection == tab
+                let count = counts[tab]
+                Button {
+                    withAnimation(TravAnimation.quick) {
                         selection = tab
-                        onSelect(tab)
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: tabIcon(for: tab))
-                                .font(.system(size: 18, weight: selection == tab ? .bold : .medium))
-
-                            if let count, count > 0 {
-                                Text("\(count)")
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    .foregroundStyle(selection == tab ? TravColors.accent : TravColors.muted)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 2)
-                                    .background(
-                                        Capsule().fill(selection == tab ? TravColors.accent.opacity(0.15) : Color.gray.opacity(0.12))
-                                    )
-                            }
-                        }
-                        .foregroundStyle(selection == tab ? TravColors.primary : TravColors.muted)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                }
-            }
+                    onSelect(tab)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: tabIcon(for: tab))
+                            .font(.system(size: 16, weight: isSelected ? .bold : .semibold))
 
-            ZStack(alignment: .leading) {
-                Rectangle()
-                    .fill(TravColors.border.opacity(0.35))
-                    .frame(height: 0.5)
-
-                GeometryReader { geo in
-                    let width = geo.size.width / CGFloat(tabs.count)
-                    let index = tabs.firstIndex(of: selection) ?? 0
-                    Rectangle()
-                        .fill(TravColors.primary)
-                        .frame(width: width * 0.45, height: 2)
-                        .frame(maxHeight: .infinity, alignment: .bottom)
-                        .offset(x: width * CGFloat(index) + width * 0.275)
-                        .animation(TravAnimation.tab, value: selection)
+                        if let count, count > 0 {
+                            Text("\(count)")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(isSelected ? TravColors.accent.opacity(0.2) : Color.gray.opacity(0.15)))
+                        }
+                    }
+                    .foregroundStyle(isSelected ? TravColors.accent : TravColors.muted)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 38)
+                    .background(isSelected ? TravColors.accentSoft : TravColors.surfaceElevated.opacity(0.5))
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule().stroke(isSelected ? TravColors.accent.opacity(0.4) : Color.clear, lineWidth: 1)
+                    )
                 }
-                .frame(height: 2)
+                .buttonStyle(TravPressButtonStyle(scale: 0.97))
+                .accessibilityLabel(tabAccessibilityLabel(for: tab))
             }
-            .frame(height: 2)
         }
-        .padding(.horizontal, TravSpacing.screenHorizontal)
+        .padding(4)
+        .background(TravColors.surfaceElevated.opacity(0.4))
+        .clipShape(Capsule())
     }
 
     private func tabIcon(for tab: ProfileContentTab) -> String {
@@ -70,42 +56,49 @@ struct ProfileTabBar: View {
         case .completed: "checkmark.circle.fill"
         }
     }
+
+    private func tabAccessibilityLabel(for tab: ProfileContentTab) -> String {
+        switch tab {
+        case .created: "Created experiences"
+        case .saved: "Saved experiences"
+        case .completed: "Watchlist experiences"
+        }
+    }
 }
 
-// MARK: - Stats row
+// MARK: - Stats Row (Clean, No Icons)
 
 struct ProfileStatsRow: View {
     let profile: Profile
-    var createdCount: Int? = nil
+    var rankLabel: String = "—"
     var onFollowers: () -> Void
     var onFollowing: () -> Void
-    var onCreated: () -> Void
-    var onCompleted: (() -> Void)? = nil
+    var onRankTap: () -> Void
 
     var body: some View {
         HStack(spacing: TravSpacing.md) {
-            statButton(value: createdCount ?? profile.experienceCount, label: "created", action: onCreated)
-            statButton(value: profile.followerCount, label: "followers", action: onFollowers)
-            statButton(value: profile.followingCount, label: "following", action: onFollowing)
+            statButton(valueString: TravFormatters.count(profile.followerCount), label: "Followers", action: onFollowers)
+            statButton(valueString: TravFormatters.count(profile.followingCount), label: "Following", action: onFollowing)
+            statButton(valueString: rankLabel, label: "Rank", action: onRankTap)
         }
     }
 
-    private func statButton(value: Int, label: String, action: @escaping () -> Void) -> some View {
+    private func statButton(valueString: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(TravFormatters.count(value))
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
+            VStack(spacing: 2) {
+                Text(valueString)
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
                     .foregroundStyle(TravColors.primary)
                     .contentTransition(.numericText())
                 Text(label)
-                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(TravColors.muted)
                     .lineLimit(1)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
-        .buttonStyle(TravPressButtonStyle(scale: 0.97))
+        .buttonStyle(TravPressButtonStyle(scale: 0.96))
     }
 }
 
@@ -124,17 +117,24 @@ struct ProfileFollowButton: View {
                         .controlSize(.small)
                         .tint(isFollowing ? TravColors.primary : .white)
                 } else {
-                    Text(isFollowing ? "Following" : "Follow")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    HStack(spacing: 5) {
+                        Image(systemName: isFollowing ? "checkmark" : "plus")
+                            .font(.system(size: 12, weight: .bold))
+                        Text(isFollowing ? "Following" : "Follow")
+                            .font(.system(size: 13.5, weight: .bold, design: .rounded))
+                    }
                 }
             }
             .foregroundStyle(isFollowing ? TravColors.primary : .white)
             .frame(maxWidth: .infinity)
-            .frame(height: 36)
+            .frame(height: 38)
             .background(isFollowing ? TravColors.surfaceElevated : TravColors.accent)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(Capsule())
+            .overlay(
+                Capsule().stroke(isFollowing ? TravColors.border.opacity(0.5) : Color.clear, lineWidth: 1)
+            )
         }
-        .buttonStyle(TravPressButtonStyle(scale: 0.98))
+        .buttonStyle(TravPressButtonStyle(scale: 0.97))
         .disabled(isLoading)
         .animation(TravAnimation.quick, value: isFollowing)
     }

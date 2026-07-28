@@ -47,6 +47,46 @@ final class ProfileViewModel {
         self.username = username
     }
 
+    private(set) var calculatedRank: Int? = nil
+
+    var creatorRankLabel: String {
+        let userCount = max(profile?.experienceCount ?? 0, created.count)
+        if userCount == 0 { return "—" }
+        if let rank = calculatedRank {
+            return "#\(rank)"
+        }
+        let entries = MockLeaderboardData.entries.sorted(by: { $0.experienceCount > $1.experienceCount })
+        if let index = entries.firstIndex(where: { $0.username.lowercased() == username.lowercased() }) {
+            return "#\(index + 1)"
+        }
+        let rankPos = (entries.firstIndex(where: { $0.experienceCount <= userCount }) ?? entries.count) + 1
+        return "#\(rankPos)"
+    }
+
+    private func updateCreatorRank(using environment: AppEnvironment) async {
+        let userCount = max(profile?.experienceCount ?? 0, created.count)
+        guard userCount > 0 else {
+            calculatedRank = nil
+            return
+        }
+        let entries = (try? await environment.experiences.fetchLeaderboardEntries(cityID: nil, cityName: nil)) ?? MockLeaderboardData.entries
+        let sorted = entries.sorted { lhs, rhs in
+            if lhs.experienceCount != rhs.experienceCount {
+                return lhs.experienceCount > rhs.experienceCount
+            }
+            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+        }
+
+        if let matchIndex = sorted.firstIndex(where: {
+            $0.id == profile?.id || $0.username.lowercased() == username.lowercased()
+        }) {
+            calculatedRank = matchIndex + 1
+        } else {
+            let pos = (sorted.firstIndex(where: { $0.experienceCount <= userCount }) ?? sorted.count) + 1
+            calculatedRank = pos
+        }
+    }
+
     func load(using environment: AppEnvironment) async {
         if profile == nil {
             phase = .loading
@@ -77,6 +117,7 @@ final class ProfileViewModel {
             if loadedTabs.isEmpty {
                 await loadTab(selectedTab, using: environment, reset: true)
             }
+            await updateCreatorRank(using: environment)
         } catch {
             if profile == nil {
                 phase = .failed(error)
