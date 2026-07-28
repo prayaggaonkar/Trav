@@ -52,6 +52,9 @@ serve(async (req) => {
 
     console.log(`[fetch-location-popups] Dynamic location request for (${lat}, ${lng}) in '${rawCity}'`);
 
+    // 0. Automatically purge expired events older than current timestamp
+    await supabase.from("popups").delete().lt("start_time", new Date().toISOString());
+
     // 1. Check existing popups in DB within spatial radius (Shared Cache)
     const { data: cachedPopups } = await supabase.rpc("fetch_popups_near", {
       user_lat: lat,

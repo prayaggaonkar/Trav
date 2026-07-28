@@ -398,6 +398,14 @@ def run_ingestion_pipeline():
     
     print(f"🚀 Dynamic Ingestion for '{args.city}' ({args.lat}, {args.lng}) -> {supabase_url}")
     
+    # 0. Automatically purge expired events older than current date
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    try:
+        supabase.table("popups").delete().lt("start_time", now_iso).execute()
+        print("🧹 Cleaned up expired past events from Supabase database.")
+    except Exception as e:
+        print(f"Purge notice: {e}")
+        
     all_candidates = []
     
     # 1. Fetch live events from Ticketmaster API for target city
