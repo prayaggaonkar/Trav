@@ -693,6 +693,8 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             Calendar.current.date(bySettingHour: 10, minute: 30, second: 0, of: $0)
         }
 
+        let citySlug = cityShort.lowercased().replacingOccurrences(of: " ", with: "-")
+
         return [
             Popup(
                 name: "\(cityShort) Pickleball Open & Social",
@@ -703,13 +705,13 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 category: .sports,
                 description: "Doubles tournament open to all skill levels! Grab a paddle, bring friends, and enjoy post-game refreshments.",
                 startTime: tomorrowAfternoon,
-                externalURL: URL(string: "https://eventbrite.com"),
+                externalURL: URL(string: "https://eventbrite.com/e/\(citySlug)-pickleball-open-social-tickets-89217401923"),
                 imageURL: URL(string: "https://images.unsplash.com/photo-1626248801379-51a0748a5f96?w=800&q=80"),
                 source: "community",
                 distanceMiles: 1.2
             ),
             Popup(
-                name: "Sunset Live Acoustic Sessions",
+                name: "\(cityShort) Sunset Live Acoustic Sessions",
                 address: "Amphitheater Plaza, \(city)",
                 city: city,
                 latitude: latitude - 0.004,
@@ -717,13 +719,13 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 category: .music,
                 description: "Outdoor acoustic concert featuring regional indie bands, food trucks, and sunset views.",
                 startTime: todayEvening,
-                externalURL: URL(string: "https://ticketmaster.com"),
+                externalURL: URL(string: "https://ticketmaster.com/event/Z7r9jZ1AeG0aK8?city=\(citySlug)"),
                 imageURL: URL(string: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80"),
                 source: "ticketmaster",
                 distanceMiles: 0.8
             ),
             Popup(
-                name: "\(cityShort) Night Market & Street Food Rally",
+                name: "\(cityShort) Night Market & Street Food Festival",
                 address: "Main St Promenade, \(city)",
                 city: city,
                 latitude: latitude + 0.002,
@@ -731,13 +733,13 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 category: .food,
                 description: "Over 20 local food trucks, craft boba, live DJ sets, and night market vendors.",
                 startTime: day2Evening,
-                externalURL: URL(string: "https://eventbrite.com"),
+                externalURL: URL(string: "https://eventbrite.com/e/\(citySlug)-night-market-street-food-fest-tickets-7841920349"),
                 imageURL: URL(string: "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=800&q=80"),
                 source: "eventbrite",
                 distanceMiles: 2.1
             ),
             Popup(
-                name: "Board Games, Craft Beer & Trivia Night",
+                name: "\(cityShort) Tabletop Board Games & Trivia Night",
                 address: "Corner Taproom, \(city)",
                 city: city,
                 latitude: latitude - 0.008,
@@ -745,7 +747,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 category: .meetups,
                 description: "Bring friends or play solo! Hundreds of board games, team trivia with prizes, and local brews on tap.",
                 startTime: day2Evening,
-                externalURL: URL(string: "https://meetup.com"),
+                externalURL: URL(string: "https://meetup.com/\(citySlug)-tabletop-gaming/events/298410294/"),
                 imageURL: URL(string: "https://images.unsplash.com/photo-1529699211952-734e80c4d42b?w=800&q=80"),
                 source: "meetup",
                 distanceMiles: 1.5
@@ -759,10 +761,24 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 category: .sports,
                 description: "Easy 3-mile casual jog followed by complimentary pour-over coffee and pastries with the crew.",
                 startTime: day3Morning,
-                externalURL: URL(string: "https://strava.com"),
+                externalURL: URL(string: "https://strava.com/clubs/\(citySlug)-run-club/events/98412039"),
                 imageURL: URL(string: "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=800&q=80"),
                 source: "community",
                 distanceMiles: 3.0
+            ),
+            Popup(
+                name: "\(cityShort) Underground Comedy Showcase",
+                address: "The Black Cat Lounge, \(city)",
+                city: city,
+                latitude: latitude - 0.005,
+                longitude: longitude + 0.004,
+                category: .comedy,
+                description: "Hilarious showcase featuring touring headliners and local comedy talent.",
+                startTime: day2Evening,
+                externalURL: URL(string: "https://eventbrite.com/e/\(citySlug)-underground-comedy-tickets-6712940182"),
+                imageURL: URL(string: "https://images.unsplash.com/photo-1585699324551-f6c309eedeca?w=800&q=80"),
+                source: "eventbrite",
+                distanceMiles: 1.8
             )
         ]
     }
