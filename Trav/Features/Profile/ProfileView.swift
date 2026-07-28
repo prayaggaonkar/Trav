@@ -120,47 +120,6 @@ struct ProfileView: View {
         // Chrome lives in a top safeAreaInset so ScrollView / Map cards in any tab
         // cannot change its position or inject extra top inset.
         ScrollView {
-<<<<<<< HEAD
-            VStack(alignment: .leading, spacing: 0) {
-                if isOwnProfile {
-                    HStack {
-                        Spacer(minLength: 0)
-                        profileMenu
-                    }
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
-                    .padding(.top, TravSpacing.xs)
-                }
-
-                header(profile)
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
-                    .padding(.top, isOwnProfile ? TravSpacing.xs : TravSpacing.sm)
-
-                actionRow(profile)
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
-                    .padding(.top, TravSpacing.md)
-
-                ProfileTabBar(
-                    tabs: tabs,
-                    selection: Binding(
-                        get: { viewModel.selectedTab },
-                        set: { newValue in
-                            viewModel.selectedTab = newValue
-                        }
-                    ),
-                    counts: [
-                        .created: max(profile.experienceCount, viewModel.created.count),
-                        .saved: viewModel.saved.count
-                    ],
-                    onSelect: { tab in
-                        Task { await viewModel.selectTab(tab, using: environment) }
-                    }
-                )
-                .padding(.top, TravSpacing.lg)
-
-                tabContent
-                    .padding(.bottom, TravSpacing.xxl + TravSpacing.lg)
-            }
-=======
             tabContent
                 .id(viewModel.selectedTab)
                 .padding(.bottom, TravSpacing.xxl + TravSpacing.lg)
@@ -170,7 +129,6 @@ struct ProfileView: View {
             profileChrome(profile)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(TravColors.surface)
->>>>>>> 3e12f948e357a48f5b71bfa8d3d98484989e9908
         }
         .refreshable {
             await viewModel.refresh(using: environment)
