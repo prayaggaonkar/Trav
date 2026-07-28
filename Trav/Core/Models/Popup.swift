@@ -144,13 +144,7 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
     }
 
     var shortDateLabel: String {
-        guard let startTime else { return "TBA" }
-        if Calendar.current.isDateInToday(startTime) {
-            return "Today"
-        }
-        if Calendar.current.isDateInTomorrow(startTime) {
-            return "Tomorrow"
-        }
+        guard let startTime else { return "" }
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM. d"
         return formatter.string(from: startTime)

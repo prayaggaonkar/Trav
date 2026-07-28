@@ -966,21 +966,10 @@ private struct PopupStoryCard: View {
                     .multilineTextAlignment(.leading)
                     .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
 
-                HStack(spacing: 3) {
-                    Text(popup.shortDateLabel)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.95))
-
-                    if let dist = popup.shortDistanceLabel {
-                        Text("•")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.6))
-                        Text(dist)
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(TravColors.accent)
-                    }
-                }
-                .lineLimit(1)
+                Text(popup.shortDateLabel)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.95))
+                    .lineLimit(1)
             }
             .padding(.horizontal, 10)
             .padding(.bottom, 10)
