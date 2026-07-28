@@ -314,7 +314,28 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
+            if experience.imageURLs.count > 1 {
+                VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                    Text("Media Gallery (\(experience.imageURLs.count))")
+                        .font(TravTypography.titleMedium())
+                        .foregroundStyle(TravColors.primary)
 
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: TravSpacing.sm) {
+                            ForEach(Array(experience.imageURLs.enumerated()), id: \.offset) { index, url in
+                                Button {
+                                    openImagePreview(url: url)
+                                } label: {
+                                    RemoteImage(url: url, height: 110, cornerRadius: TravRadius.md)
+                                        .frame(width: 150, height: 110)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, TravSpacing.xs)
+            }
             ExperienceRouteMapView(stops: experience.stops, transportMode: experience.transportMode)
 
             RoutePreview(stops: experience.stops.map {
@@ -489,7 +510,10 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
                         RemoteImage(url: url, height: height, cornerRadius: 0)
                             .frame(width: width, height: height)
                             .clipped()
-
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                onImageTap?(index)
+                            }
                     }
                 }
                 .offset(x: -CGFloat(currentIndex) * width + dragOffset)
@@ -596,6 +620,8 @@ private struct ExperienceRouteMapView: View {
 
     @State private var position: MapCameraPosition = .automatic
     @State private var routePolylines: [MKPolyline] = []
+    @State private var mapKitTravelTimeMinutes: Int? = nil
+    @State private var showInteractiveMap = false
 
     private var resolvedStops: [Stop] {
         stops.enumerated().map { index, stop in
@@ -610,6 +636,10 @@ private struct ExperienceRouteMapView: View {
 
     private var coordinates: [CLLocationCoordinate2D] {
         resolvedStops.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+    }
+
+    private var routeInfo: RouteTravelInfo {
+        RouteTravelCalculator.calculate(for: coordinates)
     }
 
     var body: some View {
@@ -630,9 +660,9 @@ private struct ExperienceRouteMapView: View {
 
                 if !coordinates.isEmpty {
                     Button(action: openInAppleMaps) {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 5) {
                             Image(systemName: "map.fill")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.system(size: 11, weight: .bold))
                             Text("Open Maps")
                                 .font(TravTypography.labelMedium())
                                 .fontWeight(.semibold)
@@ -656,7 +686,7 @@ private struct ExperienceRouteMapView: View {
                 .frame(height: 180)
             } else {
                 ZStack(alignment: .bottomLeading) {
-                    Map(position: $position) {
+                    Map(position: $position, interactionModes: []) {
                         if !routePolylines.isEmpty {
                             ForEach(Array(routePolylines.enumerated()), id: \.offset) { _, polyline in
                                 MapPolyline(polyline)
@@ -697,8 +727,15 @@ private struct ExperienceRouteMapView: View {
 
                     HStack(spacing: TravSpacing.xs) {
                         Label("\(resolvedStops.count) Stop\(resolvedStops.count == 1 ? "" : "s")", systemImage: "flag.fill")
-                        Text("·")
-                        Label(transportMode.rawValue.capitalized, systemImage: transportMode.symbolName)
+                        if resolvedStops.count >= 2 {
+                            Text("·")
+                            let travelMins = mapKitTravelTimeMinutes ?? routeInfo.estimatedTravelTimeMinutes
+                            let travelTimeStr = travelMins >= 60 ? TravFormatters.duration(travelMins) : "\(travelMins) min"
+                            Label(
+                                "\(travelTimeStr) \(transportMode.rawValue)",
+                                systemImage: transportMode.symbolName
+                            )
+                        }
                     }
                     .font(TravTypography.caption())
                     .foregroundStyle(.white)
@@ -708,9 +745,17 @@ private struct ExperienceRouteMapView: View {
                     .clipShape(Capsule())
                     .padding(TravSpacing.md)
                 }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    showInteractiveMap = true
+                }
             }
         }
         .padding(.vertical, TravSpacing.sm)
+        .sheet(isPresented: $showInteractiveMap) {
+            InAppInteractiveMapView(title: "Route Map", stops: resolvedStops)
+        }
         .task(id: resolvedStops) {
             updateCameraPosition()
             await fetchRoutes()
@@ -723,6 +768,7 @@ private struct ExperienceRouteMapView: View {
             return
         }
         var polylines: [MKPolyline] = []
+        var totalTravelSeconds: TimeInterval = 0
 
         for i in 0..<(resolvedStops.count - 1) {
             let start = CLLocationCoordinate2D(latitude: resolvedStops[i].latitude, longitude: resolvedStops[i].longitude)
@@ -736,12 +782,17 @@ private struct ExperienceRouteMapView: View {
             let directions = MKDirections(request: request)
             if let response = try? await directions.calculate(), let route = response.routes.first {
                 polylines.append(route.polyline)
+                totalTravelSeconds += route.expectedTravelTime
             }
         }
 
         let result = polylines
+        let calculatedMins = Int(round(totalTravelSeconds / 60.0))
         await MainActor.run {
             self.routePolylines = result
+            if calculatedMins > 0 {
+                self.mapKitTravelTimeMinutes = calculatedMins
+            }
         }
     }
 

@@ -94,6 +94,8 @@ protocol ProfileRepository: Sendable {
     func isFollowing(followerID: UUID, followingID: UUID) async throws -> Bool
     func follow(followerID: UUID, followingID: UUID) async throws
     func unfollow(followerID: UUID, followingID: UUID) async throws
+    func syncContactHashes(_ hashes: [ContactHash]) async throws
+    func fetchSuggestedUsers(limit: Int) async throws -> [SuggestedUser]
     func fetchCreatedExperiences(userID: UUID, page: Int) async throws -> Paginated<ExperienceSummary>
     func fetchSavedExperiences(userID: UUID, page: Int) async throws -> Paginated<ExperienceSummary>
     func fetchCompletedExperiences(userID: UUID, page: Int) async throws -> Paginated<CompletedExperienceItem>

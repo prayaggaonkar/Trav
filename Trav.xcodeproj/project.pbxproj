@@ -92,6 +92,7 @@
 		PROD0010000000000000002 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000002 /* NetworkMonitor.swift */; };
 		PROD0010000000000000003 /* PushNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000003 /* PushNotificationService.swift */; };
 		PROD0010000000000000004 /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000004 /* ImageCache.swift */; };
+		SUGG0010000000000000001 /* ContactSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SUGG0000000000000000001 /* ContactSyncService.swift */; };
 		PROD0010000000000000005 /* OfflineBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000005 /* OfflineBanner.swift */; };
 		RADAR0020000000000000001 /* RadarRating.swift in Sources */ = {isa = PBXBuildFile; fileRef = RADAR0010000000000000001 /* RadarRating.swift */; };
 		RADAR0020000000000000002 /* RadarChartPolygonShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = RADAR0010000000000000002 /* RadarChartPolygonShape.swift */; };
@@ -185,6 +186,7 @@
 		PROD0000000000000000002 /* NetworkMonitor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		PROD0000000000000000003 /* PushNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PushNotificationService.swift; sourceTree = "<group>"; };
 		PROD0000000000000000004 /* ImageCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageCache.swift; sourceTree = "<group>"; };
+		SUGG0000000000000000001 /* ContactSyncService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContactSyncService.swift; sourceTree = "<group>"; };
 		PROD0000000000000000005 /* OfflineBanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OfflineBanner.swift; sourceTree = "<group>"; };
 		RADAR0010000000000000001 /* RadarRating.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadarRating.swift; sourceTree = "<group>"; };
 		RADAR0010000000000000002 /* RadarChartPolygonShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadarChartPolygonShape.swift; sourceTree = "<group>"; };
@@ -352,6 +354,7 @@
 				PROD0000000000000000002 /* NetworkMonitor.swift */,
 				PROD0000000000000000003 /* PushNotificationService.swift */,
 				PROD0000000000000000004 /* ImageCache.swift */,
+				SUGG0000000000000000001 /* ContactSyncService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -659,6 +662,7 @@
 				PROD0010000000000000002 /* NetworkMonitor.swift in Sources */,
 				PROD0010000000000000003 /* PushNotificationService.swift in Sources */,
 				PROD0010000000000000004 /* ImageCache.swift in Sources */,
+				SUGG0010000000000000001 /* ContactSyncService.swift in Sources */,
 				PROD0010000000000000005 /* OfflineBanner.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

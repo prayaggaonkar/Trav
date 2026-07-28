@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Segmented tabs
+// MARK: - Segmented Pill Tab Bar (Icon Only)
 
 struct ProfileTabBar: View {
     let tabs: [ProfileContentTab]
@@ -9,58 +9,44 @@ struct ProfileTabBar: View {
     var onSelect: (ProfileContentTab) -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                ForEach(tabs) { tab in
-                    let count = counts[tab]
-                    Button {
+        HStack(spacing: 8) {
+            ForEach(tabs) { tab in
+                let isSelected = selection == tab
+                let count = counts[tab]
+                Button {
+                    withAnimation(TravAnimation.quick) {
                         selection = tab
-                        onSelect(tab)
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: tabIcon(for: tab))
-                                .font(.system(size: 18, weight: selection == tab ? .bold : .medium))
-
-                            if let count, count > 0 {
-                                Text("\(count)")
-                                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    .foregroundStyle(selection == tab ? TravColors.accent : TravColors.muted)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 2)
-                                    .background(
-                                        Capsule().fill(selection == tab ? TravColors.accent.opacity(0.15) : Color.gray.opacity(0.12))
-                                    )
-                            }
-                        }
-                        .foregroundStyle(selection == tab ? TravColors.primary : TravColors.muted)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                }
-            }
+                    onSelect(tab)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: tabIcon(for: tab))
+                            .font(.system(size: 16, weight: isSelected ? .bold : .semibold))
 
-            ZStack(alignment: .leading) {
-                Rectangle()
-                    .fill(TravColors.border.opacity(0.35))
-                    .frame(height: 0.5)
-
-                GeometryReader { geo in
-                    let width = geo.size.width / CGFloat(tabs.count)
-                    let index = tabs.firstIndex(of: selection) ?? 0
-                    Rectangle()
-                        .fill(TravColors.primary)
-                        .frame(width: width * 0.45, height: 2)
-                        .frame(maxHeight: .infinity, alignment: .bottom)
-                        .offset(x: width * CGFloat(index) + width * 0.275)
-                        .animation(TravAnimation.tab, value: selection)
+                        if let count, count > 0 {
+                            Text("\(count)")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(isSelected ? TravColors.accent.opacity(0.2) : Color.gray.opacity(0.15)))
+                        }
+                    }
+                    .foregroundStyle(isSelected ? TravColors.accent : TravColors.muted)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 38)
+                    .background(isSelected ? TravColors.accentSoft : TravColors.surfaceElevated.opacity(0.5))
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule().stroke(isSelected ? TravColors.accent.opacity(0.4) : Color.clear, lineWidth: 1)
+                    )
                 }
-                .frame(height: 2)
+                .buttonStyle(TravPressButtonStyle(scale: 0.97))
+                .accessibilityLabel(tabAccessibilityLabel(for: tab))
             }
-            .frame(height: 2)
         }
-        .padding(.horizontal, TravSpacing.screenHorizontal)
+        .padding(4)
+        .background(TravColors.surfaceElevated.opacity(0.4))
+        .clipShape(Capsule())
     }
 
     private func tabIcon(for tab: ProfileContentTab) -> String {
@@ -70,42 +56,49 @@ struct ProfileTabBar: View {
         case .completed: "checkmark.circle.fill"
         }
     }
+
+    private func tabAccessibilityLabel(for tab: ProfileContentTab) -> String {
+        switch tab {
+        case .created: "Created experiences"
+        case .saved: "Saved experiences"
+        case .completed: "Watchlist experiences"
+        }
+    }
 }
 
-// MARK: - Stats row
+// MARK: - Stats Row (Clean, No Icons)
 
 struct ProfileStatsRow: View {
     let profile: Profile
-    var createdCount: Int? = nil
+    var rankLabel: String = "—"
     var onFollowers: () -> Void
     var onFollowing: () -> Void
-    var onCreated: () -> Void
-    var onCompleted: (() -> Void)? = nil
+    var onRankTap: () -> Void
 
     var body: some View {
         HStack(spacing: TravSpacing.md) {
-            statButton(value: createdCount ?? profile.experienceCount, label: "created", action: onCreated)
-            statButton(value: profile.followerCount, label: "followers", action: onFollowers)
-            statButton(value: profile.followingCount, label: "following", action: onFollowing)
+            statButton(valueString: TravFormatters.count(profile.followerCount), label: "Followers", action: onFollowers)
+            statButton(valueString: TravFormatters.count(profile.followingCount), label: "Following", action: onFollowing)
+            statButton(valueString: rankLabel, label: "Rank", action: onRankTap)
         }
     }
 
-    private func statButton(value: Int, label: String, action: @escaping () -> Void) -> some View {
+    private func statButton(valueString: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(TravFormatters.count(value))
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
+            VStack(spacing: 2) {
+                Text(valueString)
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
                     .foregroundStyle(TravColors.primary)
                     .contentTransition(.numericText())
                 Text(label)
-                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(TravColors.muted)
                     .lineLimit(1)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
-        .buttonStyle(TravPressButtonStyle(scale: 0.97))
+        .buttonStyle(TravPressButtonStyle(scale: 0.96))
     }
 }
 
@@ -124,17 +117,24 @@ struct ProfileFollowButton: View {
                         .controlSize(.small)
                         .tint(isFollowing ? TravColors.primary : .white)
                 } else {
-                    Text(isFollowing ? "Following" : "Follow")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    HStack(spacing: 5) {
+                        Image(systemName: isFollowing ? "checkmark" : "plus")
+                            .font(.system(size: 12, weight: .bold))
+                        Text(isFollowing ? "Following" : "Follow")
+                            .font(.system(size: 13.5, weight: .bold, design: .rounded))
+                    }
                 }
             }
             .foregroundStyle(isFollowing ? TravColors.primary : .white)
             .frame(maxWidth: .infinity)
-            .frame(height: 36)
+            .frame(height: 38)
             .background(isFollowing ? TravColors.surfaceElevated : TravColors.accent)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(Capsule())
+            .overlay(
+                Capsule().stroke(isFollowing ? TravColors.border.opacity(0.5) : Color.clear, lineWidth: 1)
+            )
         }
-        .buttonStyle(TravPressButtonStyle(scale: 0.98))
+        .buttonStyle(TravPressButtonStyle(scale: 0.97))
         .disabled(isLoading)
         .animation(TravAnimation.quick, value: isFollowing)
     }
@@ -531,5 +531,169 @@ struct ProfileUserRow: View {
             }
         }
         .padding(.vertical, 6)
+    }
+}
+
+// MARK: - Suggested users
+
+struct SuggestedUsersSection: View {
+    let users: [SuggestedUser]
+    var isLoading: Bool
+    var contactsAuthorization: ContactAuthorizationStatus
+    var onSelect: (SuggestedUser) -> Void
+    var onFollow: (SuggestedUser) -> Void
+    var onDismiss: (SuggestedUser) -> Void
+    var onSyncContacts: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            HStack(alignment: .center) {
+                Text("Suggested for you")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TravColors.primary)
+
+                Spacer(minLength: 0)
+
+                if contactsAuthorization != .authorized {
+                    Button(action: onSyncContacts) {
+                        Text(contactsAuthorization == .notDetermined ? "Allow Contacts" : "Sync Contacts")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(TravColors.accent)
+                    }
+                    .buttonStyle(TravPressButtonStyle(scale: 0.97))
+                }
+            }
+            .padding(.horizontal, TravSpacing.screenHorizontal)
+
+            if isLoading && users.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: TravSpacing.md) {
+                        ForEach(0..<4, id: \.self) { _ in
+                            SuggestedUserCardSkeleton()
+                        }
+                    }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                }
+            } else if users.isEmpty {
+                Text(emptyMessage)
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .foregroundStyle(TravColors.muted)
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                    .padding(.vertical, TravSpacing.xs)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: TravSpacing.md) {
+                        ForEach(users) { user in
+                            SuggestedUserCard(
+                                suggestion: user,
+                                onSelect: { onSelect(user) },
+                                onFollow: { onFollow(user) },
+                                onDismiss: { onDismiss(user) }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                }
+            }
+        }
+        .padding(.top, TravSpacing.md)
+        .padding(.bottom, TravSpacing.xs)
+    }
+
+    private var emptyMessage: String {
+        switch contactsAuthorization {
+        case .authorized:
+            return "No suggestions right now. Check back later."
+        case .notDetermined:
+            return "Allow contacts to find people you know."
+        case .denied, .restricted:
+            return "Enable contacts in Settings, or follow mutuals below when available."
+        }
+    }
+}
+
+private struct SuggestedUserCard: View {
+    let suggestion: SuggestedUser
+    var onSelect: () -> Void
+    var onFollow: () -> Void
+    var onDismiss: () -> Void
+
+    var body: some View {
+        VStack(spacing: TravSpacing.xs) {
+            ZStack(alignment: .topTrailing) {
+                Button(action: onSelect) {
+                    VStack(spacing: TravSpacing.xs) {
+                        AvatarView(url: suggestion.profile.avatarURL, size: 56)
+
+                        Text(suggestion.profile.displayName)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .multilineTextAlignment(.center)
+
+                        Text(suggestion.reasonText)
+                            .font(.system(size: 11, weight: .regular, design: .rounded))
+                            .foregroundStyle(TravColors.muted)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.85)
+                            .multilineTextAlignment(.center)
+                            .frame(height: 28, alignment: .top)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(TravColors.muted)
+                        .frame(width: 22, height: 22)
+                        .background(TravColors.surfaceElevated)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.9))
+                .offset(x: 4, y: -4)
+            }
+
+            Button(action: onFollow) {
+                Text("Follow")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 30)
+                    .background(TravColors.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(TravPressButtonStyle(scale: 0.96))
+        }
+        .padding(TravSpacing.sm)
+        .frame(width: 132)
+        .background(TravColors.surfaceElevated.opacity(0.65))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(suggestion.profile.displayName), \(suggestion.reasonText)")
+    }
+}
+
+private struct SuggestedUserCardSkeleton: View {
+    var body: some View {
+        VStack(spacing: TravSpacing.xs) {
+            Circle()
+                .fill(TravColors.surfaceElevated)
+                .frame(width: 56, height: 56)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(TravColors.surfaceElevated)
+                .frame(width: 72, height: 12)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(TravColors.surfaceElevated)
+                .frame(width: 88, height: 10)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(TravColors.surfaceElevated)
+                .frame(height: 30)
+        }
+        .padding(TravSpacing.sm)
+        .frame(width: 132)
+        .redacted(reason: .placeholder)
     }
 }

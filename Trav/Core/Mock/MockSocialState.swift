@@ -14,6 +14,7 @@ actor MockSocialState {
     private var notifications: [AppNotification] = []
     /// Extra summaries (e.g. bookmarked feed places) not present in MockData.experiences.
     private var bookmarkedSummaries: [UUID: ExperienceSummary] = [:]
+    private var contactHashes: [UUID: Set<ContactHash>] = [:]
     private var didSeed = false
 
     struct FollowEdge: Hashable, Sendable {
@@ -50,8 +51,22 @@ actor MockSocialState {
         _ = try? follow(followerID: MockData.creators[1].id, followingID: MockData.creators[0].id)
         _ = try? follow(followerID: MockData.creators[2].id, followingID: MockData.creators[0].id)
         _ = try? follow(followerID: MockData.creators[3].id, followingID: MockData.creators[0].id)
+        // Mutual path for maya: jordan/sam also follow yuki + alex-style creators.
+        _ = try? follow(followerID: MockData.creators[1].id, followingID: MockData.creators[3].id)
+        _ = try? follow(followerID: MockData.creators[2].id, followingID: MockData.creators[3].id)
+        if MockData.creators.count > 4 {
+            _ = try? follow(followerID: MockData.creators[1].id, followingID: MockData.creators[4].id)
+        }
+        if MockData.creators.count > 5 {
+            _ = try? follow(followerID: MockData.creators[2].id, followingID: MockData.creators[5].id)
+        }
 
-        // Seed a few saves/completions for the first creator (demo signed-in user).
+        // Seed a few contact-hash matches so "From your contacts" shows in mock.
+        let sharedEmail = ContactSyncService.hashEmail("friend@trav.app")
+        if let sharedEmail {
+            contactHashes[MockData.creators[0].id] = [sharedEmail]
+            contactHashes[MockData.creators[4].id, default: []].insert(sharedEmail)
+        }
         let demoUser = MockData.creators[0].id
         saves.insert(SaveEdge(userID: demoUser, experienceID: MockData.experiences[1].id))
         saves.insert(SaveEdge(userID: demoUser, experienceID: MockData.experiences[3].id))
@@ -216,6 +231,89 @@ actor MockSocialState {
     func followingIDs(of userID: UUID) -> Set<UUID> {
         seedIfNeeded()
         return Set(follows.filter { $0.followerID == userID }.map(\.followingID))
+    }
+
+    func syncContactHashes(_ hashes: [ContactHash]) {
+        seedIfNeeded()
+        // Mock sync is scoped to the demo signed-in user (maya).
+        let demoUser = MockData.creators[0].id
+        contactHashes[demoUser] = Set(hashes)
+    }
+
+    func suggestedUsers(limit: Int, for userID: UUID? = nil) -> [SuggestedUser] {
+        seedIfNeeded()
+        let viewerID = userID ?? MockData.creators[0].id
+        let following = followingIDs(of: viewerID)
+        let blocked = blockedIDs(of: viewerID)
+
+        let myHashes = contactHashes[viewerID] ?? []
+        var contactIDs = Set<UUID>()
+        if !myHashes.isEmpty {
+            for (otherID, hashes) in contactHashes where otherID != viewerID {
+                if !hashes.isDisjoint(with: myHashes) {
+                    contactIDs.insert(otherID)
+                }
+            }
+        }
+
+        var mutualMeta: [UUID: (count: Int, name: String)] = [:]
+        for followEdge in follows where followEdge.followerID == viewerID {
+            let friendID = followEdge.followingID
+            let friendName = profiles[friendID]?.displayName ?? "Someone"
+            for second in follows where second.followerID == friendID {
+                let candidate = second.followingID
+                guard candidate != viewerID,
+                      !following.contains(candidate),
+                      !blocked.contains(candidate) else { continue }
+                if let existing = mutualMeta[candidate] {
+                    mutualMeta[candidate] = (existing.count + 1, existing.name)
+                } else {
+                    mutualMeta[candidate] = (1, friendName)
+                }
+            }
+        }
+
+        var results: [SuggestedUser] = []
+        var seen = Set<UUID>()
+
+        func append(_ id: UUID, source: SuggestedUserSource) {
+            guard id != viewerID,
+                  !following.contains(id),
+                  !blocked.contains(id),
+                  seen.insert(id).inserted,
+                  var profile = profiles[id] else { return }
+            profile.isFollowing = false
+            let mutual = mutualMeta[id]
+            results.append(
+                SuggestedUser(
+                    profile: profile,
+                    source: source,
+                    mutualCount: mutual?.count ?? 0,
+                    sampleMutualName: mutual?.name
+                )
+            )
+        }
+
+        for id in contactIDs.sorted(by: { (profiles[$0]?.followerCount ?? 0) > (profiles[$1]?.followerCount ?? 0) }) {
+            append(id, source: .contact)
+        }
+        let mutualSorted = mutualMeta.keys.sorted {
+            let lhs = mutualMeta[$0]!
+            let rhs = mutualMeta[$1]!
+            if lhs.count != rhs.count { return lhs.count > rhs.count }
+            return (profiles[$0]?.followerCount ?? 0) > (profiles[$1]?.followerCount ?? 0)
+        }
+        for id in mutualSorted {
+            append(id, source: .mutual)
+        }
+        let popular = profiles.values
+            .filter { $0.id != viewerID && !following.contains($0.id) && !blocked.contains($0.id) }
+            .sorted { $0.followerCount > $1.followerCount }
+        for profile in popular {
+            append(profile.id, source: .popular)
+        }
+
+        return Array(results.prefix(limit))
     }
 
     func savedIDs(of userID: UUID) -> Set<UUID> {

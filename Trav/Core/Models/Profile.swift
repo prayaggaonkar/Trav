@@ -163,6 +163,48 @@ enum ProfileLimits {
     static let pageSize = 20
 }
 
+enum SuggestedUserSource: String, Codable, Sendable, Hashable {
+    case contact
+    case mutual
+    case popular
+}
+
+struct SuggestedUser: Identifiable, Codable, Sendable, Hashable {
+    var profile: Profile
+    var source: SuggestedUserSource
+    var mutualCount: Int
+    var sampleMutualName: String?
+
+    var id: UUID { profile.id }
+
+    var reasonText: String {
+        switch source {
+        case .contact:
+            return "From your contacts"
+        case .mutual:
+            if let sampleMutualName, mutualCount <= 1 {
+                return "Followed by \(sampleMutualName)"
+            }
+            if mutualCount > 1 {
+                return "\(mutualCount) mutuals"
+            }
+            return "Suggested for you"
+        case .popular:
+            return "Suggested for you"
+        }
+    }
+}
+
+struct ContactHash: Codable, Sendable, Hashable {
+    var hash: String
+    var kind: Kind
+
+    enum Kind: String, Codable, Sendable {
+        case phone
+        case email
+    }
+}
+
 enum StableUUID {
     /// Prefers parsing a real UUID; otherwise derives a deterministic id from SHA256
     /// so feed places keep the same id across launches (required for saves).

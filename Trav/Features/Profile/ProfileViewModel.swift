@@ -33,11 +33,58 @@ final class ProfileViewModel {
     private(set) var isFollowLoading = false
     private(set) var isSigningOut = false
 
+    var isSuggestionsExpanded = false
+    private(set) var suggestedUsers: [SuggestedUser] = []
+    private(set) var isLoadingSuggestions = false
+    private(set) var contactsAuthorization: ContactAuthorizationStatus = ContactSyncService.authorizationStatus
+    private var dismissedSuggestionIDs: Set<UUID> = []
+    private var hasLoadedSuggestions = false
+
     private var loadedTabs: Set<ProfileContentTab> = []
     private var lastEngagementRevision: Int = -1
 
     init(username: String) {
         self.username = username
+    }
+
+    private(set) var calculatedRank: Int? = nil
+
+    var creatorRankLabel: String {
+        let userCount = max(profile?.experienceCount ?? 0, created.count)
+        if userCount == 0 { return "—" }
+        if let rank = calculatedRank {
+            return "#\(rank)"
+        }
+        let entries = MockLeaderboardData.entries.sorted(by: { $0.experienceCount > $1.experienceCount })
+        if let index = entries.firstIndex(where: { $0.username.lowercased() == username.lowercased() }) {
+            return "#\(index + 1)"
+        }
+        let rankPos = (entries.firstIndex(where: { $0.experienceCount <= userCount }) ?? entries.count) + 1
+        return "#\(rankPos)"
+    }
+
+    private func updateCreatorRank(using environment: AppEnvironment) async {
+        let userCount = max(profile?.experienceCount ?? 0, created.count)
+        guard userCount > 0 else {
+            calculatedRank = nil
+            return
+        }
+        let entries = (try? await environment.experiences.fetchLeaderboardEntries(cityID: nil, cityName: nil)) ?? MockLeaderboardData.entries
+        let sorted = entries.sorted { lhs, rhs in
+            if lhs.experienceCount != rhs.experienceCount {
+                return lhs.experienceCount > rhs.experienceCount
+            }
+            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+        }
+
+        if let matchIndex = sorted.firstIndex(where: {
+            $0.id == profile?.id || $0.username.lowercased() == username.lowercased()
+        }) {
+            calculatedRank = matchIndex + 1
+        } else {
+            let pos = (sorted.firstIndex(where: { $0.experienceCount <= userCount }) ?? sorted.count) + 1
+            calculatedRank = pos
+        }
     }
 
     func load(using environment: AppEnvironment) async {
@@ -70,6 +117,7 @@ final class ProfileViewModel {
             if loadedTabs.isEmpty {
                 await loadTab(selectedTab, using: environment, reset: true)
             }
+            await updateCreatorRank(using: environment)
         } catch {
             if profile == nil {
                 phase = .failed(error)
@@ -224,7 +272,98 @@ final class ProfileViewModel {
         await environment.engagement.unsave(experienceID: experience.id, using: environment)
     }
 
+    // MARK: - Suggested users
+
+    func toggleSuggestions(using environment: AppEnvironment) async {
+        let opening = !isSuggestionsExpanded
+        isSuggestionsExpanded = opening
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        if opening {
+            await loadSuggestions(using: environment, force: !hasLoadedSuggestions)
+        }
+    }
+
+    func loadSuggestions(using environment: AppEnvironment, force: Bool = false) async {
+        guard environment.session.currentUser != nil else { return }
+        if isLoadingSuggestions { return }
+        if hasLoadedSuggestions && !force && !suggestedUsers.isEmpty { return }
+
+        isLoadingSuggestions = true
+        defer { isLoadingSuggestions = false }
+
+        contactsAuthorization = ContactSyncService.authorizationStatus
+
+        if contactsAuthorization == .notDetermined {
+            let granted = await ContactSyncService.requestAccess()
+            contactsAuthorization = ContactSyncService.authorizationStatus
+            if granted {
+                await syncAndFetchSuggestions(using: environment)
+                return
+            }
+        }
+
+        if contactsAuthorization == .authorized {
+            await syncAndFetchSuggestions(using: environment)
+        } else {
+            await fetchSuggestionsOnly(using: environment)
+        }
+    }
+
+    func requestContactsAccess(using environment: AppEnvironment) async {
+        contactsAuthorization = ContactSyncService.authorizationStatus
+        if contactsAuthorization == .denied || contactsAuthorization == .restricted {
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                await UIApplication.shared.open(url)
+            }
+            return
+        }
+        let granted = await ContactSyncService.requestAccess()
+        contactsAuthorization = ContactSyncService.authorizationStatus
+        if granted {
+            await syncAndFetchSuggestions(using: environment)
+        } else {
+            await fetchSuggestionsOnly(using: environment)
+        }
+    }
+
+    func dismissSuggestion(_ userID: UUID) {
+        dismissedSuggestionIDs.insert(userID)
+        suggestedUsers.removeAll { $0.id == userID }
+    }
+
+    func followSuggestion(_ suggestion: SuggestedUser, using environment: AppEnvironment) async {
+        _ = await environment.engagement.toggleFollow(
+            target: suggestion.profile,
+            isCurrentlyFollowing: false,
+            using: environment
+        )
+        dismissSuggestion(suggestion.id)
+    }
+
     // MARK: - Private
+
+    private func syncAndFetchSuggestions(using environment: AppEnvironment) async {
+        do {
+            let hashes = try ContactSyncService.fetchContactHashes()
+            try await environment.profiles.syncContactHashes(hashes)
+        } catch {
+            // Still load mutuals/popular if contact sync fails.
+        }
+        await fetchSuggestionsOnly(using: environment)
+    }
+
+    private func fetchSuggestionsOnly(using environment: AppEnvironment) async {
+        do {
+            let fetched = try await environment.profiles.fetchSuggestedUsers(limit: 20)
+            suggestedUsers = fetched.filter { !dismissedSuggestionIDs.contains($0.id) }
+            hasLoadedSuggestions = true
+        } catch {
+            if suggestedUsers.isEmpty {
+                suggestedUsers = []
+            }
+            hasLoadedSuggestions = true
+        }
+    }
 
     private func loadTab(_ tab: ProfileContentTab, using environment: AppEnvironment, reset: Bool) async {
         guard let profile else { return }
