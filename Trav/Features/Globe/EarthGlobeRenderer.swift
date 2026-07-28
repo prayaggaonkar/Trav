@@ -299,7 +299,7 @@ final class EarthGlobeRenderer {
         }
     }
 
-    /// Prefer asset-catalog images (2K day/night) over loose 4K `Textures/` copies.
+    /// Prefer asset-catalog images over loose `Textures/` copies.
     nonisolated private static func decodeImage(named name: String) async throws -> UIImage {
         try await Task.detached(priority: .userInitiated) {
             if let image = UIImage(named: name) {

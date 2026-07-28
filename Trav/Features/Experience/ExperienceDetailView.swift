@@ -314,6 +314,7 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
+<<<<<<< HEAD
             if experience.imageURLs.count > 1 {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
                     Text("Media Gallery (\(experience.imageURLs.count))")
@@ -337,6 +338,9 @@ struct ExperienceDetailView: View {
                 .padding(.vertical, TravSpacing.xs)
             }
             ExperienceRouteMapView(stops: experience.stops)
+=======
+            ExperienceRouteMapView(stops: experience.stops, transportMode: experience.transportMode)
+>>>>>>> ae4edda4b59665767ef182ef479e6ff3c8544102
 
             RoutePreview(stops: experience.stops.map {
                 StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji, latitude: $0.latitude, longitude: $0.longitude)
@@ -464,11 +468,27 @@ private struct StopTimelineRow: View {
                     .padding(.vertical, TravSpacing.xxs)
                 }
 
+<<<<<<< HEAD
                 if let time = stop.recommendedTime {
                     Label(time, systemImage: "sun.max")
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.muted)
                         .lineLimit(1)
+=======
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: TravSpacing.sm) {
+                        if let time = stop.recommendedTime {
+                            Label(time, systemImage: "sun.max")
+                        }
+                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
+                    }
+                    VStack(alignment: .leading, spacing: TravSpacing.xxs) {
+                        if let time = stop.recommendedTime {
+                            Label(time, systemImage: "sun.max")
+                        }
+                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
+                    }
+>>>>>>> ae4edda4b59665767ef182ef479e6ff3c8544102
                 }
             }
             .padding(.bottom, isLast ? 0 : TravSpacing.lg)
@@ -495,14 +515,17 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
             ZStack(alignment: .bottomLeading) {
                 // Image strip — owns horizontal paging so nested ScrollView can't steal swipes.
                 HStack(spacing: 0) {
-                    ForEach(Array(displayURLs.enumerated()), id: \.offset) { index, url in
+                    ForEach(Array(displayURLs.enumerated()), id: \.offset) { _, url in
                         RemoteImage(url: url, height: height, cornerRadius: 0)
                             .frame(width: width, height: height)
                             .clipped()
+<<<<<<< HEAD
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 onImageTap?(index)
                             }
+=======
+>>>>>>> ae4edda4b59665767ef182ef479e6ff3c8544102
                     }
                 }
                 .offset(x: -CGFloat(currentIndex) * width + dragOffset)

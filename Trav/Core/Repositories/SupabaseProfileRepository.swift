@@ -235,6 +235,84 @@ struct SupabaseProfileRepository: ProfileRepository {
             .execute()
     }
 
+    func syncContactHashes(_ hashes: [ContactHash]) async throws {
+        struct HashPayload: Encodable {
+            let hash: String
+            let kind: String
+        }
+        struct Params: Encodable {
+            let p_hashes: [HashPayload]
+        }
+
+        var merged = hashes
+        if let email = try? await client.auth.session.user.email,
+           let own = ContactSyncService.hashEmail(email) {
+            if !merged.contains(where: { $0.hash == own.hash }) {
+                merged.append(own)
+            }
+        }
+
+        let payload = merged.map { HashPayload(hash: $0.hash, kind: $0.kind.rawValue) }
+        try await client
+            .rpc("sync_contact_hashes", params: Params(p_hashes: payload))
+            .execute()
+    }
+
+    func fetchSuggestedUsers(limit: Int) async throws -> [SuggestedUser] {
+        struct Params: Encodable {
+            let p_limit: Int
+        }
+        struct SuggestedRow: Decodable {
+            let id: UUID
+            let username: String
+            let display_name: String
+            let bio: String?
+            let avatar_url: String?
+            let home_city_id: UUID?
+            let follower_count: Int
+            let following_count: Int
+            let experience_count: Int
+            let completion_count: Int
+            let is_verified: Bool
+            let selected_vibes: [String]?
+            let onboarding_location: String?
+            let source: String
+            let mutual_count: Int
+            let sample_mutual_name: String?
+        }
+
+        let rows: [SuggestedRow] = try await client
+            .rpc("fetch_suggested_users", params: Params(p_limit: limit))
+            .execute()
+            .value
+
+        return rows.map { row in
+            let profile = Profile(
+                id: row.id,
+                username: row.username,
+                displayName: row.display_name,
+                bio: row.bio,
+                avatarURL: row.avatar_url.flatMap(URL.init(string:)),
+                homeCityID: row.home_city_id,
+                homeCityName: row.onboarding_location,
+                followerCount: row.follower_count,
+                followingCount: row.following_count,
+                experienceCount: row.experience_count,
+                completionCount: row.completion_count,
+                isVerified: row.is_verified,
+                selectedVibes: row.selected_vibes,
+                onboardingLocation: row.onboarding_location,
+                isFollowing: false
+            )
+            return SuggestedUser(
+                profile: profile,
+                source: SuggestedUserSource(rawValue: row.source) ?? .popular,
+                mutualCount: row.mutual_count,
+                sampleMutualName: row.sample_mutual_name
+            )
+        }
+    }
+
     func fetchCreatedExperiences(userID: UUID, page: Int) async throws -> Paginated<ExperienceSummary> {
         let client = try client
         let pageSize = ProfileLimits.pageSize

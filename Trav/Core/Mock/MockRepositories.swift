@@ -216,6 +216,16 @@ struct MockProfileRepository: ProfileRepository {
         await MockSocialState.shared.unfollow(followerID: followerID, followingID: followingID)
     }
 
+    func syncContactHashes(_ hashes: [ContactHash]) async throws {
+        try await Task.sleep(for: .milliseconds(80))
+        await MockSocialState.shared.syncContactHashes(hashes)
+    }
+
+    func fetchSuggestedUsers(limit: Int) async throws -> [SuggestedUser] {
+        try await Task.sleep(for: .milliseconds(160))
+        return await MockSocialState.shared.suggestedUsers(limit: limit)
+    }
+
     func fetchCreatedExperiences(userID: UUID, page: Int) async throws -> Paginated<ExperienceSummary> {
         try await Task.sleep(for: .milliseconds(160))
         let items = await MockSocialState.shared.createdExperiences(userID: userID).map { summary in
