@@ -314,6 +314,7 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
+<<<<<<< HEAD
             if experience.imageURLs.count > 1 {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
                     Text("Media Gallery (\(experience.imageURLs.count))")
@@ -336,6 +337,8 @@ struct ExperienceDetailView: View {
                 }
                 .padding(.vertical, TravSpacing.xs)
             }
+=======
+>>>>>>> 3e12f948e357a48f5b71bfa8d3d98484989e9908
             ExperienceRouteMapView(stops: experience.stops, transportMode: experience.transportMode)
 
             RoutePreview(stops: experience.stops.map {
@@ -464,12 +467,31 @@ private struct StopTimelineRow: View {
                     .padding(.vertical, TravSpacing.xxs)
                 }
 
+<<<<<<< HEAD
                 if let time = stop.recommendedTime {
                     Label(time, systemImage: "sun.max")
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.muted)
                         .lineLimit(1)
+=======
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: TravSpacing.sm) {
+                        if let time = stop.recommendedTime {
+                            Label(time, systemImage: "sun.max")
+                        }
+                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
+                    }
+                    VStack(alignment: .leading, spacing: TravSpacing.xxs) {
+                        if let time = stop.recommendedTime {
+                            Label(time, systemImage: "sun.max")
+                        }
+                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
+                    }
+>>>>>>> 3e12f948e357a48f5b71bfa8d3d98484989e9908
                 }
+                .font(TravTypography.caption())
+                .foregroundStyle(TravColors.muted)
+                .lineLimit(1)
             }
             .padding(.bottom, isLast ? 0 : TravSpacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -499,10 +521,13 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
                         RemoteImage(url: url, height: height, cornerRadius: 0)
                             .frame(width: width, height: height)
                             .clipped()
+<<<<<<< HEAD
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 onImageTap?(index)
                             }
+=======
+>>>>>>> 3e12f948e357a48f5b71bfa8d3d98484989e9908
                     }
                 }
                 .offset(x: -CGFloat(currentIndex) * width + dragOffset)
@@ -530,11 +555,14 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
                     .allowsHitTesting(false)
                 }
 
-                // Drag layer above non-interactive chrome; accessory button stays on top.
+                // Drag/tap layer above non-interactive chrome; accessory button stays on top.
                 Color.clear
                     .contentShape(Rectangle())
+                    .onTapGesture {
+                        onImageTap?(currentIndex)
+                    }
                     .gesture(horizontalPageGesture(pageWidth: width))
-                    .allowsHitTesting(displayURLs.count > 1)
+                    .allowsHitTesting(onImageTap != nil || displayURLs.count > 1)
 
                 VStack(alignment: .leading, spacing: TravSpacing.sm) {
                     title()

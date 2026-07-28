@@ -34,7 +34,7 @@ struct ProfileTabBar: View {
                         }
                         .foregroundStyle(selection == tab ? TravColors.primary : TravColors.muted)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, TravSpacing.sm + 2)
+                        .frame(height: 44)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
