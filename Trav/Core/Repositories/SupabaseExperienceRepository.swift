@@ -596,8 +596,10 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 }
             }
 
-        if parsed.isEmpty {
-            let fallbacks = Self.generateFallbackPopups(latitude: userLat, longitude: userLng, city: targetCity)
+        let deduplicated = Self.deduplicatePopups(parsed)
+
+        if deduplicated.isEmpty {
+            let fallbacks = Self.deduplicatePopups(Self.generateFallbackPopups(latitude: userLat, longitude: userLng, city: targetCity))
             
             // Auto-sync fallbacks directly into Supabase database in background task
             Task {
@@ -641,7 +643,40 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             return fallbacks
         }
 
-        return parsed
+        return deduplicated
+    }
+
+    private static func deduplicatePopups(_ list: [Popup]) -> [Popup] {
+        var result: [Popup] = []
+        let calendar = Calendar.current
+
+        for popup in list {
+            let normName = popup.name
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+
+            let isDuplicate = result.contains { existing in
+                let existingNormName = existing.name
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+
+                guard existingNormName == normName else { return false }
+
+                // Same title! Check if they are on the same calendar day or missing dates
+                switch (existing.startTime, popup.startTime) {
+                case let (d1?, d2?):
+                    return calendar.isDate(d1, inSameDayAs: d2)
+                default:
+                    // If either date is missing, treat as duplicate title
+                    return true
+                }
+            }
+
+            if !isDuplicate {
+                result.append(popup)
+            }
+        }
+        return result
     }
 
     private static func generateFallbackPopups(latitude: Double, longitude: Double, city: String) -> [Popup] {

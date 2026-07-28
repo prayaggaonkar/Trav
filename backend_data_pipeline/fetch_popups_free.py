@@ -404,11 +404,22 @@ def run_ingestion_pipeline():
     all_candidates.extend(rich_sf)
     all_candidates.extend(rich_oakland)
     
-    print(f"Total candidate pop-ups collected: {len(all_candidates)}")
+    unique_candidates = []
+    seen = set()
+    for ev in all_candidates:
+        name = ev.get("event_name", "").strip()
+        start = ev.get("start_time", "")
+        date_part = start.split("T")[0] if start and "T" in start else start
+        key = (name.lower(), date_part)
+        if key not in seen:
+            seen.add(key)
+            unique_candidates.append(ev)
+
+    print(f"Total unique candidate pop-ups collected: {len(unique_candidates)}")
     
     # Write/upsert to Supabase popups table
     inserted = 0
-    for ev in all_candidates:
+    for ev in unique_candidates:
         name = ev.get("event_name", "").strip()
         start = ev.get("start_time")
         if not name or not start: continue

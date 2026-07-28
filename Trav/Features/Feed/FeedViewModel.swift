@@ -60,11 +60,21 @@ final class FeedViewModel {
         let rawPopups = await popupsResult
 
         var uniquePopups: [Popup] = []
+        let calendar = Calendar.current
         for p in rawPopups {
             let norm = p.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            if !uniquePopups.contains(where: {
-                $0.id == p.id || ($0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == norm && $0.startTime == p.startTime)
-            }) {
+            let isDup = uniquePopups.contains { existing in
+                let existingNorm = existing.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                guard existingNorm == norm else { return false }
+
+                switch (existing.startTime, p.startTime) {
+                case let (d1?, d2?):
+                    return calendar.isDate(d1, inSameDayAs: d2)
+                default:
+                    return true
+                }
+            }
+            if !isDup {
                 uniquePopups.append(p)
             }
         }
