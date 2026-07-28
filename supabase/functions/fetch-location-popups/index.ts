@@ -116,8 +116,9 @@ serve(async (req) => {
 
 async function fetchTicketmasterLiveEvents(lat: number, lng: number, city: string): Promise<DBPopup[]> {
   const events: DBPopup[] = [];
-  try {
-    const apiKey = Deno.env.get("TICKETMASTER_API_KEY") || "7elwgAigFiv5Ghq8jygAkOzAZAgGtCGc";
+    const apiKey = Deno.env.get("TICKETMASTER_API_KEY");
+    if (!apiKey) return [];
+    
     // Spatial latlong search within radius
     const url = `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${apiKey}&latlong=${lat},${lng}&radius=30&unit=miles&size=20&sort=date,asc`;
     

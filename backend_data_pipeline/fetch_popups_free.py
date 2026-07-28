@@ -13,8 +13,11 @@ import ssl
 # Sources: Ticketmaster Open API, Eventbrite Public Search API, Schema.org JSON-LD Feeds, Community Calendars
 
 def fetch_ticketmaster_events(city="Berkeley", state_code="CA") -> list:
-    """Fetch live public events from Ticketmaster API (concerts, sports, festivals, comedy)."""
-    api_key = os.environ.get("TICKETMASTER_API_KEY", "7elwgAigFiv5Ghq8jygAkOzAZAgGtCGc") # Public developer key
+    """Fetch live public events from Ticketmaster API if valid API key is present."""
+    api_key = os.environ.get("TICKETMASTER_API_KEY")
+    if not api_key:
+        return []
+        
     url = f"https://app.ticketmaster.com/discovery/v2/events.json?apikey={api_key}&city={urllib.parse.quote(city)}&stateCode={state_code}&size=20&sort=date,asc"
     
     events = []
