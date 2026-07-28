@@ -314,7 +314,6 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-<<<<<<< HEAD
             if experience.imageURLs.count > 1 {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
                     Text("Media Gallery (\(experience.imageURLs.count))")
@@ -337,10 +336,7 @@ struct ExperienceDetailView: View {
                 }
                 .padding(.vertical, TravSpacing.xs)
             }
-            ExperienceRouteMapView(stops: experience.stops)
-=======
             ExperienceRouteMapView(stops: experience.stops, transportMode: experience.transportMode)
->>>>>>> 03e31cbc37d4fe1289b301403f4166b9e60f2cc7
 
             RoutePreview(stops: experience.stops.map {
                 StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji, latitude: $0.latitude, longitude: $0.longitude)
@@ -468,13 +464,6 @@ private struct StopTimelineRow: View {
                     .padding(.vertical, TravSpacing.xxs)
                 }
 
-<<<<<<< HEAD
-                if let time = stop.recommendedTime {
-                    Label(time, systemImage: "sun.max")
-                        .font(TravTypography.caption())
-                        .foregroundStyle(TravColors.muted)
-                        .lineLimit(1)
-=======
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: TravSpacing.sm) {
                         if let time = stop.recommendedTime {
@@ -488,7 +477,6 @@ private struct StopTimelineRow: View {
                         }
                         Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
                     }
->>>>>>> 03e31cbc37d4fe1289b301403f4166b9e60f2cc7
                 }
                 .font(TravTypography.caption())
                 .foregroundStyle(TravColors.muted)
@@ -522,13 +510,10 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
                         RemoteImage(url: url, height: height, cornerRadius: 0)
                             .frame(width: width, height: height)
                             .clipped()
-<<<<<<< HEAD
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 onImageTap?(index)
                             }
-=======
->>>>>>> 03e31cbc37d4fe1289b301403f4166b9e60f2cc7
                     }
                 }
                 .offset(x: -CGFloat(currentIndex) * width + dragOffset)
