@@ -11,13 +11,19 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "Trav/Resources/Textures/earth_day.jpg"
 OUT_TEX = ROOT / "Trav/Resources/Textures/earth_day_light.jpg"
 OUT_ASSET_DIR = ROOT / "Trav/Resources/Assets.xcassets/earth_day_light.imageset"
 OUT_ASSET = OUT_ASSET_DIR / "earth_day_light.jpg"
+
+
+def blur_channel(arr: np.ndarray, radius: float) -> np.ndarray:
+    img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), mode="L")
+    out = img.filter(ImageFilter.GaussianBlur(radius=radius))
+    return np.asarray(out, dtype=np.float32)
 
 
 def compress_arid_highlights(rgb: np.ndarray) -> np.ndarray:
@@ -52,20 +58,22 @@ def bake(source: Image.Image) -> Image.Image:
     ocean_score = np.maximum(ocean_score, navy.astype(np.float32) * 0.95)
     landish = (lum > 95) & (blue_dom < 10)
     ocean_score = np.where(landish, ocean_score * 0.15, ocean_score)
+    ocean_score = blur_channel(np.clip(ocean_score, 0, 1) * 255.0, 1.5) / 255.0
     ocean_score = np.clip(ocean_score, 0, 1)[..., None]
 
-    # Daytime ocean palette driven by original luminance (depth cue).
-    t = np.clip(lum / 70.0, 0, 1)[..., None]
-    deep = np.array([18, 95, 175], dtype=np.float32)
-    mid = np.array([35, 145, 205], dtype=np.float32)
-    shallow = np.array([85, 185, 220], dtype=np.float32)
+    # Daytime blues follow the already-textured dark-mode ocean depth.
+    soft_lum = blur_channel(lum, 9.0)
+    t = np.clip((soft_lum - 8.0) / 85.0, 0, 1)[..., None]
+    deep = np.array([8, 48, 108], dtype=np.float32)
+    mid = np.array([16, 78, 138], dtype=np.float32)
+    shallow = np.array([28, 102, 158], dtype=np.float32)
     ocean_col = np.where(
         t < 0.45,
         deep + (mid - deep) * (t / 0.45),
         mid + (shallow - mid) * ((t - 0.45) / 0.55),
     )
-    detail = (a - lum[..., None]) * 0.55
-    ocean_col = np.clip(ocean_col + detail * ocean_score, 0, 255)
+    # Keep open-ocean texture from the smoothed day map (land untouched via mask).
+    ocean_col = np.clip(ocean_col * 0.62 + a * 0.38, 0, 255)
 
     # Sunlit land — lift shadows/midtones; skip warm boost on arid sand.
     shadow = 1.0 - np.clip(lum / 190.0, 0, 1)
@@ -92,8 +100,8 @@ def main() -> None:
     out = bake(src)
     OUT_TEX.parent.mkdir(parents=True, exist_ok=True)
     OUT_ASSET_DIR.mkdir(parents=True, exist_ok=True)
-    out.save(OUT_TEX, quality=92, optimize=True)
-    out.save(OUT_ASSET, quality=92, optimize=True)
+    out.save(OUT_TEX, quality=95, optimize=True, subsampling=0)
+    out.save(OUT_ASSET, quality=95, optimize=True, subsampling=0)
     (OUT_ASSET_DIR / "Contents.json").write_text(
         """{
   "images" : [

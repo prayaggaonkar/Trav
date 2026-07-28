@@ -314,6 +314,7 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
+<<<<<<< HEAD
             if experience.imageURLs.count > 1 {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
                     Text("Media Gallery (\(experience.imageURLs.count))")
@@ -337,6 +338,9 @@ struct ExperienceDetailView: View {
                 .padding(.vertical, TravSpacing.xs)
             }
             ExperienceRouteMapView(stops: experience.stops)
+=======
+            ExperienceRouteMapView(stops: experience.stops, transportMode: experience.transportMode)
+>>>>>>> 03e31cbc37d4fe1289b301403f4166b9e60f2cc7
 
             RoutePreview(stops: experience.stops.map {
                 StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji, latitude: $0.latitude, longitude: $0.longitude)
@@ -464,12 +468,31 @@ private struct StopTimelineRow: View {
                     .padding(.vertical, TravSpacing.xxs)
                 }
 
+<<<<<<< HEAD
                 if let time = stop.recommendedTime {
                     Label(time, systemImage: "sun.max")
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.muted)
                         .lineLimit(1)
+=======
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: TravSpacing.sm) {
+                        if let time = stop.recommendedTime {
+                            Label(time, systemImage: "sun.max")
+                        }
+                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
+                    }
+                    VStack(alignment: .leading, spacing: TravSpacing.xxs) {
+                        if let time = stop.recommendedTime {
+                            Label(time, systemImage: "sun.max")
+                        }
+                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
+                    }
+>>>>>>> 03e31cbc37d4fe1289b301403f4166b9e60f2cc7
                 }
+                .font(TravTypography.caption())
+                .foregroundStyle(TravColors.muted)
+                .lineLimit(1)
             }
             .padding(.bottom, isLast ? 0 : TravSpacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -499,10 +522,13 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
                         RemoteImage(url: url, height: height, cornerRadius: 0)
                             .frame(width: width, height: height)
                             .clipped()
+<<<<<<< HEAD
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 onImageTap?(index)
                             }
+=======
+>>>>>>> 03e31cbc37d4fe1289b301403f4166b9e60f2cc7
                     }
                 }
                 .offset(x: -CGFloat(currentIndex) * width + dragOffset)
@@ -605,6 +631,7 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
 
 private struct ExperienceRouteMapView: View {
     let stops: [Stop]
+    let transportMode: TransportMode
 
     @State private var position: MapCameraPosition = .automatic
     @State private var routePolylines: [MKPolyline] = []
@@ -719,8 +746,10 @@ private struct ExperienceRouteMapView: View {
                             Text("·")
                             let travelMins = mapKitTravelTimeMinutes ?? routeInfo.estimatedTravelTimeMinutes
                             let travelTimeStr = travelMins >= 60 ? TravFormatters.duration(travelMins) : "\(travelMins) min"
-                            let modeStr = routeInfo.isDriving ? "drive" : "walk"
-                            Label("\(travelTimeStr) \(modeStr)", systemImage: routeInfo.iconName)
+                            Label(
+                                "\(travelTimeStr) \(transportMode.rawValue)",
+                                systemImage: transportMode.symbolName
+                            )
                         }
                     }
                     .font(TravTypography.caption())
@@ -763,7 +792,7 @@ private struct ExperienceRouteMapView: View {
             let request = MKDirections.Request()
             request.source = MKMapItem(placemark: MKPlacemark(coordinate: start))
             request.destination = MKMapItem(placemark: MKPlacemark(coordinate: destination))
-            request.transportType = routeInfo.isDriving ? .automobile : .walking
+            request.transportType = transportMode == .driving ? .automobile : (transportMode == .transit ? .transit : .walking)
 
             let directions = MKDirections(request: request)
             if let response = try? await directions.calculate(), let route = response.routes.first {
@@ -827,7 +856,13 @@ private struct ExperienceRouteMapView: View {
             return item
         }
 
-        let modeKey: String = routeInfo.isDriving ? MKLaunchOptionsDirectionsModeDriving : MKLaunchOptionsDirectionsModeWalking
+        let modeKey: String = {
+            switch transportMode {
+            case .walking: return MKLaunchOptionsDirectionsModeWalking
+            case .transit: return MKLaunchOptionsDirectionsModeTransit
+            case .driving, .mixed: return MKLaunchOptionsDirectionsModeDriving
+            }
+        }()
 
         MKMapItem.openMaps(with: mapItems, launchOptions: [
             MKLaunchOptionsDirectionsModeKey: modeKey

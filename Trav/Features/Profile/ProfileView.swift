@@ -117,6 +117,8 @@ struct ProfileView: View {
 
     @ViewBuilder
     private func profileScroll(_ profile: Profile) -> some View {
+        // Chrome lives in a top safeAreaInset so ScrollView / Map cards in any tab
+        // cannot change its position or inject extra top inset.
         ScrollView {
             tabContent
                 .id(viewModel.selectedTab)
