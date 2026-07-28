@@ -563,8 +563,8 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let parsed = rows
             .map { row in
                 let catEnum = row.category.flatMap { PopupCategory(rawValue: $0.lowercased()) } ?? .general
-                let extURL = row.external_url.flatMap { URL(string: $0) }
-                let imgURL = row.image_url.flatMap { URL(string: $0) }
+                let extURL = Popup.cleanURL(row.external_url, name: row.event_name)
+                let imgURL = row.image_url.flatMap { URL(string: $0) } ?? Popup.uniqueCoverURL(for: row.event_name, category: catEnum)
 
                 return Popup(
                     id: row.id,

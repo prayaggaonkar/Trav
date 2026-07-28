@@ -159,6 +159,7 @@ def classify_event_category(name: str, description: str = "") -> str:
 def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-122.2730) -> list:
     """Generate high-quality upcoming local events across all categories for any target city."""
     city_name = city.split(",")[0]
+    city_slug = city_name.lower().strip().replace(" ", "-")
     now = datetime.datetime.now(datetime.timezone.utc)
     
     events = [
@@ -173,7 +174,7 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "Open doubles pickleball tournament for all skill levels! Paddles available for beginners, plus cold drinks and post-match social.",
             "start_time": (now + datetime.timedelta(days=1, hours=3)).isoformat(),
             "end_time": (now + datetime.timedelta(days=1, hours=7)).isoformat(),
-            "external_url": f"https://eventbrite.com/e/{city_name.lower()}-pickleball-open-social-tickets-89217401923",
+            "external_url": f"https://eventbrite.com/e/{city_slug}-pickleball-open-social-tickets-89217401923",
             "image_url": "https://images.unsplash.com/photo-1626248801379-51a0748a5f96?w=800&q=80",
             "source": "community_sports"
         },
@@ -187,7 +188,7 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "Casual 5K sunset jog along the coastal trail followed by complimentary pour-over coffee and pastries with the crew.",
             "start_time": (now + datetime.timedelta(days=2, hours=2)).isoformat(),
             "end_time": (now + datetime.timedelta(days=2, hours=4)).isoformat(),
-            "external_url": f"https://strava.com/clubs/{city_name.lower()}-sunset-run-club/events/98412039",
+            "external_url": f"https://strava.com/clubs/{city_slug}-sunset-run-club/events/98412039",
             "image_url": "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=800&q=80",
             "source": "community_sports"
         },
@@ -203,7 +204,7 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "Outdoor live acoustic concert featuring regional indie bands, local wine tasting, and golden hour views.",
             "start_time": (now + datetime.timedelta(days=1, hours=6)).isoformat(),
             "end_time": (now + datetime.timedelta(days=1, hours=9)).isoformat(),
-            "external_url": f"https://ticketmaster.com/event/Z7r9jZ1AeG0aK8?city={city_name.lower()}",
+            "external_url": f"https://ticketmaster.com/event/Z7r9jZ1AeG0aK8?city={city_slug}",
             "image_url": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80",
             "source": "ticketmaster"
         },
@@ -217,7 +218,7 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "Rooftop electronic and indie pop live set with craft cocktails and panoramic city skyline views.",
             "start_time": (now + datetime.timedelta(days=3, hours=7)).isoformat(),
             "end_time": (now + datetime.timedelta(days=3, hours=11)).isoformat(),
-            "external_url": f"https://lu.ma/{city_name.lower()}-indie-rooftop-dj-session",
+            "external_url": f"https://lu.ma/{city_slug}-indie-rooftop-dj-session",
             "image_url": "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80",
             "source": "luma"
         },
@@ -233,7 +234,7 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "Over 25 gourmet food truck vendors, craft boba, artisan night shopping, and live street performers.",
             "start_time": (now + datetime.timedelta(days=2, hours=5)).isoformat(),
             "end_time": (now + datetime.timedelta(days=2, hours=9)).isoformat(),
-            "external_url": f"https://eventbrite.com/e/{city_name.lower()}-night-market-street-food-fest-tickets-7841920349",
+            "external_url": f"https://eventbrite.com/e/{city_slug}-night-market-street-food-fest-tickets-7841920349",
             "image_url": "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=800&q=80",
             "source": "food_fest"
         },
@@ -249,7 +250,7 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "Bring your friends or join a table solo! Hundreds of modern board games, team trivia with prizes, and local brews on tap.",
             "start_time": (now + datetime.timedelta(days=3, hours=5)).isoformat(),
             "end_time": (now + datetime.timedelta(days=3, hours=8)).isoformat(),
-            "external_url": f"https://meetup.com/{city_name.lower()}-tabletop-gaming/events/298410294/",
+            "external_url": f"https://meetup.com/{city_slug}-tabletop-gaming/events/298410294/",
             "image_url": "https://images.unsplash.com/photo-1529699211952-734e80c4d42b?w=800&q=80",
             "source": "meetup"
         },
@@ -265,7 +266,7 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "Self-guided gallery hop with open studio demonstrations, hands-on clay throwing, and live printmaking.",
             "start_time": (now + datetime.timedelta(days=4, hours=4)).isoformat(),
             "end_time": (now + datetime.timedelta(days=4, hours=8)).isoformat(),
-            "external_url": f"https://lu.ma/{city_name.lower()}-art-walk-pottery-workshop",
+            "external_url": f"https://lu.ma/{city_slug}-art-walk-pottery-workshop",
             "image_url": "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&q=80",
             "source": "luma"
         },
@@ -281,7 +282,7 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "Hilarious showcase featuring touring headliners and local comedy talent. Drink specials all night!",
             "start_time": (now + datetime.timedelta(days=2, hours=7)).isoformat(),
             "end_time": (now + datetime.timedelta(days=2, hours=9)).isoformat(),
-            "external_url": f"https://eventbrite.com/e/{city_name.lower()}-underground-comedy-tickets-6712940182",
+            "external_url": f"https://eventbrite.com/e/{city_slug}-underground-comedy-tickets-6712940182",
             "image_url": "https://images.unsplash.com/photo-1585699324551-f6c309eedeca?w=800&q=80",
             "source": "eventbrite"
         },
@@ -297,7 +298,7 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "Moderate 4-mile scenic morning hike through redwood groves with panoramic valley viewpoints.",
             "start_time": (now + datetime.timedelta(days=3, hours=1)).isoformat(),
             "end_time": (now + datetime.timedelta(days=3, hours=4)).isoformat(),
-            "external_url": f"https://alltrails.com/events/{city_name.lower()}-ridge-trail-sunrise-hike",
+            "external_url": f"https://alltrails.com/events/{city_slug}-ridge-trail-sunrise-hike",
             "image_url": "https://images.unsplash.com/photo-1551632811-561732d1e306?w=800&q=80",
             "source": "community"
         },
@@ -313,7 +314,7 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "Smash Bros, Street Fighter, and retro pinball tournament with custom trophy prizes and casual setups.",
             "start_time": (now + datetime.timedelta(days=4, hours=6)).isoformat(),
             "end_time": (now + datetime.timedelta(days=4, hours=10)).isoformat(),
-            "external_url": f"https://start.gg/tournament/{city_name.lower()}-retro-arcade-open/details",
+            "external_url": f"https://start.gg/tournament/{city_slug}-retro-arcade-open/details",
             "image_url": "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&q=80",
             "source": "community"
         },
@@ -329,7 +330,7 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "Outdoor big screen movie night under the stars! Free popcorn, beanbags, and food truck vendors.",
             "start_time": (now + datetime.timedelta(days=3, hours=6)).isoformat(),
             "end_time": (now + datetime.timedelta(days=3, hours=9)).isoformat(),
-            "external_url": f"https://eventbrite.com/e/{city_name.lower()}-rooftop-sunset-cinema-tickets-5410982341",
+            "external_url": f"https://eventbrite.com/e/{city_slug}-rooftop-sunset-cinema-tickets-5410982341",
             "image_url": "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&q=80",
             "source": "eventbrite"
         },
@@ -345,7 +346,7 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "Curated 90s vintage clothing, handmade jewelry, rare vinyl records, plant sales, and local art stalls.",
             "start_time": (now + datetime.timedelta(days=5, hours=2)).isoformat(),
             "end_time": (now + datetime.timedelta(days=5, hours=7)).isoformat(),
-            "external_url": f"https://eventbrite.com/e/{city_name.lower()}-vintage-flea-market-tickets-4321098471",
+            "external_url": f"https://eventbrite.com/e/{city_slug}-vintage-flea-market-tickets-4321098471",
             "image_url": "https://images.unsplash.com/photo-1526178613552-2b45c6c302f0?w=800&q=80",
             "source": "community"
         },
@@ -361,7 +362,7 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "3 channel wireless headphone dance party on the shore featuring house, hip-hop, and throwback 2000s jams.",
             "start_time": (now + datetime.timedelta(days=4, hours=8)).isoformat(),
             "end_time": (now + datetime.timedelta(days=4, hours=12)).isoformat(),
-            "external_url": f"https://eventbrite.com/e/{city_name.lower()}-silent-disco-beach-party-tickets-3210987456",
+            "external_url": f"https://eventbrite.com/e/{city_slug}-silent-disco-beach-party-tickets-3210987456",
             "image_url": "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80",
             "source": "eventbrite"
         }
