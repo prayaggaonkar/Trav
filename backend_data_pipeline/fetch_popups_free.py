@@ -13,8 +13,8 @@ import ssl
 # Sources: Ticketmaster Open API, Eventbrite Public Search API, Schema.org JSON-LD Feeds, Community Calendars
 
 def fetch_ticketmaster_events(city="Berkeley", state_code="CA") -> list:
-    """Fetch live public events from Ticketmaster API if valid API key is present."""
-    api_key = os.environ.get("TICKETMASTER_API_KEY")
+    """Fetch live public events from Ticketmaster API using registered API key."""
+    api_key = os.environ.get("TICKETMASTER_API_KEY", "QmX543w2EkHqth4GQIU6rQb5nVhLn9nn")
     if not api_key:
         return []
         
@@ -66,7 +66,7 @@ def fetch_ticketmaster_events(city="Berkeley", state_code="CA") -> list:
                         "latitude": lat if lat != 0 else None,
                         "longitude": lng if lng != 0 else None,
                         "category": category,
-                        "description": f"{genre.capitalized() if genre else 'Live'} event at {address_name}",
+                        "description": f"{genre.capitalize() if genre else 'Live'} event at {address_name}",
                         "start_time": start_str,
                         "external_url": ev.get("url"),
                         "image_url": img_url,
