@@ -148,25 +148,9 @@ struct FeedView: View {
                 await engagement.bootstrap(userID: userID, using: environment)
             }
             catalogCities = (try? await environment.cities.fetchGlobeCities()) ?? []
-            let cityLabel = router.selectedFeedCity?.name
 
-            // 1. Load feed and popups immediately (instant response)
-            await viewModel.loadIfNeeded(
-                using: environment,
-                city: cityLabel
-            )
-
-            // 2. Refine with device GPS coordinates as soon as location resolves
-            Task {
-                if let userCoord = await cityLocator.requestLocationCoordinate() {
-                    await viewModel.load(
-                        using: environment,
-                        latitude: userCoord.latitude,
-                        longitude: userCoord.longitude,
-                        city: cityLabel
-                    )
-                }
-            }
+            // Load feed and popups for active app location
+            await reloadPopupsForActiveAppLocation()
         }
         .onChange(of: searchText) { _, newValue in
             router.feedKeyword = newValue
@@ -179,24 +163,9 @@ struct FeedView: View {
             userSearchResults = []
             spotSearchController.clear()
         }
-        .onChange(of: router.selectedFeedCity) { _, newCity in
+        .onChange(of: router.selectedFeedCity) { _, _ in
             Task {
-                if let newCity = newCity {
-                    await viewModel.load(
-                        using: environment,
-                        latitude: newCity.latitude,
-                        longitude: newCity.longitude,
-                        city: newCity.name
-                    )
-                } else if let userCoord = await cityLocator.requestLocationCoordinate() {
-                    let cityLabel = await cityLocator.requestCityLabel()
-                    await viewModel.load(
-                        using: environment,
-                        latitude: userCoord.latitude,
-                        longitude: userCoord.longitude,
-                        city: cityLabel
-                    )
-                }
+                await reloadPopupsForActiveAppLocation()
             }
         }
         .onChange(of: isActive) { _, active in
@@ -369,25 +338,7 @@ struct FeedView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .refreshable {
-            let cityLabel = router.selectedFeedCity?.name
-            if let userCoord = await cityLocator.requestLocationCoordinate() {
-                let resolvedCity = await cityLocator.requestCityLabel() ?? cityLabel
-                await viewModel.load(
-                    using: environment,
-                    latitude: userCoord.latitude,
-                    longitude: userCoord.longitude,
-                    city: resolvedCity
-                )
-            } else if let city = router.selectedFeedCity {
-                await viewModel.load(
-                    using: environment,
-                    latitude: city.latitude,
-                    longitude: city.longitude,
-                    city: city.name
-                )
-            } else {
-                await viewModel.load(using: environment)
-            }
+            await reloadPopupsForActiveAppLocation()
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 8).onChanged { _ in
@@ -440,6 +391,29 @@ struct FeedView: View {
         return viewModel.popups.filter {
             $0.name.localizedCaseInsensitiveContains(keyword)
                 || $0.address.localizedCaseInsensitiveContains(keyword)
+        }
+    }
+
+    private func reloadPopupsForActiveAppLocation() async {
+        if let selectedCity = router.selectedFeedCity {
+            // Priority 1: User put/selected a location in the app!
+            await viewModel.load(
+                using: environment,
+                latitude: selectedCity.latitude,
+                longitude: selectedCity.longitude,
+                city: selectedCity.name
+            )
+        } else if let userCoord = await cityLocator.requestLocationCoordinate() {
+            // Priority 2: Fallback to device GPS when no city is selected in the app
+            let cityLabel = await cityLocator.requestCityLabel()
+            await viewModel.load(
+                using: environment,
+                latitude: userCoord.latitude,
+                longitude: userCoord.longitude,
+                city: cityLabel
+            )
+        } else {
+            await viewModel.load(using: environment)
         }
     }
 
