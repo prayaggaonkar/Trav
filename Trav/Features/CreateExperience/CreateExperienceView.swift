@@ -360,7 +360,7 @@ struct CreateExperienceView: View {
                         Text("Add Media")
                             .font(TravTypography.labelMedium())
                             .foregroundStyle(TravColors.primary)
-                        Text("Upload photos of your experience")
+                        Text("At least 1 photo required")
                             .font(TravTypography.caption())
                             .foregroundStyle(TravColors.muted)
                     }
@@ -527,12 +527,14 @@ struct CreateExperienceView: View {
     private var canPublish: Bool {
         !title.trimmingCharacters(in: .whitespaces).isEmpty
             && !stops.isEmpty
+            && !selectedImagesData.isEmpty
             && !isSubmitting
     }
 
     private var validationHint: String? {
         if title.trimmingCharacters(in: .whitespaces).isEmpty { return "Add a title to publish." }
         if stops.isEmpty { return "Add at least one stop to publish." }
+        if selectedImagesData.isEmpty { return "Add at least one photo to publish." }
         return nil
     }
 
@@ -553,6 +555,12 @@ struct CreateExperienceView: View {
     }
 
     private func submit() {
+        guard !selectedImagesData.isEmpty else {
+            errorMessage = "Add at least one photo to publish."
+            showErrorAlert = true
+            return
+        }
+
         isSubmitting = true
         errorMessage = nil
 
