@@ -209,23 +209,40 @@ def insert_popups_to_supabase(events: list):
         # Parse and sanitize timestamps
         start_time = clean_and_parse_iso8601(event.get("start_time"))
         end_time = clean_and_parse_iso8601(event.get("end_time"))
+
+        city = event.get("city", "Berkeley, CA")
+        category = event.get("category", "general")
+        lat = event.get("latitude")
+        lng = event.get("longitude")
+        description = event.get("description")
+        external_url = event.get("external_url")
+        image_url = event.get("image_url")
+        source = event.get("source", "community")
         
         row = {
             "event_name": name_clean,
             "address": address,
+            "city": city,
+            "latitude": lat,
+            "longitude": lng,
+            "category": category,
+            "description": description,
             "start_time": start_time,
-            "end_time": end_time
+            "end_time": end_time,
+            "external_url": external_url,
+            "image_url": image_url,
+            "source": source
         }
         
         try:
-            print(f"Writing to database: {name_clean} at {address} (Time: {start_time or 'N/A'})")
-            supabase.table("popups").insert(row).execute()
+            print(f"Writing to database: [{category.upper()}] {name_clean} at {address} (City: {city})")
+            supabase.table("popups").upsert(row, on_conflict="event_name,start_time").execute()
             existing_names.add(name_clean.lower()) # Prevent duplicate inserts within the same batch
             inserted_count += 1
         except Exception as e:
             print(f"Database insert error for '{name_clean}': {e}")
             
-    print(f"Database sync complete. Total pop-up events added: {inserted_count}")
+    print(f"Database sync complete. Total pop-up events updated: {inserted_count}")
 
 async def main():
     # Load env variables from .env

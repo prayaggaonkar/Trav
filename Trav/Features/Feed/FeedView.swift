@@ -78,6 +78,7 @@ struct FeedView: View {
 
     // Spot Search & Rating
     @State private var spotSearchController = SpotSearchController()
+    @State private var cityLocator = CurrentCityLocator()
     @State private var selectedSpotDetail: SpotSuggestion? = nil
 
     // Quick Planner state
@@ -147,7 +148,14 @@ struct FeedView: View {
                 await engagement.bootstrap(userID: userID, using: environment)
             }
             catalogCities = (try? await environment.cities.fetchGlobeCities()) ?? []
-            await viewModel.loadIfNeeded(using: environment)
+            let userCoord = await cityLocator.requestLocationCoordinate()
+            let cityLabel = router.selectedFeedCity?.name
+            await viewModel.loadIfNeeded(
+                using: environment,
+                latitude: userCoord?.latitude,
+                longitude: userCoord?.longitude,
+                city: cityLabel
+            )
         }
         .onChange(of: searchText) { _, newValue in
             router.feedKeyword = newValue
@@ -924,9 +932,13 @@ private struct PopupStoryCard: View {
         return Calendar.current.isDateInToday(start)
     }
 
+    private var displayImageURL: URL? {
+        popup.imageURL ?? popupImage(for: popup.name)
+    }
+
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            if let coverURL = popupImage(for: popup.name) {
+            if let coverURL = displayImageURL {
                 RemoteImage(url: coverURL, height: 160, cornerRadius: cornerRadius)
             } else {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -941,19 +953,27 @@ private struct PopupStoryCard: View {
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
 
             VStack {
-                HStack {
-                    Text(isToday ? "TODAY" : "SOON")
-                        .font(.system(size: 8, weight: .black, design: .rounded))
+                HStack(spacing: 4) {
+                    Text("\(popup.category.emoji) \(popup.category.displayName.uppercased())")
+                        .font(.system(size: 7, weight: .black, design: .rounded))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
+                        .padding(.horizontal, 5)
                         .padding(.vertical, 3)
                         .background(
                             Capsule()
-                                .fill(isToday ? Color.red : TravColors.accent)
+                                .fill(popup.category.badgeColor)
                         )
-                        .padding(8)
                     Spacer()
+                    if isToday {
+                        Text("TODAY")
+                            .font(.system(size: 7, weight: .black, design: .rounded))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.red))
+                    }
                 }
+                .padding(6)
                 Spacer()
             }
 
@@ -964,14 +984,23 @@ private struct PopupStoryCard: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
-                Text(popup.startTimeLabel)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.8))
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(popup.startTimeLabel)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(1)
+
+                    if let dist = popup.distanceLabel {
+                        Text("• \(dist)")
+                            .font(.system(size: 8, weight: .medium))
+                            .foregroundStyle(TravColors.accent)
+                            .lineLimit(1)
+                    }
+                }
             }
             .padding([.horizontal, .bottom], 8)
         }
-        .frame(width: 110, height: 160)
+        .frame(width: 120, height: 160)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .shadow(color: Color.black.opacity(0.06), radius: 6, y: 3)
     }
@@ -983,14 +1012,41 @@ private struct PopupDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var shareItem: ShareItem?
 
+    private var displayImageURL: URL? {
+        popup.imageURL ?? popupImage(for: popup.name)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-            if let coverURL = popupImage(for: popup.name) {
+            if let coverURL = displayImageURL {
                 RemoteImage(url: coverURL, height: 180, cornerRadius: TravRadius.lg)
                     .frame(maxWidth: .infinity)
             }
 
             VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                HStack {
+                    HStack(spacing: 4) {
+                        Text(popup.category.emoji)
+                        Text(popup.category.displayName)
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(popup.category.badgeColor))
+
+                    if let distance = popup.distanceLabel {
+                        Text(distance)
+                            .font(TravTypography.caption())
+                            .foregroundStyle(TravColors.accent)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(TravColors.surfaceElevated))
+                    }
+
+                    Spacer()
+                }
+
                 Text(popup.name)
                     .font(TravTypography.titleLarge())
                     .foregroundStyle(TravColors.primary)
@@ -1002,29 +1058,47 @@ private struct PopupDetailSheet: View {
                 Label(popup.address, systemImage: "mappin.and.ellipse")
                     .font(TravTypography.bodyMedium())
                     .foregroundStyle(TravColors.muted)
+
+                if let desc = popup.description, !desc.isEmpty {
+                    Text(desc)
+                        .font(TravTypography.bodyMedium())
+                        .foregroundStyle(TravColors.primary.opacity(0.9))
+                        .padding(.top, TravSpacing.xs)
+                }
             }
 
             Spacer()
 
             HStack(spacing: TravSpacing.sm) {
+                if let extURL = popup.externalURL {
+                    Link(destination: extURL) {
+                        Label("View Event", systemImage: "safari.fill")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(TravColors.accent)
+                            .foregroundStyle(.black)
+                            .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                    }
+                }
+
                 Button {
                     openInMaps()
                 } label: {
-                    Label("Directions", systemImage: "arrow.triangle.turn.up.right.circle.fill")
+                    Label(popup.externalURL == nil ? "Directions" : "Map", systemImage: "arrow.triangle.turn.up.right.circle.fill")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(TravColors.accent)
-                        .foregroundStyle(.black)
+                        .background(popup.externalURL == nil ? TravColors.accent : TravColors.surfaceElevated)
+                        .foregroundStyle(popup.externalURL == nil ? .black : TravColors.primary)
                         .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
                 }
                 .buttonStyle(.plain)
 
                 Button {
                     shareItem = ShareItem(
-                        message: "\(popup.name) — \(popup.startTimeLabel) at \(popup.address)",
-                        url: URL(string: "https://maps.apple.com/?q=\(popup.address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")")
-                            ?? URL(string: "https://maps.apple.com")!
+                        message: "\(popup.name) (\(popup.category.displayName)) — \(popup.startTimeLabel) at \(popup.address)",
+                        url: popup.externalURL ?? URL(string: "https://maps.apple.com/?q=\(popup.address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")")!
                     )
                 } label: {
                     Image(systemName: "square.and.arrow.up")

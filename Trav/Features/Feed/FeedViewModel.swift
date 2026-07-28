@@ -33,17 +33,27 @@ final class FeedViewModel {
         hasMoreExperiences || hasMorePlaces
     }
 
-    func loadIfNeeded(using environment: AppEnvironment) async {
+    func loadIfNeeded(
+        using environment: AppEnvironment,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        city: String? = nil
+    ) async {
         guard phase == .idle else { return }
-        await load(using: environment)
+        await load(using: environment, latitude: latitude, longitude: longitude, city: city)
     }
 
-    func load(using environment: AppEnvironment) async {
+    func load(
+        using environment: AppEnvironment,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        city: String? = nil
+    ) async {
         phase = .loading
 
         async let experiencesResult = fetchExperiencesPage(0, using: environment)
         async let placesResult = fetchPlacesPage(0, using: environment)
-        async let popupsResult = fetchPopupsQuietly(using: environment)
+        async let popupsResult = fetchPopupsQuietly(using: environment, latitude: latitude, longitude: longitude, city: city)
 
         let exp = await experiencesResult
         let pla = await placesResult
@@ -126,9 +136,18 @@ final class FeedViewModel {
         }
     }
 
-    private func fetchPopupsQuietly(using environment: AppEnvironment) async -> [Popup] {
+    private func fetchPopupsQuietly(
+        using environment: AppEnvironment,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        city: String? = nil
+    ) async -> [Popup] {
         do {
-            return try await environment.experiences.fetchPopups()
+            return try await environment.experiences.fetchPopups(
+                latitude: latitude,
+                longitude: longitude,
+                city: city
+            )
         } catch {
             TravLog.network.error("fetchPopups failed: \(error.localizedDescription, privacy: .public)")
             return []

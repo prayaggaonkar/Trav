@@ -43,8 +43,97 @@ struct MockExperienceRepository: ExperienceRepository {
         Paginated(items: [], page: page, hasMore: false)
     }
 
-    func fetchPopups() async throws -> [Popup] {
-        []
+    func fetchPopups(
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        city: String? = nil
+    ) async throws -> [Popup] {
+        let targetCity = city ?? "Berkeley, CA"
+        let cityShort = targetCity.components(separatedBy: ",").first ?? "Local"
+        let now = Date()
+        let todayEvening = Calendar.current.date(bySettingHour: 18, minute: 30, second: 0, of: now)
+        let tomorrowAfternoon = Calendar.current.date(byAdding: .day, value: 1, to: now).flatMap {
+            Calendar.current.date(bySettingHour: 14, minute: 0, second: 0, of: $0)
+        }
+        let day2Evening = Calendar.current.date(byAdding: .day, value: 2, to: now).flatMap {
+            Calendar.current.date(bySettingHour: 19, minute: 0, second: 0, of: $0)
+        }
+        let day3Morning = Calendar.current.date(byAdding: .day, value: 3, to: now).flatMap {
+            Calendar.current.date(bySettingHour: 10, minute: 30, second: 0, of: $0)
+        }
+
+        return [
+            Popup(
+                name: "\(cityShort) Pickleball Open & Social",
+                address: "Community Courts, \(targetCity)",
+                city: targetCity,
+                latitude: (latitude ?? 37.8715) + 0.005,
+                longitude: (longitude ?? -122.2730) - 0.003,
+                category: .sports,
+                description: "Doubles tournament open to all skill levels! Grab a paddle, bring friends, and enjoy post-game refreshments.",
+                startTime: tomorrowAfternoon,
+                externalURL: URL(string: "https://eventbrite.com"),
+                imageURL: URL(string: "https://images.unsplash.com/photo-1626248801379-51a0748a5f96?w=800&q=80"),
+                source: "community",
+                distanceMiles: 1.2
+            ),
+            Popup(
+                name: "Sunset Live Acoustic Sessions",
+                address: "Amphitheater Plaza, \(targetCity)",
+                city: targetCity,
+                latitude: (latitude ?? 37.8715) - 0.004,
+                longitude: (longitude ?? -122.2730) + 0.006,
+                category: .music,
+                description: "Outdoor acoustic concert featuring regional indie bands, food trucks, and sunset views.",
+                startTime: todayEvening,
+                externalURL: URL(string: "https://ticketmaster.com"),
+                imageURL: URL(string: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80"),
+                source: "ticketmaster",
+                distanceMiles: 0.8
+            ),
+            Popup(
+                name: "\(cityShort) Night Market & Street Food Rally",
+                address: "Main St Promenade, \(targetCity)",
+                city: targetCity,
+                latitude: (latitude ?? 37.8715) + 0.002,
+                longitude: (longitude ?? -122.2730) + 0.002,
+                category: .food,
+                description: "Over 20 local food trucks, craft boba, live DJ sets, and night market vendors.",
+                startTime: day2Evening,
+                externalURL: URL(string: "https://eventbrite.com"),
+                imageURL: URL(string: "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=800&q=80"),
+                source: "eventbrite",
+                distanceMiles: 2.1
+            ),
+            Popup(
+                name: "Board Games, Craft Beer & Trivia Night",
+                address: "Corner Taproom, \(targetCity)",
+                city: targetCity,
+                latitude: (latitude ?? 37.8715) - 0.008,
+                longitude: (longitude ?? -122.2730) - 0.004,
+                category: .meetups,
+                description: "Bring friends or play solo! Hundreds of board games, team trivia with prizes, and local brews on tap.",
+                startTime: day2Evening,
+                externalURL: URL(string: "https://meetup.com"),
+                imageURL: URL(string: "https://images.unsplash.com/photo-1529699211952-734e80c4d42b?w=800&q=80"),
+                source: "meetup",
+                distanceMiles: 1.5
+            ),
+            Popup(
+                name: "\(cityShort) Morning Run Club & Coffee Social",
+                address: "Town Square Fountain, \(targetCity)",
+                city: targetCity,
+                latitude: (latitude ?? 37.8715) + 0.010,
+                longitude: (longitude ?? -122.2730) - 0.007,
+                category: .sports,
+                description: "Easy 3-mile casual jog followed by complimentary pour-over coffee and pastries with the crew.",
+                startTime: day3Morning,
+                externalURL: URL(string: "https://strava.com"),
+                imageURL: URL(string: "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=800&q=80"),
+                source: "community",
+                distanceMiles: 3.0
+            )
+        ]
     }
 
     func publishExperience(_ draft: ExperienceDraft) async throws {

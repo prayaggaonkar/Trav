@@ -478,17 +478,28 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         return Paginated(items: items, page: page, hasMore: places.count == Self.pageSize)
     }
 
-    func fetchPopups() async throws -> [Popup] {
+    func fetchPopups(
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        city: String? = nil
+    ) async throws -> [Popup] {
         let client = try client
 
-        // Timestamps are ingested by the pipeline in inconsistent formats, so
-        // decode as strings and parse leniently.
         struct DBPopup: Decodable {
             let id: UUID
             let event_name: String
             let address: String?
+            let city: String?
+            let latitude: Double?
+            let longitude: Double?
+            let category: String?
+            let description: String?
             let start_time: String?
             let end_time: String?
+            let external_url: String?
+            let image_url: String?
+            let source: String?
+            let distance_miles: Double?
         }
 
         func parseDate(_ raw: String?) -> Date? {
@@ -507,34 +518,69 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             return nil
         }
 
-        let rows: [DBPopup]
+        let userLat = latitude ?? 37.8715
+        let userLng = longitude ?? -122.2730
+        let targetCity = city ?? "Berkeley, CA"
+
+        var rows: [DBPopup] = []
+
+        // 1. Try RPC function fetch_popups_near
         do {
+            struct RPCParams: Encodable {
+                let user_lat: Double
+                let user_lng: Double
+                let radius_miles: Double
+                let limit_count: Int
+            }
             rows = try await client
-                .from("popups")
-                .select("id, event_name, address, start_time, end_time")
-                .order("start_time", ascending: true)
-                .limit(50)
+                .rpc(
+                    "fetch_popups_near",
+                    params: RPCParams(
+                        user_lat: userLat,
+                        user_lng: userLng,
+                        radius_miles: 50.0,
+                        limit_count: 50
+                    )
+                )
                 .execute()
                 .value
         } catch {
-            rows = try await client
-                .from("popups")
-                .select("id, event_name, address, start_time, end_time")
-                .limit(50)
-                .execute()
-                .value
+            // 2. Fallback to direct table query
+            do {
+                rows = try await client
+                    .from("popups")
+                    .select("id, event_name, address, city, latitude, longitude, category, description, start_time, end_time, external_url, image_url, source")
+                    .order("start_time", ascending: true)
+                    .limit(50)
+                    .execute()
+                    .value
+            } catch {
+                rows = []
+            }
         }
 
-        // Keep recent + upcoming events so preexisting popups still appear.
         let cutoff = Calendar.current.date(byAdding: .day, value: -14, to: Date()) ?? Date.distantPast
         return rows
-            .map {
-                Popup(
-                    id: $0.id,
-                    name: $0.event_name,
-                    address: $0.address ?? "Berkeley, CA",
-                    startTime: parseDate($0.start_time),
-                    endTime: parseDate($0.end_time)
+            .map { row in
+                let catEnum = row.category.flatMap { PopupCategory(rawValue: $0.lowercased()) } ?? .general
+                let extURL = row.external_url.flatMap { URL(string: $0) }
+                let imgURL = row.image_url.flatMap { URL(string: $0) }
+
+                return Popup(
+                    id: row.id,
+                    name: row.event_name,
+                    address: row.address ?? row.city ?? "Berkeley, CA",
+                    city: row.city ?? targetCity,
+                    latitude: row.latitude,
+                    longitude: row.longitude,
+                    category: catEnum,
+                    description: row.description,
+                    startTime: parseDate(row.start_time),
+                    endTime: parseDate(row.end_time),
+                    externalURL: extURL,
+                    imageURL: imgURL,
+                    source: row.source,
+                    distanceMiles: row.distance_miles
                 )
             }
             .filter { popup in
