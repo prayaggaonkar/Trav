@@ -148,14 +148,25 @@ struct FeedView: View {
                 await engagement.bootstrap(userID: userID, using: environment)
             }
             catalogCities = (try? await environment.cities.fetchGlobeCities()) ?? []
-            let userCoord = await cityLocator.requestLocationCoordinate()
             let cityLabel = router.selectedFeedCity?.name
+
+            // 1. Load feed and popups immediately (instant response)
             await viewModel.loadIfNeeded(
                 using: environment,
-                latitude: userCoord?.latitude,
-                longitude: userCoord?.longitude,
                 city: cityLabel
             )
+
+            // 2. Refine with device GPS coordinates as soon as location resolves
+            Task {
+                if let userCoord = await cityLocator.requestLocationCoordinate() {
+                    await viewModel.load(
+                        using: environment,
+                        latitude: userCoord.latitude,
+                        longitude: userCoord.longitude,
+                        city: cityLabel
+                    )
+                }
+            }
         }
         .onChange(of: searchText) { _, newValue in
             router.feedKeyword = newValue
