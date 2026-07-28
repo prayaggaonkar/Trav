@@ -179,6 +179,26 @@ struct FeedView: View {
             userSearchResults = []
             spotSearchController.clear()
         }
+        .onChange(of: router.selectedFeedCity) { _, newCity in
+            Task {
+                if let newCity = newCity {
+                    await viewModel.load(
+                        using: environment,
+                        latitude: newCity.latitude,
+                        longitude: newCity.longitude,
+                        city: newCity.name
+                    )
+                } else if let userCoord = await cityLocator.requestLocationCoordinate() {
+                    let cityLabel = await cityLocator.requestCityLabel()
+                    await viewModel.load(
+                        using: environment,
+                        latitude: userCoord.latitude,
+                        longitude: userCoord.longitude,
+                        city: cityLabel
+                    )
+                }
+            }
+        }
         .onChange(of: isActive) { _, active in
             // Leaving Feed for another tab clears tags; opening an experience keeps them.
             guard !active else { return }
@@ -349,7 +369,25 @@ struct FeedView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .refreshable {
-            await viewModel.load(using: environment)
+            let cityLabel = router.selectedFeedCity?.name
+            if let userCoord = await cityLocator.requestLocationCoordinate() {
+                let resolvedCity = await cityLocator.requestCityLabel() ?? cityLabel
+                await viewModel.load(
+                    using: environment,
+                    latitude: userCoord.latitude,
+                    longitude: userCoord.longitude,
+                    city: resolvedCity
+                )
+            } else if let city = router.selectedFeedCity {
+                await viewModel.load(
+                    using: environment,
+                    latitude: city.latitude,
+                    longitude: city.longitude,
+                    city: city.name
+                )
+            } else {
+                await viewModel.load(using: environment)
+            }
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 8).onChanged { _ in

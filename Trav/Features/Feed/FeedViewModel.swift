@@ -43,17 +43,29 @@ final class FeedViewModel {
         await load(using: environment, latitude: latitude, longitude: longitude, city: city)
     }
 
+    private var cachedLat: Double?
+    private var cachedLng: Double?
+    private var cachedCity: String?
+
     func load(
         using environment: AppEnvironment,
         latitude: Double? = nil,
         longitude: Double? = nil,
         city: String? = nil
     ) async {
+        if let latitude { cachedLat = latitude }
+        if let longitude { cachedLng = longitude }
+        if let city { cachedCity = city }
+
+        let targetLat = latitude ?? cachedLat
+        let targetLng = longitude ?? cachedLng
+        let targetCity = city ?? cachedCity
+
         phase = .loading
 
         async let experiencesResult = fetchExperiencesPage(0, using: environment)
         async let placesResult = fetchPlacesPage(0, using: environment)
-        async let popupsResult = fetchPopupsQuietly(using: environment, latitude: latitude, longitude: longitude, city: city)
+        async let popupsResult = fetchPopupsQuietly(using: environment, latitude: targetLat, longitude: targetLng, city: targetCity)
 
         let exp = await experiencesResult
         let pla = await placesResult
