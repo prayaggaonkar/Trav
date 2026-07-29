@@ -767,11 +767,13 @@ struct InAppInteractiveMapView: View {
                         // Transport Info Badge
                         if coordinates.count >= 2 {
                             let travelMins = mapKitTravelTimeMinutes ?? routeInfo.estimatedTravelTimeMinutes
-                            let travelTimeStr = travelMins >= 60 ? TravFormatters.duration(travelMins) : "\(travelMins) min"
+                            let travelLabel = mapKitTravelTimeMinutes != nil
+                                ? "\(travelMins >= 60 ? TravFormatters.duration(travelMins) : "\(travelMins) min") · \(routeInfo.modeName)"
+                                : routeInfo.timeAndModeLabel
                             HStack(spacing: 5) {
                                 Image(systemName: routeInfo.iconName)
                                     .font(.system(size: 11, weight: .bold))
-                                Text("\(travelTimeStr) \(routeInfo.isDriving ? "drive" : "walk")")
+                                Text(travelLabel)
                                     .font(.system(size: 12, weight: .bold, design: .rounded))
                             }
                             .foregroundStyle(.white)
@@ -947,10 +949,13 @@ struct InAppInteractiveMapView: View {
         for i in 0..<(resolvedStops.count - 1) {
             let src = resolvedStops[i]
             let dst = resolvedStops[i + 1]
+            let start = CLLocationCoordinate2D(latitude: src.latitude, longitude: src.longitude)
+            let end = CLLocationCoordinate2D(latitude: dst.latitude, longitude: dst.longitude)
+            let distance = RouteTravelCalculator.segmentDistanceMeters(from: start, to: end)
             let request = MKDirections.Request()
-            request.source = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: src.latitude, longitude: src.longitude)))
-            request.destination = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: dst.latitude, longitude: dst.longitude)))
-            request.transportType = routeInfo.isDriving ? .automobile : .walking
+            request.source = MKMapItem(placemark: MKPlacemark(coordinate: start))
+            request.destination = MKMapItem(placemark: MKPlacemark(coordinate: end))
+            request.transportType = RouteTravelCalculator.isDrivingSegment(distanceMeters: distance) ? .automobile : .walking
 
             if let response = try? await MKDirections(request: request).calculate(),
                let route = response.routes.first {

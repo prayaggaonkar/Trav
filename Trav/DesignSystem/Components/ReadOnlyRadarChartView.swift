@@ -157,16 +157,6 @@ struct ReadOnlyRadarChartView: View {
 
     private var headerView: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("RATING OVERVIEW")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .tracking(1.5)
-                    .foregroundStyle(TravColors.accent)
-                Text("Overall Rating")
-                    .font(TravTypography.titleMedium())
-                    .foregroundStyle(TravColors.primary)
-            }
-
             Spacer()
 
             HStack(spacing: 6) {
