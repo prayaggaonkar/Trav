@@ -331,9 +331,11 @@ struct SwipeToUnsaveRow<Content: View>: View {
                 .frame(width: actionWidth)
                 .frame(maxHeight: .infinity)
                 .background(TravColors.error)
-                .contentShape(Rectangle())
+                .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
             }
             .buttonStyle(.plain)
+            .padding(.vertical, TravSpacing.xs)
             .opacity(offset < -4 ? 1 : 0)
             .accessibilityLabel("Unsave experience")
 

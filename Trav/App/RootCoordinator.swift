@@ -92,7 +92,7 @@ struct RootCoordinator: View {
             if retainedTabs.contains(.create) {
                 tabPane(.create) {
                     if session.isAuthenticated {
-                        CreateExperienceView()
+                        CreateExperienceView(isActive: activeTab == .create)
                             .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
                     } else {
                         UnauthenticatedPlaceholderView(

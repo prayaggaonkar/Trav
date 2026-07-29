@@ -176,6 +176,10 @@ struct FeedView: View {
                 await reloadPopupsForActiveAppLocation()
             }
         }
+        .task(id: router.experienceCatalogRevision) {
+            guard router.experienceCatalogRevision > 0 else { return }
+            await reloadPopupsForActiveAppLocation()
+        }
         .onChange(of: isActive) { _, active in
             // Leaving Feed for another tab clears tags; opening an experience keeps them.
             guard !active else { return }

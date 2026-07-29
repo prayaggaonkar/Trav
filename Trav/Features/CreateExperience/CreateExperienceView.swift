@@ -41,6 +41,9 @@ struct CreateExperienceView: View {
     @Environment(SessionStore.self) private var session
     @Environment(AppRouter.self) private var router
 
+    /// When false (user left the Create tab), clear any success screen so the form is ready next time.
+    var isActive: Bool = true
+
     @State private var title = ""
     @State private var descriptionText = ""
     @State private var selectedItems: [PhotosPickerItem] = []
@@ -86,6 +89,11 @@ struct CreateExperienceView: View {
             .onAppear {
                 restoreDraftIfNeeded()
                 applyPendingSpotIfNeeded()
+            }
+            .onChange(of: isActive) { _, active in
+                if !active, showSuccess {
+                    resetForm()
+                }
             }
             .onChange(of: router.pendingCreateSpot) { _, _ in
                 applyPendingSpotIfNeeded()
@@ -591,6 +599,12 @@ struct CreateExperienceView: View {
                         showSuccess = true
                     }
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    if var user = session.currentUser {
+                        user.experienceCount += 1
+                        session.currentUser = user
+                        environment.engagement.cache(user)
+                    }
+                    router.noteExperiencePublished()
                 }
             } catch {
                 await MainActor.run {

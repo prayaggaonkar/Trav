@@ -88,6 +88,8 @@ final class AppRouter {
     private(set) var feedNavigationToken: UInt = 0
     /// Bumped whenever the Explore tab becomes active so the globe can reset framing.
     private(set) var exploreActivationToken: UInt = 0
+    /// Bumped after an experience is published so Feed / Profile can reload without a restart.
+    private(set) var experienceCatalogRevision: UInt = 0
 
     func openCreateWithSpot(title: String, subtitle: String, emoji: String, latitude: Double?, longitude: Double?, cityName: String?) {
         pendingCreateSpot = PrefilledSpot(
@@ -143,6 +145,10 @@ final class AppRouter {
 
     func noteExploreActivated() {
         exploreActivationToken &+= 1
+    }
+
+    func noteExperiencePublished() {
+        experienceCatalogRevision &+= 1
     }
 
     func openExperience(_ experienceID: UUID) {

@@ -78,31 +78,13 @@ struct EditProfileView: View {
                     }
                 }
                 .padding(.horizontal, TravSpacing.screenHorizontal)
-                .padding(.top, TravSpacing.lg)
+                .padding(.top, TravSpacing.md)
                 .padding(.bottom, TravSpacing.xxl)
             }
             .travScreenBackground()
-            .navigationTitle("Edit Profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .foregroundStyle(TravColors.muted)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        Task { await save() }
-                    } label: {
-                        if isSaving {
-                            ProgressView()
-                        } else {
-                            Text("Save")
-                                .fontWeight(.semibold)
-                        }
-                    }
-                    .disabled(!canSave)
-                    .foregroundStyle(canSave ? TravColors.accent : TravColors.muted)
-                }
+            .navigationBarHidden(true)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                editProfileTopBar
             }
         }
         .presentationDetents([.large])
@@ -112,6 +94,90 @@ struct EditProfileView: View {
         .onChange(of: avatarItem) { _, newItem in
             Task { await loadAvatar(from: newItem) }
         }
+    }
+
+    private var editProfileTopBar: some View {
+        HStack(spacing: 0) {
+            editProfileCancelButton
+                .frame(minWidth: 88, alignment: .leading)
+
+            Spacer(minLength: TravSpacing.sm)
+
+            Text("Edit Profile")
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(TravColors.primary)
+                .lineLimit(1)
+
+            Spacer(minLength: TravSpacing.sm)
+
+            editProfileDoneButton
+                .frame(minWidth: 88, alignment: .trailing)
+        }
+        .padding(.horizontal, TravSpacing.screenHorizontal)
+        .padding(.vertical, TravSpacing.xs)
+        .background(TravColors.surface)
+    }
+
+    private var editProfileCancelButton: some View {
+        Button {
+            dismiss()
+        } label: {
+            Text("Cancel")
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundStyle(hasChanges ? TravColors.error : TravColors.primary)
+                .lineLimit(1)
+                .padding(.horizontal, 14)
+                .frame(height: 32)
+                .background(
+                    hasChanges
+                        ? TravColors.error.opacity(0.14)
+                        : TravColors.surfaceElevated
+                )
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(
+                        hasChanges
+                            ? TravColors.error.opacity(0.55)
+                            : TravColors.border.opacity(0.7),
+                        lineWidth: 1
+                    )
+                )
+        }
+        .buttonStyle(TravPressButtonStyle(scale: 0.96))
+        .accessibilityLabel("Cancel")
+    }
+
+    private var editProfileDoneButton: some View {
+        Button {
+            Task { await save() }
+        } label: {
+            Group {
+                if isSaving {
+                    ProgressView()
+                        .tint(.white)
+                        .scaleEffect(0.85)
+                } else {
+                    Text("Done")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                }
+            }
+            .foregroundStyle(canSave ? Color.white : TravColors.muted)
+            .padding(.horizontal, 16)
+            .frame(height: 32)
+            .background(canSave ? TravColors.accent : TravColors.surfaceElevated)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule().stroke(
+                    canSave ? Color.clear : TravColors.border.opacity(0.55),
+                    lineWidth: 1
+                )
+            )
+            .opacity(canSave || isSaving ? 1 : 0.55)
+        }
+        .disabled(!canSave || isSaving)
+        .buttonStyle(TravPressButtonStyle(scale: 0.96))
+        .accessibilityLabel("Done")
     }
 
     private var avatarSection: some View {
@@ -170,7 +236,7 @@ struct EditProfileView: View {
             VStack(alignment: .leading, spacing: TravSpacing.xxs) {
                 TravTextField(
                     title: "Username",
-                    placeholder: "username",
+                    placeholder: "Username",
                     text: $username,
                     contentType: .username,
                     keyboardType: .asciiCapable
@@ -184,7 +250,7 @@ struct EditProfileView: View {
 
             TravTextField(
                 title: "Bio",
-                placeholder: "Tell people what you explore",
+                placeholder: "Tell people about yourself",
                 text: $bio,
                 axis: .vertical
             )

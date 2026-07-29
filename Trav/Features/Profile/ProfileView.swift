@@ -111,6 +111,10 @@ struct ProfileView: View {
         .task(id: engagement.revision) {
             await viewModel.syncWithEngagement(engagement, environment: environment)
         }
+        .task(id: router.experienceCatalogRevision) {
+            guard router.experienceCatalogRevision > 0, isOwnProfile else { return }
+            await viewModel.refresh(using: environment)
+        }
     }
 
     // MARK: - Content
@@ -139,23 +143,24 @@ struct ProfileView: View {
 
     @ViewBuilder
     private func profileChrome(_ profile: Profile) -> some View {
-        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+        VStack(alignment: .leading, spacing: TravSpacing.xs) {
             if isOwnProfile {
                 HStack {
                     Spacer(minLength: 0)
                     profileMenu
                 }
                 .padding(.horizontal, TravSpacing.screenHorizontal)
-                .padding(.top, TravSpacing.xs)
-                .frame(height: 32, alignment: .center)
+                .padding(.top, TravSpacing.xxs)
+                .frame(height: 28, alignment: .center)
             }
 
             passportHeaderCard(profile)
                 .padding(.horizontal, TravSpacing.screenHorizontal)
-                .padding(.top, isOwnProfile ? 0 : TravSpacing.xs)
+                .padding(.top, isOwnProfile ? TravSpacing.sm : TravSpacing.md)
 
             actionRow(profile)
                 .padding(.horizontal, TravSpacing.screenHorizontal)
+                .padding(.top, TravSpacing.sm)
 
             if isOwnProfile, viewModel.isSuggestionsExpanded {
                 SuggestedUsersSection(
@@ -208,74 +213,76 @@ struct ProfileView: View {
 
     @ViewBuilder
     private func passportHeaderCard(_ profile: Profile) -> some View {
-        VStack(spacing: TravSpacing.xs + 2) {
-            // Avatar (Clean, no border ring)
-            AvatarView(url: profile.avatarURL, size: 84)
+        VStack(spacing: 0) {
+            // Identity — kept tight to the settings row
+            VStack(spacing: TravSpacing.xs + 2) {
+                AvatarView(url: profile.avatarURL, size: 84)
 
-            // Display Name, Verification Seal, and Username
-            VStack(spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(profile.displayName)
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(TravColors.primary)
-                        .lineLimit(1)
+                VStack(spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text(profile.displayName)
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+                            .lineLimit(1)
 
-                    if profile.isVerified {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 15))
-                            .foregroundStyle(TravColors.accent)
+                        if profile.isVerified {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 15))
+                                .foregroundStyle(TravColors.accent)
+                        }
                     }
-                }
 
-                Text("@\(profile.username)")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(TravColors.muted)
+                    Text("@\(profile.username)")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(TravColors.muted)
+                }
             }
 
-            // Location Pill
-            if let city = profile.homeCityLabel {
-                HStack(spacing: 4) {
-                    Image(systemName: "mappin.and.ellipse")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(TravColors.accent)
-                    Text(city)
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(TravColors.primary)
+            // Everything below identity sits slightly lower for breathing room
+            VStack(spacing: TravSpacing.xs + 2) {
+                if let city = profile.homeCityLabel {
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin.and.ellipse")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(TravColors.accent)
+                        Text(city)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+                    }
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 5)
+                    .background(TravColors.accentSoft)
+                    .clipShape(Capsule())
                 }
-                .padding(.horizontal, 11)
-                .padding(.vertical, 5)
-                .background(TravColors.accentSoft)
-                .clipShape(Capsule())
-            }
 
-            // Bio Block
-            if let bio = profile.bio, !bio.isEmpty {
-                Text(bio)
-                    .font(.system(size: 13.5, weight: .regular, design: .rounded))
-                    .foregroundStyle(TravColors.primary.opacity(0.9))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(2)
-                    .padding(.horizontal, TravSpacing.xs)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            // Stat Metrics (Followers, Following, Rank)
-            ProfileStatsRow(
-                profile: profile,
-                rankLabel: viewModel.creatorRankLabel,
-                onFollowers: {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    followListMode = .followers
-                },
-                onFollowing: {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    followListMode = .following
-                },
-                onRankTap: {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                if let bio = profile.bio, !bio.isEmpty {
+                    Text(bio)
+                        .font(.system(size: 13.5, weight: .regular, design: .rounded))
+                        .foregroundStyle(TravColors.primary.opacity(0.9))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                        .padding(.horizontal, TravSpacing.xs)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            )
-            .padding(.top, 4)
+
+                ProfileStatsRow(
+                    profile: profile,
+                    rankLabel: viewModel.creatorRankLabel,
+                    onFollowers: {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        followListMode = .followers
+                    },
+                    onFollowing: {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        followListMode = .following
+                    },
+                    onRankTap: {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    }
+                )
+                .padding(.top, 4)
+            }
+            .padding(.top, TravSpacing.xl)
         }
         .frame(maxWidth: .infinity)
     }
@@ -838,15 +845,9 @@ struct SettingsSheetView: View {
             .travScreenBackground()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .font(TravTypography.titleMedium())
-                    .fontWeight(.bold)
-                    .foregroundStyle(TravColors.accent)
-                }
+                settingsBackToolbar
             }
             .sheet(isPresented: $showBlockedUsers) {
                 BlockedUsersView()
@@ -854,6 +855,34 @@ struct SettingsSheetView: View {
                     .presentationDragIndicator(.visible)
             }
         }
+    }
+
+    @ToolbarContentBuilder
+    private var settingsBackToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarLeading) {
+                settingsBackButton
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) {
+                settingsBackButton
+            }
+        }
+    }
+
+    private var settingsBackButton: some View {
+        Button {
+            dismiss()
+        } label: {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(TravColors.primary)
+                .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Back")
     }
 }
 
@@ -902,7 +931,6 @@ private struct ToggleSubRow: View {
 
 struct BlockedUsersView: View {
     @Environment(AppEnvironment.self) private var environment
-    @Environment(\.dismiss) private var dismiss
 
     @State private var blocked: [ProfileSummary] = []
     @State private var isLoading = true
@@ -952,12 +980,6 @@ struct BlockedUsersView: View {
             .travScreenBackground()
             .navigationTitle("Blocked Users")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .foregroundStyle(TravColors.accent)
-                }
-            }
             .task { await load() }
         }
     }

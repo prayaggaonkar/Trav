@@ -237,6 +237,7 @@ final class FeedViewModel {
         )
 
         try await environment.experiences.publishExperience(draft)
+        environment.router.noteExperiencePublished()
         await load(using: environment)
     }
 }
