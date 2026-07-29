@@ -537,10 +537,9 @@ struct TravTabBar: View {
         return isDarkChrome ? Color.white.opacity(0.62) : TravColors.muted
     }
 
-    /// Unselected avatar ring — matches muted tab icon gray.
+    /// Unselected avatar ring — solid opaque gray.
     private var tabAvatarOutline: Color {
-        if appearance.isLightMode { return TravColors.muted.opacity(0.55) }
-        return isDarkChrome ? Color.white.opacity(0.35) : TravColors.muted.opacity(0.55)
+        TravColors.muted
     }
 }
 
