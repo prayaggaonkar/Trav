@@ -23,29 +23,42 @@ struct AppNotification: Identifiable, Codable, Sendable, Hashable {
         let name = actor.displayName
         switch type {
         case .follow:
-            return "\(name) started following you"
+            return "\(name) started following you."
         case .save:
-            return "\(name) saved your experience"
+            if let title = experienceTitle {
+                return "\(name) saved \"\(title)\"."
+            }
+            return "\(name) saved your experience."
         case .newExperience:
             if let title = experienceTitle {
-                return "\(name) posted a new experience \"\(title)\""
+                return "\(name) posted a new experience: \"\(title)\"."
             }
-            return "\(name) posted a new experience"
+            return "\(name) posted a new experience."
         case .watchlist:
             if let title = experienceTitle {
-                return "\(name) added \(title) to the watchlist"
+                return "\(name) added \"\(title)\" to the watchlist."
             }
-            return "\(name) added an experience to the watchlist"
+            return "\(name) added an experience to the watchlist."
         case .like:
             if let title = experienceTitle {
-                return "\(name) liked \"\(title)\""
+                return "\(name) liked \"\(title)\"."
             }
-            return "\(name) liked your experience"
+            return "\(name) liked your experience."
         case .comment:
             if let title = experienceTitle {
-                return "\(name) commented on \"\(title)\""
+                return "\(name) commented on \"\(title)\"."
             }
-            return "\(name) commented on your experience"
+            return "\(name) commented on your experience."
+        }
+    }
+
+    /// Destination when tapping the notification body / toast (not the avatar).
+    var primaryDestinationIsProfile: Bool {
+        switch type {
+        case .follow, .watchlist:
+            return true
+        case .save, .newExperience, .like, .comment:
+            return referenceID == nil
         }
     }
 }

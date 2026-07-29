@@ -596,6 +596,11 @@ actor MockSocialState {
         }
     }
 
+    func deleteNotification(id: UUID) {
+        seedIfNeeded()
+        notifications.removeAll { $0.id == id }
+    }
+
     private func experienceOwnerID(_ experienceID: UUID) -> UUID? {
         if let summary = MockData.experiences.first(where: { $0.id == experienceID }) {
             return summary.creator.id

@@ -342,7 +342,9 @@ final class ProfileViewModel {
     private func fetchSuggestionsOnly(using environment: AppEnvironment) async {
         do {
             let fetched = try await environment.profiles.fetchSuggestedUsers(limit: 20)
-            suggestedUsers = fetched.filter { !dismissedSuggestionIDs.contains($0.id) }
+            suggestedUsers = fetched.filter {
+                !dismissedSuggestionIDs.contains($0.id) && !environment.engagement.isBlocked($0.id)
+            }
             hasLoadedSuggestions = true
         } catch {
             if suggestedUsers.isEmpty {

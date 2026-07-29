@@ -16,6 +16,8 @@ struct ProfileView: View {
     @State private var saveConfirmation = false
     @State private var showSettings = false
     @State private var showCreateExperience = false
+    @State private var showOtherProfileMenu = false
+    @State private var showBlockConfirmation = false
 
     private var tabs: [ProfileContentTab] {
         if isOwnProfile {
@@ -72,6 +74,9 @@ struct ProfileView: View {
             .sheet(item: $followListMode) { mode in
                 if let profile = viewModel.profile {
                     FollowListView(profile: profile, mode: mode)
+                        .presentationDetents([.large])
+                        .presentationDragIndicator(.visible)
+                        .presentationCornerRadius(TravRadius.xl)
                 }
             }
             .fullScreenCover(isPresented: $showSettings) {
@@ -81,6 +86,30 @@ struct ProfileView: View {
             }
             .sheet(isPresented: $showCreateExperience) {
                 CreateExperienceView()
+            }
+            .alert("Block \(viewModel.profile.map { "@\($0.username)" } ?? "this user")?", isPresented: $showBlockConfirmation) {
+                Button("Block", role: .destructive) {
+                    Task { await blockCurrentProfile() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You won’t see their profile or posts anymore. You can unblock them later in Settings → Blocked Users.")
+            }
+            .background {
+                if showOtherProfileMenu {
+                    Color.black.opacity(0.001)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(TravAnimation.quick) {
+                                showOtherProfileMenu = false
+                            }
+                        }
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if showOtherProfileMenu, !isOwnProfile {
+                    otherProfileMenuOverlay
+                }
             }
             .overlay(alignment: .top) {
                 if saveConfirmation {
@@ -107,9 +136,22 @@ struct ProfileView: View {
             if let userID = session.currentUser?.id {
                 await engagement.bootstrap(userID: userID, using: environment)
             }
+            if let profile = viewModel.profile,
+               !isOwnProfile,
+               engagement.isBlocked(profile.id) {
+                if router.presentedRoute != nil {
+                    router.dismiss()
+                } else {
+                    dismiss()
+                }
+            }
         }
         .task(id: engagement.revision) {
             await viewModel.syncWithEngagement(engagement, environment: environment)
+        }
+        .task(id: router.experienceCatalogRevision) {
+            guard router.experienceCatalogRevision > 0, isOwnProfile else { return }
+            await viewModel.refresh(using: environment)
         }
     }
 
@@ -139,23 +181,24 @@ struct ProfileView: View {
 
     @ViewBuilder
     private func profileChrome(_ profile: Profile) -> some View {
-        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+        VStack(alignment: .leading, spacing: TravSpacing.xs) {
             if isOwnProfile {
                 HStack {
                     Spacer(minLength: 0)
                     profileMenu
                 }
                 .padding(.horizontal, TravSpacing.screenHorizontal)
-                .padding(.top, TravSpacing.xs)
-                .frame(height: 32, alignment: .center)
+                .padding(.top, TravSpacing.xxs)
+                .frame(height: 28, alignment: .center)
             }
 
             passportHeaderCard(profile)
                 .padding(.horizontal, TravSpacing.screenHorizontal)
-                .padding(.top, isOwnProfile ? 0 : TravSpacing.xs)
+                .padding(.top, isOwnProfile ? TravSpacing.sm : 0)
 
             actionRow(profile)
                 .padding(.horizontal, TravSpacing.screenHorizontal)
+                .padding(.top, TravSpacing.sm)
 
             if isOwnProfile, viewModel.isSuggestionsExpanded {
                 SuggestedUsersSection(
@@ -208,74 +251,76 @@ struct ProfileView: View {
 
     @ViewBuilder
     private func passportHeaderCard(_ profile: Profile) -> some View {
-        VStack(spacing: TravSpacing.xs + 2) {
-            // Avatar (Clean, no border ring)
-            AvatarView(url: profile.avatarURL, size: 84)
+        VStack(spacing: 0) {
+            // Identity — kept tight to the settings row
+            VStack(spacing: TravSpacing.xs + 2) {
+                AvatarView(url: profile.avatarURL, size: 84)
 
-            // Display Name, Verification Seal, and Username
-            VStack(spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(profile.displayName)
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(TravColors.primary)
-                        .lineLimit(1)
+                VStack(spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text(profile.displayName)
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+                            .lineLimit(1)
 
-                    if profile.isVerified {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 15))
-                            .foregroundStyle(TravColors.accent)
+                        if profile.isVerified {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 15))
+                                .foregroundStyle(TravColors.accent)
+                        }
                     }
-                }
 
-                Text("@\(profile.username)")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(TravColors.muted)
+                    Text("@\(profile.username)")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(TravColors.muted)
+                }
             }
 
-            // Location Pill
-            if let city = profile.homeCityLabel {
-                HStack(spacing: 4) {
-                    Image(systemName: "mappin.and.ellipse")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(TravColors.accent)
-                    Text(city)
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(TravColors.primary)
+            // Everything below identity sits slightly lower for breathing room
+            VStack(spacing: TravSpacing.xs + 2) {
+                if let city = profile.homeCityLabel {
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin.and.ellipse")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(TravColors.accent)
+                        Text(city)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+                    }
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 5)
+                    .background(TravColors.accentSoft)
+                    .clipShape(Capsule())
                 }
-                .padding(.horizontal, 11)
-                .padding(.vertical, 5)
-                .background(TravColors.accentSoft)
-                .clipShape(Capsule())
-            }
 
-            // Bio Block
-            if let bio = profile.bio, !bio.isEmpty {
-                Text(bio)
-                    .font(.system(size: 13.5, weight: .regular, design: .rounded))
-                    .foregroundStyle(TravColors.primary.opacity(0.9))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(2)
-                    .padding(.horizontal, TravSpacing.xs)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            // Stat Metrics (Followers, Following, Rank)
-            ProfileStatsRow(
-                profile: profile,
-                rankLabel: viewModel.creatorRankLabel,
-                onFollowers: {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    followListMode = .followers
-                },
-                onFollowing: {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    followListMode = .following
-                },
-                onRankTap: {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                if let bio = profile.bio, !bio.isEmpty {
+                    Text(bio)
+                        .font(.system(size: 13.5, weight: .regular, design: .rounded))
+                        .foregroundStyle(TravColors.primary.opacity(0.9))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                        .padding(.horizontal, TravSpacing.xs)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            )
-            .padding(.top, 4)
+
+                ProfileStatsRow(
+                    profile: profile,
+                    rankLabel: viewModel.creatorRankLabel,
+                    onFollowers: {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        followListMode = .followers
+                    },
+                    onFollowing: {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        followListMode = .following
+                    },
+                    onRankTap: {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    }
+                )
+                .padding(.top, 4)
+            }
+            .padding(.top, TravSpacing.xl)
         }
         .frame(maxWidth: .infinity)
     }
@@ -392,35 +437,37 @@ struct ProfileView: View {
                 }
 
             case .saved:
-                if viewModel.saved.isEmpty {
+                let saved = viewModel.saved.filter { !engagement.isBlocked($0.creator.id) }
+                if saved.isEmpty {
                     ProfileEmptyState(
                         title: "Nothing saved",
                         description: "Save experiences to revisit them later."
                     )
                 } else {
-                    ForEach(Array(viewModel.saved.enumerated()), id: \.element.id) { index, experience in
+                    ForEach(Array(saved.enumerated()), id: \.element.id) { index, experience in
                         savedExperienceRow(
                             experience: experience,
                             index: index,
-                            isLast: experience.id == viewModel.saved.last?.id
+                            isLast: experience.id == saved.last?.id
                         )
                     }
                 }
 
             case .completed:
-                if viewModel.completed.isEmpty {
+                let completed = viewModel.completed.filter { !engagement.isBlocked($0.experience.creator.id) }
+                if completed.isEmpty {
                     ProfileEmptyState(
                         title: "Your watchlist is empty",
                         description: "Add experiences to your watchlist to start planning your journey."
                     )
                 } else {
-                    ForEach(Array(viewModel.completed.enumerated()), id: \.element.id) { index, item in
+                    ForEach(Array(completed.enumerated()), id: \.element.id) { index, item in
                         let badgeText = "Completed"
                         experienceRow(
                             experience: item.experience,
                             badgeText: badgeText,
                             index: index,
-                            isLast: item.id == viewModel.completed.last?.id
+                            isLast: item.id == completed.last?.id
                         )
                     }
                 }
@@ -550,15 +597,104 @@ struct ProfileView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         if showDismissButton {
-            ToolbarItem(placement: .topBarLeading) {
-                DismissButton {
-                    if router.presentedRoute != nil {
-                        router.dismiss()
-                    } else {
-                        dismiss()
+            if #available(iOS 26.0, *) {
+                ToolbarItem(placement: .topBarLeading) {
+                    profileBackButton
+                }
+                .sharedBackgroundVisibility(.hidden)
+
+                if !isOwnProfile {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        otherProfileOverflowButton
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                }
+            } else {
+                ToolbarItem(placement: .topBarLeading) {
+                    profileBackButton
+                }
+                if !isOwnProfile {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        otherProfileOverflowButton
                     }
                 }
             }
+        }
+    }
+
+    private var profileBackButton: some View {
+        Button {
+            if router.presentedRoute != nil {
+                router.dismiss()
+            } else {
+                dismiss()
+            }
+        } label: {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(TravColors.primary)
+                .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, TravSpacing.xs)
+        .accessibilityLabel("Back")
+    }
+
+    private var otherProfileOverflowButton: some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            withAnimation(TravAnimation.quick) {
+                showOtherProfileMenu.toggle()
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(TravColors.primary)
+                .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("More options")
+    }
+
+    private var otherProfileMenuOverlay: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                showOtherProfileMenu = false
+                showBlockConfirmation = true
+            } label: {
+                Label("Block", systemImage: "hand.raised.fill")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TravColors.error)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(width: 148)
+        .background(TravColors.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                .stroke(TravColors.border.opacity(0.7), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+        .padding(.trailing, TravSpacing.screenHorizontal)
+        .padding(.top, 6)
+        .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)))
+    }
+
+    private func blockCurrentProfile() async {
+        guard let profile = viewModel.profile else { return }
+        let succeeded = await engagement.block(userID: profile.id, using: environment)
+        guard succeeded else { return }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        if router.presentedRoute != nil {
+            router.dismiss()
+        } else {
+            dismiss()
         }
     }
 
@@ -838,15 +974,9 @@ struct SettingsSheetView: View {
             .travScreenBackground()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .font(TravTypography.titleMedium())
-                    .fontWeight(.bold)
-                    .foregroundStyle(TravColors.accent)
-                }
+                settingsBackToolbar
             }
             .sheet(isPresented: $showBlockedUsers) {
                 BlockedUsersView()
@@ -854,6 +984,34 @@ struct SettingsSheetView: View {
                     .presentationDragIndicator(.visible)
             }
         }
+    }
+
+    @ToolbarContentBuilder
+    private var settingsBackToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarLeading) {
+                settingsBackButton
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) {
+                settingsBackButton
+            }
+        }
+    }
+
+    private var settingsBackButton: some View {
+        Button {
+            dismiss()
+        } label: {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(TravColors.primary)
+                .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Back")
     }
 }
 
@@ -902,7 +1060,6 @@ private struct ToggleSubRow: View {
 
 struct BlockedUsersView: View {
     @Environment(AppEnvironment.self) private var environment
-    @Environment(\.dismiss) private var dismiss
 
     @State private var blocked: [ProfileSummary] = []
     @State private var isLoading = true
@@ -952,12 +1109,6 @@ struct BlockedUsersView: View {
             .travScreenBackground()
             .navigationTitle("Blocked Users")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .foregroundStyle(TravColors.accent)
-                }
-            }
             .task { await load() }
         }
     }
@@ -985,13 +1136,8 @@ struct BlockedUsersView: View {
     }
 
     private func unblock(_ profile: ProfileSummary) async {
-        guard let userID = environment.session.currentUser?.id else { return }
-        do {
-            try await environment.engagementRepo.unblock(blockerID: userID, blockedID: profile.id)
-            blocked.removeAll { $0.id == profile.id }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        await environment.engagement.unblock(userID: profile.id, using: environment)
+        blocked.removeAll { $0.id == profile.id }
     }
 }
 

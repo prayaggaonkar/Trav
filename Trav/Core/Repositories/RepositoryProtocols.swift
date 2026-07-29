@@ -146,6 +146,8 @@ protocol NotificationRepository: Sendable {
     func unreadCount(userID: UUID) async throws -> Int
     func markRead(ids: [UUID]) async throws
     func markAllRead(userID: UUID) async throws
+    /// Permanently removes a notification owned by the current user.
+    func deleteNotification(id: UUID) async throws
     /// Emits newly inserted notifications for `userID` (Realtime). Empty stream when unsupported.
     func observeInserts(userID: UUID) -> AsyncStream<AppNotification>
     /// Registers an APNs device token for push delivery.

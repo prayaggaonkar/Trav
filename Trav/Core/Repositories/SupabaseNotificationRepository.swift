@@ -92,6 +92,14 @@ struct SupabaseNotificationRepository: NotificationRepository {
             .execute()
     }
 
+    func deleteNotification(id: UUID) async throws {
+        try await client
+            .from("notifications")
+            .delete()
+            .eq("id", value: id.uuidString.lowercased())
+            .execute()
+    }
+
     func registerDeviceToken(_ token: String, userID: UUID) async throws {
         struct Upsert: Encodable {
             let token: String
@@ -162,7 +170,7 @@ struct SupabaseNotificationRepository: NotificationRepository {
                         guard let type = AppNotificationType(rawValue: row.type) else { continue }
                         let actors = await self.fetchActors(ids: [row.actor_id])
                         guard let actor = actors[row.actor_id] else { continue }
-                        let notification = AppNotification(
+                        var notification = AppNotification(
                             id: row.id,
                             userID: row.user_id,
                             actor: actor,
@@ -171,6 +179,10 @@ struct SupabaseNotificationRepository: NotificationRepository {
                             isRead: row.is_read ?? false,
                             createdAt: row.created_at ?? insert.commitTimestamp
                         )
+                        if type != .follow, let refID = row.reference_id {
+                            let titles = await self.fetchExperienceTitles(ids: [refID])
+                            notification.experienceTitle = titles[refID]
+                        }
                         continuation.yield(notification)
                     } catch {
                         TravLog.notifications.error("observeInserts decode failed: \(error.localizedDescription, privacy: .public)")

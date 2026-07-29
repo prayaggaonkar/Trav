@@ -33,16 +33,13 @@ struct InAppNotificationBannerHost: View {
 
     private func open(_ notification: AppNotification) {
         notificationStore.dismissCurrentToast()
-        switch notification.type {
-        case .follow:
+        if notification.primaryDestinationIsProfile {
             router.openProfile(notification.actor.username)
-        case .save, .newExperience, .like, .comment:
-            if let experienceID = notification.referenceID {
-                router.openExperience(experienceID)
-            } else {
-                router.openProfile(notification.actor.username)
-            }
-        case .watchlist:
+            return
+        }
+        if let experienceID = notification.referenceID {
+            router.openExperience(experienceID)
+        } else {
             router.openProfile(notification.actor.username)
         }
     }
@@ -56,49 +53,55 @@ private struct InAppNotificationBanner: View {
     @State private var dragOffset: CGFloat = 0
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(alignment: .center, spacing: TravSpacing.sm) {
-                AvatarView(url: toast.notification.actor.avatarURL, size: 40)
+        // Single drag gesture owns both swipe-up dismiss and clean tap-to-open so
+        // vertical swipes never get claimed by a Button and open the notification.
+        HStack(alignment: .center, spacing: TravSpacing.sm) {
+            AvatarView(url: toast.notification.actor.avatarURL, size: 40)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(toast.notification.message)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(TravColors.primary)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(toast.notification.message)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TravColors.primary)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
 
-                    Text("Just now")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(TravColors.muted)
-                }
-
-                Spacer(minLength: 0)
+                Text("Just now")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(TravColors.muted)
             }
-            .padding(.horizontal, TravSpacing.md)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                    .fill(TravColors.surface)
-                    .shadow(color: Color.black.opacity(0.18), radius: 16, y: 8)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                    .strokeBorder(TravColors.border.opacity(0.6), lineWidth: 1)
-            }
+
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, TravSpacing.md)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                .fill(TravColors.surface)
+                .shadow(color: Color.black.opacity(0.18), radius: 16, y: 8)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                .strokeBorder(TravColors.border.opacity(0.6), lineWidth: 1)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
         .offset(y: min(0, dragOffset))
         .gesture(
-            DragGesture(minimumDistance: 8)
+            DragGesture(minimumDistance: 0)
                 .onChanged { value in
                     dragOffset = min(0, value.translation.height)
                 }
                 .onEnded { value in
-                    let shouldDismiss = value.translation.height < -36
-                        || value.predictedEndTranslation.height < -80
+                    let vertical = value.translation.height
+                    let horizontal = abs(value.translation.width)
+                    let predictedUp = value.predictedEndTranslation.height
+                    let shouldDismiss = vertical < -28 || predictedUp < -60
+
                     if shouldDismiss {
                         onDismiss()
+                    } else if abs(vertical) < 12 && horizontal < 12 {
+                        onTap()
                     }
+
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                         dragOffset = 0
                     }
@@ -106,6 +109,7 @@ private struct InAppNotificationBanner: View {
         )
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+        .accessibilityAction { onTap() }
         .accessibilityHint("Opens the notification. Swipe up to dismiss.")
     }
 }

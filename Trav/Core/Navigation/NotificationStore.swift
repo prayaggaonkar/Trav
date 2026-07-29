@@ -135,6 +135,10 @@ final class NotificationStore {
         bumpUnread: Bool,
         using environment: AppEnvironment? = nil
     ) async {
+        if let environment, environment.engagement.isBlocked(notification.actor.id) {
+            seenToastIDs.insert(notification.id)
+            return
+        }
         if bumpUnread, !notification.isRead, !seenToastIDs.contains(notification.id) {
             unreadCount += 1
         }
@@ -251,6 +255,14 @@ final class NotificationStore {
 
     func showsUnreadDot(for id: UUID) -> Bool {
         sessionUnreadIDs.contains(id)
+    }
+
+    /// Keeps inbox dots and the tab badge in sync after a swipe-delete.
+    func noteDeletedNotification(_ notification: AppNotification) {
+        let wasSessionUnread = sessionUnreadIDs.remove(notification.id) != nil
+        if wasSessionUnread || !notification.isRead {
+            unreadCount = max(0, unreadCount - 1)
+        }
     }
 
     func endInboxSessionIfNeeded(userID: UUID, using environment: AppEnvironment) async {

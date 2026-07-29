@@ -34,20 +34,11 @@ struct ExperienceDetailView: View {
             }
             .travScreenBackground()
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        router.dismiss()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
-                    }
-                    .navBarZoomable()
-                    .accessibilityLabel("Back")
-                }
+                experienceBackToolbar
             }
+            .navigationBarBackButtonHidden(true)
             .toolbarBackground(.hidden, for: .navigationBar)
+            .modifier(HiddenToolbarBackgroundVisibility())
         }
         .overlay(
             Group {
@@ -57,14 +48,18 @@ struct ExperienceDetailView: View {
             }
         )
         .travShareSheet(item: $shareItem)
-        .sheet(isPresented: $showComments) {
-            CommentsSheet(experienceID: experienceID) { count in
-                localCommentCount = count
+        .overlay {
+            if showComments {
+                CommentsDrawer(
+                    experienceID: experienceID,
+                    onCountChange: { localCommentCount = $0 },
+                    onDismiss: { showComments = false }
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(50)
             }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-            .presentationCornerRadius(TravRadius.xl)
         }
+        .animation(TravAnimation.quick, value: showComments)
         .sheet(isPresented: $showCompletionSheet) {
             if let experience {
                 CompletionSheet(experience: summary(from: experience)) { completed in
@@ -91,6 +86,35 @@ struct ExperienceDetailView: View {
             }
             await load()
         }
+    }
+
+    @ToolbarContentBuilder
+    private var experienceBackToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarLeading) {
+                experienceBackButton
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) {
+                experienceBackButton
+            }
+        }
+    }
+
+    private var experienceBackButton: some View {
+        Button {
+            router.dismiss()
+        } label: {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(TravColors.primary)
+                .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, TravSpacing.xs)
+        .accessibilityLabel("Back")
     }
 
     private func summary(from experience: Experience) -> ExperienceSummary {
@@ -147,17 +171,21 @@ struct ExperienceDetailView: View {
                 actionBar(experience)
                     .travAppear(delay: 0.06)
 
+                descriptionSection(experience)
+                    .travAppear(delay: 0.08)
+
                 timeline(experience)
                     .travAppear(delay: 0.1)
 
                 overviewSection(experience)
                     .travAppear(delay: 0.14)
             }
-            .padding(.bottom, TravSpacing.xxl)
-            .safeAreaPadding(.bottom, TravSpacing.sm)
+            .padding(.bottom, TravSpacing.md)
+            .safeAreaPadding(.bottom, TravSpacing.xs)
         }
         .trackScrollForNavBarZoom()
         .ignoresSafeArea(edges: .top)
+        .modifier(HideTopScrollEdgeBlur())
     }
 
     @ViewBuilder
@@ -200,17 +228,17 @@ struct ExperienceDetailView: View {
                 Button {
                     showComments = true
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 7) {
                         Image(systemName: "bubble.right.fill")
-                            .font(.system(size: 13.5, weight: .semibold))
+                            .font(.system(size: 15.5, weight: .semibold))
                         Text(TravFormatters.count(commentCount))
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .font(.system(size: 13.8, weight: .bold, design: .rounded))
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
                     }
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, 11.5)
+                    .padding(.vertical, 11.5)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(TravPressButtonStyle())
@@ -245,10 +273,11 @@ struct ExperienceDetailView: View {
                             .font(TravTypography.labelMedium())
                             .fontWeight(.bold)
                     }
-                    .foregroundStyle(isOwn ? TravColors.muted.opacity(0.5) : (isSaved ? .white : TravColors.primary))
+                    .foregroundStyle(isSaved ? .white : TravColors.primary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 45)
                     .background(isSaved ? Color(red: 0.78, green: 0.58, blue: 0.06) : TravColors.surfaceElevated)
+                    .opacity(isOwn ? 0.4 : 1.0)
 
                     Text(TravFormatters.count(experience.saveCount))
                         .font(TravTypography.caption())
@@ -257,7 +286,6 @@ struct ExperienceDetailView: View {
             }
             .buttonStyle(TravPressButtonStyle())
             .disabled(isOwn)
-            .opacity(isOwn ? 0.4 : 1.0)
 
             Button {
                 guard !isOwn else { return }
@@ -287,6 +315,7 @@ struct ExperienceDetailView: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 45)
                     .background(isCompleted ? TravColors.accent : TravColors.surfaceElevated)
+                    .opacity(isOwn ? 0.4 : 1.0)
 
                     Text(TravFormatters.count(experience.completionCount))
                         .font(TravTypography.caption())
@@ -295,7 +324,6 @@ struct ExperienceDetailView: View {
             }
             .buttonStyle(TravPressButtonStyle())
             .disabled(isOwn)
-            .opacity(isOwn ? 0.4 : 1.0)
 
             Button {
                 shareItem = ShareItem(
@@ -329,22 +357,30 @@ struct ExperienceDetailView: View {
     }
 
     @ViewBuilder
+    private func descriptionSection(_ experience: Experience) -> some View {
+        let trimmed = experience.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                Text("DESCRIPTION")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .tracking(2.0)
+                    .foregroundStyle(TravColors.accent)
+
+                Text(trimmed)
+                    .font(TravTypography.bodyMedium())
+                    .foregroundStyle(TravColors.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, TravSpacing.screenHorizontal)
+            .padding(.top, TravSpacing.sm)
+            .padding(.bottom, TravSpacing.lg)
+        }
+    }
+
+    @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-            if !experience.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                    Text("Description")
-                        .font(TravTypography.titleMedium())
-                        .foregroundStyle(TravColors.primary)
-
-                    Text(experience.description)
-                        .font(TravTypography.bodyMedium())
-                        .foregroundStyle(TravColors.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.vertical, TravSpacing.xs)
-            }
-
             ExperienceRouteMapView(stops: experience.stops)
 
             // Only render the radar when the creator actually rated the experience.
@@ -382,7 +418,7 @@ struct ExperienceDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, TravSpacing.screenHorizontal)
-        .padding(.bottom, TravSpacing.xl)
+        .padding(.bottom, TravSpacing.sm)
     }
 
     @ViewBuilder
@@ -507,6 +543,26 @@ private struct StopTimelineRow: View {
     }
 }
 
+private struct HiddenToolbarBackgroundVisibility: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+        } else {
+            content
+        }
+    }
+}
+
+private struct HideTopScrollEdgeBlur: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectHidden(true, for: .top)
+        } else {
+            content
+        }
+    }
+}
+
 private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
     let urls: [URL]
     let height: CGFloat
@@ -549,22 +605,20 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
 
                 if displayURLs.count > 1 {
                     let active = useDarkDots ? Color.black : Color.white
-                    let inactive = useDarkDots ? Color.black.opacity(0.35) : Color.white.opacity(0.4)
+                    let inactive = useDarkDots ? Color.black.opacity(0.45) : Color.white.opacity(0.55)
                     HStack(spacing: TravSpacing.xs) {
                         ForEach(0..<displayURLs.count, id: \.self) { index in
                             Capsule()
                                 .fill(index == currentIndex ? active : inactive)
                                 .frame(width: index == currentIndex ? 16 : 6, height: 6)
-                                .shadow(
-                                    color: (useDarkDots ? Color.white : Color.black).opacity(0.55),
-                                    radius: 1.5,
-                                    y: 0
-                                )
                         }
                     }
+                    // Keep indicators crisp — avoid soft shadows / being sampled into scroll-edge blur.
+                    .compositingGroup()
                     .padding(.top, TravSpacing.xxl + TravSpacing.md)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .allowsHitTesting(false)
+                    .zIndex(20)
                 }
 
                 // Drag/tap layer above non-interactive chrome; accessory button stays on top.

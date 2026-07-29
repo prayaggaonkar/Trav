@@ -33,9 +33,18 @@ struct FollowListView: View {
     @State private var error: Error?
     @State private var searchTask: Task<Void, Never>?
     @State private var selectedUsernameForProfile: String?
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
-        NavigationStack {
+        // No NavigationStack here — it was adding a large empty chrome gap under the sheet grabber.
+        VStack(spacing: 0) {
+            followListTopBar
+
+            followListSearchBar
+                .padding(.horizontal, TravSpacing.screenHorizontal)
+                .padding(.top, TravSpacing.md)
+                .padding(.bottom, TravSpacing.xs)
+
             Group {
                 if isLoading && users.isEmpty {
                     ProgressView()
@@ -48,10 +57,14 @@ struct FollowListView: View {
                 } else if filteredUsers.isEmpty {
                     EmptyStateView(
                         icon: mode == .followers ? "person.2" : "person.badge.plus",
-                        title: mode == .followers ? "No followers yet" : "Not following anyone",
-                        description: mode == .followers
-                            ? "When people follow \(profile.displayName), they’ll show up here."
-                            : "Follow travelers to build your circle."
+                        title: query.isEmpty
+                            ? (mode == .followers ? "No followers yet" : "Not following anyone")
+                            : "No matches",
+                        description: query.isEmpty
+                            ? (mode == .followers
+                                ? "When people follow \(profile.displayName), they’ll show up here."
+                                : "Follow travelers to build your circle.")
+                            : "Try a different name or username."
                     )
                 } else {
                     List {
@@ -60,7 +73,6 @@ struct FollowListView: View {
                                 guard let currentUserID = session.currentUser?.id else { return nil }
                                 if currentUserID == user.id { return nil }
                                 if mode == .following && profile.id == currentUserID {
-                                    // In own following list, if not explicitly unfollowed in session, default to true
                                     return engagement.isFollowing(user.id) || !engagement.hasExplicitlyUnfollowed(user.id)
                                 }
                                 return engagement.isFollowing(user.id)
@@ -98,31 +110,102 @@ struct FollowListView: View {
                     .scrollContentBackground(.hidden)
                 }
             }
-            .travScreenBackground()
-            .navigationTitle(mode.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $query, prompt: "Search \(mode.title.lowercased())")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .onChange(of: query) { _, _ in
-                searchTask?.cancel()
-                searchTask = Task {
-                    try? await Task.sleep(for: .milliseconds(280))
-                    guard !Task.isCancelled else { return }
-                    await reload(reset: true)
-                }
-            }
-            .sheet(item: Binding(
-                get: { selectedUsernameForProfile.map { ProfileSheetItem(username: $0) } },
-                set: { selectedUsernameForProfile = $0?.username }
-            )) { item in
-                ProfileView(username: item.username, showDismissButton: true)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .travScreenBackground()
+        .onChange(of: query) { _, _ in
+            searchTask?.cancel()
+            searchTask = Task {
+                try? await Task.sleep(for: .milliseconds(280))
+                guard !Task.isCancelled else { return }
+                await reload(reset: true)
             }
         }
+        .sheet(item: Binding(
+            get: { selectedUsernameForProfile.map { ProfileSheetItem(username: $0) } },
+            set: { selectedUsernameForProfile = $0?.username }
+        )) { item in
+            ProfileView(username: item.username, showDismissButton: true)
+        }
         .task { await reload(reset: true) }
+    }
+
+    private var followListTopBar: some View {
+        HStack(spacing: 0) {
+            Color.clear
+                .frame(width: 88, height: 32)
+
+            Spacer(minLength: TravSpacing.sm)
+
+            Text(mode.title)
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(TravColors.primary)
+                .lineLimit(1)
+
+            Spacer(minLength: TravSpacing.sm)
+
+            followListDoneButton
+                .frame(width: 88, alignment: .trailing)
+        }
+        .padding(.horizontal, TravSpacing.screenHorizontal)
+        .padding(.top, TravSpacing.md)
+        .padding(.bottom, TravSpacing.xs)
+    }
+
+    private var followListDoneButton: some View {
+        Button {
+            dismiss()
+        } label: {
+            Text("Done")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .padding(.horizontal, 16)
+                .frame(height: 32)
+                .background(TravColors.accent)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(TravPressButtonStyle(scale: 0.96))
+        .accessibilityLabel("Done")
+    }
+
+    private var followListSearchBar: some View {
+        HStack(spacing: TravSpacing.sm) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(TravColors.muted)
+                .accessibilityHidden(true)
+
+            TextField("Search \(mode.title.lowercased())", text: $query)
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundStyle(TravColors.primary)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($isSearchFocused)
+
+            if !query.isEmpty {
+                Button {
+                    withAnimation(TravAnimation.quick) {
+                        query = ""
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(TravColors.muted)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, TravSpacing.md)
+        .frame(height: 44)
+        .background(TravColors.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                .stroke(TravColors.border.opacity(0.55), lineWidth: 1)
+        }
     }
 
     private var filteredUsers: [ProfileSummary] { users }
@@ -154,7 +237,8 @@ struct FollowListView: View {
             if mode == .following && profile.id == session.currentUser?.id {
                 engagement.seedFollowingIDs(result.items.map(\.id))
             }
-            users = reset ? result.items : users + result.items
+            let visible = result.items.filter { !engagement.isBlocked($0.id) }
+            users = reset ? visible : users + visible
             hasMore = result.hasMore
             error = nil
         } catch {

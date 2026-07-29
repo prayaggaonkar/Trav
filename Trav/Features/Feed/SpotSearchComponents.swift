@@ -444,6 +444,7 @@ struct RateSpotSheet: View {
 
         do {
             try await environment.experiences.publishExperience(draft)
+            environment.router.noteExperiencePublished()
 
             isSaving = false
             withAnimation { showEyesRain = true }

@@ -5,6 +5,7 @@ struct NotificationsView: View {
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
     @Environment(NotificationStore.self) private var notificationStore
+    @Environment(EngagementStore.self) private var engagement
 
     @State private var items: [AppNotification] = []
     @State private var page = 0
@@ -33,21 +34,30 @@ struct NotificationsView: View {
                 } else {
                     List {
                         ForEach(items) { notification in
-                            Button {
-                                Task { await openNotification(notification) }
-                            } label: {
-                                NotificationRow(
-                                    notification: notification,
-                                    showsUnreadDot: notificationStore.showsUnreadDot(for: notification.id)
-                                )
-                            }
-                            .buttonStyle(.plain)
+                            NotificationRow(
+                                notification: notification,
+                                showsUnreadDot: notificationStore.showsUnreadDot(for: notification.id),
+                                onAvatarTap: {
+                                    Task { await openActorProfile(notification) }
+                                },
+                                onBodyTap: {
+                                    Task { await openNotification(notification) }
+                                }
+                            )
                             .listRowBackground(
                                 notificationStore.showsUnreadDot(for: notification.id)
                                     ? TravColors.accent.opacity(0.08)
                                     : TravColors.surface
                             )
                             .listRowSeparatorTint(TravColors.border.opacity(0.5))
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Task { await deleteNotification(notification) }
+                                } label: {
+                                    Label("Delete", systemImage: "trash.fill")
+                                }
+                            }
                             .onAppear {
                                 if notification.id == items.last?.id {
                                     Task { await loadMore() }
@@ -126,10 +136,11 @@ struct NotificationsView: View {
 
         do {
             let result = try await environment.notifications.fetchNotifications(userID: userID, page: page)
+            let visible = result.items.filter { !engagement.isBlocked($0.actor.id) }
             if reset {
-                items = result.items
+                items = visible
             } else {
-                items += result.items
+                items += visible
             }
             notificationStore.captureUnreadSnapshot(from: result.items)
             hasMore = result.hasMore
@@ -147,6 +158,20 @@ struct NotificationsView: View {
         await reload(reset: false)
     }
 
+    private func deleteNotification(_ notification: AppNotification) async {
+        withAnimation(TravAnimation.quick) {
+            items.removeAll { $0.id == notification.id }
+        }
+        notificationStore.noteDeletedNotification(notification)
+
+        do {
+            try await environment.notifications.deleteNotification(id: notification.id)
+        } catch {
+            TravLog.notifications.error("deleteNotification failed: \(error.localizedDescription, privacy: .public)")
+            await reload(reset: true)
+        }
+    }
+
     private func dismissInbox() async {
         if let userID = session.currentUser?.id {
             await notificationStore.endInboxSessionIfNeeded(userID: userID, using: environment)
@@ -154,21 +179,28 @@ struct NotificationsView: View {
         router.dismiss()
     }
 
-    private func openNotification(_ notification: AppNotification) async {
+    private func prepareNavigation() async {
         if let userID = session.currentUser?.id {
             await notificationStore.endInboxSessionIfNeeded(userID: userID, using: environment)
         }
+    }
 
-        switch notification.type {
-        case .follow:
+    private func openActorProfile(_ notification: AppNotification) async {
+        await prepareNavigation()
+        router.openProfile(notification.actor.username)
+    }
+
+    private func openNotification(_ notification: AppNotification) async {
+        await prepareNavigation()
+
+        if notification.primaryDestinationIsProfile {
             router.openProfile(notification.actor.username)
-        case .save, .newExperience, .like, .comment:
-            if let experienceID = notification.referenceID {
-                router.openExperience(experienceID)
-            } else {
-                router.openProfile(notification.actor.username)
-            }
-        case .watchlist:
+            return
+        }
+
+        if let experienceID = notification.referenceID {
+            router.openExperience(experienceID)
+        } else {
             router.openProfile(notification.actor.username)
         }
     }
@@ -177,35 +209,46 @@ struct NotificationsView: View {
 private struct NotificationRow: View {
     let notification: AppNotification
     let showsUnreadDot: Bool
+    var onAvatarTap: () -> Void
+    var onBodyTap: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: TravSpacing.md) {
-            AvatarView(url: notification.actor.avatarURL, size: 44)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(notification.message)
-                    .font(.system(size: 15, weight: showsUnreadDot ? .semibold : .regular, design: .rounded))
-                    .foregroundStyle(TravColors.primary)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(Self.relativeTime(notification.createdAt))
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(TravColors.muted)
+        HStack(alignment: .center, spacing: TravSpacing.sm) {
+            Button(action: onAvatarTap) {
+                AvatarView(url: notification.actor.avatarURL, size: 40)
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("View \(notification.actor.displayName)’s profile")
 
-            Spacer(minLength: 0)
+            Button(action: onBodyTap) {
+                HStack(alignment: .center, spacing: TravSpacing.sm) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(notification.message)
+                            .font(.system(size: 14, weight: showsUnreadDot ? .semibold : .regular, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
 
-            if showsUnreadDot {
-                Circle()
-                    .fill(TravColors.accent)
-                    .frame(width: 8, height: 8)
-                    .padding(.top, 6)
-                    .accessibilityLabel("Unread")
+                        Text(Self.relativeTime(notification.createdAt))
+                            .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                            .foregroundStyle(TravColors.muted)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    if showsUnreadDot {
+                        Circle()
+                            .fill(TravColors.accent)
+                            .frame(width: 8, height: 8)
+                            .accessibilityLabel("Unread")
+                    }
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
         }
         .padding(.vertical, 8)
-        .contentShape(Rectangle())
     }
 
     private static let relativeFormatter: RelativeDateTimeFormatter = {
