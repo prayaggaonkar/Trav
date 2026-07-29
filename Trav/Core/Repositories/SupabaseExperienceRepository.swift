@@ -911,6 +911,11 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
         var realEntries: [LeaderboardEntry] = []
         for profile in profiles {
+            if profile.username.lowercased() == "rec_by_trav"
+                || profile.display_name?.lowercased() == "rec by trav"
+                || profile.id == StableUUID.from("rec_by_trav") {
+                continue
+            }
             let count = userCounts[profile.id] ?? 0
 
             if isFilteredByCity {
@@ -1010,6 +1015,11 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         var rawEntries: [HeatStreakEntry] = []
 
         for profile in profiles {
+            if profile.username.lowercased() == "rec_by_trav"
+                || profile.display_name?.lowercased() == "rec by trav"
+                || profile.id == StableUUID.from("rec_by_trav") {
+                continue
+            }
             let dates = userDatesMap[profile.id] ?? []
             guard !dates.isEmpty else { continue }
 
@@ -1195,6 +1205,11 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
         var rawEntries: [ImpactEntry] = []
         for profile in profiles {
+            if profile.username.lowercased() == "rec_by_trav"
+                || profile.display_name?.lowercased() == "rec by trav"
+                || profile.id == StableUUID.from("rec_by_trav") {
+                continue
+            }
             let impactCount = userImpactMap[profile.id] ?? 0
 
             rawEntries.append(ImpactEntry(
@@ -1239,7 +1254,12 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             .execute()
             .value,
            !rpcEntries.isEmpty {
-            return rpcEntries
+            let filtered = rpcEntries.filter {
+                $0.username.lowercased() != "rec_by_trav"
+                && $0.displayName.lowercased() != "rec by trav"
+                && $0.id != StableUUID.from("rec_by_trav")
+            }
+            return filtered
         }
 
         // 2. Fallback calculation in Swift if RPC function is not yet created on Supabase
@@ -1267,6 +1287,11 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
         var rawEntries: [MainLeaderboardEntry] = []
         for profile in profiles {
+            if profile.username.lowercased() == "rec_by_trav"
+                || profile.display_name?.lowercased() == "rec by trav"
+                || profile.id == StableUUID.from("rec_by_trav") {
+                continue
+            }
             let impact = impactMap[profile.id] ?? 0
             let expCount = expMap[profile.id] ?? 0
             let streakDays = streakDaysMap[profile.id] ?? 0

@@ -262,83 +262,89 @@ struct GemPostCardView: View {
                     .background(TravColors.border.opacity(0.3))
                     .padding(.vertical, 8)
 
-                HStack {
-                    // Left Group: Save, Comment, Share
-                    HStack(spacing: 16) {
+                    let isOwnExperience = (environment.session.currentUser?.id == experience.creator.id)
 
-                        Button {
-                            isSavedLocal.toggle()
-                            onSave?()
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        } label: {
-                            Image(systemName: isSavedLocal ? "bookmark.fill" : "bookmark")
-                                .font(.system(size: 18))
-                                .foregroundStyle(isSavedLocal ? Color.yellow : TravColors.muted)
+                    HStack {
+                        // Left Group: Save, Comment, Share
+                        HStack(spacing: 16) {
+
+                            Button {
+                                guard !isOwnExperience else { return }
+                                isSavedLocal.toggle()
+                                onSave?()
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            } label: {
+                                Image(systemName: isSavedLocal ? "bookmark.fill" : "bookmark")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(isOwnExperience ? TravColors.muted.opacity(0.3) : (isSavedLocal ? Color.yellow : TravColors.muted))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(isOwnExperience)
+                            .accessibilityLabel(isSavedLocal ? "Remove bookmark" : "Bookmark")
+
+                            Button {
+                                (onComment ?? onTap)()
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            } label: {
+                                Image(systemName: "bubble.right")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(TravColors.muted)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Comments")
+
+                            Button {
+                                onShare?()
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            } label: {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(TravColors.muted)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Share")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(isSavedLocal ? "Remove bookmark" : "Bookmark")
 
-                        Button {
-                            (onComment ?? onTap)()
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        } label: {
-                            Image(systemName: "bubble.right")
-                                .font(.system(size: 18))
-                                .foregroundStyle(TravColors.muted)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Comments")
+                        Spacer()
 
-                        Button {
-                            onShare?()
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        } label: {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 18))
-                                .foregroundStyle(TravColors.muted)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Share")
-                    }
-
-                    Spacer()
-
-                    // Right Group: Watchlist Pill Button
-                    Button {
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        if environment.session.currentUser == nil {
-                            environment.router.presentAuth()
-                        } else {
-                            let expID = experience.id
-                            let summary = experience
-                            if !isWatchlisted {
-                                withAnimation { showEyesRain = true }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
-                                    showEyesRain = false
+                        // Right Group: Watchlist Pill Button (hidden for own experience)
+                        if !isOwnExperience {
+                            Button {
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                if environment.session.currentUser == nil {
+                                    environment.router.presentAuth()
+                                } else {
+                                    let expID = experience.id
+                                    let summary = experience
+                                    if !isWatchlisted {
+                                        withAnimation { showEyesRain = true }
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
+                                            showEyesRain = false
+                                        }
+                                    }
+                                    Task {
+                                        _ = await engagement.toggleComplete(
+                                            experienceID: expID,
+                                            summary: summary,
+                                            using: environment
+                                        )
+                                    }
                                 }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: isWatchlisted ? "checkmark.circle.fill" : "plus.circle.fill")
+                                    Text(isWatchlisted ? "In Watchlist" : "Watchlist")
+                                }
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 7)
+                                .background(isWatchlisted ? Color.gray.opacity(0.4) : TravColors.accent)
+                                .clipShape(Capsule())
                             }
-                            Task {
-                                _ = await engagement.toggleComplete(
-                                    experienceID: expID,
-                                    summary: summary,
-                                    using: environment
-                                )
-                            }
+                            .buttonStyle(.plain)
                         }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: isWatchlisted ? "checkmark.circle.fill" : "plus.circle.fill")
-                            Text(isWatchlisted ? "In Watchlist" : "Watchlist")
-                        }
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 7)
-                        .background(isWatchlisted ? Color.gray.opacity(0.4) : TravColors.accent)
-                        .clipShape(Capsule())
                     }
-                    .buttonStyle(.plain)
-                }
             }
             .padding(connectedLayout ? 20 : TravSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -21,12 +21,14 @@ final class RankingsViewModel {
 
     private var currentEnvironment: AppEnvironment?
 
-    var filteredEntries: [LeaderboardEntry] {
+    func filteredEntries(followingIDs: Set<UUID>, currentUserID: UUID?) -> [LeaderboardEntry] {
         var items = allEntries
 
         // Member Scope Filter (All Members vs Friends)
         if memberScope == .friends {
-            items = items.filter { $0.isFriend }
+            items = items.filter { entry in
+                followingIDs.contains(entry.id) || entry.id == currentUserID
+            }
         }
 
         // Sort descending by number of experiences created in the selected location
@@ -67,7 +69,7 @@ final class RankingsViewModel {
             )) ?? []
 
             allEntries = fetchedEntries
-            phase = filteredEntries.isEmpty ? .empty : .loaded
+            phase = allEntries.isEmpty ? .empty : .loaded
         } catch {
             allEntries = []
             phase = .empty

@@ -13,6 +13,7 @@ struct RankingsView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
     @Environment(AppearanceStore.self) private var appearance
+    @Environment(EngagementStore.self) private var engagement
 
     @State private var viewModel = RankingsViewModel()
     @State private var selectedTab: RankingsTab = .main
@@ -28,7 +29,10 @@ struct RankingsView: View {
 
             switch selectedTab {
             case .main:
-                MainLeaderboardView()
+                MainLeaderboardView(
+                    memberScope: viewModel.memberScope,
+                    selectedLocation: viewModel.selectedLocation
+                )
             case .experiences:
                 content
             case .streaks:
@@ -83,44 +87,39 @@ struct RankingsView: View {
     // MARK: - Top Tab Bar ("Main", "Experiences", "Streaks", and "Impact")
 
     private var topTabBar: some View {
-        HStack(spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 2) {
-                    ForEach(RankingsTab.allCases) { tab in
-                        Button {
-                            withAnimation(TravAnimation.quick) {
-                                selectedTab = tab
-                            }
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        } label: {
-                            Text(tab.rawValue)
-                                .font(TravTypography.titleMedium())
-                                .fontWeight(selectedTab == tab ? .semibold : .regular)
-                                .foregroundStyle(selectedTab == tab ? TravColors.primary : TravColors.muted)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(
-                                    Group {
-                                        if selectedTab == tab {
-                                            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
-                                                .fill(TravColors.surfaceElevated)
-                                                .shadow(color: Color.black.opacity(0.08), radius: 3, y: 1)
-                                        }
-                                    }
-                                )
-                        }
-                        .buttonStyle(.plain)
+        HStack(spacing: 3) {
+            ForEach(RankingsTab.allCases) { tab in
+                Button {
+                    withAnimation(TravAnimation.quick) {
+                        selectedTab = tab
                     }
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                } label: {
+                    Text(tab.rawValue)
+                        .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .foregroundStyle(selectedTab == tab ? TravColors.primary : TravColors.muted)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(
+                            Group {
+                                if selectedTab == tab {
+                                    RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                                        .fill(TravColors.surfaceElevated)
+                                        .shadow(color: Color.black.opacity(0.08), radius: 3, y: 1)
+                                }
+                            }
+                        )
                 }
-                .padding(4)
-                .background(
-                    RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                        .fill(appearance.isLightMode ? Color(red: 0.94, green: 0.94, blue: 0.96) : Color.white.opacity(0.08))
-                )
+                .buttonStyle(.plain)
             }
-
-            Spacer()
         }
+        .padding(4)
+        .background(
+            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                .fill(appearance.isLightMode ? Color(red: 0.94, green: 0.94, blue: 0.96) : Color.white.opacity(0.08))
+        )
         .padding(.horizontal, TravSpacing.screenHorizontal)
         .padding(.bottom, 12)
     }
@@ -176,7 +175,10 @@ struct RankingsView: View {
 
     @ViewBuilder
     private var content: some View {
-        let entries = viewModel.filteredEntries
+        let entries = viewModel.filteredEntries(
+            followingIDs: engagement.followingUserIDs,
+            currentUserID: environment.session.currentUser?.id
+        )
 
         if entries.isEmpty {
             EmptyStateView(

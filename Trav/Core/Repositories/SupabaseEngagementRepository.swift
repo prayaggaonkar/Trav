@@ -88,6 +88,20 @@ struct SupabaseEngagementRepository: EngagementRepository {
     // MARK: - Toggles
 
     func toggleSave(userID: UUID, experienceID: UUID) async throws -> Bool {
+        struct ExpOwnerRow: Decodable {
+            let user_id: UUID
+        }
+        let expOwner: [ExpOwnerRow] = (try? await client
+            .from("experiences")
+            .select("user_id")
+            .eq("id", value: experienceID.uuidString.lowercased())
+            .execute()
+            .value) ?? []
+
+        if let owner = expOwner.first, owner.user_id == userID {
+            return false
+        }
+
         if try await isSaved(userID: userID, experienceID: experienceID) {
             try await unsave(userID: userID, experienceID: experienceID)
             return false
@@ -123,6 +137,20 @@ struct SupabaseEngagementRepository: EngagementRepository {
         let client = try client
         let user = userID.uuidString.lowercased()
         let experience = experienceID.uuidString.lowercased()
+
+        struct ExpOwnerRow: Decodable {
+            let user_id: UUID
+        }
+        let expOwner: [ExpOwnerRow] = (try? await client
+            .from("experiences")
+            .select("user_id")
+            .eq("id", value: experience)
+            .execute()
+            .value) ?? []
+
+        if let owner = expOwner.first, owner.user_id == userID {
+            return false
+        }
 
         if try await isCompleted(userID: userID, experienceID: experienceID) {
             try await client

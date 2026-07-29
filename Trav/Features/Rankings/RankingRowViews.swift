@@ -351,9 +351,9 @@ struct HeatStreakUserRow: View {
 
                 Spacer(minLength: TravSpacing.xs)
 
-                // Professional Vertical Micro-Badge Stack for Stats
+                // Stats
                 VStack(alignment: .trailing, spacing: 4) {
-                    // Active Days Streak Badge (Highlight)
+                    // Active Days Streak (Highlight)
                     HStack(spacing: 4) {
                         Image(systemName: entry.flameIcon)
                             .font(.system(size: 11, weight: .bold))
@@ -363,27 +363,11 @@ struct HeatStreakUserRow: View {
                             .font(.system(size: 12, weight: .bold, design: .rounded))
                             .foregroundStyle(entry.flameColor)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(entry.flameColor.opacity(0.12))
-                            .overlay(
-                                Capsule(style: .continuous)
-                                    .strokeBorder(entry.flameColor.opacity(0.25), lineWidth: 1)
-                            )
-                    )
 
-                    // Total Posts Badge
+                    // Total Posts
                     Text(entry.postsLabel)
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(TravColors.muted)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(TravColors.surfaceElevated)
-                        )
                 }
             }
             .padding(.vertical, 10)
@@ -399,6 +383,7 @@ struct HeatStreakUserRow: View {
 struct TrendingLeaderboardView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
+    @Environment(EngagementStore.self) private var engagement
 
     let memberScope: MemberScopeFilter
     let selectedLocation: LocationOption
@@ -409,7 +394,9 @@ struct TrendingLeaderboardView: View {
     var filteredEntries: [HeatStreakEntry] {
         var items = entries
         if memberScope == .friends {
-            items = items.filter { $0.isLocationVerified }
+            let following = engagement.followingUserIDs
+            let currentUserID = environment.session.currentUser?.id
+            items = items.filter { following.contains($0.id) || $0.id == currentUserID }
         }
         return items
     }
@@ -515,7 +502,7 @@ struct ImpactUserRow: View {
 
                 Spacer(minLength: TravSpacing.xs)
 
-                // Micro-Badge Stack for Impact Stats
+                // Impact Stats
                 HStack(spacing: 4) {
                     Image(systemName: "bookmark.fill")
                         .font(.system(size: 11, weight: .bold))
@@ -525,16 +512,6 @@ struct ImpactUserRow: View {
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(TravColors.primary)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(TravColors.accent.opacity(0.12))
-                        .overlay(
-                            Capsule(style: .continuous)
-                                .strokeBorder(TravColors.accent.opacity(0.25), lineWidth: 1)
-                        )
-                )
             }
             .padding(.vertical, 12)
             .padding(.horizontal, TravSpacing.screenHorizontal)
@@ -558,7 +535,13 @@ struct ImpactLeaderboardView: View {
     @State private var isLoading = false
 
     var filteredEntries: [ImpactEntry] {
-        return entries
+        var items = entries
+        if memberScope == .friends {
+            let following = engagement.followingUserIDs
+            let currentUserID = environment.session.currentUser?.id
+            items = items.filter { following.contains($0.id) || $0.id == currentUserID }
+        }
+        return items
     }
 
     var body: some View {
@@ -684,12 +667,25 @@ struct MainLeaderboardView: View {
     @Environment(AppRouter.self) private var router
     @Environment(EngagementStore.self) private var engagement
 
+    let memberScope: MemberScopeFilter
+    let selectedLocation: LocationOption
+
     @State private var entries: [MainLeaderboardEntry] = []
     @State private var isLoading = false
 
+    var filteredEntries: [MainLeaderboardEntry] {
+        var items = entries
+        if memberScope == .friends {
+            let following = engagement.followingUserIDs
+            let currentUserID = environment.session.currentUser?.id
+            items = items.filter { following.contains($0.id) || $0.id == currentUserID }
+        }
+        return items
+    }
+
     var body: some View {
         Group {
-            if entries.isEmpty && !isLoading {
+            if filteredEntries.isEmpty && !isLoading {
                 EmptyStateView(
                     icon: "trophy",
                     title: "No leaderboard entries",
@@ -699,7 +695,7 @@ struct MainLeaderboardView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(entries) { entry in
+                        ForEach(filteredEntries) { entry in
                             MainLeaderboardUserRow(entry: entry) {
                                 router.openProfile(entry.username)
                             }

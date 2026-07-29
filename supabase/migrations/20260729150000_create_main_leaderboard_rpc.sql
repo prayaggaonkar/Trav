@@ -71,6 +71,8 @@ begin
             count(es.experience_id)::bigint as total_experiences
         from public.profiles p
         left join experience_scores es on es.creator_id = p.id
+        where lower(p.username) != 'rec_by_trav'
+          and lower(coalesce(p.display_name, '')) != 'rec by trav'
         group by p.id, p.username, p.display_name, p.avatar_url
     ),
     user_post_days as (

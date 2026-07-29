@@ -224,9 +224,11 @@ struct ExperienceDetailView: View {
         let isSaved = engagement.isSaved(experience.id)
         let isCompleted = engagement.isCompleted(experience.id)
         let summary = summary(from: experience)
+        let isOwn = (session.currentUser?.id == experience.creator.id)
 
         return HStack(alignment: .top, spacing: 0) {
             Button {
+                guard !isOwn else { return }
                 Task {
                     await engagement.toggleSave(
                         experienceID: experience.id,
@@ -243,7 +245,7 @@ struct ExperienceDetailView: View {
                             .font(TravTypography.labelMedium())
                             .fontWeight(.bold)
                     }
-                    .foregroundStyle(isSaved ? .white : TravColors.primary)
+                    .foregroundStyle(isOwn ? TravColors.muted.opacity(0.5) : (isSaved ? .white : TravColors.primary))
                     .frame(maxWidth: .infinity)
                     .frame(height: 45)
                     .background(isSaved ? Color(red: 0.78, green: 0.58, blue: 0.06) : TravColors.surfaceElevated)
@@ -254,8 +256,11 @@ struct ExperienceDetailView: View {
                 }
             }
             .buttonStyle(TravPressButtonStyle())
+            .disabled(isOwn)
+            .opacity(isOwn ? 0.4 : 1.0)
 
             Button {
+                guard !isOwn else { return }
                 if session.currentUser == nil {
                     router.presentAuth()
                 } else {
@@ -289,6 +294,8 @@ struct ExperienceDetailView: View {
                 }
             }
             .buttonStyle(TravPressButtonStyle())
+            .disabled(isOwn)
+            .opacity(isOwn ? 0.4 : 1.0)
 
             Button {
                 shareItem = ShareItem(

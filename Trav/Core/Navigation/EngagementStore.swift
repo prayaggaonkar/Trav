@@ -293,6 +293,10 @@ final class EngagementStore {
             environment.router.presentAuth()
             return false
         }
+        if let summary, summary.creator.id == userID {
+            applyLocalSaveState(experienceID: experienceID, saved: false, summary: nil)
+            return false
+        }
         // Prevent double-taps / stacked Tasks from immediately undoing a save.
         guard !inFlightSaveIDs.contains(experienceID) else {
             return savedExperienceIDs.contains(experienceID)
@@ -368,6 +372,9 @@ final class EngagementStore {
     ) async -> Bool {
         guard let userID = environment.session.currentUser?.id else {
             environment.router.presentAuth()
+            return false
+        }
+        if let summary, summary.creator.id == userID {
             return false
         }
         // Prevent double-taps from desyncing local and remote completion state.
