@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Comments for an experience: paginated list, Instagram-style threaded replies, posting, deleting,
 /// and reporting.
@@ -33,16 +34,14 @@ struct CommentsSheet: View {
 
                 composer
             }
-            .travScreenBackground()
+            .background(Color.black)
             .navigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .foregroundStyle(TravColors.accent)
-                }
-            }
+            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
         }
+        .presentationBackground(Color.black)
         .task { await load() }
         .confirmationDialog(
             "Report Comment",
@@ -198,6 +197,10 @@ struct CommentsSheet: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 0) {
+            Divider()
+                .overlay(TravColors.border.opacity(0.5))
+                .padding(.top, TravSpacing.xs)
+
             if let target = replyingTo {
                 HStack {
                     Text("Replying to ")
@@ -224,7 +227,7 @@ struct CommentsSheet: View {
                     .buttonStyle(.plain)
                 }
                 .padding(.horizontal, TravSpacing.md)
-                .padding(.top, TravSpacing.xs)
+                .padding(.top, TravSpacing.sm)
                 .padding(.bottom, 4)
             }
 
@@ -236,9 +239,10 @@ struct CommentsSheet: View {
                 )
                 .lineLimit(1...4)
                 .focused($composerFocused)
+                .foregroundStyle(TravColors.primary)
                 .padding(.horizontal, TravSpacing.md)
                 .padding(.vertical, 10)
-                .background(TravColors.surfaceElevated)
+                .background(Color(white: 0.12))
                 .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
                 .tint(TravColors.accent)
 
@@ -260,9 +264,11 @@ struct CommentsSheet: View {
                 .accessibilityLabel("Post comment")
             }
             .padding(.horizontal, TravSpacing.md)
-            .padding(.vertical, TravSpacing.sm)
+            .padding(.top, TravSpacing.sm)
+            .padding(.bottom, TravSpacing.md)
         }
-        .background(.ultraThinMaterial)
+        .background(Color.black)
+        .safeAreaPadding(.bottom, 0)
     }
 
     private var canPost: Bool {
@@ -382,6 +388,8 @@ private struct CommentRow: View {
     let onDelete: () -> Void
     let onReport: () -> Void
 
+    @State private var showOptions = false
+
     var body: some View {
         HStack(alignment: .top, spacing: TravSpacing.sm) {
             Button(action: onProfileTap) {
@@ -415,24 +423,64 @@ private struct CommentRow: View {
 
             Spacer(minLength: 0)
 
-            Menu {
-                if isOwn {
-                    Button(role: .destructive, action: onDelete) {
-                        Label("Delete", systemImage: "trash")
+            ZStack(alignment: .topTrailing) {
+                Button {
+                    withAnimation(TravAnimation.quick) {
+                        showOptions.toggle()
                     }
-                } else {
-                    Button(role: .destructive, action: onReport) {
-                        Label("Report", systemImage: "flag")
-                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(TravColors.muted)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
                 }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(TravColors.muted)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityLabel("Comment options")
+
+                if showOptions {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if isOwn {
+                            Button {
+                                showOptions = false
+                                onDelete()
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(TravColors.error)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Button {
+                                showOptions = false
+                                onReport()
+                            } label: {
+                                Label("Report", systemImage: "flag")
+                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(TravColors.error)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .frame(width: 140)
+                    .background(TravColors.surfaceElevated)
+                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                            .stroke(TravColors.border.opacity(0.7), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+                    .offset(y: 30)
+                    .zIndex(10)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)))
+                }
             }
-            .accessibilityLabel("Comment options")
         }
     }
 

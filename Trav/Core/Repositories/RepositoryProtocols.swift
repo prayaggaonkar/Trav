@@ -33,8 +33,8 @@ protocol ExperienceRepository: Sendable {
     func fetchHomeFeed(page: Int) async throws -> Paginated<ExperienceSummary>
     /// Curated places from the ingestion pipeline, mapped to feed summaries.
     func fetchPlacesFeed(page: Int) async throws -> Paginated<ExperienceSummary>
-    /// Upcoming local pop-up events.
-    func fetchPopups() async throws -> [Popup]
+    /// Upcoming local pop-up events tailored to user's location.
+    func fetchPopups(latitude: Double?, longitude: Double?, city: String?) async throws -> [Popup]
     func publishExperience(_ draft: ExperienceDraft) async throws
     func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary]
     /// Leaders sorted by total published experience count.

@@ -213,7 +213,7 @@ final class CurrentCityLocator: NSObject, CLLocationManagerDelegate {
         manager.desiredAccuracy = kCLLocationAccuracyKilometer
     }
 
-    func requestCityLabel() async -> String? {
+    func requestLocationCoordinate() async -> CLLocationCoordinate2D? {
         let status = manager.authorizationStatus
         if status == .notDetermined {
             manager.requestWhenInUseAuthorization()
@@ -225,11 +225,14 @@ final class CurrentCityLocator: NSObject, CLLocationManagerDelegate {
             return nil
         }
 
-        let coordinate = await withCheckedContinuation { (cont: CheckedContinuation<CLLocationCoordinate2D?, Never>) in
+        return await withCheckedContinuation { (cont: CheckedContinuation<CLLocationCoordinate2D?, Never>) in
             self.continuation = cont
             self.manager.requestLocation()
         }
-        guard let coordinate else { return nil }
+    }
+
+    func requestCityLabel() async -> String? {
+        guard let coordinate = await requestLocationCoordinate() else { return nil }
         return await autocomplete.resolveCurrentLocation(coordinate: coordinate)
     }
 

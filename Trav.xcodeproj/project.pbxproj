@@ -52,6 +52,8 @@
 		A6F1E30F1EB19073DC6A9999 /* SpotSearchComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78FB928744779B1363949999 /* SpotSearchComponents.swift */; };
 		A918A9EDBC4E475399F878FF /* CityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39CE5CA1E5C9417CBF6E98A0 /* CityViewModel.swift */; };
 		AC10E298F515465C8669B002 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC10E298F515465C8669B001 /* SupabaseManager.swift */; };
+		AUTOSEED0000000000000001 /* ExperienceInsert.swift in Sources */ = {isa = PBXBuildFile; fileRef = AUTOSEED0000000000000002 /* ExperienceInsert.swift */; };
+		AUTOSEED0000000000000003 /* AutoSeedManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AUTOSEED0000000000000004 /* AutoSeedManager.swift */; };
 		AC10E298F515465C8669B004 /* SupabaseAuthRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */; };
 		AC10E298F515465C8669B009 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = AC10E298F515465C8669B008 /* Supabase */; };
 		AC10E298F515465C8669B00C /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = AC10E298F515465C8669B00B /* Auth */; };
@@ -148,6 +150,8 @@
 		9D789CF333594AE0B2D8A18E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A31AE020CFEB4511A16E49E9 /* EarthGlobeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarthGlobeRenderer.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B001 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
+		AUTOSEED0000000000000002 /* ExperienceInsert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperienceInsert.swift; sourceTree = "<group>"; };
+		AUTOSEED0000000000000004 /* AutoSeedManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoSeedManager.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseAuthRepository.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B015 /* SupabaseExperienceRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseExperienceRepository.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B020 /* OAuthWebSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthWebSession.swift; sourceTree = "<group>"; };
@@ -342,6 +346,7 @@
 			isa = PBXGroup;
 			children = (
 				042EA83356B64A548B6D9EE9 /* CityAutocompleteService.swift */,
+				AUTOSEED0000000000000004 /* AutoSeedManager.swift */,
 				AC10E298F515465C8669B020 /* OAuthWebSession.swift */,
 				AC10E298F515465C8669B001 /* SupabaseManager.swift */,
 				20D1B81412AC87415EFE2CBA /* CityCatalog.swift */,
@@ -421,6 +426,7 @@
 				495A3A8B9C6E42DFB539E0D3 /* City.swift */,
 				1468F8B546604199BB6747BD /* Enums.swift */,
 				BCB1B49407444C75B6389332 /* Experience.swift */,
+				AUTOSEED0000000000000002 /* ExperienceInsert.swift */,
 				RADAR0010000000000000001 /* RadarRating.swift */,
 				1ECA72ADC07B4172BD8D8F12 /* Profile.swift */,
 				8C9C50758E87D7A5F85D3E13 /* Comment.swift */,
@@ -628,6 +634,8 @@
 				77297A37933F4FFF8826907E /* FollowListView.swift in Sources */,
 				C7EAD1EAE5A54853BC25399B /* CreateExperienceView.swift in Sources */,
 				AC10E298F515465C8669B002 /* SupabaseManager.swift in Sources */,
+				AUTOSEED0000000000000001 /* ExperienceInsert.swift in Sources */,
+				AUTOSEED0000000000000003 /* AutoSeedManager.swift in Sources */,
 				AC10E298F515465C8669B021 /* OAuthWebSession.swift in Sources */,
 				AC10E298F515465C8669B004 /* SupabaseAuthRepository.swift in Sources */,
 				AC10E298F515465C8669B016 /* SupabaseExperienceRepository.swift in Sources */,

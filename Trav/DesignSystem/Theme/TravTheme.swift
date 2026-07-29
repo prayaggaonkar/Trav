@@ -186,73 +186,123 @@ public func sfSymbolForEmojiOrCategory(_ value: String) -> String {
 // MARK: - Route Travel Calculation (Walking vs Driving & Travel Time)
 
 public struct RouteTravelInfo: Sendable, Equatable {
-    public let isDriving: Bool
-    public let totalDistanceMeters: Double
-    public let estimatedTravelTimeMinutes: Int
+    public let walkingDistanceMeters: Double
+    public let drivingDistanceMeters: Double
+    public let walkingMinutes: Int
+    public let drivingMinutes: Int
+
+    public var totalDistanceMeters: Double {
+        walkingDistanceMeters + drivingDistanceMeters
+    }
+
+    public var estimatedTravelTimeMinutes: Int {
+        let total = walkingMinutes + drivingMinutes
+        return total > 0 ? total : 0
+    }
+
+    /// True when every segment is driving (no walking).
+    public var isDriving: Bool {
+        drivingMinutes > 0 && walkingMinutes == 0
+    }
+
+    public var isMixed: Bool {
+        walkingMinutes > 0 && drivingMinutes > 0
+    }
+
+    public var hasWalking: Bool { walkingMinutes > 0 }
+    public var hasDriving: Bool { drivingMinutes > 0 }
 
     public var modeName: String {
-        isDriving ? "Driving" : "Walking"
+        switch (hasWalking, hasDriving) {
+        case (true, true): return "Walking & Driving"
+        case (false, true): return "Driving"
+        default: return "Walking"
+        }
     }
 
     public var iconName: String {
-        isDriving ? "car.fill" : "figure.walk"
+        switch (hasWalking, hasDriving) {
+        case (true, true): return "arrow.triangle.swap"
+        case (false, true): return "car.fill"
+        default: return "figure.walk"
+        }
     }
 
     public var formattedTravelTime: String {
-        let mins = max(1, estimatedTravelTimeMinutes)
-        if mins >= 60 {
-            let hours = mins / 60
-            let remainder = mins % 60
-            return remainder > 0 ? "\(hours)h \(remainder)m" : "\(hours)h"
-        }
-        return "\(mins) min"
+        Self.formatMinutes(max(1, estimatedTravelTimeMinutes))
     }
 
     public var timeAndModeLabel: String {
-        "\(formattedTravelTime) \(isDriving ? "drive" : "walk")"
+        switch (hasWalking, hasDriving) {
+        case (true, true):
+            return "\(Self.formatMinutes(walkingMinutes)) walk · \(Self.formatMinutes(drivingMinutes)) drive"
+        case (false, true):
+            return "\(Self.formatMinutes(max(1, drivingMinutes))) drive"
+        default:
+            return "\(Self.formatMinutes(max(1, walkingMinutes))) walk"
+        }
+    }
+
+    public static func formatMinutes(_ mins: Int) -> String {
+        let value = max(1, mins)
+        if value >= 60 {
+            let hours = value / 60
+            let remainder = value % 60
+            return remainder > 0 ? "\(hours)h \(remainder)m" : "\(hours)h"
+        }
+        return "\(value) min"
     }
 }
 
 public enum RouteTravelCalculator {
+    /// Consecutive stops over this distance use driving; otherwise walking.
+    public static let drivingThresholdMeters: Double = 1609.34 // 1 mile
+
+    public static func isDrivingSegment(distanceMeters: Double) -> Bool {
+        distanceMeters > drivingThresholdMeters
+    }
+
+    public static func segmentDistanceMeters(
+        from: CLLocationCoordinate2D,
+        to: CLLocationCoordinate2D
+    ) -> Double {
+        CLLocation(latitude: from.latitude, longitude: from.longitude)
+            .distance(from: CLLocation(latitude: to.latitude, longitude: to.longitude))
+    }
+
     public static func calculate(for coordinates: [CLLocationCoordinate2D]) -> RouteTravelInfo {
         guard coordinates.count >= 2 else {
-            return RouteTravelInfo(isDriving: false, totalDistanceMeters: 0, estimatedTravelTimeMinutes: 0)
+            return RouteTravelInfo(
+                walkingDistanceMeters: 0,
+                drivingDistanceMeters: 0,
+                walkingMinutes: 0,
+                drivingMinutes: 0
+            )
         }
 
-        var totalDistance: Double = 0
-        var maxSegmentDistance: Double = 0
+        var walkingDistance: Double = 0
+        var drivingDistance: Double = 0
+        var walkingMinutesAcc: Double = 0
+        var drivingMinutesAcc: Double = 0
 
         for i in 0..<(coordinates.count - 1) {
-            let loc1 = CLLocation(latitude: coordinates[i].latitude, longitude: coordinates[i].longitude)
-            let loc2 = CLLocation(latitude: coordinates[i+1].latitude, longitude: coordinates[i+1].longitude)
-            let dist = loc1.distance(from: loc2)
-            totalDistance += dist
-            if dist > maxSegmentDistance {
-                maxSegmentDistance = dist
+            let dist = segmentDistanceMeters(from: coordinates[i], to: coordinates[i + 1])
+            if isDrivingSegment(distanceMeters: dist) {
+                drivingDistance += dist
+                // ~30 km/h (500 m/min) + short buffer for traffic/parking per hop
+                drivingMinutesAcc += dist / 500.0 + 1.5
+            } else {
+                walkingDistance += dist
+                // ~4.8 km/h (80 m/min)
+                walkingMinutesAcc += dist / 80.0
             }
         }
 
-        // Determine walking vs driving dependent on distance between stops:
-        // If max segment > 1.5 km (1500m) or total distance > 2.5 km (2500m), we use Driving. Otherwise Walking.
-        let isDriving = maxSegmentDistance > 1500 || totalDistance > 2500
-
-        // Calculate travel time in minutes:
-        // Walking: ~4.8 km/h (80 meters per minute)
-        // Driving: ~30 km/h (500 meters per minute) + 1.5 min per stop transition for traffic/parking
-        let minutes: Int
-        if isDriving {
-            let driveMinutes = totalDistance / 500.0
-            let segmentBuffers = Double(coordinates.count - 1) * 1.5
-            minutes = Int(round(driveMinutes + segmentBuffers))
-        } else {
-            let walkMinutes = totalDistance / 80.0
-            minutes = Int(round(walkMinutes))
-        }
-
         return RouteTravelInfo(
-            isDriving: isDriving,
-            totalDistanceMeters: totalDistance,
-            estimatedTravelTimeMinutes: max(1, minutes)
+            walkingDistanceMeters: walkingDistance,
+            drivingDistanceMeters: drivingDistance,
+            walkingMinutes: Int(round(walkingMinutesAcc)),
+            drivingMinutes: Int(round(drivingMinutesAcc))
         )
     }
 }

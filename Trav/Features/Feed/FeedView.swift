@@ -78,6 +78,8 @@ struct FeedView: View {
 
     // Spot Search & Rating
     @State private var spotSearchController = SpotSearchController()
+    @State private var cityLocator = CurrentCityLocator()
+    @State private var currentCity: String? = nil
     @State private var selectedSpotDetail: SpotSuggestion? = nil
 
     // Quick Planner state
@@ -147,7 +149,16 @@ struct FeedView: View {
                 await engagement.bootstrap(userID: userID, using: environment)
             }
             catalogCities = (try? await environment.cities.fetchGlobeCities()) ?? []
-            await viewModel.loadIfNeeded(using: environment)
+
+            // Load feed and popups for active app location
+            await reloadPopupsForActiveAppLocation()
+        }
+        .task(id: currentCity) {
+            guard let city = currentCity, !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            let didSeed = await AutoSeedManager.shared.checkAndSeedCity(city: city)
+            if didSeed {
+                await reloadPopupsForActiveAppLocation()
+            }
         }
         .onChange(of: searchText) { _, newValue in
             router.feedKeyword = newValue
@@ -159,6 +170,11 @@ struct FeedView: View {
             isSearchFocused = false
             userSearchResults = []
             spotSearchController.clear()
+        }
+        .onChange(of: router.selectedFeedCity) { _, _ in
+            Task {
+                await reloadPopupsForActiveAppLocation()
+            }
         }
         .onChange(of: isActive) { _, active in
             // Leaving Feed for another tab clears tags; opening an experience keeps them.
@@ -330,7 +346,7 @@ struct FeedView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .refreshable {
-            await viewModel.load(using: environment)
+            await reloadPopupsForActiveAppLocation()
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 8).onChanged { _ in
@@ -370,6 +386,9 @@ struct FeedView: View {
     }
 
     private func ownExperienceBadge(for experience: ExperienceSummary) -> String {
+        if experience.creator.id == ExperienceInsert.travAdminID || experience.creator.username.lowercased() == "trav" {
+            return "Rec by Trav"
+        }
         guard let currentID = session.currentUser?.id,
               experience.creator.id == currentID else {
             return ""
@@ -384,6 +403,41 @@ struct FeedView: View {
             $0.name.localizedCaseInsensitiveContains(keyword)
                 || $0.address.localizedCaseInsensitiveContains(keyword)
         }
+    }
+
+    private func reloadPopupsForActiveAppLocation() async {
+        let activeCity: String?
+        let activeLat: Double?
+        let activeLng: Double?
+
+        if let selectedCity = router.selectedFeedCity {
+            // Priority 1: User put/selected a location in the app!
+            activeCity = selectedCity.name
+            activeLat = selectedCity.latitude
+            activeLng = selectedCity.longitude
+        } else if let userCoord = await cityLocator.requestLocationCoordinate() {
+            // Priority 2: Fallback to device GPS when no city is selected in the app
+            activeCity = await cityLocator.requestCityLabel()
+            activeLat = userCoord.latitude
+            activeLng = userCoord.longitude
+        } else {
+            activeCity = catalogCities.first?.name
+            activeLat = nil
+            activeLng = nil
+        }
+
+        if let city = activeCity {
+            self.currentCity = city
+            // Ensure Rec by Trav itinerary is auto-seeded BEFORE loading feed data
+            await AutoSeedManager.shared.checkAndSeedCity(city: city)
+        }
+
+        await viewModel.load(
+            using: environment,
+            latitude: activeLat,
+            longitude: activeLng,
+            city: activeCity
+        )
     }
 
     // MARK: - Quick Planner
@@ -591,7 +645,14 @@ struct FeedView: View {
             items = items.filter { engagement.isSaved($0.id) }
         }
 
-        return items
+        return items.sorted { a, b in
+            let aIsTrav = a.creator.id == ExperienceInsert.travAdminID || a.creator.username.lowercased() == "trav"
+            let bIsTrav = b.creator.id == ExperienceInsert.travAdminID || b.creator.username.lowercased() == "trav"
+            if aIsTrav != bIsTrav {
+                return aIsTrav
+            }
+            return false
+        }
     }
 
     private func experienceMatchesCity(_ experience: ExperienceSummary, city: City) -> Bool {
@@ -919,14 +980,13 @@ private struct PopupStoryCard: View {
     let popup: Popup
     private let cornerRadius: CGFloat = 16
 
-    private var isToday: Bool {
-        guard let start = popup.startTime else { return false }
-        return Calendar.current.isDateInToday(start)
+    private var displayImageURL: URL? {
+        popup.imageURL ?? popupImage(for: popup.name)
     }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            if let coverURL = popupImage(for: popup.name) {
+            if let coverURL = displayImageURL {
                 RemoteImage(url: coverURL, height: 160, cornerRadius: cornerRadius)
             } else {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -934,46 +994,31 @@ private struct PopupStoryCard: View {
             }
 
             LinearGradient(
-                colors: [.clear, .black.opacity(0.85)],
+                colors: [.clear, .black.opacity(0.90)],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
 
-            VStack {
-                HStack {
-                    Text(isToday ? "TODAY" : "SOON")
-                        .font(.system(size: 8, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(
-                            Capsule()
-                                .fill(isToday ? Color.red : TravColors.accent)
-                        )
-                        .padding(8)
-                    Spacer()
-                }
-                Spacer()
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(popup.name)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
+                    .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
 
-                Text(popup.startTimeLabel)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.8))
+                Text(popup.shortDateLabel)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.95))
                     .lineLimit(1)
             }
-            .padding([.horizontal, .bottom], 8)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 10)
         }
-        .frame(width: 110, height: 160)
+        .frame(width: 124, height: 160)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .shadow(color: Color.black.opacity(0.06), radius: 6, y: 3)
+        .shadow(color: Color.black.opacity(0.12), radius: 6, y: 3)
     }
 }
 
@@ -983,14 +1028,41 @@ private struct PopupDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var shareItem: ShareItem?
 
+    private var displayImageURL: URL? {
+        popup.imageURL ?? popupImage(for: popup.name)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-            if let coverURL = popupImage(for: popup.name) {
+            if let coverURL = displayImageURL {
                 RemoteImage(url: coverURL, height: 180, cornerRadius: TravRadius.lg)
                     .frame(maxWidth: .infinity)
             }
 
             VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                HStack {
+                    HStack(spacing: 4) {
+                        Text(popup.category.emoji)
+                        Text(popup.category.displayName)
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(popup.category.badgeColor))
+
+                    if let distance = popup.distanceLabel {
+                        Text(distance)
+                            .font(TravTypography.caption())
+                            .foregroundStyle(TravColors.accent)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(TravColors.surfaceElevated))
+                    }
+
+                    Spacer()
+                }
+
                 Text(popup.name)
                     .font(TravTypography.titleLarge())
                     .foregroundStyle(TravColors.primary)
@@ -1002,29 +1074,47 @@ private struct PopupDetailSheet: View {
                 Label(popup.address, systemImage: "mappin.and.ellipse")
                     .font(TravTypography.bodyMedium())
                     .foregroundStyle(TravColors.muted)
+
+                if let desc = popup.description, !desc.isEmpty {
+                    Text(desc)
+                        .font(TravTypography.bodyMedium())
+                        .foregroundStyle(TravColors.primary.opacity(0.9))
+                        .padding(.top, TravSpacing.xs)
+                }
             }
 
             Spacer()
 
             HStack(spacing: TravSpacing.sm) {
+                if let extURL = popup.externalURL {
+                    Link(destination: extURL) {
+                        Label("View Event", systemImage: "safari.fill")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(TravColors.accent)
+                            .foregroundStyle(.black)
+                            .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                    }
+                }
+
                 Button {
                     openInMaps()
                 } label: {
-                    Label("Directions", systemImage: "arrow.triangle.turn.up.right.circle.fill")
+                    Label(popup.externalURL == nil ? "Directions" : "Map", systemImage: "arrow.triangle.turn.up.right.circle.fill")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(TravColors.accent)
-                        .foregroundStyle(.black)
+                        .background(popup.externalURL == nil ? TravColors.accent : TravColors.surfaceElevated)
+                        .foregroundStyle(popup.externalURL == nil ? .black : TravColors.primary)
                         .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
                 }
                 .buttonStyle(.plain)
 
                 Button {
                     shareItem = ShareItem(
-                        message: "\(popup.name) — \(popup.startTimeLabel) at \(popup.address)",
-                        url: URL(string: "https://maps.apple.com/?q=\(popup.address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")")
-                            ?? URL(string: "https://maps.apple.com")!
+                        message: "\(popup.name) (\(popup.category.displayName)) — \(popup.startTimeLabel) at \(popup.address)",
+                        url: popup.externalURL ?? URL(string: "https://maps.apple.com/?q=\(popup.address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")")!
                     )
                 } label: {
                     Image(systemName: "square.and.arrow.up")

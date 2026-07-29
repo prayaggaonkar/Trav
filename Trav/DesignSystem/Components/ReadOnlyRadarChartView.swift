@@ -9,6 +9,7 @@ struct ReadOnlyRadarChartView: View {
     let minScore: Double
     let fillColor: Color
     let strokeColor: Color
+    var showsHeader: Bool
 
     @State private var isAnimated: Bool = false
 
@@ -18,7 +19,8 @@ struct ReadOnlyRadarChartView: View {
         minScore: Double = 1.0,
         maxScore: Double = 10.0,
         fillColor: Color = TravColors.accent,
-        strokeColor: Color = TravColors.accent
+        strokeColor: Color = TravColors.accent,
+        showsHeader: Bool = true
     ) {
         self.rating = rating
         self.axes = axes
@@ -26,12 +28,14 @@ struct ReadOnlyRadarChartView: View {
         self.maxScore = maxScore
         self.fillColor = fillColor
         self.strokeColor = strokeColor
+        self.showsHeader = showsHeader
     }
 
     var body: some View {
         VStack(spacing: TravSpacing.sm) {
-            // Header showing aggregate rating across active categories
-            headerView
+            if showsHeader {
+                headerView
+            }
 
             GeometryReader { geometry in
                 let size = min(geometry.size.width, geometry.size.height)
@@ -41,7 +45,6 @@ struct ReadOnlyRadarChartView: View {
                 radarPlotView(size: size, center: center, radius: radius)
             }
             .frame(height: 250)
-            .padding(.vertical, TravSpacing.xs)
             .onAppear {
                 withAnimation(.spring(response: 0.7, dampingFraction: 0.75)) {
                     isAnimated = true
@@ -51,13 +54,6 @@ struct ReadOnlyRadarChartView: View {
             // Summary breakdown bar below chart
             scoreSummaryGrid
         }
-        .padding(TravSpacing.md)
-        .background(TravColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: TravRadius.lg)
-                .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
-        )
     }
 
     @ViewBuilder
@@ -157,16 +153,6 @@ struct ReadOnlyRadarChartView: View {
 
     private var headerView: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("RATING OVERVIEW")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .tracking(1.5)
-                    .foregroundStyle(TravColors.accent)
-                Text("Overall Rating")
-                    .font(TravTypography.titleMedium())
-                    .foregroundStyle(TravColors.primary)
-            }
-
             Spacer()
 
             HStack(spacing: 6) {
@@ -184,10 +170,6 @@ struct ReadOnlyRadarChartView: View {
                         .foregroundStyle(TravColors.muted)
                 }
             }
-            .padding(.horizontal, TravSpacing.sm)
-            .padding(.vertical, 4)
-            .background(TravColors.surfaceElevated)
-            .clipShape(Capsule())
         }
     }
 

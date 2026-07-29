@@ -33,21 +33,64 @@ final class FeedViewModel {
         hasMoreExperiences || hasMorePlaces
     }
 
-    func loadIfNeeded(using environment: AppEnvironment) async {
+    func loadIfNeeded(
+        using environment: AppEnvironment,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        city: String? = nil
+    ) async {
         guard phase == .idle else { return }
-        await load(using: environment)
+        await load(using: environment, latitude: latitude, longitude: longitude, city: city)
     }
 
-    func load(using environment: AppEnvironment) async {
+    private var cachedLat: Double?
+    private var cachedLng: Double?
+    private var cachedCity: String?
+
+    func load(
+        using environment: AppEnvironment,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        city: String? = nil
+    ) async {
+        if let latitude { cachedLat = latitude }
+        if let longitude { cachedLng = longitude }
+        if let city { cachedCity = city }
+
+        let targetLat = latitude ?? cachedLat
+        let targetLng = longitude ?? cachedLng
+        let targetCity = city ?? cachedCity
+
         phase = .loading
 
         async let experiencesResult = fetchExperiencesPage(0, using: environment)
         async let placesResult = fetchPlacesPage(0, using: environment)
-        async let popupsResult = fetchPopupsQuietly(using: environment)
+        async let popupsResult = fetchPopupsQuietly(using: environment, latitude: targetLat, longitude: targetLng, city: targetCity)
 
         let exp = await experiencesResult
         let pla = await placesResult
-        popups = await popupsResult
+        let rawPopups = await popupsResult
+
+        var uniquePopups: [Popup] = []
+        let calendar = Calendar.current
+        for p in rawPopups {
+            let norm = p.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let isDup = uniquePopups.contains { existing in
+                let existingNorm = existing.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                guard existingNorm == norm else { return false }
+
+                switch (existing.startTime, p.startTime) {
+                case let (d1?, d2?):
+                    return calendar.isDate(d1, inSameDayAs: d2)
+                default:
+                    return true
+                }
+            }
+            if !isDup {
+                uniquePopups.append(p)
+            }
+        }
+        popups = uniquePopups
 
         experiences = exp?.items ?? []
         experiencePage = 0
@@ -126,9 +169,18 @@ final class FeedViewModel {
         }
     }
 
-    private func fetchPopupsQuietly(using environment: AppEnvironment) async -> [Popup] {
+    private func fetchPopupsQuietly(
+        using environment: AppEnvironment,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        city: String? = nil
+    ) async -> [Popup] {
         do {
-            return try await environment.experiences.fetchPopups()
+            return try await environment.experiences.fetchPopups(
+                latitude: latitude,
+                longitude: longitude,
+                city: city
+            )
         } catch {
             TravLog.network.error("fetchPopups failed: \(error.localizedDescription, privacy: .public)")
             return []

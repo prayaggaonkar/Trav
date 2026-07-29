@@ -1,5 +1,6 @@
 import MapKit
 import SwiftUI
+import UIKit
 
 struct ExperienceDetailView: View {
     @Environment(AppEnvironment.self) private var environment
@@ -146,10 +147,10 @@ struct ExperienceDetailView: View {
                 actionBar(experience)
                     .travAppear(delay: 0.06)
 
-                overviewSection(experience)
+                timeline(experience)
                     .travAppear(delay: 0.1)
 
-                timeline(experience)
+                overviewSection(experience)
                     .travAppear(delay: 0.14)
             }
             .padding(.bottom, TravSpacing.xxl)
@@ -161,6 +162,8 @@ struct ExperienceDetailView: View {
 
     @ViewBuilder
     private func hero(_ experience: Experience) -> some View {
+        let commentCount = localCommentCount ?? experience.commentCount
+
         HeroMediaCarousel(
             urls: experience.imageURLs,
             height: TravLayout.heroExperienceHeight,
@@ -178,19 +181,42 @@ struct ExperienceDetailView: View {
                 .minimumScaleFactor(0.85)
                 .fixedSize(horizontal: false, vertical: true)
         } accessory: {
-            Button {
-                router.openProfile(experience.creator.username)
-            } label: {
-                HStack(spacing: TravSpacing.xs) {
-                    AvatarView(url: experience.creator.avatarURL, size: 32)
-                    Text(experience.creator.displayName)
-                        .font(TravTypography.bodyMedium())
-                        .foregroundStyle(.white.opacity(0.9))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.9)
+            HStack(alignment: .center, spacing: TravSpacing.md) {
+                Button {
+                    router.openProfile(experience.creator.username)
+                } label: {
+                    HStack(spacing: TravSpacing.xs) {
+                        AvatarView(url: experience.creator.avatarURL, size: 32)
+                        Text(experience.creator.displayName)
+                            .font(TravTypography.bodyMedium())
+                            .foregroundStyle(.white.opacity(0.9))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
                 }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    showComments = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "bubble.right.fill")
+                            .font(.system(size: 13.5, weight: .semibold))
+                        Text(TravFormatters.count(commentCount))
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 10)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(TravPressButtonStyle())
+                .layoutPriority(1)
+                .accessibilityLabel("Comments, \(commentCount)")
             }
-            .buttonStyle(.plain)
         }
     }
 
@@ -198,96 +224,79 @@ struct ExperienceDetailView: View {
         let isSaved = engagement.isSaved(experience.id)
         let isCompleted = engagement.isCompleted(experience.id)
         let summary = summary(from: experience)
-        let commentCount = localCommentCount ?? experience.commentCount
 
-        return VStack(spacing: TravSpacing.sm) {
-            // Social row: comment button with live count.
-            HStack(spacing: TravSpacing.lg) {
-                Button {
-                    showComments = true
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "bubble.right")
-                            .font(.system(size: 17, weight: .semibold))
-                        Text(TravFormatters.count(commentCount))
-                            .font(TravTypography.labelMedium())
-                    }
-                    .foregroundStyle(TravColors.primary)
-                }
-                .buttonStyle(TravPressButtonStyle())
-                .accessibilityLabel("Comments, \(commentCount)")
-
-                Spacer()
-
-                Text("\(TravFormatters.count(experience.completionCount)) watchlisted · \(TravFormatters.count(experience.saveCount)) saved")
-                    .font(TravTypography.caption())
-                    .foregroundStyle(TravColors.muted)
-            }
-
-            HStack(spacing: TravSpacing.sm) {
-                Button {
-                    Task {
-                        await engagement.toggleSave(
-                            experienceID: experience.id,
-                            summary: summary,
-                            using: environment
-                        )
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 14, weight: .semibold))
-                        Text(isSaved ? "Saved" : "Save")
-                            .font(TravTypography.labelMedium())
-                            .fontWeight(.semibold)
-                    }
-                    .foregroundStyle(TravColors.primary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .background(TravColors.surfaceElevated)
-                    .clipShape(Capsule())
-                    .overlay(
-                        Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
+        return HStack(alignment: .top, spacing: 0) {
+            Button {
+                Task {
+                    await engagement.toggleSave(
+                        experienceID: experience.id,
+                        summary: summary,
+                        using: environment
                     )
                 }
-                .buttonStyle(TravPressButtonStyle())
-
-                Button {
-                    if session.currentUser == nil {
-                        router.presentAuth()
-                    } else {
-                        if !isCompleted {
-                            withAnimation { showEyesRain = true }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
-                                showEyesRain = false
-                            }
-                        }
-                        Task {
-                            await engagement.toggleComplete(experienceID: experience.id, summary: summary, using: environment)
-                        }
-                    }
-                } label: {
+            } label: {
+                VStack(spacing: 6) {
                     HStack(spacing: 6) {
-                        Image(systemName: isCompleted ? "checkmark.circle.fill" : "plus.circle.fill")
-                            .font(.system(size: 15, weight: .bold))
-                        Text(isCompleted ? "In Watchlist" : "Watchlist")
+                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                            .font(.system(size: 14, weight: .bold))
+                        Text(isSaved ? "Saved" : "Save")
                             .font(TravTypography.labelMedium())
                             .fontWeight(.bold)
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(isSaved ? .white : TravColors.primary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .background(isCompleted ? Color.gray.opacity(0.4) : TravColors.accent)
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(TravPressButtonStyle())
+                    .frame(height: 45)
+                    .background(isSaved ? Color(red: 0.78, green: 0.58, blue: 0.06) : TravColors.surfaceElevated)
 
-                Button {
-                    shareItem = ShareItem(
-                        message: "Check out \"\(experience.title)\" on Trav",
-                        url: TravLinks.experience(experience.id)
-                    )
-                } label: {
+                    Text(TravFormatters.count(experience.saveCount))
+                        .font(TravTypography.caption())
+                        .foregroundStyle(TravColors.muted)
+                }
+            }
+            .buttonStyle(TravPressButtonStyle())
+
+            Button {
+                if session.currentUser == nil {
+                    router.presentAuth()
+                } else {
+                    if !isCompleted {
+                        withAnimation { showEyesRain = true }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
+                            showEyesRain = false
+                        }
+                    }
+                    Task {
+                        await engagement.toggleComplete(experienceID: experience.id, summary: summary, using: environment)
+                    }
+                }
+            } label: {
+                VStack(spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: isCompleted ? "checkmark.circle.fill" : "plus.circle.fill")
+                            .font(.system(size: 15, weight: .bold))
+                        Text(isCompleted ? "Watchlisted" : "Watchlist")
+                            .font(TravTypography.labelMedium())
+                            .fontWeight(.bold)
+                    }
+                    .foregroundStyle(isCompleted ? .white : TravColors.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 45)
+                    .background(isCompleted ? TravColors.accent : TravColors.surfaceElevated)
+
+                    Text(TravFormatters.count(experience.completionCount))
+                        .font(TravTypography.caption())
+                        .foregroundStyle(TravColors.muted)
+                }
+            }
+            .buttonStyle(TravPressButtonStyle())
+
+            Button {
+                shareItem = ShareItem(
+                    message: "Check out \"\(experience.title)\" on Trav",
+                    url: TravLinks.experience(experience.id)
+                )
+            } label: {
+                VStack(spacing: 6) {
                     HStack(spacing: 6) {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 14, weight: .semibold))
@@ -297,18 +306,17 @@ struct ExperienceDetailView: View {
                     }
                     .foregroundStyle(TravColors.primary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 44)
+                    .frame(height: 45)
                     .background(TravColors.surfaceElevated)
-                    .clipShape(Capsule())
-                    .overlay(
-                        Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
-                    )
+
+                    Text(TravFormatters.count(experience.likeCount))
+                        .font(TravTypography.caption())
+                        .foregroundStyle(TravColors.muted)
                 }
-                .buttonStyle(TravPressButtonStyle())
             }
+            .buttonStyle(TravPressButtonStyle())
         }
-        .padding(.horizontal, TravSpacing.screenHorizontal)
-        .padding(.vertical, TravSpacing.md)
+        .padding(.bottom, TravSpacing.md)
         .animation(TravAnimation.quick, value: isSaved)
         .animation(TravAnimation.quick, value: isCompleted)
     }
@@ -329,19 +337,38 @@ struct ExperienceDetailView: View {
                 }
                 .padding(.vertical, TravSpacing.xs)
             }
-            ExperienceRouteMapView(stops: experience.stops, transportMode: experience.transportMode)
 
-            RoutePreview(stops: experience.stops.map {
-                StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji, latitude: $0.latitude, longitude: $0.longitude)
-            })
+            ExperienceRouteMapView(stops: experience.stops)
 
             // Only render the radar when the creator actually rated the experience.
             if let rating = experience.rating, rating.overallScore > 0 {
-                VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                    Text("Experience Rating")
-                        .font(TravTypography.titleMedium())
-                        .foregroundStyle(TravColors.primary)
-                    ReadOnlyRadarChartView(rating: rating)
+                VStack(alignment: .leading, spacing: TravSpacing.sm) {
+                    HStack(alignment: .top, spacing: TravSpacing.sm) {
+                        Text("RATING")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .tracking(2.0)
+                            .foregroundStyle(TravColors.accent)
+
+                        Spacer(minLength: 0)
+
+                        HStack(spacing: 6) {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Color(red: 1.0, green: 0.8, blue: 0.0))
+
+                            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                                Text(String(format: "%.1f", rating.overallScore))
+                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                                    .foregroundStyle(TravColors.primary)
+
+                                Text("/ 10.0")
+                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(TravColors.muted)
+                            }
+                        }
+                    }
+
+                    ReadOnlyRadarChartView(rating: rating, showsHeader: false)
                 }
                 .padding(.top, TravSpacing.xs)
             }
@@ -354,9 +381,10 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func timeline(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Timeline")
-                .font(TravTypography.titleLarge())
-                .foregroundStyle(TravColors.primary)
+            Text("TIMELINE")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .tracking(2.0)
+                .foregroundStyle(TravColors.accent)
                 .padding(.horizontal, TravSpacing.screenHorizontal)
                 .padding(.bottom, TravSpacing.md)
 
@@ -374,6 +402,7 @@ struct ExperienceDetailView: View {
                 .travAppear(delay: Double(index) * 0.05)
             }
         }
+        .padding(.bottom, TravSpacing.lg)
     }
 
     private func load() async {
@@ -392,7 +421,7 @@ private struct StopTimelineRow: View {
     let stop: Stop
     let index: Int
     let isLast: Bool
-    var onImageTap: ((_ urls: [URL], _ index: Int) -> Void)? = nil
+    var onImageTap: (([URL], Int) -> Void)? = nil
 
     private let circleSize: CGFloat = 28
 
@@ -480,6 +509,8 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
 
     @State private var currentIndex = 0
     @State private var dragOffset: CGFloat = 0
+    /// True when the top of the current hero image is light — use dark dots for contrast.
+    @State private var useDarkDots = false
 
     var body: some View {
         GeometryReader { geo in
@@ -510,16 +541,22 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
                 .allowsHitTesting(false)
 
                 if displayURLs.count > 1 {
+                    let active = useDarkDots ? Color.black : Color.white
+                    let inactive = useDarkDots ? Color.black.opacity(0.35) : Color.white.opacity(0.4)
                     HStack(spacing: TravSpacing.xs) {
                         ForEach(0..<displayURLs.count, id: \.self) { index in
                             Capsule()
-                                .fill(index == currentIndex ? Color.white : Color.white.opacity(0.4))
+                                .fill(index == currentIndex ? active : inactive)
                                 .frame(width: index == currentIndex ? 16 : 6, height: 6)
+                                .shadow(
+                                    color: (useDarkDots ? Color.white : Color.black).opacity(0.55),
+                                    radius: 1.5,
+                                    y: 0
+                                )
                         }
                     }
-                    .padding(.trailing, TravSpacing.screenHorizontal)
-                    .padding(.bottom, TravSpacing.lg)
-                    .frame(maxWidth: .infinity, alignment: .bottomTrailing)
+                    .padding(.top, TravSpacing.xxl + TravSpacing.md)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .allowsHitTesting(false)
                 }
 
@@ -537,9 +574,9 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
                         .allowsHitTesting(false)
                     accessory()
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 .padding(.horizontal, TravSpacing.screenHorizontal)
-                .padding(.bottom, TravSpacing.lg)
+                .padding(.bottom, TravSpacing.md)
             }
             .frame(width: width, height: height)
             .clipped()
@@ -548,11 +585,29 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
         .frame(maxWidth: .infinity)
         .clipped()
         .animation(TravAnimation.quick, value: currentIndex)
+        .task(id: currentIndex) {
+            await updateDotContrast()
+        }
     }
 
     private var displayURLs: [URL?] {
         if urls.isEmpty { return [nil] }
         return urls.map { Optional($0) }
+    }
+
+    private func updateDotContrast() async {
+        guard currentIndex < urls.count else {
+            useDarkDots = false
+            return
+        }
+        let url = urls[currentIndex]
+        guard let image = await ImageCache.shared.image(for: url, maxPixelSize: 400) else {
+            useDarkDots = false
+            return
+        }
+        // Sample the top band where page dots sit.
+        let luminance = image.travAverageLuminance(in: CGRect(x: 0.25, y: 0.05, width: 0.5, height: 0.12))
+        useDarkDots = luminance > 0.58
     }
 
     private func horizontalPageGesture(pageWidth: CGFloat) -> some Gesture {
@@ -594,15 +649,64 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
     }
 }
 
+private extension UIImage {
+    /// Average perceived luminance (0...1) inside a normalized rect of the image.
+    func travAverageLuminance(in normalizedRect: CGRect) -> CGFloat {
+        guard let cgImage else { return 0.3 }
+        let width = cgImage.width
+        let height = cgImage.height
+        guard width > 0, height > 0 else { return 0.3 }
+
+        let sampleWidth = max(1, Int(CGFloat(width) * normalizedRect.width))
+        let sampleHeight = max(1, Int(CGFloat(height) * normalizedRect.height))
+        let originX = max(0, Int(CGFloat(width) * normalizedRect.minX))
+        let originY = max(0, Int(CGFloat(height) * normalizedRect.minY))
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var data = [UInt8](repeating: 0, count: sampleWidth * sampleHeight * 4)
+        guard let context = CGContext(
+            data: &data,
+            width: sampleWidth,
+            height: sampleHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: sampleWidth * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return 0.3 }
+
+        context.interpolationQuality = .low
+        context.draw(
+            cgImage,
+            in: CGRect(
+                x: -originX,
+                y: -originY,
+                width: width,
+                height: height
+            )
+        )
+
+        var total: CGFloat = 0
+        let pixelCount = sampleWidth * sampleHeight
+        guard pixelCount > 0 else { return 0.3 }
+        for i in 0..<pixelCount {
+            let o = i * 4
+            let r = CGFloat(data[o]) / 255
+            let g = CGFloat(data[o + 1]) / 255
+            let b = CGFloat(data[o + 2]) / 255
+            total += (0.299 * r) + (0.587 * g) + (0.114 * b)
+        }
+        return total / CGFloat(pixelCount)
+    }
+}
+
 // MARK: - Apple Maps Route Path Visualizer
 
 private struct ExperienceRouteMapView: View {
     let stops: [Stop]
-    let transportMode: TransportMode
 
     @State private var position: MapCameraPosition = .automatic
     @State private var routePolylines: [MKPolyline] = []
-    @State private var mapKitTravelTimeMinutes: Int? = nil
+    @State private var mapKitTravelLabel: String? = nil
     @State private var showInteractiveMap = false
 
     private var resolvedStops: [Stop] {
@@ -627,16 +731,10 @@ private struct ExperienceRouteMapView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
             HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("ROUTE MAP")
-                        .font(TravTypography.overline())
-                        .tracking(2.0)
-                        .foregroundStyle(TravColors.accent)
-
-                    Text(resolvedStops.count == 1 ? "Stop Location" : "Path to Each Stop")
-                        .font(TravTypography.titleLarge())
-                        .foregroundStyle(TravColors.primary)
-                }
+                Text("ROUTE MAP")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .tracking(2.0)
+                    .foregroundStyle(TravColors.accent)
 
                 Spacer()
 
@@ -711,11 +809,9 @@ private struct ExperienceRouteMapView: View {
                         Label("\(resolvedStops.count) Stop\(resolvedStops.count == 1 ? "" : "s")", systemImage: "flag.fill")
                         if resolvedStops.count >= 2 {
                             Text("·")
-                            let travelMins = mapKitTravelTimeMinutes ?? routeInfo.estimatedTravelTimeMinutes
-                            let travelTimeStr = travelMins >= 60 ? TravFormatters.duration(travelMins) : "\(travelMins) min"
                             Label(
-                                "\(travelTimeStr) \(transportMode.rawValue)",
-                                systemImage: transportMode.symbolName
+                                mapKitTravelLabel ?? routeInfo.timeAndModeLabel,
+                                systemImage: routeInfo.iconName
                             )
                         }
                     }
@@ -746,35 +842,57 @@ private struct ExperienceRouteMapView: View {
 
     private func fetchRoutes() async {
         guard resolvedStops.count >= 2 else {
-            await MainActor.run { self.routePolylines = [] }
+            await MainActor.run {
+                self.routePolylines = []
+                self.mapKitTravelLabel = nil
+            }
             return
         }
         var polylines: [MKPolyline] = []
-        var totalTravelSeconds: TimeInterval = 0
+        var walkingSeconds: TimeInterval = 0
+        var drivingSeconds: TimeInterval = 0
 
         for i in 0..<(resolvedStops.count - 1) {
             let start = CLLocationCoordinate2D(latitude: resolvedStops[i].latitude, longitude: resolvedStops[i].longitude)
-            let destination = CLLocationCoordinate2D(latitude: resolvedStops[i+1].latitude, longitude: resolvedStops[i+1].longitude)
+            let destination = CLLocationCoordinate2D(latitude: resolvedStops[i + 1].latitude, longitude: resolvedStops[i + 1].longitude)
+            let distance = RouteTravelCalculator.segmentDistanceMeters(from: start, to: destination)
+            let isDriving = RouteTravelCalculator.isDrivingSegment(distanceMeters: distance)
 
             let request = MKDirections.Request()
             request.source = MKMapItem(placemark: MKPlacemark(coordinate: start))
             request.destination = MKMapItem(placemark: MKPlacemark(coordinate: destination))
-            request.transportType = transportMode == .driving ? .automobile : (transportMode == .transit ? .transit : .walking)
+            request.transportType = isDriving ? .automobile : .walking
 
             let directions = MKDirections(request: request)
             if let response = try? await directions.calculate(), let route = response.routes.first {
                 polylines.append(route.polyline)
-                totalTravelSeconds += route.expectedTravelTime
+                if isDriving {
+                    drivingSeconds += route.expectedTravelTime
+                } else {
+                    walkingSeconds += route.expectedTravelTime
+                }
             }
         }
 
+        let walkingMins = Int(round(walkingSeconds / 60.0))
+        let drivingMins = Int(round(drivingSeconds / 60.0))
+        let label: String? = {
+            switch (walkingMins > 0, drivingMins > 0) {
+            case (true, true):
+                return "\(RouteTravelInfo.formatMinutes(walkingMins)) walk · \(RouteTravelInfo.formatMinutes(drivingMins)) drive"
+            case (false, true):
+                return "\(RouteTravelInfo.formatMinutes(drivingMins)) drive"
+            case (true, false):
+                return "\(RouteTravelInfo.formatMinutes(walkingMins)) walk"
+            default:
+                return nil
+            }
+        }()
+
         let result = polylines
-        let calculatedMins = Int(round(totalTravelSeconds / 60.0))
         await MainActor.run {
             self.routePolylines = result
-            if calculatedMins > 0 {
-                self.mapKitTravelTimeMinutes = calculatedMins
-            }
+            self.mapKitTravelLabel = label
         }
     }
 
@@ -824,11 +942,14 @@ private struct ExperienceRouteMapView: View {
         }
 
         let modeKey: String = {
-            switch transportMode {
-            case .walking: return MKLaunchOptionsDirectionsModeWalking
-            case .transit: return MKLaunchOptionsDirectionsModeTransit
-            case .driving, .mixed: return MKLaunchOptionsDirectionsModeDriving
+            if routeInfo.hasDriving && !routeInfo.hasWalking {
+                return MKLaunchOptionsDirectionsModeDriving
             }
+            if routeInfo.hasDriving {
+                // Mixed routes: prefer driving so longer hops still navigate correctly.
+                return MKLaunchOptionsDirectionsModeDriving
+            }
+            return MKLaunchOptionsDirectionsModeWalking
         }()
 
         MKMapItem.openMaps(with: mapItems, launchOptions: [
