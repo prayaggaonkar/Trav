@@ -1,5 +1,6 @@
 import MapKit
 import SwiftUI
+import UIKit
 
 struct ExperienceDetailView: View {
     @Environment(AppEnvironment.self) private var environment
@@ -206,6 +207,9 @@ struct ExperienceDetailView: View {
                             .minimumScaleFactor(0.75)
                     }
                     .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 10)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(TravPressButtonStyle())
                 .layoutPriority(1)
@@ -239,7 +243,7 @@ struct ExperienceDetailView: View {
                     }
                     .foregroundStyle(isSaved ? .white : TravColors.primary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
+                    .frame(height: 45)
                     .background(isSaved ? Color(red: 0.78, green: 0.58, blue: 0.06) : TravColors.surfaceElevated)
 
                     Text(TravFormatters.count(experience.saveCount))
@@ -274,7 +278,7 @@ struct ExperienceDetailView: View {
                     }
                     .foregroundStyle(isCompleted ? .white : TravColors.primary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
+                    .frame(height: 45)
                     .background(isCompleted ? TravColors.accent : TravColors.surfaceElevated)
 
                     Text(TravFormatters.count(experience.completionCount))
@@ -300,7 +304,7 @@ struct ExperienceDetailView: View {
                     }
                     .foregroundStyle(TravColors.primary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
+                    .frame(height: 45)
                     .background(TravColors.surfaceElevated)
 
                     Text(TravFormatters.count(experience.likeCount))
@@ -318,38 +322,37 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-            if experience.imageURLs.count > 1 {
-                VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                    Text("Media Gallery (\(experience.imageURLs.count))")
-                        .font(TravTypography.titleMedium())
-                        .foregroundStyle(TravColors.primary)
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: TravSpacing.sm) {
-                            ForEach(Array(experience.imageURLs.enumerated()), id: \.offset) { index, url in
-                                Button {
-                                    openImagePreview(url: url)
-                                } label: {
-                                    RemoteImage(url: url, height: 110, cornerRadius: TravRadius.md)
-                                        .frame(width: 150, height: 110)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
-                .padding(.vertical, TravSpacing.xs)
-            }
             ExperienceRouteMapView(stops: experience.stops)
 
             // Only render the radar when the creator actually rated the experience.
             if let rating = experience.rating, rating.overallScore > 0 {
-                VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                    Text("RATING")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .tracking(2.0)
-                        .foregroundStyle(TravColors.accent)
-                    ReadOnlyRadarChartView(rating: rating)
+                VStack(alignment: .leading, spacing: TravSpacing.sm) {
+                    HStack(alignment: .top, spacing: TravSpacing.sm) {
+                        Text("RATING")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .tracking(2.0)
+                            .foregroundStyle(TravColors.accent)
+
+                        Spacer(minLength: 0)
+
+                        HStack(spacing: 6) {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Color(red: 1.0, green: 0.8, blue: 0.0))
+
+                            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                                Text(String(format: "%.1f", rating.overallScore))
+                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                                    .foregroundStyle(TravColors.primary)
+
+                                Text("/ 10.0")
+                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(TravColors.muted)
+                            }
+                        }
+                    }
+
+                    ReadOnlyRadarChartView(rating: rating, showsHeader: false)
                 }
                 .padding(.top, TravSpacing.xs)
             }
@@ -483,6 +486,8 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
 
     @State private var currentIndex = 0
     @State private var dragOffset: CGFloat = 0
+    /// True when the top of the current hero image is light — use dark dots for contrast.
+    @State private var useDarkDots = false
 
     var body: some View {
         GeometryReader { geo in
@@ -513,11 +518,18 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
                 .allowsHitTesting(false)
 
                 if displayURLs.count > 1 {
+                    let active = useDarkDots ? Color.black : Color.white
+                    let inactive = useDarkDots ? Color.black.opacity(0.35) : Color.white.opacity(0.4)
                     HStack(spacing: TravSpacing.xs) {
                         ForEach(0..<displayURLs.count, id: \.self) { index in
                             Capsule()
-                                .fill(index == currentIndex ? Color.white : Color.white.opacity(0.4))
+                                .fill(index == currentIndex ? active : inactive)
                                 .frame(width: index == currentIndex ? 16 : 6, height: 6)
+                                .shadow(
+                                    color: (useDarkDots ? Color.white : Color.black).opacity(0.55),
+                                    radius: 1.5,
+                                    y: 0
+                                )
                         }
                     }
                     .padding(.top, TravSpacing.xxl + TravSpacing.md)
@@ -550,11 +562,29 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
         .frame(maxWidth: .infinity)
         .clipped()
         .animation(TravAnimation.quick, value: currentIndex)
+        .task(id: currentIndex) {
+            await updateDotContrast()
+        }
     }
 
     private var displayURLs: [URL?] {
         if urls.isEmpty { return [nil] }
         return urls.map { Optional($0) }
+    }
+
+    private func updateDotContrast() async {
+        guard currentIndex < urls.count else {
+            useDarkDots = false
+            return
+        }
+        let url = urls[currentIndex]
+        guard let image = await ImageCache.shared.image(for: url, maxPixelSize: 400) else {
+            useDarkDots = false
+            return
+        }
+        // Sample the top band where page dots sit.
+        let luminance = image.travAverageLuminance(in: CGRect(x: 0.25, y: 0.05, width: 0.5, height: 0.12))
+        useDarkDots = luminance > 0.58
     }
 
     private func horizontalPageGesture(pageWidth: CGFloat) -> some Gesture {
@@ -593,6 +623,56 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
                     dragOffset = 0
                 }
             }
+    }
+}
+
+private extension UIImage {
+    /// Average perceived luminance (0...1) inside a normalized rect of the image.
+    func travAverageLuminance(in normalizedRect: CGRect) -> CGFloat {
+        guard let cgImage else { return 0.3 }
+        let width = cgImage.width
+        let height = cgImage.height
+        guard width > 0, height > 0 else { return 0.3 }
+
+        let sampleWidth = max(1, Int(CGFloat(width) * normalizedRect.width))
+        let sampleHeight = max(1, Int(CGFloat(height) * normalizedRect.height))
+        let originX = max(0, Int(CGFloat(width) * normalizedRect.minX))
+        let originY = max(0, Int(CGFloat(height) * normalizedRect.minY))
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var data = [UInt8](repeating: 0, count: sampleWidth * sampleHeight * 4)
+        guard let context = CGContext(
+            data: &data,
+            width: sampleWidth,
+            height: sampleHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: sampleWidth * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return 0.3 }
+
+        context.interpolationQuality = .low
+        context.draw(
+            cgImage,
+            in: CGRect(
+                x: -originX,
+                y: -originY,
+                width: width,
+                height: height
+            )
+        )
+
+        var total: CGFloat = 0
+        let pixelCount = sampleWidth * sampleHeight
+        guard pixelCount > 0 else { return 0.3 }
+        for i in 0..<pixelCount {
+            let o = i * 4
+            let r = CGFloat(data[o]) / 255
+            let g = CGFloat(data[o + 1]) / 255
+            let b = CGFloat(data[o + 2]) / 255
+            total += (0.299 * r) + (0.587 * g) + (0.114 * b)
+        }
+        return total / CGFloat(pixelCount)
     }
 }
 
