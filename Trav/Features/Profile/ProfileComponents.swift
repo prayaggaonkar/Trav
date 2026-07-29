@@ -546,6 +546,8 @@ struct SuggestedUsersSection: View {
     var onSyncContacts: () -> Void
 
     var body: some View {
+        // Parent (ProfileView) already applies screenHorizontal padding to match
+        // the Edit profile / Share / Add people action row — do not inset again.
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
             HStack(alignment: .center) {
                 Text("Suggested for you")
@@ -563,7 +565,6 @@ struct SuggestedUsersSection: View {
                     .buttonStyle(TravPressButtonStyle(scale: 0.97))
                 }
             }
-            .padding(.horizontal, TravSpacing.screenHorizontal)
 
             if isLoading && users.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -572,13 +573,11 @@ struct SuggestedUsersSection: View {
                             SuggestedUserCardSkeleton()
                         }
                     }
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
                 }
             } else if users.isEmpty {
                 Text(emptyMessage)
                     .font(.system(size: 13, weight: .regular, design: .rounded))
                     .foregroundStyle(TravColors.muted)
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
                     .padding(.vertical, TravSpacing.xs)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -592,10 +591,10 @@ struct SuggestedUsersSection: View {
                             )
                         }
                     }
-                    .padding(.horizontal, TravSpacing.screenHorizontal)
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, TravSpacing.md)
         .padding(.bottom, TravSpacing.xs)
     }
