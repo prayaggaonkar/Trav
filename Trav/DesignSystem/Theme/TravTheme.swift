@@ -36,7 +36,7 @@ enum TravSpacing {
     static let xxl: CGFloat = 48
     static let hero: CGFloat = 64
     static let screenHorizontal: CGFloat = 20
-    static let tabBarBottom: CGFloat = 8
+    static let tabBarBottom: CGFloat = 0
     /// Extra inset so card shadows stay inside the screen.
     static let cardShadowGutter: CGFloat = 4
 }
@@ -52,6 +52,7 @@ enum TravLayout {
     static let buttonHeight: CGFloat = 52
     static let minTouchTarget: CGFloat = 44
     static let tabBarIconSize: CGFloat = 22
+    static let tabBarAvatarSize: CGFloat = 24
     static let heroCityHeight: CGFloat = 380
     static let heroCityHeightMin: CGFloat = 280
     static let heroExperienceHeight: CGFloat = 414 // 360 * 1.15

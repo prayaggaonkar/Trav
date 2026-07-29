@@ -482,6 +482,10 @@ struct MockNotificationRepository: NotificationRepository {
         await MockSocialState.shared.markAllRead(userID: userID)
     }
 
+    func deleteNotification(id: UUID) async throws {
+        await MockSocialState.shared.deleteNotification(id: id)
+    }
+
     func observeInserts(userID: UUID) -> AsyncStream<AppNotification> {
         AsyncStream { continuation in
             continuation.finish()

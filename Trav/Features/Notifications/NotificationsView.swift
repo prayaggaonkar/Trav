@@ -51,6 +51,13 @@ struct NotificationsView: View {
                             )
                             .listRowSeparatorTint(TravColors.border.opacity(0.5))
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Task { await deleteNotification(notification) }
+                                } label: {
+                                    Label("Delete", systemImage: "trash.fill")
+                                }
+                            }
                             .onAppear {
                                 if notification.id == items.last?.id {
                                     Task { await loadMore() }
@@ -149,6 +156,20 @@ struct NotificationsView: View {
         defer { isLoadingMore = false }
         page += 1
         await reload(reset: false)
+    }
+
+    private func deleteNotification(_ notification: AppNotification) async {
+        withAnimation(TravAnimation.quick) {
+            items.removeAll { $0.id == notification.id }
+        }
+        notificationStore.noteDeletedNotification(notification)
+
+        do {
+            try await environment.notifications.deleteNotification(id: notification.id)
+        } catch {
+            TravLog.notifications.error("deleteNotification failed: \(error.localizedDescription, privacy: .public)")
+            await reload(reset: true)
+        }
     }
 
     private func dismissInbox() async {

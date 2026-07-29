@@ -257,6 +257,14 @@ final class NotificationStore {
         sessionUnreadIDs.contains(id)
     }
 
+    /// Keeps inbox dots and the tab badge in sync after a swipe-delete.
+    func noteDeletedNotification(_ notification: AppNotification) {
+        let wasSessionUnread = sessionUnreadIDs.remove(notification.id) != nil
+        if wasSessionUnread || !notification.isRead {
+            unreadCount = max(0, unreadCount - 1)
+        }
+    }
+
     func endInboxSessionIfNeeded(userID: UUID, using environment: AppEnvironment) async {
         guard isInboxPresented, !isPersistingExit else { return }
         isPersistingExit = true

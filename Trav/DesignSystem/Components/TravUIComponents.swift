@@ -434,11 +434,16 @@ struct TravTabBar: View {
     /// Independent of app appearance — driven by content behind the bar.
     var backdrop: TabBarBackdrop = .dark
     @Environment(AppearanceStore.self) private var appearance
+    @Environment(SessionStore.self) private var session
 
     /// In light mode always use light chrome + black labels, even over dark feed cards.
     private var isDarkChrome: Bool {
         if appearance.isLightMode { return false }
         return backdrop == .dark
+    }
+
+    private var profileAvatarURL: URL? {
+        session.currentUser?.avatarURL
     }
 
     var body: some View {
@@ -450,14 +455,12 @@ struct TravTabBar: View {
                     }
                 } label: {
                     VStack(spacing: TravSpacing.xxs) {
-                        Image(systemName: tab.systemImage)
-                            .font(.system(size: TravLayout.tabBarIconSize, weight: activeTab == tab ? .semibold : .medium))
-                            .symbolEffect(.bounce, value: activeTab == tab)
+                        tabIcon(for: tab)
 
                         Text(tab.rawValue)
                             .font(TravTypography.tabLabel())
+                            .foregroundStyle(tabForeground(isSelected: activeTab == tab))
                     }
-                    .foregroundStyle(tabForeground(isSelected: activeTab == tab))
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: TravLayout.minTouchTarget)
                     .contentShape(Rectangle())
@@ -504,12 +507,40 @@ struct TravTabBar: View {
         .padding(.bottom, TravSpacing.tabBarBottom)
         .animation(.easeInOut(duration: 0.22), value: backdrop)
         .animation(.easeInOut(duration: 0.22), value: appearance.isLightMode)
+        .animation(.easeInOut(duration: 0.22), value: profileAvatarURL?.absoluteString)
+    }
+
+    @ViewBuilder
+    private func tabIcon(for tab: TravTab) -> some View {
+        let isSelected = activeTab == tab
+
+        if tab == .profile, let avatarURL = profileAvatarURL {
+            AvatarView(url: avatarURL, size: TravLayout.tabBarAvatarSize)
+                .overlay {
+                    Circle()
+                        .strokeBorder(
+                            isSelected ? TravColors.accent : tabAvatarOutline,
+                            lineWidth: 1.5
+                        )
+                }
+        } else {
+            Image(systemName: tab.systemImage)
+                .font(.system(size: TravLayout.tabBarIconSize, weight: isSelected ? .semibold : .medium))
+                .foregroundStyle(tabForeground(isSelected: isSelected))
+                .symbolEffect(.bounce, value: isSelected)
+        }
     }
 
     private func tabForeground(isSelected: Bool) -> Color {
         if isSelected { return TravColors.accent }
         if appearance.isLightMode { return TravColors.muted }
         return isDarkChrome ? Color.white.opacity(0.62) : TravColors.muted
+    }
+
+    /// Unselected avatar ring — matches muted tab icon gray.
+    private var tabAvatarOutline: Color {
+        if appearance.isLightMode { return TravColors.muted.opacity(0.55) }
+        return isDarkChrome ? Color.white.opacity(0.35) : TravColors.muted.opacity(0.55)
     }
 }
 

@@ -420,6 +420,122 @@ struct SwipeToUnsaveRow<Content: View>: View {
     }
 }
 
+/// Swipe right→left to reveal Delete. Partial swipe parks on the button; full swipe deletes.
+struct SwipeToDeleteRow<Content: View>: View {
+    var onDelete: () -> Void
+    var onOpen: (() -> Void)? = nil
+    @ViewBuilder var content: () -> Content
+
+    @State private var offset: CGFloat = 0
+    @State private var dragOriginOffset: CGFloat = 0
+    @State private var isHorizontalDrag = false
+    @State private var suppressOpen = false
+
+    private let actionWidth: CGFloat = 88
+    private let fullSwipeDistance: CGFloat = 150
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            Button(action: commitDelete) {
+                VStack(spacing: 6) {
+                    Image(systemName: "trash.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                    Text("Delete")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                }
+                .foregroundStyle(.white)
+                .frame(width: actionWidth)
+                .frame(maxHeight: .infinity)
+                .background(TravColors.error)
+                .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, TravSpacing.xs)
+            .opacity(offset < -4 ? 1 : 0)
+            .accessibilityLabel("Delete")
+
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(TravColors.surface)
+                .offset(x: offset)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard !suppressOpen, !isHorizontalDrag else { return }
+                    if offset < -8 {
+                        withAnimation(TravAnimation.quick) { offset = 0 }
+                    } else {
+                        onOpen?()
+                    }
+                }
+                // Prefer over ScrollView’s pan so horizontal swipes actually start
+                // (nested Buttons in row content also steal `.gesture` otherwise).
+                .highPriorityGesture(rowGesture)
+        }
+        .clipped()
+    }
+
+    private var rowGesture: some Gesture {
+        DragGesture(minimumDistance: 12, coordinateSpace: .local)
+            .onChanged { value in
+                let dx = value.translation.width
+                let dy = value.translation.height
+
+                if !isHorizontalDrag {
+                    let isHorizontal = abs(dx) > abs(dy) * 1.15
+                    let openingLeft = dx < 0
+                    let closingRight = dx > 0 && offset < -4
+
+                    if isHorizontal && (openingLeft || closingRight) {
+                        isHorizontalDrag = true
+                        suppressOpen = true
+                        dragOriginOffset = offset
+                    } else {
+                        return
+                    }
+                }
+
+                guard isHorizontalDrag else { return }
+                offset = min(0, max(dragOriginOffset + dx, -fullSwipeDistance))
+            }
+            .onEnded { value in
+                let wasSwipe = isHorizontalDrag
+                let predicted = value.predictedEndTranslation.width
+
+                defer {
+                    isHorizontalDrag = false
+                    if wasSwipe {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            suppressOpen = false
+                        }
+                    }
+                }
+
+                guard wasSwipe else { return }
+
+                let shouldDelete =
+                    offset <= -(actionWidth + 36)
+                    || (predicted < -fullSwipeDistance && offset < -actionWidth * 0.9)
+
+                if shouldDelete {
+                    commitDelete()
+                } else if offset < -actionWidth * 0.35 {
+                    withAnimation(TravAnimation.quick) { offset = -actionWidth }
+                } else {
+                    withAnimation(TravAnimation.quick) { offset = 0 }
+                }
+            }
+    }
+
+    private func commitDelete() {
+        withAnimation(TravAnimation.quick) {
+            offset = -420
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        onDelete()
+    }
+}
+
 // MARK: - Quiet empty state
 
 struct ProfileEmptyState: View {

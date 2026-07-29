@@ -92,6 +92,14 @@ struct SupabaseNotificationRepository: NotificationRepository {
             .execute()
     }
 
+    func deleteNotification(id: UUID) async throws {
+        try await client
+            .from("notifications")
+            .delete()
+            .eq("id", value: id.uuidString.lowercased())
+            .execute()
+    }
+
     func registerDeviceToken(_ token: String, userID: UUID) async throws {
         struct Upsert: Encodable {
             let token: String
