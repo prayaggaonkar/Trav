@@ -16,6 +16,8 @@ struct ProfileView: View {
     @State private var saveConfirmation = false
     @State private var showSettings = false
     @State private var showCreateExperience = false
+    @State private var showOtherProfileMenu = false
+    @State private var showBlockConfirmation = false
 
     private var tabs: [ProfileContentTab] {
         if isOwnProfile {
@@ -85,6 +87,30 @@ struct ProfileView: View {
             .sheet(isPresented: $showCreateExperience) {
                 CreateExperienceView()
             }
+            .alert("Block \(viewModel.profile.map { "@\($0.username)" } ?? "this user")?", isPresented: $showBlockConfirmation) {
+                Button("Block", role: .destructive) {
+                    Task { await blockCurrentProfile() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You won’t see their profile or posts anymore. You can unblock them later in Settings → Blocked Users.")
+            }
+            .background {
+                if showOtherProfileMenu {
+                    Color.black.opacity(0.001)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(TravAnimation.quick) {
+                                showOtherProfileMenu = false
+                            }
+                        }
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if showOtherProfileMenu, !isOwnProfile {
+                    otherProfileMenuOverlay
+                }
+            }
             .overlay(alignment: .top) {
                 if saveConfirmation {
                     Text("Profile updated")
@@ -109,6 +135,15 @@ struct ProfileView: View {
             await viewModel.load(using: environment)
             if let userID = session.currentUser?.id {
                 await engagement.bootstrap(userID: userID, using: environment)
+            }
+            if let profile = viewModel.profile,
+               !isOwnProfile,
+               engagement.isBlocked(profile.id) {
+                if router.presentedRoute != nil {
+                    router.dismiss()
+                } else {
+                    dismiss()
+                }
             }
         }
         .task(id: engagement.revision) {
@@ -159,7 +194,7 @@ struct ProfileView: View {
 
             passportHeaderCard(profile)
                 .padding(.horizontal, TravSpacing.screenHorizontal)
-                .padding(.top, isOwnProfile ? TravSpacing.sm : TravSpacing.md)
+                .padding(.top, isOwnProfile ? TravSpacing.sm : 0)
 
             actionRow(profile)
                 .padding(.horizontal, TravSpacing.screenHorizontal)
@@ -402,35 +437,37 @@ struct ProfileView: View {
                 }
 
             case .saved:
-                if viewModel.saved.isEmpty {
+                let saved = viewModel.saved.filter { !engagement.isBlocked($0.creator.id) }
+                if saved.isEmpty {
                     ProfileEmptyState(
                         title: "Nothing saved",
                         description: "Save experiences to revisit them later."
                     )
                 } else {
-                    ForEach(Array(viewModel.saved.enumerated()), id: \.element.id) { index, experience in
+                    ForEach(Array(saved.enumerated()), id: \.element.id) { index, experience in
                         savedExperienceRow(
                             experience: experience,
                             index: index,
-                            isLast: experience.id == viewModel.saved.last?.id
+                            isLast: experience.id == saved.last?.id
                         )
                     }
                 }
 
             case .completed:
-                if viewModel.completed.isEmpty {
+                let completed = viewModel.completed.filter { !engagement.isBlocked($0.experience.creator.id) }
+                if completed.isEmpty {
                     ProfileEmptyState(
                         title: "Your watchlist is empty",
                         description: "Add experiences to your watchlist to start planning your journey."
                     )
                 } else {
-                    ForEach(Array(viewModel.completed.enumerated()), id: \.element.id) { index, item in
+                    ForEach(Array(completed.enumerated()), id: \.element.id) { index, item in
                         let badgeText = "Completed"
                         experienceRow(
                             experience: item.experience,
                             badgeText: badgeText,
                             index: index,
-                            isLast: item.id == viewModel.completed.last?.id
+                            isLast: item.id == completed.last?.id
                         )
                     }
                 }
@@ -560,15 +597,104 @@ struct ProfileView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         if showDismissButton {
-            ToolbarItem(placement: .topBarLeading) {
-                DismissButton {
-                    if router.presentedRoute != nil {
-                        router.dismiss()
-                    } else {
-                        dismiss()
+            if #available(iOS 26.0, *) {
+                ToolbarItem(placement: .topBarLeading) {
+                    profileBackButton
+                }
+                .sharedBackgroundVisibility(.hidden)
+
+                if !isOwnProfile {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        otherProfileOverflowButton
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                }
+            } else {
+                ToolbarItem(placement: .topBarLeading) {
+                    profileBackButton
+                }
+                if !isOwnProfile {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        otherProfileOverflowButton
                     }
                 }
             }
+        }
+    }
+
+    private var profileBackButton: some View {
+        Button {
+            if router.presentedRoute != nil {
+                router.dismiss()
+            } else {
+                dismiss()
+            }
+        } label: {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(TravColors.primary)
+                .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, TravSpacing.xs)
+        .accessibilityLabel("Back")
+    }
+
+    private var otherProfileOverflowButton: some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            withAnimation(TravAnimation.quick) {
+                showOtherProfileMenu.toggle()
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(TravColors.primary)
+                .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("More options")
+    }
+
+    private var otherProfileMenuOverlay: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                showOtherProfileMenu = false
+                showBlockConfirmation = true
+            } label: {
+                Label("Block", systemImage: "hand.raised.fill")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TravColors.error)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(width: 148)
+        .background(TravColors.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                .stroke(TravColors.border.opacity(0.7), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+        .padding(.trailing, TravSpacing.screenHorizontal)
+        .padding(.top, 6)
+        .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)))
+    }
+
+    private func blockCurrentProfile() async {
+        guard let profile = viewModel.profile else { return }
+        let succeeded = await engagement.block(userID: profile.id, using: environment)
+        guard succeeded else { return }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        if router.presentedRoute != nil {
+            router.dismiss()
+        } else {
+            dismiss()
         }
     }
 
@@ -1010,13 +1136,8 @@ struct BlockedUsersView: View {
     }
 
     private func unblock(_ profile: ProfileSummary) async {
-        guard let userID = environment.session.currentUser?.id else { return }
-        do {
-            try await environment.engagementRepo.unblock(blockerID: userID, blockedID: profile.id)
-            blocked.removeAll { $0.id == profile.id }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        await environment.engagement.unblock(userID: profile.id, using: environment)
+        blocked.removeAll { $0.id == profile.id }
     }
 }
 

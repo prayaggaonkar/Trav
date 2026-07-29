@@ -625,6 +625,10 @@ struct FeedView: View {
     private var filteredFeed: [ExperienceSummary] {
         var items = viewModel.items
 
+        if !engagement.blockedUserIDs.isEmpty {
+            items = items.filter { !engagement.isBlocked($0.creator.id) }
+        }
+
         if let city = router.selectedFeedCity {
             items = items.filter { experienceMatchesCity($0, city: city) }
         }
@@ -741,7 +745,7 @@ struct FeedView: View {
             guard !Task.isCancelled else { return }
             let results = (try? await environment.profiles.searchUsers(query: trimmed)) ?? []
             guard !Task.isCancelled else { return }
-            userSearchResults = results
+            userSearchResults = results.filter { !engagement.isBlocked($0.id) }
             isSearchingUsers = false
         }
     }

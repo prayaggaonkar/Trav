@@ -237,7 +237,8 @@ struct FollowListView: View {
             if mode == .following && profile.id == session.currentUser?.id {
                 engagement.seedFollowingIDs(result.items.map(\.id))
             }
-            users = reset ? result.items : users + result.items
+            let visible = result.items.filter { !engagement.isBlocked($0.id) }
+            users = reset ? visible : users + visible
             hasMore = result.hasMore
             error = nil
         } catch {

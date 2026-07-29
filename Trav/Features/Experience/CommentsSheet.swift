@@ -12,6 +12,8 @@ struct CommentsSheet: View {
     let experienceID: UUID
     /// Called after a comment is added/removed so the parent can update counts.
     var onCountChange: ((Int) -> Void)? = nil
+    /// Optional close handler when presented outside a system sheet (custom drawer).
+    var onClose: (() -> Void)? = nil
 
     @State private var comments: [Comment] = []
     @State private var isLoading = true
@@ -27,13 +29,23 @@ struct CommentsSheet: View {
     @State private var reportingComment: Comment?
     @FocusState private var composerFocused: Bool
 
+    private func close() {
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
+        }
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 composer
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Color.black)
             .navigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
@@ -41,7 +53,6 @@ struct CommentsSheet: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
-        .presentationBackground(Color.black)
         .task { await load() }
         .confirmationDialog(
             "Report Comment",
@@ -128,7 +139,7 @@ struct CommentsSheet: View {
                 comment: comment,
                 isOwn: comment.author.id == session.currentUser?.id,
                 onProfileTap: {
-                    dismiss()
+                    close()
                     router.openProfile(comment.author.username)
                 },
                 onReply: {
@@ -173,7 +184,7 @@ struct CommentsSheet: View {
                                 isReply: true,
                                 isOwn: reply.author.id == session.currentUser?.id,
                                 onProfileTap: {
-                                    dismiss()
+                                    close()
                                     router.openProfile(reply.author.username)
                                 },
                                 onReply: {
@@ -265,10 +276,9 @@ struct CommentsSheet: View {
             }
             .padding(.horizontal, TravSpacing.md)
             .padding(.top, TravSpacing.sm)
-            .padding(.bottom, TravSpacing.md)
+            .padding(.bottom, TravSpacing.sm)
         }
         .background(Color.black)
-        .safeAreaPadding(.bottom, 0)
     }
 
     private var canPost: Bool {
@@ -319,7 +329,7 @@ struct CommentsSheet: View {
 
     private func post() async {
         guard let user = session.currentUser else {
-            dismiss()
+            close()
             router.presentAuth()
             return
         }
@@ -488,5 +498,113 @@ private struct CommentRow: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+
+/// Custom bottom drawer for comments — flush to the screen bottom (no system-sheet corner gap).
+struct CommentsDrawer: View {
+    let experienceID: UUID
+    var onCountChange: ((Int) -> Void)? = nil
+    var onDismiss: () -> Void
+
+    private enum Detent {
+        case medium
+        case large
+
+        func height(in screenHeight: CGFloat) -> CGFloat {
+            switch self {
+            case .medium: return screenHeight * 0.55
+            case .large: return screenHeight * 0.92
+            }
+        }
+    }
+
+    @State private var detent: Detent = .medium
+    @State private var dragTranslation: CGFloat = 0
+
+    var body: some View {
+        GeometryReader { geo in
+            let screenHeight = geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
+            let baseHeight = detent.height(in: screenHeight)
+            let currentHeight = min(
+                max(baseHeight - dragTranslation, screenHeight * 0.35),
+                screenHeight * 0.95
+            )
+
+            ZStack(alignment: .bottom) {
+                Color.black.opacity(0.45)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        dismissDrawer()
+                    }
+
+                VStack(spacing: 0) {
+                    // Grabber — only this area resizes the drawer.
+                    Capsule()
+                        .fill(Color.white.opacity(0.35))
+                        .frame(width: 36, height: 5)
+                        .padding(.top, 10)
+                        .padding(.bottom, 8)
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                        .gesture(drawerDragGesture(screenHeight: screenHeight))
+
+                    CommentsSheet(
+                        experienceID: experienceID,
+                        onCountChange: onCountChange,
+                        onClose: onDismiss
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(height: currentHeight, alignment: .top)
+                .frame(maxWidth: .infinity)
+                .background(Color.black)
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: TravRadius.xl,
+                        bottomLeadingRadius: 0,
+                        bottomTrailingRadius: 0,
+                        topTrailingRadius: TravRadius.xl,
+                        style: .continuous
+                    )
+                )
+                .ignoresSafeArea(edges: .bottom)
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    private func drawerDragGesture(screenHeight: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .global)
+            .onChanged { value in
+                dragTranslation = value.translation.height
+            }
+            .onEnded { value in
+                let predicted = value.predictedEndTranslation.height
+                let total = value.translation.height + predicted * 0.15
+                defer { dragTranslation = 0 }
+
+                // Swipe down far enough dismisses.
+                if total > 140 || (detent == .medium && total > 100) {
+                    dismissDrawer()
+                    return
+                }
+
+                // Snap to medium / large from drag direction.
+                if total < -60 {
+                    withAnimation(TravAnimation.quick) { detent = .large }
+                } else if total > 60 {
+                    withAnimation(TravAnimation.quick) { detent = .medium }
+                } else {
+                    withAnimation(TravAnimation.quick) { dragTranslation = 0 }
+                }
+            }
+    }
+
+    private func dismissDrawer() {
+        withAnimation(TravAnimation.quick) {
+            onDismiss()
+        }
     }
 }

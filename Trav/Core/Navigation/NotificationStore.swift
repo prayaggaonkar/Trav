@@ -135,6 +135,10 @@ final class NotificationStore {
         bumpUnread: Bool,
         using environment: AppEnvironment? = nil
     ) async {
+        if let environment, environment.engagement.isBlocked(notification.actor.id) {
+            seenToastIDs.insert(notification.id)
+            return
+        }
         if bumpUnread, !notification.isRead, !seenToastIDs.contains(notification.id) {
             unreadCount += 1
         }

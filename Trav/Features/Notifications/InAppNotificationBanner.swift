@@ -33,16 +33,13 @@ struct InAppNotificationBannerHost: View {
 
     private func open(_ notification: AppNotification) {
         notificationStore.dismissCurrentToast()
-        switch notification.type {
-        case .follow:
+        if notification.primaryDestinationIsProfile {
             router.openProfile(notification.actor.username)
-        case .save, .newExperience, .like, .comment:
-            if let experienceID = notification.referenceID {
-                router.openExperience(experienceID)
-            } else {
-                router.openProfile(notification.actor.username)
-            }
-        case .watchlist:
+            return
+        }
+        if let experienceID = notification.referenceID {
+            router.openExperience(experienceID)
+        } else {
             router.openProfile(notification.actor.username)
         }
     }
