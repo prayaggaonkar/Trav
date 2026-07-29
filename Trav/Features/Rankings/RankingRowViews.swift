@@ -309,3 +309,443 @@ struct LocationFilterModalSheet: View {
         .presentationCornerRadius(TravRadius.xl)
     }
 }
+
+// MARK: - Heat Streak User Row View
+
+// MARK: - Heat Streak User Row View
+
+struct HeatStreakUserRow: View {
+    let entry: HeatStreakEntry
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: TravSpacing.md) {
+                // Rank number
+                Text("\(entry.rank)")
+                    .font(TravTypography.titleMedium())
+                    .fontWeight(.bold)
+                    .foregroundStyle(entry.rank <= 3 ? TravColors.primary : TravColors.muted.opacity(0.7))
+                    .frame(width: 26, alignment: .leading)
+
+                // Avatar
+                LeaderboardAvatarView(
+                    url: entry.avatarURL,
+                    name: entry.displayName,
+                    size: 44
+                )
+
+                // User name and handle
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.displayName)
+                        .font(TravTypography.bodyLarge())
+                        .fontWeight(.semibold)
+                        .foregroundStyle(TravColors.primary)
+                        .lineLimit(1)
+
+                    Text("@\(entry.username)")
+                        .font(TravTypography.caption())
+                        .foregroundStyle(TravColors.muted)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: TravSpacing.xs)
+
+                // Professional Vertical Micro-Badge Stack for Stats
+                VStack(alignment: .trailing, spacing: 4) {
+                    // Active Days Streak Badge (Highlight)
+                    HStack(spacing: 4) {
+                        Image(systemName: entry.flameIcon)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(entry.flameColor)
+
+                        Text(entry.daysLabel)
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(entry.flameColor)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(entry.flameColor.opacity(0.12))
+                            .overlay(
+                                Capsule(style: .continuous)
+                                    .strokeBorder(entry.flameColor.opacity(0.25), lineWidth: 1)
+                            )
+                    )
+
+                    // Total Posts Badge
+                    Text(entry.postsLabel)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(TravColors.muted)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(TravColors.surfaceElevated)
+                        )
+                }
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, TravSpacing.screenHorizontal)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(TravPressButtonStyle(scale: 0.98))
+    }
+}
+
+// MARK: - Trending / Heat Streak Leaderboard View
+
+struct TrendingLeaderboardView: View {
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(AppRouter.self) private var router
+
+    let memberScope: MemberScopeFilter
+    let selectedLocation: LocationOption
+
+    @State private var entries: [HeatStreakEntry] = []
+    @State private var isLoading = false
+
+    var filteredEntries: [HeatStreakEntry] {
+        var items = entries
+        if memberScope == .friends {
+            items = items.filter { $0.isLocationVerified }
+        }
+        return items
+    }
+
+    var body: some View {
+        Group {
+            if filteredEntries.isEmpty && !isLoading {
+                EmptyStateView(
+                    icon: "flame",
+                    title: "No active streaks",
+                    description: "No members match the selected filters with an active streak. Create an experience to start a streak!"
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(filteredEntries) { entry in
+                            HeatStreakUserRow(entry: entry) {
+                                router.openProfile(entry.username)
+                            }
+                            Divider()
+                                .padding(.leading, 72)
+                                .opacity(0.3)
+                        }
+                    }
+                    .padding(.vertical, TravSpacing.xs)
+                }
+            }
+        }
+        .task {
+            await loadRealEntries()
+
+            // Real-time live update stream from Supabase
+            for await _ in environment.experiences.observeExperiencesInsert() {
+                await loadRealEntries()
+            }
+        }
+        .onChange(of: selectedLocation) { _, _ in
+            Task { await loadRealEntries() }
+        }
+        .onChange(of: memberScope) { _, _ in
+            Task { await loadRealEntries() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ExperiencePublishedNotification"))) { _ in
+            Task {
+                await loadRealEntries()
+            }
+        }
+        .refreshable {
+            await loadRealEntries()
+        }
+    }
+
+    private func loadRealEntries() async {
+        isLoading = true
+        let cityID: UUID? = (selectedLocation.id == LocationOption.allLocations.id) ? nil : UUID(uuidString: selectedLocation.id)
+        let realUsers = (try? await environment.experiences.fetchHeatStreakEntries(
+            cityID: cityID,
+            cityName: selectedLocation.id == LocationOption.allLocations.id ? nil : selectedLocation.name
+        )) ?? []
+
+        entries = realUsers
+        isLoading = false
+    }
+}
+
+// MARK: - Impact User Row View
+
+struct ImpactUserRow: View {
+    let entry: ImpactEntry
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: TravSpacing.md) {
+                // Rank number
+                Text("\(entry.rank)")
+                    .font(TravTypography.titleMedium())
+                    .fontWeight(.bold)
+                    .foregroundStyle(entry.rank <= 3 ? TravColors.primary : TravColors.muted.opacity(0.7))
+                    .frame(width: 26, alignment: .leading)
+
+                // Avatar
+                LeaderboardAvatarView(
+                    url: entry.avatarURL,
+                    name: entry.displayName,
+                    size: 44
+                )
+
+                // User name and handle
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.displayName)
+                        .font(TravTypography.bodyLarge())
+                        .fontWeight(.semibold)
+                        .foregroundStyle(TravColors.primary)
+                        .lineLimit(1)
+
+                    Text("@\(entry.username)")
+                        .font(TravTypography.caption())
+                        .foregroundStyle(TravColors.muted)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: TravSpacing.xs)
+
+                // Micro-Badge Stack for Impact Stats
+                HStack(spacing: 4) {
+                    Image(systemName: "bookmark.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(TravColors.accent)
+
+                    Text("\(entry.totalImpactCount)")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(TravColors.primary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(TravColors.accent.opacity(0.12))
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .strokeBorder(TravColors.accent.opacity(0.25), lineWidth: 1)
+                        )
+                )
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, TravSpacing.screenHorizontal)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(TravPressButtonStyle(scale: 0.98))
+    }
+}
+
+// MARK: - Impact Leaderboard View
+
+struct ImpactLeaderboardView: View {
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(AppRouter.self) private var router
+    @Environment(EngagementStore.self) private var engagement
+
+    let memberScope: MemberScopeFilter
+    let selectedLocation: LocationOption
+
+    @State private var entries: [ImpactEntry] = []
+    @State private var isLoading = false
+
+    var filteredEntries: [ImpactEntry] {
+        return entries
+    }
+
+    var body: some View {
+        Group {
+            if filteredEntries.isEmpty && !isLoading {
+                EmptyStateView(
+                    icon: "star",
+                    title: "No impact records",
+                    description: "No creators match the selected filters. Create and share experiences to build your impact!"
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(filteredEntries) { entry in
+                            ImpactUserRow(entry: entry) {
+                                router.openProfile(entry.username)
+                            }
+                            Divider()
+                                .padding(.leading, 72)
+                                .opacity(0.3)
+                        }
+                    }
+                    .padding(.vertical, TravSpacing.xs)
+                }
+            }
+        }
+        .task {
+            await loadRealEntries()
+
+            for await _ in environment.experiences.observeExperiencesInsert() {
+                await loadRealEntries()
+            }
+        }
+        .task(id: engagement.revision) {
+            await loadRealEntries()
+        }
+        .onChange(of: selectedLocation) { _, _ in
+            Task { await loadRealEntries() }
+        }
+        .onChange(of: memberScope) { _, _ in
+            Task { await loadRealEntries() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ExperiencePublishedNotification"))) { _ in
+            Task {
+                await loadRealEntries()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ExperienceSavedNotification"))) { _ in
+            Task {
+                await loadRealEntries()
+            }
+        }
+        .refreshable {
+            await loadRealEntries()
+        }
+    }
+
+    private func loadRealEntries() async {
+        isLoading = true
+        let cityID: UUID? = (selectedLocation.id == LocationOption.allLocations.id) ? nil : UUID(uuidString: selectedLocation.id)
+        let realUsers = (try? await environment.experiences.fetchImpactLeaderboard(
+            cityID: cityID,
+            cityName: selectedLocation.id == LocationOption.allLocations.id ? nil : selectedLocation.name
+        )) ?? []
+
+        entries = realUsers
+        isLoading = false
+    }
+}
+
+// MARK: - Main Leaderboard User Row View
+
+struct MainLeaderboardUserRow: View {
+    let entry: MainLeaderboardEntry
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: TravSpacing.md) {
+                // Rank number
+                Text("\(entry.rank)")
+                    .font(TravTypography.titleMedium())
+                    .fontWeight(.bold)
+                    .foregroundStyle(entry.rank <= 3 ? TravColors.primary : TravColors.muted.opacity(0.7))
+                    .frame(width: 26, alignment: .leading)
+
+                // Avatar
+                LeaderboardAvatarView(
+                    url: entry.avatarURL,
+                    name: entry.displayName,
+                    size: 44
+                )
+
+                // User name and handle
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.displayName)
+                        .font(TravTypography.bodyLarge())
+                        .fontWeight(.semibold)
+                        .foregroundStyle(TravColors.primary)
+                        .lineLimit(1)
+
+                    Text("@\(entry.username)")
+                        .font(TravTypography.caption())
+                        .foregroundStyle(TravColors.muted)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: TravSpacing.xs)
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, TravSpacing.screenHorizontal)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(TravPressButtonStyle(scale: 0.98))
+    }
+}
+
+// MARK: - Main Leaderboard View
+
+struct MainLeaderboardView: View {
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(AppRouter.self) private var router
+    @Environment(EngagementStore.self) private var engagement
+
+    @State private var entries: [MainLeaderboardEntry] = []
+    @State private var isLoading = false
+
+    var body: some View {
+        Group {
+            if entries.isEmpty && !isLoading {
+                EmptyStateView(
+                    icon: "trophy",
+                    title: "No leaderboard entries",
+                    description: "No members on the main leaderboard yet. Create experiences and earn points!"
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(entries) { entry in
+                            MainLeaderboardUserRow(entry: entry) {
+                                router.openProfile(entry.username)
+                            }
+                            Divider()
+                                .padding(.leading, 72)
+                                .opacity(0.3)
+                        }
+                    }
+                    .padding(.vertical, TravSpacing.xs)
+                }
+            }
+        }
+        .task {
+            await loadLeaderboard()
+
+            for await _ in environment.experiences.observeExperiencesInsert() {
+                await loadLeaderboard()
+            }
+        }
+        .task(id: engagement.revision) {
+            await loadLeaderboard()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ExperiencePublishedNotification"))) { _ in
+            Task {
+                await loadLeaderboard()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ExperienceSavedNotification"))) { _ in
+            Task {
+                await loadLeaderboard()
+            }
+        }
+        .refreshable {
+            await loadLeaderboard()
+        }
+    }
+
+    private func loadLeaderboard() async {
+        isLoading = true
+        let realEntries = (try? await environment.experiences.fetchMainLeaderboard()) ?? []
+        if !realEntries.isEmpty {
+            entries = realEntries
+        } else {
+            entries = MockMainLeaderboardData.entries
+        }
+        isLoading = false
+    }
+}
+

@@ -47,6 +47,7 @@ struct CityPageView: View {
                 }, prominent: !showsNavTitle)
                 .padding(.leading, TravSpacing.screenHorizontal)
                 .safeAreaPadding(.top, TravSpacing.xs)
+                .navBarZoomable()
             }
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -57,6 +58,7 @@ struct CityPageView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
                             .transition(.opacity)
+                            .navBarZoomable()
                     }
                 }
             }
@@ -128,6 +130,7 @@ struct CityPageView: View {
                 .padding(.bottom, TravSpacing.lg)
                 .frame(maxWidth: geometry.size.width, alignment: .leading)
             }
+            .trackScrollForNavBarZoom()
             .coordinateSpace(name: "cityScroll")
             .frame(width: geometry.size.width, height: geometry.size.height)
             .clipped()

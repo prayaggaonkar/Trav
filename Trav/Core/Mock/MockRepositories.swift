@@ -102,6 +102,27 @@ struct MockExperienceRepository: ExperienceRepository {
         }
         return entries
     }
+
+    func fetchHeatStreakEntries(cityID: UUID?, cityName: String?) async throws -> [HeatStreakEntry] {
+        try await Task.sleep(for: .milliseconds(120))
+        return MockHeatStreakData.entries
+    }
+
+    func fetchImpactLeaderboard(cityID: UUID?, cityName: String?) async throws -> [ImpactEntry] {
+        try await Task.sleep(for: .milliseconds(120))
+        return MockImpactData.entries
+    }
+
+    func fetchMainLeaderboard() async throws -> [MainLeaderboardEntry] {
+        try await Task.sleep(for: .milliseconds(120))
+        return MockMainLeaderboardData.entries
+    }
+
+    func observeExperiencesInsert() -> AsyncStream<Void> {
+        AsyncStream { continuation in
+            continuation.onTermination = { _ in }
+        }
+    }
 }
 
 struct MockAuthRepository: AuthRepository {

@@ -129,7 +129,9 @@ struct ProfileView: View {
             profileChrome(profile)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(TravColors.surface)
+                .navBarZoomable()
         }
+        .trackScrollForNavBarZoom()
         .refreshable {
             await viewModel.refresh(using: environment)
         }

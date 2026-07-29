@@ -208,7 +208,7 @@ struct LocationOption: Identifiable, Hashable, Sendable {
     let name: String
     let subtitle: String?
 
-    static let allLocations = LocationOption(id: "all", name: "All Locations", subtitle: "Worldwide")
+    static let allLocations = LocationOption(id: "all", name: "Worldwide", subtitle: "Global")
 }
 
 enum MockLeaderboardData {
@@ -349,3 +349,297 @@ enum MockLeaderboardData {
         LocationOption(id: "barcelona", name: "Barcelona, Spain", subtitle: "Catalonia, Spain")
     ]
 }
+
+// MARK: - Heat Streak Models
+
+import SwiftUI
+
+/// Data model representing an experience stored in Supabase with location verification flags.
+struct HeatStreakExperience: Identifiable, Codable, Sendable, Hashable {
+    let id: UUID
+    let userID: UUID
+    let createdAt: Date
+    let title: String
+    let description: String?
+    let rating: RadarRating?
+    let latitude: Double?
+    let longitude: Double?
+    let isLocationVerified: Bool
+    let locationOptOut: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userID = "user_id"
+        case createdAt = "created_at"
+        case title
+        case description
+        case rating
+        case latitude
+        case longitude
+        case isLocationVerified = "is_location_verified"
+        case locationOptOut = "location_opt_out"
+    }
+}
+
+/// Data model representing a user entry on the Heat Streak Leaderboard.
+struct HeatStreakEntry: Identifiable, Codable, Sendable, Hashable {
+    let id: UUID // User Profile ID
+    let username: String
+    let displayName: String
+    let avatarURL: URL?
+    let count30Days: Int
+    let consecutiveDays: Int
+    let isLocationVerified: Bool
+    let rank: Int
+
+    /// Formatted text string: "x posts/y days" (e.g. "8 posts/4 days", "1 post/1 day")
+    var streakLabel: String {
+        "\(postsLabel)/\(daysLabel)"
+    }
+
+    var postsLabel: String {
+        count30Days == 1 ? "1 post" : "\(count30Days) posts"
+    }
+
+    var daysLabel: String {
+        consecutiveDays == 1 ? "1 day" : "\(consecutiveDays) days"
+    }
+
+    /// Flame icon color based on streak count:
+    /// Standard Orange for 1-3 posts, Blue-Hot Cyan for 4+ posts.
+    var flameColor: Color {
+        consecutiveDays >= 4 || count30Days >= 4 ? Color.cyan : Color.orange
+    }
+
+    /// Flame icon name
+    var flameIcon: String {
+        "flame.fill"
+    }
+
+    init(
+        id: UUID,
+        username: String,
+        displayName: String,
+        avatarURL: URL?,
+        count30Days: Int,
+        consecutiveDays: Int = 1,
+        isLocationVerified: Bool = true,
+        rank: Int
+    ) {
+        self.id = id
+        self.username = username
+        self.displayName = displayName
+        self.avatarURL = avatarURL
+        self.count30Days = count30Days
+        self.consecutiveDays = consecutiveDays
+        self.isLocationVerified = isLocationVerified
+        self.rank = rank
+    }
+}
+
+enum MockHeatStreakData {
+    static let entries: [HeatStreakEntry] = [
+        HeatStreakEntry(
+            id: UUID(uuidString: "B1000001-0000-0000-0000-000000000001")!,
+            username: "daniellkang",
+            displayName: "Daniel Kang",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop"),
+            count30Days: 14,
+            consecutiveDays: 6,
+            isLocationVerified: true,
+            rank: 1
+        ),
+        HeatStreakEntry(
+            id: UUID(uuidString: "B1000002-0000-0000-0000-000000000002")!,
+            username: "KevinKngows",
+            displayName: "Kevin Knows",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop"),
+            count30Days: 6,
+            consecutiveDays: 4,
+            isLocationVerified: true,
+            rank: 2
+        ),
+        HeatStreakEntry(
+            id: UUID(uuidString: "B1000003-0000-0000-0000-000000000003")!,
+            username: "sarah_explores",
+            displayName: "Sarah Chen",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop"),
+            count30Days: 3,
+            consecutiveDays: 2,
+            isLocationVerified: true,
+            rank: 3
+        ),
+        HeatStreakEntry(
+            id: UUID(uuidString: "B1000004-0000-0000-0000-000000000004")!,
+            username: "alex_travels",
+            displayName: "Alex Rivera",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop"),
+            count30Days: 2,
+            consecutiveDays: 2,
+            isLocationVerified: true,
+            rank: 4
+        ),
+        HeatStreakEntry(
+            id: UUID(uuidString: "B1000005-0000-0000-0000-000000000005")!,
+            username: "yuki.tanaka",
+            displayName: "Yuki Tanaka",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop"),
+            count30Days: 1,
+            consecutiveDays: 1,
+            isLocationVerified: true,
+            rank: 5
+        )
+    ]
+}
+
+/// Data model representing a user entry on the Impact Leaderboard.
+struct ImpactEntry: Identifiable, Codable, Sendable, Hashable {
+    let id: UUID // User Profile ID
+    let username: String
+    let displayName: String
+    let avatarURL: URL?
+    let totalImpactCount: Int // Total watchlists + saves across all published experiences
+    let rank: Int
+}
+
+enum MockImpactData {
+    static let entries: [ImpactEntry] = [
+        ImpactEntry(
+            id: UUID(uuidString: "B1000001-0000-0000-0000-000000000001")!,
+            username: "daniellkang",
+            displayName: "Daniel Kang",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop"),
+            totalImpactCount: 14200,
+            rank: 1
+        ),
+        ImpactEntry(
+            id: UUID(uuidString: "B1000002-0000-0000-0000-000000000002")!,
+            username: "KevinKngows",
+            displayName: "Kevin Knows",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop"),
+            totalImpactCount: 9840,
+            rank: 2
+        ),
+        ImpactEntry(
+            id: UUID(uuidString: "B1000003-0000-0000-0000-000000000003")!,
+            username: "sarah_explores",
+            displayName: "Sarah Chen",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop"),
+            totalImpactCount: 6720,
+            rank: 3
+        ),
+        ImpactEntry(
+            id: UUID(uuidString: "B1000004-0000-0000-0000-000000000004")!,
+            username: "alex_travels",
+            displayName: "Alex Rivera",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop"),
+            totalImpactCount: 4560,
+            rank: 4
+        ),
+        ImpactEntry(
+            id: UUID(uuidString: "B1000005-0000-0000-0000-000000000005")!,
+            username: "yuki.tanaka",
+            displayName: "Yuki Tanaka",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop"),
+            totalImpactCount: 2840,
+            rank: 5
+        )
+    ]
+}
+
+// MARK: - Main Leaderboard Models
+
+/// Data model representing a user entry on the Main Leaderboard.
+/// Point Formula: Total Score = (Impact * 5) + (Experiences * 25) + (Streak Days * 15) + (Streak Posts * 5)
+struct MainLeaderboardEntry: Identifiable, Codable, Sendable, Hashable {
+    let id: UUID // User Profile ID
+    let username: String
+    let displayName: String
+    let avatarURL: URL?
+    let impactCount: Int
+    let experienceCount: Int
+    let streakDays: Int
+    let streakPosts: Int
+    let totalScore: Int
+    let rank: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id = "user_id"
+        case username
+        case displayName = "display_name"
+        case avatarURL = "avatar_url"
+        case impactCount = "impact_count"
+        case experienceCount = "experience_count"
+        case streakDays = "streak_days"
+        case streakPosts = "streak_posts"
+        case totalScore = "total_score"
+        case rank
+    }
+
+    init(
+        id: UUID,
+        username: String,
+        displayName: String,
+        avatarURL: URL?,
+        impactCount: Int,
+        experienceCount: Int,
+        streakDays: Int,
+        streakPosts: Int,
+        totalScore: Int? = nil,
+        rank: Int
+    ) {
+        self.id = id
+        self.username = username
+        self.displayName = displayName
+        self.avatarURL = avatarURL
+        self.impactCount = impactCount
+        self.experienceCount = experienceCount
+        self.streakDays = streakDays
+        self.streakPosts = streakPosts
+        self.rank = rank
+        if let totalScore {
+            self.totalScore = totalScore
+        } else {
+            self.totalScore = (impactCount * 5) + (experienceCount * 25) + (streakDays * 15) + (streakPosts * 5)
+        }
+    }
+}
+
+enum MockMainLeaderboardData {
+    static let entries: [MainLeaderboardEntry] = [
+        MainLeaderboardEntry(
+            id: UUID(uuidString: "B1000001-0000-0000-0000-000000000001")!,
+            username: "daniellkang",
+            displayName: "Daniel Kang",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop"),
+            impactCount: 14,
+            experienceCount: 12,
+            streakDays: 6,
+            streakPosts: 8,
+            rank: 1
+        ),
+        MainLeaderboardEntry(
+            id: UUID(uuidString: "B1000002-0000-0000-0000-000000000002")!,
+            username: "KevinKngows",
+            displayName: "Kevin Knows",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop"),
+            impactCount: 10,
+            experienceCount: 8,
+            streakDays: 4,
+            streakPosts: 5,
+            rank: 2
+        ),
+        MainLeaderboardEntry(
+            id: UUID(uuidString: "B1000003-0000-0000-0000-000000000003")!,
+            username: "sarah_explores",
+            displayName: "Sarah Chen",
+            avatarURL: URL(string: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop"),
+            impactCount: 7,
+            experienceCount: 5,
+            streakDays: 2,
+            streakPosts: 3,
+            rank: 3
+        )
+    ]
+}
+

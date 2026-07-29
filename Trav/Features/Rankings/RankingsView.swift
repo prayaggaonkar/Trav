@@ -1,11 +1,21 @@
 import SwiftUI
 
+enum RankingsTab: String, CaseIterable, Identifiable, Sendable {
+    case main = "Main"
+    case experiences = "Experiences"
+    case streaks = "Streaks"
+    case impact = "Impact"
+
+    var id: String { rawValue }
+}
+
 struct RankingsView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
     @Environment(AppearanceStore.self) private var appearance
 
     @State private var viewModel = RankingsViewModel()
+    @State private var selectedTab: RankingsTab = .main
     @State private var showMemberScopeSheet = false
     @State private var showLocationSheet = false
 
@@ -15,7 +25,23 @@ struct RankingsView: View {
             topTabBar
             subHeader
             filterPillsRow
-            content
+
+            switch selectedTab {
+            case .main:
+                MainLeaderboardView()
+            case .experiences:
+                content
+            case .streaks:
+                TrendingLeaderboardView(
+                    memberScope: viewModel.memberScope,
+                    selectedLocation: viewModel.selectedLocation
+                )
+            case .impact:
+                ImpactLeaderboardView(
+                    memberScope: viewModel.memberScope,
+                    selectedLocation: viewModel.selectedLocation
+                )
+            }
         }
         .travScreenBackground()
         .task {
@@ -54,28 +80,45 @@ struct RankingsView: View {
         .padding(.bottom, TravSpacing.md)
     }
 
-    // MARK: - Top Tab Bar ("Experiences" only, matching app theme)
+    // MARK: - Top Tab Bar ("Main", "Experiences", "Streaks", and "Impact")
 
     private var topTabBar: some View {
         HStack(spacing: 0) {
-            HStack(spacing: 0) {
-                Text("Experiences")
-                    .font(TravTypography.titleMedium())
-                    .foregroundStyle(TravColors.primary)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
-                            .fill(TravColors.surfaceElevated)
-                            .shadow(color: Color.black.opacity(0.08), radius: 3, y: 1)
-                    )
-                Spacer()
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 2) {
+                    ForEach(RankingsTab.allCases) { tab in
+                        Button {
+                            withAnimation(TravAnimation.quick) {
+                                selectedTab = tab
+                            }
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: {
+                            Text(tab.rawValue)
+                                .font(TravTypography.titleMedium())
+                                .fontWeight(selectedTab == tab ? .semibold : .regular)
+                                .foregroundStyle(selectedTab == tab ? TravColors.primary : TravColors.muted)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Group {
+                                        if selectedTab == tab {
+                                            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                                                .fill(TravColors.surfaceElevated)
+                                                .shadow(color: Color.black.opacity(0.08), radius: 3, y: 1)
+                                        }
+                                    }
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(4)
+                .background(
+                    RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                        .fill(appearance.isLightMode ? Color(red: 0.94, green: 0.94, blue: 0.96) : Color.white.opacity(0.08))
+                )
             }
-            .padding(4)
-            .background(
-                RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                    .fill(appearance.isLightMode ? Color(red: 0.94, green: 0.94, blue: 0.96) : Color.white.opacity(0.08))
-            )
+
             Spacer()
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
@@ -85,7 +128,20 @@ struct RankingsView: View {
     // MARK: - Subheader Description
 
     private var subHeader: some View {
-        Text("Number of experiences created")
+        let text: String = {
+            switch selectedTab {
+            case .main:
+                return "Ranked by total score combining impact, experiences, and streaks"
+            case .experiences:
+                return "Number of experiences created"
+            case .streaks:
+                return "Active consecutive daily posting streaks"
+            case .impact:
+                return "Ranked by total watchlists and saves across all published experiences"
+            }
+        }()
+
+        return Text(text)
             .font(TravTypography.bodyMedium())
             .foregroundStyle(TravColors.muted)
             .padding(.horizontal, TravSpacing.screenHorizontal)
@@ -103,7 +159,7 @@ struct RankingsView: View {
                 showMemberScopeSheet = true
             }
 
-            // Location Filter Pill (Dublin, CA / All Locations / etc.)
+            // Location Filter Pill (Worldwide / Dublin, CA / etc.)
             FilterPillButton(
                 title: viewModel.selectedLocation.name
             ) {
@@ -116,7 +172,7 @@ struct RankingsView: View {
         .padding(.bottom, TravSpacing.md)
     }
 
-    // MARK: - Main Content List
+    // MARK: - Main Content List (Experiences Tab)
 
     @ViewBuilder
     private var content: some View {

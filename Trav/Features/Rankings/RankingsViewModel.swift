@@ -13,7 +13,7 @@ final class RankingsViewModel {
     }
 
     var memberScope: MemberScopeFilter = .allMembers
-    var selectedLocation: LocationOption = MockLeaderboardData.defaultLocation
+    var selectedLocation: LocationOption = LocationOption.allLocations
 
     private(set) var allEntries: [LeaderboardEntry] = []
     private(set) var availableLocations: [LocationOption] = MockLeaderboardData.locationOptions

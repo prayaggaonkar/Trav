@@ -42,6 +42,7 @@ struct ExperienceDetailView: View {
                             .foregroundStyle(.white)
                             .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
                     }
+                    .navBarZoomable()
                     .accessibilityLabel("Back")
                 }
             }
@@ -154,6 +155,7 @@ struct ExperienceDetailView: View {
             .padding(.bottom, TravSpacing.xxl)
             .safeAreaPadding(.bottom, TravSpacing.sm)
         }
+        .trackScrollForNavBarZoom()
         .ignoresSafeArea(edges: .top)
     }
 
@@ -314,33 +316,20 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-<<<<<<< HEAD
-            if experience.imageURLs.count > 1 {
+            if !experience.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                    Text("Media Gallery (\(experience.imageURLs.count))")
+                    Text("Description")
                         .font(TravTypography.titleMedium())
                         .foregroundStyle(TravColors.primary)
 
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: TravSpacing.sm) {
-                            ForEach(Array(experience.imageURLs.enumerated()), id: \.offset) { index, url in
-                                Button {
-                                    openImagePreview(url: url)
-                                } label: {
-                                    RemoteImage(url: url, height: 110, cornerRadius: TravRadius.md)
-                                        .frame(width: 150, height: 110)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
+                    Text(experience.description)
+                        .font(TravTypography.bodyMedium())
+                        .foregroundStyle(TravColors.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.vertical, TravSpacing.xs)
             }
-            ExperienceRouteMapView(stops: experience.stops)
-=======
             ExperienceRouteMapView(stops: experience.stops, transportMode: experience.transportMode)
->>>>>>> 03e31cbc37d4fe1289b301403f4166b9e60f2cc7
 
             RoutePreview(stops: experience.stops.map {
                 StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji, latitude: $0.latitude, longitude: $0.longitude)
@@ -468,31 +457,12 @@ private struct StopTimelineRow: View {
                     .padding(.vertical, TravSpacing.xxs)
                 }
 
-<<<<<<< HEAD
                 if let time = stop.recommendedTime {
                     Label(time, systemImage: "sun.max")
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.muted)
                         .lineLimit(1)
-=======
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: TravSpacing.sm) {
-                        if let time = stop.recommendedTime {
-                            Label(time, systemImage: "sun.max")
-                        }
-                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
-                    }
-                    VStack(alignment: .leading, spacing: TravSpacing.xxs) {
-                        if let time = stop.recommendedTime {
-                            Label(time, systemImage: "sun.max")
-                        }
-                        Label(TravFormatters.duration(stop.durationMinutes), systemImage: "clock")
-                    }
->>>>>>> 03e31cbc37d4fe1289b301403f4166b9e60f2cc7
                 }
-                .font(TravTypography.caption())
-                .foregroundStyle(TravColors.muted)
-                .lineLimit(1)
             }
             .padding(.bottom, isLast ? 0 : TravSpacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -522,13 +492,10 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
                         RemoteImage(url: url, height: height, cornerRadius: 0)
                             .frame(width: width, height: height)
                             .clipped()
-<<<<<<< HEAD
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 onImageTap?(index)
                             }
-=======
->>>>>>> 03e31cbc37d4fe1289b301403f4166b9e60f2cc7
                     }
                 }
                 .offset(x: -CGFloat(currentIndex) * width + dragOffset)

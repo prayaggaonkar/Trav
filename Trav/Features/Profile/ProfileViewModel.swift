@@ -64,26 +64,13 @@ final class ProfileViewModel {
     }
 
     private func updateCreatorRank(using environment: AppEnvironment) async {
-        let userCount = max(profile?.experienceCount ?? 0, created.count)
-        guard userCount > 0 else {
-            calculatedRank = nil
-            return
-        }
-        let entries = (try? await environment.experiences.fetchLeaderboardEntries(cityID: nil, cityName: nil)) ?? MockLeaderboardData.entries
-        let sorted = entries.sorted { lhs, rhs in
-            if lhs.experienceCount != rhs.experienceCount {
-                return lhs.experienceCount > rhs.experienceCount
-            }
-            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
-        }
-
-        if let matchIndex = sorted.firstIndex(where: {
+        let mainEntries = (try? await environment.experiences.fetchMainLeaderboard()) ?? MockMainLeaderboardData.entries
+        if let match = mainEntries.firstIndex(where: {
             $0.id == profile?.id || $0.username.lowercased() == username.lowercased()
         }) {
-            calculatedRank = matchIndex + 1
+            calculatedRank = mainEntries[match].rank
         } else {
-            let pos = (sorted.firstIndex(where: { $0.experienceCount <= userCount }) ?? sorted.count) + 1
-            calculatedRank = pos
+            calculatedRank = nil
         }
     }
 

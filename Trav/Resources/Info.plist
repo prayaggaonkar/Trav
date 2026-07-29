@@ -61,7 +61,9 @@
 	<key>GOOGLE_CLIENT_ID</key>
 	<string>$(GOOGLE_CLIENT_ID)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Trav uses your location to suggest nearby cities and experiences.</string>
+	<string>Trav uses your location to verify physical visits for the Heat Streak Leaderboard and suggest nearby experiences.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Trav uses your location to verify 24-hour location history for participation in the 30-Day Heat Streak Leaderboard.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

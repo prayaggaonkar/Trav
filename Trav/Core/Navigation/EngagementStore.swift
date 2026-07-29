@@ -525,5 +525,6 @@ final class EngagementStore {
 
     private func bump() {
         revision &+= 1
+        NotificationCenter.default.post(name: Notification.Name("ExperienceSavedNotification"), object: nil)
     }
 }

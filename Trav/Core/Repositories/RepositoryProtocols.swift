@@ -39,6 +39,14 @@ protocol ExperienceRepository: Sendable {
     func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary]
     /// Leaders sorted by total published experience count.
     func fetchLeaderboardEntries(cityID: UUID?, cityName: String?) async throws -> [LeaderboardEntry]
+    /// Active streak leaders fetched from Supabase.
+    func fetchHeatStreakEntries(cityID: UUID?, cityName: String?) async throws -> [HeatStreakEntry]
+    /// Impact leaders ranked by total watchlists + saves across all published experiences.
+    func fetchImpactLeaderboard(cityID: UUID?, cityName: String?) async throws -> [ImpactEntry]
+    /// Main leaderboard ranked by total score: Total Score = (Impact * 5) + (Experiences * 25) + (Streak Days * 15) + (Streak Posts * 5).
+    func fetchMainLeaderboard() async throws -> [MainLeaderboardEntry]
+    /// Observe real-time insertion of new published experiences.
+    func observeExperiencesInsert() -> AsyncStream<Void>
     /// Ranked experiences with a real rating. Unrated experiences are excluded.
     func fetchRankedExperiences(
         cityID: UUID?,

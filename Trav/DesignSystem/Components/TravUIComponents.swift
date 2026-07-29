@@ -873,3 +873,123 @@ struct FullScreenImageViewer: View {
     }
 }
 
+// MARK: - Navigation Bar Scroll Zoom Components
+
+private struct NavBarScaleKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 1.0
+}
+
+private struct IsNavBarZoomedOutKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+extension EnvironmentValues {
+    /// The current scale of the navigation bar (1.0 normal, ~0.92 when zoomed out while scrolling).
+    var navBarScale: CGFloat {
+        get { self[NavBarScaleKey.self] }
+        set { self[NavBarScaleKey.self] = newValue }
+    }
+
+    /// Whether the navigation bar is currently zoomed out due to active downward scrolling.
+    var isNavBarZoomedOut: Bool {
+        get { self[IsNavBarZoomedOutKey.self] }
+        set { self[IsNavBarZoomedOutKey.self] = newValue }
+    }
+}
+
+// MARK: - Scroll Zoom Navigation Bar Modifier
+
+private struct ScrollZoomNavBarOffsetKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next != 0 {
+            value = next
+        }
+    }
+}
+
+/// A ViewModifier applied to a ScrollView or content container to detect scroll activity,
+/// zooming out the navigation bar while actively scrolling down and restoring it when scrolling stops.
+struct ScrollZoomNavBarModifier: ViewModifier {
+    @State private var isScrollingDown: Bool = false
+    @State private var lastOffset: CGFloat = 0
+    @State private var stopTask: Task<Void, Never>? = nil
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                GeometryReader { geo in
+                    Color.clear.preference(
+                        key: ScrollZoomNavBarOffsetKey.self,
+                        value: geo.frame(in: .global).minY
+                    )
+                }
+            }
+            .onPreferenceChange(ScrollZoomNavBarOffsetKey.self) { newOffset in
+                let delta = lastOffset - newOffset
+                lastOffset = newOffset
+
+                // Active scroll down (moving down past top boundary)
+                if delta > 1.2 && newOffset < -5 {
+                    if !isScrollingDown {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            isScrollingDown = true
+                        }
+                    }
+                    // Reset stop timer on every scroll update
+                    stopTask?.cancel()
+                    stopTask = Task {
+                        try? await Task.sleep(nanoseconds: 160_000_000) // 160ms pause threshold
+                        if !Task.isCancelled {
+                            await MainActor.run {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                    isScrollingDown = false
+                                }
+                            }
+                        }
+                    }
+                } else if delta < -1.2 {
+                    // Scrolling back up - restore original size smoothly
+                    stopTask?.cancel()
+                    if isScrollingDown {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            isScrollingDown = false
+                        }
+                    }
+                }
+            }
+            .environment(\.navBarScale, isScrollingDown ? 0.92 : 1.0)
+            .environment(\.isNavBarZoomedOut, isScrollingDown)
+    }
+}
+
+// MARK: - Navigation Bar Component Modifier
+
+/// ViewModifier applied to custom navigation bar containers or toolbar items
+/// to automatically scale down when scrolling down and restore when stopped.
+struct NavBarZoomableModifier: ViewModifier {
+    @Environment(\.navBarScale) private var navBarScale
+    var anchor: UnitPoint = .center
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(navBarScale, anchor: anchor)
+            .animation(.spring(response: 0.35, dampingFraction: 0.75), value: navBarScale)
+    }
+}
+
+// MARK: - View Extensions for Navigation Bar Zooming
+
+extension View {
+    /// Enables navigation bar zoom-out animation during active downward scrolling.
+    func trackScrollForNavBarZoom() -> some View {
+        self.modifier(ScrollZoomNavBarModifier())
+    }
+
+    /// Applies the scroll-driven zoom animation to a navigation bar or header view.
+    func navBarZoomable(anchor: UnitPoint = .center) -> some View {
+        self.modifier(NavBarZoomableModifier(anchor: anchor))
+    }
+}
+

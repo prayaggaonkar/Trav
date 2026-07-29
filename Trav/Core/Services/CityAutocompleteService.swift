@@ -211,3 +211,153 @@ extension String {
     /// Back-compat alias used by older call sites.
     func strippingEmojiAndSymbols() -> String { asPlainPlaceName() }
 }
+
+// MARK: - Timestamped Location Entry for 24-Hour Verification
+
+struct TimestampedLocation: Codable, Sendable, Equatable {
+    let latitude: Double
+    let longitude: Double
+    let timestamp: Date
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
+    var clLocation: CLLocation {
+        CLLocation(coordinate: coordinate, altitude: 0, horizontalAccuracy: 5, verticalAccuracy: 5, timestamp: timestamp)
+    }
+}
+
+// MARK: - LocationManager & 24-Hour Location Verification
+
+@Observable
+final class LocationManager: NSObject, CLLocationManagerDelegate, @unchecked Sendable {
+    static let shared = LocationManager()
+
+    private let manager = CLLocationManager()
+
+    var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    var currentLocation: CLLocation? = nil
+    var recordedLocations: [TimestampedLocation] = []
+
+    private let storageKey = "trav_location_history_24h"
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.distanceFilter = 50 // Log location fix every 50 meters
+        authorizationStatus = manager.authorizationStatus
+        loadRecordedLocations()
+    }
+
+    // MARK: - Permissions & Control
+
+    func requestLocationPermission() {
+        if authorizationStatus == .notDetermined {
+            manager.requestWhenInUseAuthorization()
+        }
+    }
+
+    func openSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString), UIApplication.shared.canOpenURL(url) {
+            UIApplication.shared.open(url)
+        }
+    }
+
+    func startTracking() {
+        guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else { return }
+        manager.startUpdatingLocation()
+    }
+
+    func stopTracking() {
+        manager.stopUpdatingLocation()
+    }
+
+    // MARK: - CLLocationManagerDelegate
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        authorizationStatus = manager.authorizationStatus
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            startTracking()
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let latest = locations.last else { return }
+        currentLocation = latest
+
+        let newEntry = TimestampedLocation(
+            latitude: latest.coordinate.latitude,
+            longitude: latest.coordinate.longitude,
+            timestamp: latest.timestamp
+        )
+
+        recordLocation(newEntry)
+    }
+
+    // MARK: - 24-Hour Location Log Maintenance
+
+    private func recordLocation(_ entry: TimestampedLocation) {
+        let cutoff = Date().addingTimeInterval(-86400) // Past 24 hours
+        recordedLocations = recordedLocations.filter { $0.timestamp >= cutoff }
+        recordedLocations.append(entry)
+        saveRecordedLocations()
+    }
+
+    private func loadRecordedLocations() {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let decoded = try? JSONDecoder().decode([TimestampedLocation].self, from: data) else { return }
+        let cutoff = Date().addingTimeInterval(-86400)
+        recordedLocations = decoded.filter { $0.timestamp >= cutoff }
+    }
+
+    private func saveRecordedLocations() {
+        if let encoded = try? JSONEncoder().encode(recordedLocations) {
+            UserDefaults.standard.set(encoded, forKey: storageKey)
+        }
+    }
+
+    // MARK: - 24-Hour Location Match Validation Logic
+
+    /// Validates whether the user physically visited the experience's coordinate within the 24 hours prior to post creation.
+    /// - Parameters:
+    ///   - experienceCoordinate: Location coordinate of the experience.
+    ///   - creationDate: Post creation timestamp (default: now).
+    ///   - maxDistanceMeters: Verification threshold in meters (default: 1000m / 1km).
+    /// - Returns: Bool indicating if a verified 24-hour location match exists.
+    func isLocationVerifiedForExperience(
+        experienceCoordinate: CLLocationCoordinate2D,
+        creationDate: Date = Date(),
+        maxDistanceMeters: CLLocationDistance = 1000
+    ) -> Bool {
+        // Disqualified if location permissions denied or restricted
+        guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
+            return false
+        }
+
+        let experienceLocation = CLLocation(
+            latitude: experienceCoordinate.latitude,
+            longitude: experienceCoordinate.longitude
+        )
+
+        let windowStart = creationDate.addingTimeInterval(-86400) // 24 hours prior
+        let validFixes = recordedLocations.filter { $0.timestamp >= windowStart && $0.timestamp <= creationDate }
+
+        // Fallback: check current real-time location if log has no historical entries yet
+        if validFixes.isEmpty, let current = currentLocation {
+            let currentAge = abs(current.timestamp.timeIntervalSince(creationDate))
+            if currentAge <= 86400 {
+                return current.distance(from: experienceLocation) <= maxDistanceMeters
+            }
+        }
+
+        for fix in validFixes {
+            if fix.clLocation.distance(from: experienceLocation) <= maxDistanceMeters {
+                return true
+            }
+        }
+
+        return false
+    }
+}

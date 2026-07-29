@@ -243,6 +243,8 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         if !stopRows.isEmpty {
             try await client.from("stops").insert(stopRows).execute()
         }
+
+        NotificationCenter.default.post(name: Notification.Name("ExperiencePublishedNotification"), object: nil)
     }
 
     // MARK: - City FK Helper
@@ -680,6 +682,403 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         }
 
         return realEntries
+    }
+
+    func fetchHeatStreakEntries(cityID: UUID?, cityName: String?) async throws -> [HeatStreakEntry] {
+        let client = try client
+
+        struct ExperienceRow: Decodable {
+            let id: UUID
+            let user_id: UUID
+            let city_id: UUID?
+            let city: String?
+            let created_at: String?
+        }
+
+        let rows: [ExperienceRow] = (try? await client
+            .from("experiences")
+            .select("id, user_id, city_id, city, created_at")
+            .eq("is_published", value: true)
+            .execute()
+            .value) ?? []
+
+        let searchCity: String? = {
+            guard let cityName, !cityName.isEmpty, cityName != LocationOption.allLocations.name else { return nil }
+            return cityName.lowercased().components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces)
+        }()
+
+        let filteredRows: [ExperienceRow]
+        if let cityID {
+            filteredRows = rows.filter { $0.city_id == cityID }
+        } else if let searchCity {
+            filteredRows = rows.filter { row in
+                guard let c = row.city?.lowercased() else { return false }
+                return c.contains(searchCity) || searchCity.contains(c)
+            }
+        } else {
+            filteredRows = rows
+        }
+
+        var userDatesMap: [UUID: [Date]] = [:]
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let fallbackFormatter = ISO8601DateFormatter()
+
+        for row in filteredRows {
+            guard let dateStr = row.created_at,
+                  let date = isoFormatter.date(from: dateStr) ?? fallbackFormatter.date(from: dateStr) else { continue }
+            userDatesMap[row.user_id, default: []].append(date)
+        }
+
+        struct DetailedDBProfile: Decodable {
+            let id: UUID
+            let username: String
+            let display_name: String?
+            let avatar_url: String?
+            let is_verified: Bool?
+        }
+
+        let profiles: [DetailedDBProfile] = (try? await client
+            .from("profiles")
+            .select("id, username, display_name, avatar_url, is_verified")
+            .execute()
+            .value) ?? []
+
+        let calendar = Calendar.current
+        let now = Date()
+        let todayStart = calendar.startOfDay(for: now)
+        let yesterdayStart = calendar.date(byAdding: .day, value: -1, to: todayStart)
+
+        var rawEntries: [HeatStreakEntry] = []
+
+        for profile in profiles {
+            let dates = userDatesMap[profile.id] ?? []
+            guard !dates.isEmpty else { continue }
+
+            // 1. Calculate consecutive days streak anchored to today or yesterday
+            let postDays = Set(dates.map { calendar.startOfDay(for: $0) })
+
+            let anchorDay: Date?
+            if postDays.contains(todayStart) {
+                anchorDay = todayStart
+            } else if let yesterdayStart, postDays.contains(yesterdayStart) {
+                anchorDay = yesterdayStart
+            } else {
+                anchorDay = nil
+            }
+
+            var consecutiveDays = 0
+            var streakStartDate: Date? = nil
+            var streakEndDate: Date? = nil
+
+            if let anchorDay {
+                streakEndDate = anchorDay
+                var checkDay = anchorDay
+                while postDays.contains(checkDay) {
+                    consecutiveDays += 1
+                    streakStartDate = checkDay
+                    guard let prevDay = calendar.date(byAdding: .day, value: -1, to: checkDay) else { break }
+                    checkDay = prevDay
+                }
+            }
+
+            guard consecutiveDays > 0 else { continue }
+
+            // 2. Count experiences posted during this consecutive streak span
+            let postsInStreak: Int
+            if let start = streakStartDate, let end = streakEndDate {
+                let endOfDay = calendar.date(byAdding: .day, value: 1, to: end) ?? end
+                postsInStreak = dates.filter { $0 >= start && $0 < endOfDay }.count
+            } else {
+                postsInStreak = dates.count
+            }
+
+            rawEntries.append(HeatStreakEntry(
+                id: profile.id,
+                username: profile.username,
+                displayName: profile.display_name ?? profile.username,
+                avatarURL: profile.avatar_url.flatMap { URL(string: $0) },
+                count30Days: postsInStreak,
+                consecutiveDays: consecutiveDays,
+                isLocationVerified: true,
+                rank: 1
+            ))
+        }
+
+        // Sort descending by consecutive days streak and posts in streak
+        rawEntries.sort { lhs, rhs in
+            if lhs.consecutiveDays != rhs.consecutiveDays {
+                return lhs.consecutiveDays > rhs.consecutiveDays
+            }
+            if lhs.count30Days != rhs.count30Days {
+                return lhs.count30Days > rhs.count30Days
+            }
+            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+        }
+
+        // Re-assign ranks 1..N
+        var rankedEntries: [HeatStreakEntry] = []
+        for (index, item) in rawEntries.enumerated() {
+            rankedEntries.append(HeatStreakEntry(
+                id: item.id,
+                username: item.username,
+                displayName: item.displayName,
+                avatarURL: item.avatarURL,
+                count30Days: item.count30Days,
+                consecutiveDays: item.consecutiveDays,
+                isLocationVerified: item.isLocationVerified,
+                rank: index + 1
+            ))
+        }
+
+        return rankedEntries
+    }
+
+    func fetchImpactLeaderboard(cityID: UUID?, cityName: String?) async throws -> [ImpactEntry] {
+        let client = try client
+
+        struct ExperienceRow: Decodable {
+            let id: UUID
+            let user_id: UUID
+            let city_id: UUID?
+            let city: String?
+            let save_count: Int?
+            let completion_count: Int?
+        }
+
+        let rows: [ExperienceRow] = (try? await client
+            .from("experiences")
+            .select("id, user_id, city_id, city, save_count, completion_count")
+            .eq("is_published", value: true)
+            .execute()
+            .value) ?? []
+
+        let searchCity: String? = {
+            guard let cityName, !cityName.isEmpty, cityName != LocationOption.allLocations.name else { return nil }
+            return cityName.lowercased().components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces)
+        }()
+
+        let filteredRows: [ExperienceRow]
+        if let cityID {
+            filteredRows = rows.filter { $0.city_id == cityID }
+        } else if let searchCity {
+            filteredRows = rows.filter { row in
+                guard let c = row.city?.lowercased() else { return false }
+                return c.contains(searchCity) || searchCity.contains(c)
+            }
+        } else {
+            filteredRows = rows
+        }
+
+        // Map experience ID -> creator user ID
+        var expToCreatorMap: [UUID: UUID] = [:]
+        for row in filteredRows {
+            expToCreatorMap[row.id] = row.user_id
+        }
+
+        struct ExpRefRow: Decodable {
+            let experience_id: UUID
+        }
+
+        // 1. Tally saves per experience from experience_saves and saved_experiences tables
+        var savesPerExp: [UUID: Int] = [:]
+        if let expSaves: [ExpRefRow] = try? await client.from("experience_saves").select("experience_id").execute().value {
+            for item in expSaves {
+                if expToCreatorMap[item.experience_id] != nil {
+                    savesPerExp[item.experience_id, default: 0] += 1
+                }
+            }
+        }
+        if let legacySaves: [ExpRefRow] = try? await client.from("saved_experiences").select("experience_id").execute().value {
+            for item in legacySaves {
+                if expToCreatorMap[item.experience_id] != nil {
+                    savesPerExp[item.experience_id, default: 0] += 1
+                }
+            }
+        }
+
+        // 2. Tally watchlists per experience from watchlists and experience_completions tables
+        var watchlistsPerExp: [UUID: Int] = [:]
+        if let watchlists: [ExpRefRow] = try? await client.from("watchlists").select("experience_id").execute().value {
+            for item in watchlists {
+                if expToCreatorMap[item.experience_id] != nil {
+                    watchlistsPerExp[item.experience_id, default: 0] += 1
+                }
+            }
+        }
+        if let completions: [ExpRefRow] = try? await client.from("experience_completions").select("experience_id").execute().value {
+            for item in completions {
+                if expToCreatorMap[item.experience_id] != nil {
+                    watchlistsPerExp[item.experience_id, default: 0] += 1
+                }
+            }
+        }
+
+        // Calculate total impact per creator (sum of watchlists + saves across every experience created by the user)
+        var userImpactMap: [UUID: Int] = [:]
+        for row in filteredRows {
+            let saves = max(row.save_count ?? 0, savesPerExp[row.id] ?? 0)
+            let watchlists = max(row.completion_count ?? 0, watchlistsPerExp[row.id] ?? 0)
+            userImpactMap[row.user_id, default: 0] += (saves + watchlists)
+        }
+
+        struct DetailedDBProfile: Decodable {
+            let id: UUID
+            let username: String
+            let display_name: String?
+            let avatar_url: String?
+        }
+
+        let profiles: [DetailedDBProfile] = (try? await client
+            .from("profiles")
+            .select("id, username, display_name, avatar_url")
+            .execute()
+            .value) ?? []
+
+        var rawEntries: [ImpactEntry] = []
+        for profile in profiles {
+            let impactCount = userImpactMap[profile.id] ?? 0
+
+            rawEntries.append(ImpactEntry(
+                id: profile.id,
+                username: profile.username,
+                displayName: profile.display_name ?? profile.username,
+                avatarURL: profile.avatar_url.flatMap { URL(string: $0) },
+                totalImpactCount: impactCount,
+                rank: 1
+            ))
+        }
+
+        // Sort descending by total impact count across all experiences created by each user
+        rawEntries.sort { lhs, rhs in
+            if lhs.totalImpactCount != rhs.totalImpactCount {
+                return lhs.totalImpactCount > rhs.totalImpactCount
+            }
+            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+        }
+
+        var rankedEntries: [ImpactEntry] = []
+        for (index, item) in rawEntries.enumerated() {
+            rankedEntries.append(ImpactEntry(
+                id: item.id,
+                username: item.username,
+                displayName: item.displayName,
+                avatarURL: item.avatarURL,
+                totalImpactCount: item.totalImpactCount,
+                rank: index + 1
+            ))
+        }
+
+        return rankedEntries
+    }
+
+    func fetchMainLeaderboard() async throws -> [MainLeaderboardEntry] {
+        let client = try client
+
+        // 1. Attempt to call Supabase RPC function get_main_leaderboard
+        if let rpcEntries: [MainLeaderboardEntry] = try? await client
+            .rpc("get_main_leaderboard")
+            .execute()
+            .value,
+           !rpcEntries.isEmpty {
+            return rpcEntries
+        }
+
+        // 2. Fallback calculation in Swift if RPC function is not yet created on Supabase
+        let impactEntries = (try? await fetchImpactLeaderboard(cityID: nil, cityName: nil)) ?? []
+        let expEntries = (try? await fetchLeaderboardEntries(cityID: nil, cityName: nil)) ?? []
+        let streakEntries = (try? await fetchHeatStreakEntries(cityID: nil, cityName: nil)) ?? []
+
+        let impactMap = Dictionary(uniqueKeysWithValues: impactEntries.map { ($0.id, $0.totalImpactCount) })
+        let expMap = Dictionary(uniqueKeysWithValues: expEntries.map { ($0.id, $0.experienceCount) })
+        let streakDaysMap = Dictionary(uniqueKeysWithValues: streakEntries.map { ($0.id, $0.consecutiveDays) })
+        let streakPostsMap = Dictionary(uniqueKeysWithValues: streakEntries.map { ($0.id, $0.count30Days) })
+
+        struct DetailedDBProfile: Decodable {
+            let id: UUID
+            let username: String
+            let display_name: String?
+            let avatar_url: String?
+        }
+
+        let profiles: [DetailedDBProfile] = (try? await client
+            .from("profiles")
+            .select("id, username, display_name, avatar_url")
+            .execute()
+            .value) ?? []
+
+        var rawEntries: [MainLeaderboardEntry] = []
+        for profile in profiles {
+            let impact = impactMap[profile.id] ?? 0
+            let expCount = expMap[profile.id] ?? 0
+            let streakDays = streakDaysMap[profile.id] ?? 0
+            let streakPosts = streakPostsMap[profile.id] ?? 0
+
+            let entry = MainLeaderboardEntry(
+                id: profile.id,
+                username: profile.username,
+                displayName: profile.display_name ?? profile.username,
+                avatarURL: profile.avatar_url.flatMap { URL(string: $0) },
+                impactCount: impact,
+                experienceCount: expCount,
+                streakDays: streakDays,
+                streakPosts: streakPosts,
+                rank: 1
+            )
+            rawEntries.append(entry)
+        }
+
+        rawEntries.sort { lhs, rhs in
+            if lhs.totalScore != rhs.totalScore {
+                return lhs.totalScore > rhs.totalScore
+            }
+            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+        }
+
+        var rankedEntries: [MainLeaderboardEntry] = []
+        for (index, item) in rawEntries.enumerated() {
+            rankedEntries.append(MainLeaderboardEntry(
+                id: item.id,
+                username: item.username,
+                displayName: item.displayName,
+                avatarURL: item.avatarURL,
+                impactCount: item.impactCount,
+                experienceCount: item.experienceCount,
+                streakDays: item.streakDays,
+                streakPosts: item.streakPosts,
+                totalScore: item.totalScore,
+                rank: index + 1
+            ))
+        }
+
+        return rankedEntries
+    }
+
+    func observeExperiencesInsert() -> AsyncStream<Void> {
+        AsyncStream { continuation in
+            guard let client = try? client else {
+                continuation.finish()
+                return
+            }
+            let channel = client.channel("public:experiences")
+            let changeStream = channel.postgresChange(
+                InsertAction.self,
+                schema: "public",
+                table: "experiences"
+            )
+            let task = Task {
+                await channel.subscribe()
+                for await _ in changeStream {
+                    continuation.yield(())
+                }
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+                Task {
+                    await channel.unsubscribe()
+                }
+            }
+        }
     }
 
     /// Loads rated experiences for leaderboards. Filtered server-side; capped
