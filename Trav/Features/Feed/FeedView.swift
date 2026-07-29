@@ -236,10 +236,15 @@ struct FeedView: View {
     private var feedBody: some View {
         switch viewModel.phase {
         case .idle, .loading:
-            Spacer()
-            ProgressView()
-                .tint(TravColors.accent)
-            Spacer()
+            ScrollView {
+                VStack(spacing: 12) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        SkeletonExperienceCard()
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, TravSpacing.sm)
+            }
         case let .failed(message):
             Spacer()
             EmptyStateView(
@@ -293,7 +298,11 @@ struct FeedView: View {
                             isLiked: engagement.isLiked(experience.id),
                             connectedLayout: false,
                             onTap: {
-                                router.presentedRoute = .experience(experience.id)
+                                if isRecByTrav(experience) {
+                                    selectedSpotDetail = spotSuggestion(from: experience)
+                                } else {
+                                    router.presentedRoute = .experience(experience.id)
+                                }
                             },
                             onCreatorTap: {
                                 router.openProfile(experience.creator.username)
@@ -337,6 +346,19 @@ struct FeedView: View {
                         ProgressView()
                             .tint(TravColors.accent)
                             .padding(.vertical, TravSpacing.md)
+                    } else if viewModel.hasReachedScrollLimit {
+                        UnlockRecsBannerView(
+                            onInviteFriends: {
+                                shareItem = ShareItem(
+                                    message: "Join me on Trav to discover and share local spots!",
+                                    url: URL(string: "https://trav.app/invite")!
+                                )
+                            },
+                            onFindPeople: {
+                                isSearchFocused = true
+                            }
+                        )
+                        .padding(.vertical, TravSpacing.md)
                     }
                 }
                 .padding(.horizontal, 12)
@@ -386,7 +408,7 @@ struct FeedView: View {
     }
 
     private func ownExperienceBadge(for experience: ExperienceSummary) -> String {
-        if experience.creator.id == ExperienceInsert.travAdminID || experience.creator.username.lowercased() == "trav" {
+        if isRecByTrav(experience) {
             return "Rec by Trav"
         }
         guard let currentID = session.currentUser?.id,
@@ -394,6 +416,35 @@ struct FeedView: View {
             return ""
         }
         return "Created by You"
+    }
+
+    private func isRecByTrav(_ experience: ExperienceSummary) -> Bool {
+        experience.creator.id == ExperienceInsert.travAdminID
+            || experience.creator.username.lowercased() == "trav"
+            || experience.creator.displayName.lowercased() == "rec by trav"
+    }
+
+    private func spotSuggestion(from experience: ExperienceSummary) -> SpotSuggestion {
+        let firstStop = experience.stops.first
+        let emoji = firstStop?.emoji ?? "📍"
+        
+        let category: SpotCategory
+        switch emoji {
+        case "🥾", "🌲": category = .hike
+        case "🌅", "🌆": category = .viewpoint
+        case "🎨", "🛍️", "🏛️", "🍲": category = .landmark
+        case "🏞": category = .park
+        default: category = SpotCategory.infer(title: experience.title, subtitle: experience.displayCityName)
+        }
+
+        return SpotSuggestion(
+            id: experience.id.uuidString,
+            title: experience.title,
+            subtitle: experience.displayCityName,
+            category: category,
+            latitude: firstStop?.latitude,
+            longitude: firstStop?.longitude
+        )
     }
 
     private var visiblePopups: [Popup] {
@@ -646,10 +697,10 @@ struct FeedView: View {
         }
 
         return items.sorted { a, b in
-            let aIsTrav = a.creator.id == ExperienceInsert.travAdminID || a.creator.username.lowercased() == "trav"
-            let bIsTrav = b.creator.id == ExperienceInsert.travAdminID || b.creator.username.lowercased() == "trav"
+            let aIsTrav = a.creator.id == ExperienceInsert.travAdminID || a.creator.username.lowercased() == "trav" || a.creator.displayName.lowercased() == "rec by trav"
+            let bIsTrav = b.creator.id == ExperienceInsert.travAdminID || b.creator.username.lowercased() == "trav" || b.creator.displayName.lowercased() == "rec by trav"
             if aIsTrav != bIsTrav {
-                return aIsTrav
+                return !aIsTrav // Real user/follower posts come FIRST! Rec by Trav comes next.
             }
             return false
         }
@@ -1189,4 +1240,78 @@ private func popupImage(for title: String) -> URL? {
         return URL(string: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80")
     }
     return URL(string: "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800&q=80")
+}
+
+private struct UnlockRecsBannerView: View {
+    let onInviteFriends: () -> Void
+    let onFindPeople: () -> Void
+
+    var body: some View {
+        VStack(spacing: TravSpacing.sm) {
+            ZStack {
+                Circle()
+                    .fill(TravColors.accent.opacity(0.18))
+                    .frame(width: 52, height: 52)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundStyle(TravColors.accent)
+            }
+
+            VStack(spacing: 4) {
+                Text("Unlock More Recs")
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundStyle(TravColors.primary)
+
+                Text("You must unlock more recs by inviting friends or following more people.")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(TravColors.muted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, TravSpacing.md)
+            }
+
+            HStack(spacing: TravSpacing.xs) {
+                Button(action: onInviteFriends) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "person.badge.plus")
+                            .font(.system(size: 13, weight: .bold))
+                        Text("Invite Friends")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                    }
+                    .padding(.horizontal, TravSpacing.md)
+                    .padding(.vertical, 10)
+                    .background(TravColors.accent)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.96))
+
+                Button(action: onFindPeople) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "person.2.fill")
+                            .font(.system(size: 13, weight: .bold))
+                        Text("Find People")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                    }
+                    .padding(.horizontal, TravSpacing.md)
+                    .padding(.vertical, 10)
+                    .background(Color.white.opacity(0.1))
+                    .foregroundStyle(TravColors.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.96))
+            }
+            .padding(.top, TravSpacing.xs)
+        }
+        .padding(TravSpacing.lg)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: TravRadius.xl, style: .continuous)
+                .fill(TravColors.surfaceElevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: TravRadius.xl, style: .continuous)
+                .stroke(TravColors.accent.opacity(0.3), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
+    }
 }

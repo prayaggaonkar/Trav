@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 import Observation
 
 /// Drives the home Feed tab: pop-up events, user-published experiences, and
@@ -20,6 +21,9 @@ final class FeedViewModel {
     private(set) var places: [ExperienceSummary] = []
     private(set) var isLoadingMore = false
 
+    private(set) var appleMapsScrollCount = 0
+    private(set) var hasReachedScrollLimit = false
+
     private var experiencePage = 0
     private var placePage = 0
     private var hasMoreExperiences = true
@@ -30,7 +34,7 @@ final class FeedViewModel {
     }
 
     var hasMore: Bool {
-        hasMoreExperiences || hasMorePlaces
+        hasMoreExperiences || (hasMorePlaces && !hasReachedScrollLimit)
     }
 
     func loadIfNeeded(
@@ -63,6 +67,20 @@ final class FeedViewModel {
 
         phase = .loading
 
+        // Reset Apple Maps recommendation scroll state on new load
+        appleMapsScrollCount = 0
+        hasReachedScrollLimit = false
+        AppleMapsVibeService.shared.resetPagination()
+
+        let userVibes = environment.session.currentUser?.selectedVibes ?? [
+            "🎨 Street Art",
+            "🌙 Nightlife",
+            "🛍️ Vintage Shops",
+            "🍷 Rooftop Bars"
+        ]
+        let resolvedCity = targetCity ?? "Berkeley, CA"
+
+        // Chunk 1: Immediate fetch of social feed experiences, places, and popups
         async let experiencesResult = fetchExperiencesPage(0, using: environment)
         async let placesResult = fetchPlacesPage(0, using: environment)
         async let popupsResult = fetchPopupsQuietly(using: environment, latitude: targetLat, longitude: targetLng, city: targetCity)
@@ -98,16 +116,34 @@ final class FeedViewModel {
 
         places = pla?.items ?? []
         placePage = 0
-        hasMorePlaces = pla?.hasMore ?? false
+        hasMorePlaces = true
 
+        // Reveal content immediately as soon as Chunk 1 is ready!
         if !experiences.isEmpty || !places.isEmpty || !popups.isEmpty {
             phase = .loaded
         } else if exp == nil && pla == nil {
             phase = .failed("Couldn't reach Trav's servers. Check your connection and try again.")
         } else {
-            // Sources responded but were empty — still a successful load.
             phase = .loaded
         }
+
+        // Chunk 2: Progressive background fetch of Apple Maps vibe recommendations
+        let centerCoord = targetLat != nil && targetLng != nil ? CLLocationCoordinate2D(latitude: targetLat!, longitude: targetLng!) : nil
+        let vibeRecs = await AppleMapsVibeService.shared.fetchVibeRecommendations(
+            vibes: userVibes,
+            city: resolvedCity,
+            center: centerCoord,
+            page: 0
+        )
+
+        // Progressively append Chunk 2 recommendations
+        var blendedPlaces = places
+        for rec in vibeRecs {
+            if !experiences.contains(where: { $0.id == rec.id }) && !blendedPlaces.contains(where: { $0.id == rec.id }) {
+                blendedPlaces.append(rec)
+            }
+        }
+        places = blendedPlaces
     }
 
     func loadMore(using environment: AppEnvironment) async {
@@ -132,17 +168,52 @@ final class FeedViewModel {
     }
 
     private func loadMorePlaces(using environment: AppEnvironment) async {
-        guard hasMorePlaces else { return }
-        let page = places.isEmpty ? 0 : placePage + 1
-        guard let next = await fetchPlacesPage(page, using: environment) else {
+        if appleMapsScrollCount >= 3 {
             hasMorePlaces = false
+            hasReachedScrollLimit = true
             return
         }
-        placePage = page
-        places.append(contentsOf: next.items.filter { item in
-            !places.contains(where: { $0.id == item.id })
-        })
-        hasMorePlaces = next.hasMore
+
+        let userVibes = environment.session.currentUser?.selectedVibes ?? [
+            "🎨 Street Art",
+            "🌙 Nightlife",
+            "🛍️ Vintage Shops",
+            "🍷 Rooftop Bars"
+        ]
+        let targetCity = cachedCity ?? "Berkeley, CA"
+        let center = cachedLat != nil && cachedLng != nil ? CLLocationCoordinate2D(latitude: cachedLat!, longitude: cachedLng!) : nil
+
+        appleMapsScrollCount += 1
+        let nextPageRecs = await AppleMapsVibeService.shared.fetchVibeRecommendations(
+            vibes: userVibes,
+            city: targetCity,
+            center: center,
+            page: appleMapsScrollCount
+        )
+
+        var fetchedFromDB: [ExperienceSummary] = []
+        if hasMorePlaces {
+            let page = places.isEmpty ? 0 : placePage + 1
+            if let next = await fetchPlacesPage(page, using: environment) {
+                placePage = page
+                fetchedFromDB = next.items
+                if !next.hasMore && nextPageRecs.isEmpty {
+                    hasMorePlaces = false
+                }
+            }
+        }
+
+        let allNewItems = fetchedFromDB + nextPageRecs
+        for item in allNewItems {
+            if !places.contains(where: { $0.id == item.id }) && !experiences.contains(where: { $0.id == item.id }) {
+                places.append(item)
+            }
+        }
+
+        if appleMapsScrollCount >= 3 {
+            hasMorePlaces = false
+            hasReachedScrollLimit = true
+        }
     }
 
     private func fetchExperiencesPage(

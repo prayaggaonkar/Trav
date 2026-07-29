@@ -23,6 +23,9 @@ struct MockCityRepository: CityRepository {
 
 struct MockExperienceRepository: ExperienceRepository {
     func fetchExperience(id: UUID) async throws -> Experience {
+        if let cachedAppleMapsExp = AppleMapsVibeService.shared.cachedExperience(for: id) {
+            return cachedAppleMapsExp
+        }
         guard let summary = MockData.experiences.first(where: { $0.id == id }) else {
             throw RepositoryError.notFound
         }

@@ -28,6 +28,16 @@ actor ImageCache {
             return cached
         }
 
+        if url.isFileURL {
+            guard let data = try? Data(contentsOf: url),
+                  var image = UIImage(data: data) else { return nil }
+            if let maxPixelSize, max(image.size.width, image.size.height) > maxPixelSize {
+                image = downsample(image, maxPixelSize: maxPixelSize) ?? image
+            }
+            memory.setObject(image, forKey: key, cost: data.count)
+            return image
+        }
+
         do {
             let (data, response) = try await session.data(from: url)
             guard

@@ -60,7 +60,7 @@ struct SkeletonView: View {
                     LinearGradient(
                         colors: [
                             .clear,
-                            Color.white.opacity(0.5),
+                            Color.white.opacity(0.15),
                             .clear
                         ],
                         startPoint: .leading,
@@ -76,6 +76,33 @@ struct SkeletonView: View {
                     shimmerOffset = 1.5
                 }
             }
+    }
+}
+
+struct SkeletonExperienceCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SkeletonView(height: TravLayout.feedCardImageHeight, cornerRadius: 0)
+            
+            VStack(alignment: .leading, spacing: 10) {
+                SkeletonView(height: 18, cornerRadius: 4)
+                    .frame(maxWidth: .infinity)
+                SkeletonView(height: 14, cornerRadius: 4)
+                    .frame(width: 180)
+                SkeletonView(height: 12, cornerRadius: 4)
+                    .frame(width: 120)
+                
+                HStack {
+                    SkeletonView(height: 18, cornerRadius: 4).frame(width: 80)
+                    Spacer()
+                    SkeletonView(height: 28, cornerRadius: 14).frame(width: 90)
+                }
+                .padding(.top, 6)
+            }
+            .padding(TravSpacing.md)
+        }
+        .background(TravColors.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
     }
 }
 

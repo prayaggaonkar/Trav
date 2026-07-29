@@ -337,6 +337,10 @@ struct SupabaseExperienceRepository: ExperienceRepository {
     // MARK: - Detail
 
     func fetchExperience(id: UUID) async throws -> Experience {
+        if let cachedAppleMapsExp = AppleMapsVibeService.shared.cachedExperience(for: id) {
+            return cachedAppleMapsExp
+        }
+
         let client = try client
         let idStr = id.uuidString.lowercased()
 
