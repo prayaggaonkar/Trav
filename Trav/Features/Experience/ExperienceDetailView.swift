@@ -34,19 +34,9 @@ struct ExperienceDetailView: View {
             }
             .travScreenBackground()
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        router.dismiss()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
-                    }
-                    .navBarZoomable()
-                    .accessibilityLabel("Back")
-                }
+                experienceBackToolbar
             }
+            .navigationBarBackButtonHidden(true)
             .toolbarBackground(.hidden, for: .navigationBar)
         }
         .overlay(
@@ -91,6 +81,35 @@ struct ExperienceDetailView: View {
             }
             await load()
         }
+    }
+
+    @ToolbarContentBuilder
+    private var experienceBackToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarLeading) {
+                experienceBackButton
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) {
+                experienceBackButton
+            }
+        }
+    }
+
+    private var experienceBackButton: some View {
+        Button {
+            router.dismiss()
+        } label: {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(TravColors.primary)
+                .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, TravSpacing.xs)
+        .accessibilityLabel("Back")
     }
 
     private func summary(from experience: Experience) -> ExperienceSummary {

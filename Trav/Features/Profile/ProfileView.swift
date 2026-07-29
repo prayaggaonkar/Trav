@@ -72,6 +72,9 @@ struct ProfileView: View {
             .sheet(item: $followListMode) { mode in
                 if let profile = viewModel.profile {
                     FollowListView(profile: profile, mode: mode)
+                        .presentationDetents([.large])
+                        .presentationDragIndicator(.visible)
+                        .presentationCornerRadius(TravRadius.xl)
                 }
             }
             .fullScreenCover(isPresented: $showSettings) {
