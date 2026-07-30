@@ -714,7 +714,7 @@ struct DottedGridView: View {
             let cols = Int(size.width / dotSpacing) + 1
             let rows = Int(size.height / dotSpacing) + 1
             let fill = appearance.isLightMode
-                ? Color.black.opacity(0.08)
+                ? Color.black.opacity(0.18)
                 : Color.white.opacity(0.12)
 
             for col in 0..<cols {

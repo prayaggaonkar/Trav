@@ -630,36 +630,22 @@ struct HomeCelestialBackground: View {
                 if isLight {
                     LinearGradient(
                         stops: [
-                            .init(color: Color(red: 0.90, green: 0.91, blue: 0.96), location: 0),
-                            .init(color: Color(red: 0.86, green: 0.88, blue: 0.94), location: 0.45),
-                            .init(color: Color(red: 0.87, green: 0.86, blue: 0.93), location: 0.78),
-                            .init(color: Color(red: 0.89, green: 0.88, blue: 0.93), location: 1)
+                            .init(color: Color(red: 0.92, green: 0.93, blue: 0.97), location: 0),
+                            .init(color: Color(red: 0.89, green: 0.90, blue: 0.95), location: 0.5),
+                            .init(color: Color(red: 0.90, green: 0.91, blue: 0.96), location: 1)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
 
-                    EllipticalGradient(
+                    RadialGradient(
                         colors: [
-                            Color(red: 0.42, green: 0.40, blue: 0.68).opacity(0.18),
-                            Color(red: 0.46, green: 0.50, blue: 0.74).opacity(0.07),
+                            Color(red: 0.65, green: 0.62, blue: 0.85).opacity(0.15),
                             .clear
                         ],
                         center: .center,
-                        startRadiusFraction: 0.08,
-                        endRadiusFraction: 0.85
-                    )
-                    .scaleEffect(x: 0.55, y: 1.15)
-                    .opacity(0.8)
-
-                    RadialGradient(
-                        colors: [
-                            TravColors.accent.opacity(0.06),
-                            .clear
-                        ],
-                        center: UnitPoint(x: 0.5, y: 0.78),
                         startRadius: 0,
-                        endRadius: min(size.width, size.height) * 0.55
+                        endRadius: min(size.width, size.height) * 0.8
                     )
                 } else {
                     LinearGradient(
@@ -673,27 +659,14 @@ struct HomeCelestialBackground: View {
                         endPoint: .bottom
                     )
 
-                    EllipticalGradient(
+                    RadialGradient(
                         colors: [
-                            Color(red: 0.22, green: 0.18, blue: 0.36).opacity(0.20),
-                            Color(red: 0.12, green: 0.1, blue: 0.22).opacity(0.09),
+                            Color(red: 0.22, green: 0.18, blue: 0.36).opacity(0.18),
                             .clear
                         ],
                         center: .center,
-                        startRadiusFraction: 0.08,
-                        endRadiusFraction: 0.85
-                    )
-                    .scaleEffect(x: 0.55, y: 1.15)
-                    .opacity(0.85)
-
-                    RadialGradient(
-                        colors: [
-                            Color(red: 0.2, green: 0.14, blue: 0.32).opacity(0.16),
-                            .clear
-                        ],
-                        center: UnitPoint(x: 0.5, y: 0.78),
                         startRadius: 0,
-                        endRadius: min(size.width, size.height) * 0.55
+                        endRadius: min(size.width, size.height) * 0.8
                     )
                 }
 
