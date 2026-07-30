@@ -276,8 +276,8 @@ struct ProfileView: View {
                 }
             }
 
-            // Everything below identity sits slightly lower for breathing room
-            VStack(spacing: TravSpacing.xs + 2) {
+            // Everything below identity sits tightly with subtle spacing
+            VStack(spacing: TravSpacing.xs) {
                 if let city = profile.homeCityLabel {
                     HStack(spacing: 4) {
                         Image(systemName: "mappin.and.ellipse")
@@ -291,6 +291,7 @@ struct ProfileView: View {
                     .padding(.vertical, 5)
                     .background(TravColors.accentSoft)
                     .clipShape(Capsule())
+                    .padding(.top, 4)
                 }
 
                 if let bio = profile.bio, !bio.isEmpty {
@@ -300,6 +301,7 @@ struct ProfileView: View {
                         .multilineTextAlignment(.center)
                         .lineSpacing(2)
                         .padding(.horizontal, TravSpacing.xs)
+                        .padding(.top, 2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -307,6 +309,8 @@ struct ProfileView: View {
                     profile: profile,
                     rankLabel: viewModel.creatorRankLabel,
                     isRankLoading: viewModel.isRankLoading,
+                    isFollowersLoading: viewModel.isFollowCountsLoading,
+                    isFollowingLoading: viewModel.isFollowCountsLoading,
                     onFollowers: {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         followListMode = .followers
@@ -319,9 +323,9 @@ struct ProfileView: View {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     }
                 )
-                .padding(.top, 4)
+                .padding(.top, 6)
             }
-            .padding(.top, TravSpacing.xl)
+            .padding(.top, TravSpacing.xs)
         }
         .frame(maxWidth: .infinity)
     }

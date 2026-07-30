@@ -72,14 +72,16 @@ struct ProfileStatsRow: View {
     let profile: Profile
     var rankLabel: String = "—"
     var isRankLoading: Bool = false
+    var isFollowersLoading: Bool = false
+    var isFollowingLoading: Bool = false
     var onFollowers: () -> Void
     var onFollowing: () -> Void
     var onRankTap: () -> Void
 
     var body: some View {
         HStack(spacing: TravSpacing.md) {
-            statButton(valueString: TravFormatters.count(profile.followerCount), label: "Followers", action: onFollowers)
-            statButton(valueString: TravFormatters.count(profile.followingCount), label: "Following", action: onFollowing)
+            statButton(valueString: TravFormatters.count(profile.followerCount), label: "Followers", isLoading: isFollowersLoading, action: onFollowers)
+            statButton(valueString: TravFormatters.count(profile.followingCount), label: "Following", isLoading: isFollowingLoading, action: onFollowing)
             statButton(valueString: rankLabel, label: "Rank", isLoading: isRankLoading, action: onRankTap)
         }
     }
@@ -93,10 +95,8 @@ struct ProfileStatsRow: View {
         Button(action: action) {
             VStack(spacing: 2) {
                 if isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(TravColors.muted)
-                        .frame(height: 22)
+                    SkeletonView(height: 18, cornerRadius: 4)
+                        .frame(width: 38, height: 22)
                 } else {
                     Text(valueString)
                         .font(.system(size: 17, weight: .bold, design: .rounded))

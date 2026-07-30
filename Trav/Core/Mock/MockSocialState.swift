@@ -45,13 +45,10 @@ actor MockSocialState {
             profiles[profile.id] = profile
         }
 
-        // maya follows jordan + sam
+        // Seed initial follows for demo user (maya follows jordan; jordan follows maya).
         _ = try? follow(followerID: MockData.creators[0].id, followingID: MockData.creators[1].id)
-        _ = try? follow(followerID: MockData.creators[0].id, followingID: MockData.creators[2].id)
         _ = try? follow(followerID: MockData.creators[1].id, followingID: MockData.creators[0].id)
-        _ = try? follow(followerID: MockData.creators[2].id, followingID: MockData.creators[0].id)
-        _ = try? follow(followerID: MockData.creators[3].id, followingID: MockData.creators[0].id)
-        // Mutual path for maya: jordan/sam also follow yuki + alex-style creators.
+        // Additional mock creator follows for mutual path testing.
         _ = try? follow(followerID: MockData.creators[1].id, followingID: MockData.creators[3].id)
         _ = try? follow(followerID: MockData.creators[2].id, followingID: MockData.creators[3].id)
         if MockData.creators.count > 4 {

@@ -49,6 +49,7 @@ final class ProfileViewModel {
 
     private(set) var calculatedRank: Int? = nil
     private(set) var isRankLoading: Bool = true
+    private(set) var isFollowCountsLoading: Bool = true
 
     var creatorRankLabel: String {
         if let rank = calculatedRank {
@@ -91,9 +92,18 @@ final class ProfileViewModel {
     func load(using environment: AppEnvironment) async {
         if profile == nil {
             phase = .loading
+            isFollowCountsLoading = true
         }
+        defer { isFollowCountsLoading = false }
         do {
             var fetched = try await environment.profiles.fetchProfile(username: username)
+            if let followersPage = try? await environment.profiles.fetchFollowers(userID: fetched.id, query: nil, page: 0) {
+                fetched.followerCount = followersPage.items.count
+            }
+            if let followingPage = try? await environment.profiles.fetchFollowing(userID: fetched.id, query: nil, page: 0) {
+                fetched.followingCount = followingPage.items.count
+            }
+
             if let viewerID = environment.session.currentUser?.id, viewerID != fetched.id {
                 fetched.isFollowing = try await environment.profiles.isFollowing(
                     followerID: viewerID,
@@ -118,9 +128,20 @@ final class ProfileViewModel {
 
     func refresh(using environment: AppEnvironment) async {
         isRefreshing = true
-        defer { isRefreshing = false }
+        isFollowCountsLoading = true
+        defer {
+            isRefreshing = false
+            isFollowCountsLoading = false
+        }
         do {
             var fetched = try await environment.profiles.fetchProfile(username: username)
+            if let followersPage = try? await environment.profiles.fetchFollowers(userID: fetched.id, query: nil, page: 0) {
+                fetched.followerCount = followersPage.items.count
+            }
+            if let followingPage = try? await environment.profiles.fetchFollowing(userID: fetched.id, query: nil, page: 0) {
+                fetched.followingCount = followingPage.items.count
+            }
+
             if let viewerID = environment.session.currentUser?.id, viewerID != fetched.id {
                 if environment.engagement.isFollowing(fetched.id) {
                     fetched.isFollowing = true
@@ -174,15 +195,13 @@ final class ProfileViewModel {
 
         if var current = profile {
             if let cached = store.cachedProfile(username: username) {
-                let isCachedStub = cached.bio == nil && cached.homeCityName == nil && cached.experienceCount == 0 && cached.followerCount == 0 && cached.followingCount == 0
-                if !isCachedStub {
-                    current.followerCount = cached.followerCount
-                    current.followingCount = cached.followingCount
-                    current.experienceCount = max(current.experienceCount, cached.experienceCount)
-                    if let bio = cached.bio { current.bio = bio }
-                    if let avatar = cached.avatarURL { current.avatarURL = avatar }
-                    if let city = cached.homeCityName { current.homeCityName = city }
-                }
+                current.followerCount = cached.followerCount
+                current.followingCount = cached.followingCount
+                current.experienceCount = max(current.experienceCount, cached.experienceCount)
+                if let bio = cached.bio { current.bio = bio }
+                if let avatar = cached.avatarURL { current.avatarURL = avatar }
+                if let city = cached.homeCityName { current.homeCityName = city }
+                if let isFollowing = cached.isFollowing { current.isFollowing = isFollowing }
             }
             current.isFollowing = store.isFollowing(current.id)
             if environment.session.currentUser?.id == current.id, let me = environment.session.currentUser {
@@ -193,12 +212,9 @@ final class ProfileViewModel {
             current.experienceCount = max(current.experienceCount, created.count)
             profile = current
         } else if let cached = store.cachedProfile(username: username) {
-            let isCachedStub = cached.bio == nil && cached.homeCityName == nil && cached.experienceCount == 0 && cached.followerCount == 0 && cached.followingCount == 0
-            if !isCachedStub {
-                var merged = cached
-                merged.isFollowing = store.isFollowing(cached.id)
-                profile = merged
-            }
+            var merged = cached
+            merged.isFollowing = store.isFollowing(cached.id)
+            profile = merged
         }
 
         // Own-profile saved/completed tabs should reflect engagement immediately.

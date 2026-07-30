@@ -101,6 +101,19 @@ final class EngagementStore {
                 followingUserIDs.formUnion(remoteFollowing)
                 blockedUserIDs = remoteBlocked
                 bootstrappedUserID = userID
+
+                if var me = environment.session.currentUser, me.id == userID {
+                    if let fresh = try? await environment.profiles.fetchProfile(id: userID) {
+                        me.followerCount = fresh.followerCount
+                        me.followingCount = fresh.followingCount
+                        environment.session.currentUser = me
+                        cache(me)
+                    } else {
+                        me.followingCount = followingUserIDs.count
+                        environment.session.currentUser = me
+                        cache(me)
+                    }
+                }
                 bump()
             } catch {
                 TravLog.engagement.error("bootstrap failed: \(error.localizedDescription, privacy: .public)")
@@ -113,30 +126,18 @@ final class EngagementStore {
     }
 
     func cache(_ profile: Profile) {
-        let isStub = profile.bio == nil && profile.homeCityName == nil && profile.experienceCount == 0 && profile.followerCount == 0 && profile.followingCount == 0
-
         if var existing = profileCache[profile.id] {
-            if isStub {
-                let oldFollowing = existing.isFollowing ?? followingUserIDs.contains(profile.id)
-                let newFollowing = profile.isFollowing ?? followingUserIDs.contains(profile.id)
-                if oldFollowing != newFollowing {
-                    if newFollowing {
-                        existing.followerCount += 1
-                    } else {
-                        existing.followerCount = max(0, existing.followerCount - 1)
-                    }
-                }
-                existing.isFollowing = newFollowing
-            } else {
-                var updated = profile
-                if updated.isFollowing == nil {
-                    updated.isFollowing = existing.isFollowing ?? followingUserIDs.contains(profile.id)
-                }
-                existing = updated
-            }
+            existing.followerCount = profile.followerCount
+            existing.followingCount = profile.followingCount
+            existing.experienceCount = max(existing.experienceCount, profile.experienceCount)
+            existing.completionCount = max(existing.completionCount, profile.completionCount)
+            if let bio = profile.bio { existing.bio = bio }
+            if let avatar = profile.avatarURL { existing.avatarURL = avatar }
+            if let city = profile.homeCityName { existing.homeCityName = city }
+            if let isFollowing = profile.isFollowing { existing.isFollowing = isFollowing }
             profileCache[profile.id] = existing
             profileCacheByUsername[existing.username.lowercased()] = existing
-        } else if !isStub {
+        } else {
             var full = profile
             if full.isFollowing == nil {
                 full.isFollowing = followingUserIDs.contains(profile.id)
