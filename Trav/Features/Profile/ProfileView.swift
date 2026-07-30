@@ -306,6 +306,7 @@ struct ProfileView: View {
                 ProfileStatsRow(
                     profile: profile,
                     rankLabel: viewModel.creatorRankLabel,
+                    isRankLoading: viewModel.isRankLoading,
                     onFollowers: {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         followListMode = .followers

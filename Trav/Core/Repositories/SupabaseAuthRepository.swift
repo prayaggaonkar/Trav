@@ -137,6 +137,24 @@ struct SupabaseAuthRepository: AuthRepository {
             .limit(1)
             .execute()
             .value
-        return rows.first
+        guard var row = rows.first else { return nil }
+
+        let followerCount: Int = (try? await client
+            .from("follows")
+            .select("*", head: true, count: .exact)
+            .eq("following_id", value: id)
+            .execute()
+            .count) ?? row.followerCount
+
+        let followingCount: Int = (try? await client
+            .from("follows")
+            .select("*", head: true, count: .exact)
+            .eq("follower_id", value: id)
+            .execute()
+            .count) ?? row.followingCount
+
+        row.followerCount = followerCount
+        row.followingCount = followingCount
+        return row
     }
 }

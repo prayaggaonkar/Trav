@@ -13,25 +13,58 @@ struct SupabaseProfileRepository: ProfileRepository {
 
     func fetchProfile(username: String) async throws -> Profile {
         let normalized = UsernameValidator.normalize(username)
-        let row: ProfileRow = try await client
+        var row: ProfileRow = try await client
             .from("profiles")
             .select()
             .eq("username", value: normalized)
             .single()
             .execute()
             .value
-        // Counter columns are maintained by database triggers.
+
+        let followerCount: Int = (try? await client
+            .from("follows")
+            .select("*", head: true, count: .exact)
+            .eq("following_id", value: row.id)
+            .execute()
+            .count) ?? row.followerCount
+
+        let followingCount: Int = (try? await client
+            .from("follows")
+            .select("*", head: true, count: .exact)
+            .eq("follower_id", value: row.id)
+            .execute()
+            .count) ?? row.followingCount
+
+        row.followerCount = followerCount
+        row.followingCount = followingCount
         return row.profile
     }
 
     func fetchProfile(id: UUID) async throws -> Profile {
-        let row: ProfileRow = try await client
+        var row: ProfileRow = try await client
             .from("profiles")
             .select()
             .eq("id", value: id)
             .single()
             .execute()
             .value
+
+        let followerCount: Int = (try? await client
+            .from("follows")
+            .select("*", head: true, count: .exact)
+            .eq("following_id", value: id)
+            .execute()
+            .count) ?? row.followerCount
+
+        let followingCount: Int = (try? await client
+            .from("follows")
+            .select("*", head: true, count: .exact)
+            .eq("follower_id", value: id)
+            .execute()
+            .count) ?? row.followingCount
+
+        row.followerCount = followerCount
+        row.followingCount = followingCount
         return row.profile
     }
 

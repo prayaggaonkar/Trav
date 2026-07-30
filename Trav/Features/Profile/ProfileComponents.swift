@@ -71,6 +71,7 @@ struct ProfileTabBar: View {
 struct ProfileStatsRow: View {
     let profile: Profile
     var rankLabel: String = "—"
+    var isRankLoading: Bool = false
     var onFollowers: () -> Void
     var onFollowing: () -> Void
     var onRankTap: () -> Void
@@ -79,17 +80,29 @@ struct ProfileStatsRow: View {
         HStack(spacing: TravSpacing.md) {
             statButton(valueString: TravFormatters.count(profile.followerCount), label: "Followers", action: onFollowers)
             statButton(valueString: TravFormatters.count(profile.followingCount), label: "Following", action: onFollowing)
-            statButton(valueString: rankLabel, label: "Rank", action: onRankTap)
+            statButton(valueString: rankLabel, label: "Rank", isLoading: isRankLoading, action: onRankTap)
         }
     }
 
-    private func statButton(valueString: String, label: String, action: @escaping () -> Void) -> some View {
+    private func statButton(
+        valueString: String,
+        label: String,
+        isLoading: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             VStack(spacing: 2) {
-                Text(valueString)
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundStyle(TravColors.primary)
-                    .contentTransition(.numericText())
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(TravColors.muted)
+                        .frame(height: 22)
+                } else {
+                    Text(valueString)
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundStyle(TravColors.primary)
+                        .contentTransition(.numericText())
+                }
                 Text(label)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(TravColors.muted)

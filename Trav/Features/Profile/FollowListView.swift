@@ -131,42 +131,17 @@ struct FollowListView: View {
     }
 
     private var followListTopBar: some View {
-        HStack(spacing: 0) {
-            Color.clear
-                .frame(width: 88, height: 32)
-
-            Spacer(minLength: TravSpacing.sm)
-
+        HStack {
+            Spacer()
             Text(mode.title)
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundStyle(TravColors.primary)
                 .lineLimit(1)
-
-            Spacer(minLength: TravSpacing.sm)
-
-            followListDoneButton
-                .frame(width: 88, alignment: .trailing)
+            Spacer()
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
         .padding(.top, TravSpacing.md)
         .padding(.bottom, TravSpacing.xs)
-    }
-
-    private var followListDoneButton: some View {
-        Button {
-            dismiss()
-        } label: {
-            Text("Done")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .padding(.horizontal, 16)
-                .frame(height: 32)
-                .background(TravColors.accent)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(TravPressButtonStyle(scale: 0.96))
-        .accessibilityLabel("Done")
     }
 
     private var followListSearchBar: some View {

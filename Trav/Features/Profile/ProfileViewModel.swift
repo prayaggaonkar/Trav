@@ -48,29 +48,43 @@ final class ProfileViewModel {
     }
 
     private(set) var calculatedRank: Int? = nil
+    private(set) var isRankLoading: Bool = true
 
     var creatorRankLabel: String {
-        let userCount = max(profile?.experienceCount ?? 0, created.count)
-        if userCount == 0 { return "—" }
         if let rank = calculatedRank {
             return "#\(rank)"
         }
-        let entries = MockLeaderboardData.entries.sorted(by: { $0.experienceCount > $1.experienceCount })
-        if let index = entries.firstIndex(where: { $0.username.lowercased() == username.lowercased() }) {
-            return "#\(index + 1)"
-        }
-        let rankPos = (entries.firstIndex(where: { $0.experienceCount <= userCount }) ?? entries.count) + 1
-        return "#\(rankPos)"
+        return "—"
     }
 
     private func updateCreatorRank(using environment: AppEnvironment) async {
-        let mainEntries = (try? await environment.experiences.fetchMainLeaderboard()) ?? MockMainLeaderboardData.entries
-        if let match = mainEntries.firstIndex(where: {
-            $0.id == profile?.id || $0.username.lowercased() == username.lowercased()
-        }) {
-            calculatedRank = mainEntries[match].rank
-        } else {
-            calculatedRank = nil
+        isRankLoading = true
+        defer { isRankLoading = false }
+
+        do {
+            let mainEntries = try await environment.experiences.fetchMainLeaderboard()
+            if let match = mainEntries.firstIndex(where: {
+                $0.id == profile?.id || $0.username.lowercased() == username.lowercased()
+            }) {
+                calculatedRank = mainEntries[match].rank
+            } else {
+                let userCount = max(profile?.experienceCount ?? 0, created.count)
+                if userCount > 0 {
+                    let rankPos = (mainEntries.firstIndex(where: { $0.experienceCount <= userCount }) ?? mainEntries.count) + 1
+                    calculatedRank = rankPos
+                } else {
+                    calculatedRank = nil
+                }
+            }
+        } catch {
+            let fallbackEntries = MockMainLeaderboardData.entries
+            if let match = fallbackEntries.firstIndex(where: {
+                $0.id == profile?.id || $0.username.lowercased() == username.lowercased()
+            }) {
+                calculatedRank = fallbackEntries[match].rank
+            } else {
+                calculatedRank = nil
+            }
         }
     }
 
@@ -86,17 +100,7 @@ final class ProfileViewModel {
                     followingID: fetched.id
                 )
             } else if environment.session.currentUser?.id == fetched.id {
-                if let current = environment.session.currentUser {
-                    if fetched.followerCount == 0 && current.followerCount > 0 { fetched.followerCount = current.followerCount }
-                    if fetched.followingCount == 0 && current.followingCount > 0 { fetched.followingCount = current.followingCount }
-                    if fetched.experienceCount == 0 && current.experienceCount > 0 { fetched.experienceCount = current.experienceCount }
-                }
                 environment.session.currentUser = fetched
-            }
-            if let existing = profile {
-                if existing.followerCount > 0 && fetched.followerCount == 0 { fetched.followerCount = existing.followerCount }
-                if existing.followingCount > 0 && fetched.followingCount == 0 { fetched.followingCount = existing.followingCount }
-                if existing.experienceCount > 0 && fetched.experienceCount == 0 { fetched.experienceCount = existing.experienceCount }
             }
             profile = fetched
             environment.engagement.cache(fetched)
@@ -127,22 +131,13 @@ final class ProfileViewModel {
                     )
                 }
             } else if environment.session.currentUser?.id == fetched.id {
-                if let current = environment.session.currentUser {
-                    if fetched.followerCount == 0 && current.followerCount > 0 { fetched.followerCount = current.followerCount }
-                    if fetched.followingCount == 0 && current.followingCount > 0 { fetched.followingCount = current.followingCount }
-                    if fetched.experienceCount == 0 && current.experienceCount > 0 { fetched.experienceCount = current.experienceCount }
-                }
                 environment.session.currentUser = fetched
-            }
-            if let existing = profile {
-                if existing.followerCount > 0 && fetched.followerCount == 0 { fetched.followerCount = existing.followerCount }
-                if existing.followingCount > 0 && fetched.followingCount == 0 { fetched.followingCount = existing.followingCount }
-                if existing.experienceCount > 0 && fetched.experienceCount == 0 { fetched.experienceCount = existing.experienceCount }
             }
             profile = fetched
             environment.engagement.cache(fetched)
             loadedTabs = []
             await loadTab(selectedTab, using: environment, reset: true)
+            await updateCreatorRank(using: environment)
             UIImpactFeedbackGenerator(style: .soft).impactOccurred()
         } catch {
             // Keep existing content on refresh failure.
@@ -181,8 +176,8 @@ final class ProfileViewModel {
             if let cached = store.cachedProfile(username: username) {
                 let isCachedStub = cached.bio == nil && cached.homeCityName == nil && cached.experienceCount == 0 && cached.followerCount == 0 && cached.followingCount == 0
                 if !isCachedStub {
-                    current.followerCount = max(current.followerCount, cached.followerCount)
-                    current.followingCount = max(current.followingCount, cached.followingCount)
+                    current.followerCount = cached.followerCount
+                    current.followingCount = cached.followingCount
                     current.experienceCount = max(current.experienceCount, cached.experienceCount)
                     if let bio = cached.bio { current.bio = bio }
                     if let avatar = cached.avatarURL { current.avatarURL = avatar }
@@ -192,7 +187,7 @@ final class ProfileViewModel {
             current.isFollowing = store.isFollowing(current.id)
             if environment.session.currentUser?.id == current.id, let me = environment.session.currentUser {
                 current.followingCount = me.followingCount
-                current.followerCount = max(current.followerCount, me.followerCount)
+                current.followerCount = me.followerCount
                 current.experienceCount = max(current.experienceCount, me.experienceCount)
             }
             current.experienceCount = max(current.experienceCount, created.count)
