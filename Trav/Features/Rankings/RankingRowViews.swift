@@ -378,6 +378,50 @@ struct HeatStreakUserRow: View {
     }
 }
 
+// MARK: - Skeleton Leaderboard Row & List Loader
+
+struct SkeletonLeaderboardRow: View {
+    var body: some View {
+        HStack(spacing: TravSpacing.md) {
+            SkeletonView(height: 16, cornerRadius: 4)
+                .frame(width: 22)
+
+            SkeletonView(height: 44, cornerRadius: 22)
+                .frame(width: 44, height: 44)
+
+            VStack(alignment: .leading, spacing: 6) {
+                SkeletonView(height: 14, cornerRadius: 4)
+                    .frame(width: 140)
+                SkeletonView(height: 11, cornerRadius: 3)
+                    .frame(width: 90)
+            }
+
+            Spacer()
+
+            SkeletonView(height: 16, cornerRadius: 4)
+                .frame(width: 32)
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, TravSpacing.screenHorizontal)
+    }
+}
+
+struct SkeletonRankingsList: View {
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                ForEach(0..<8, id: \.self) { _ in
+                    SkeletonLeaderboardRow()
+                    Divider()
+                        .padding(.leading, 72)
+                        .opacity(0.3)
+                }
+            }
+            .padding(.vertical, TravSpacing.xs)
+        }
+    }
+}
+
 // MARK: - Trending / Heat Streak Leaderboard View
 
 struct TrendingLeaderboardView: View {
@@ -389,7 +433,7 @@ struct TrendingLeaderboardView: View {
     let selectedLocation: LocationOption
 
     @State private var entries: [HeatStreakEntry] = []
-    @State private var isLoading = false
+    @State private var isLoading = true
 
     var filteredEntries: [HeatStreakEntry] {
         var items = entries
@@ -403,7 +447,9 @@ struct TrendingLeaderboardView: View {
 
     var body: some View {
         Group {
-            if filteredEntries.isEmpty && !isLoading {
+            if isLoading && entries.isEmpty {
+                SkeletonRankingsList()
+            } else if filteredEntries.isEmpty {
                 EmptyStateView(
                     icon: "flame",
                     title: "No active streaks",
@@ -532,7 +578,7 @@ struct ImpactLeaderboardView: View {
     let selectedLocation: LocationOption
 
     @State private var entries: [ImpactEntry] = []
-    @State private var isLoading = false
+    @State private var isLoading = true
 
     var filteredEntries: [ImpactEntry] {
         var items = entries
@@ -546,7 +592,9 @@ struct ImpactLeaderboardView: View {
 
     var body: some View {
         Group {
-            if filteredEntries.isEmpty && !isLoading {
+            if isLoading && entries.isEmpty {
+                SkeletonRankingsList()
+            } else if filteredEntries.isEmpty {
                 EmptyStateView(
                     icon: "star",
                     title: "No impact records",
@@ -671,7 +719,7 @@ struct MainLeaderboardView: View {
     let selectedLocation: LocationOption
 
     @State private var entries: [MainLeaderboardEntry] = []
-    @State private var isLoading = false
+    @State private var isLoading = true
 
     var filteredEntries: [MainLeaderboardEntry] {
         var items = entries
@@ -685,7 +733,9 @@ struct MainLeaderboardView: View {
 
     var body: some View {
         Group {
-            if filteredEntries.isEmpty && !isLoading {
+            if isLoading && entries.isEmpty {
+                SkeletonRankingsList()
+            } else if filteredEntries.isEmpty {
                 EmptyStateView(
                     icon: "trophy",
                     title: "No leaderboard entries",

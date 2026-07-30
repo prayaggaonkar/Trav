@@ -47,9 +47,7 @@ struct FollowListView: View {
 
             Group {
                 if isLoading && users.isEmpty {
-                    ProgressView()
-                        .tint(TravColors.muted)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    SkeletonRankingsList()
                 } else if let error, users.isEmpty {
                     ErrorStateView(message: error.localizedDescription) {
                         Task { await reload(reset: true) }
@@ -128,6 +126,7 @@ struct FollowListView: View {
             ProfileView(username: item.username, showDismissButton: true)
         }
         .task { await reload(reset: true) }
+        .task(id: engagement.revision) { await reload(reset: true) }
     }
 
     private var followListTopBar: some View {
@@ -183,7 +182,9 @@ struct FollowListView: View {
         }
     }
 
-    private var filteredUsers: [ProfileSummary] { users }
+    private var filteredUsers: [ProfileSummary] {
+        users.filter { !engagement.isBlocked($0.id) }
+    }
 
     private func reload(reset: Bool) async {
         if reset {
@@ -216,6 +217,21 @@ struct FollowListView: View {
             users = reset ? visible : users + visible
             hasMore = result.hasMore
             error = nil
+
+            if query.isEmpty && page == 0 {
+                let totalCount = visible.count
+                if var cached = engagement.cachedProfile(username: profile.username) ?? (profile.id == session.currentUser?.id ? session.currentUser : nil) {
+                    if mode == .followers {
+                        cached.followerCount = totalCount
+                    } else {
+                        cached.followingCount = totalCount
+                    }
+                    engagement.cache(cached)
+                    if session.currentUser?.id == cached.id {
+                        session.currentUser = cached
+                    }
+                }
+            }
         } catch {
             self.error = error
         }
@@ -230,7 +246,7 @@ struct FollowListView: View {
     }
 
     private func toggleFollow(_ user: ProfileSummary, isCurrentlyFollowing: Bool?) async {
-        let stub = Profile(
+        let target = engagement.cachedProfile(username: user.username) ?? Profile(
             id: user.id,
             username: user.username,
             displayName: user.displayName,
@@ -247,7 +263,7 @@ struct FollowListView: View {
             onboardingLocation: nil,
             isFollowing: isCurrentlyFollowing ?? engagement.isFollowing(user.id)
         )
-        _ = await engagement.toggleFollow(target: stub, isCurrentlyFollowing: isCurrentlyFollowing, using: environment)
+        _ = await engagement.toggleFollow(target: target, isCurrentlyFollowing: isCurrentlyFollowing, using: environment)
     }
 }
 
