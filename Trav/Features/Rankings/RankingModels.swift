@@ -498,7 +498,7 @@ struct ImpactEntry: Identifiable, Codable, Sendable, Hashable {
     let username: String
     let displayName: String
     let avatarURL: URL?
-    let totalImpactCount: Int // Total watchlists + saves across all published experiences
+    let totalImpactCount: Int // Total completions + saves across all published experiences
     let rank: Int
 }
 

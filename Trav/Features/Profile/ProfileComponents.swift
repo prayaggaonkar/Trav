@@ -61,7 +61,7 @@ struct ProfileTabBar: View {
         switch tab {
         case .created: "Created experiences"
         case .saved: "Saved experiences"
-        case .completed: "Watchlist experiences"
+        case .completed: "Completed experiences"
         }
     }
 }

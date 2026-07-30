@@ -216,14 +216,23 @@ final class FeedViewModel {
         }
     }
 
+    /// The feed is ranked, not chronological: location, social proof, ratings and
+    /// taste all feed the recommendation engine.
     private func fetchExperiencesPage(
         _ page: Int,
         using environment: AppEnvironment
     ) async -> Paginated<ExperienceSummary>? {
         do {
-            return try await environment.experiences.fetchHomeFeed(page: page)
+            return try await environment.experiences.fetchPersonalizedFeed(
+                FeedRequest(
+                    userID: environment.session.currentUser?.id,
+                    latitude: cachedLat,
+                    longitude: cachedLng,
+                    page: page
+                )
+            )
         } catch {
-            TravLog.network.error("fetchHomeFeed failed: \(error.localizedDescription, privacy: .public)")
+            TravLog.network.error("personalized feed failed: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }

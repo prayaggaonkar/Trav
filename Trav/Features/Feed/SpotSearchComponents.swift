@@ -323,7 +323,7 @@ struct RateSpotSheet: View {
                             } else {
                                 Image(systemName: "star.circle.fill")
                                     .font(.system(size: 18, weight: .bold))
-                                Text("Save & Add to Watchlist")
+                                Text("Submit & Complete")
                                     .font(.system(size: 15, weight: .bold, design: .rounded))
                             }
                         }
@@ -406,45 +406,35 @@ struct RateSpotSheet: View {
         isSaving = true
         saveError = nil
 
-        let resolvedCity: City
-        if let cityName = spot.cityName, let match = try? await CityCatalog.shared.city(named: cityName) {
-            resolvedCity = match
-        } else if let first = try? await environment.cities.fetchGlobeCities().first {
-            resolvedCity = first
-        } else {
-            isSaving = false
-            saveError = "Couldn't resolve city location."
-            return
-        }
-
-        let draft = ExperienceDraft(
-            title: spot.title,
-            description: note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Rated \(spot.category.rawValue) spot." : note,
-            city: resolvedCity,
-            creatorID: user.id,
-            stops: [
-                Stop(
-                    id: UUID(),
-                    orderIndex: 0,
+        do {
+            // Spots are never authored here: sync the canonical place, then
+            // attach this user's rating to it.
+            let city = await resolveCity()
+            let spotID = try await environment.experiences.syncSpot(
+                SpotSyncRequest(
+                    placeID: spot.id,
                     name: spot.title,
                     description: spot.subtitle,
-                    creatorNotes: nil,
-                    latitude: spot.latitude ?? resolvedCity.latitude,
-                    longitude: spot.longitude ?? resolvedCity.longitude,
-                    placeID: spot.id,
-                    recommendedTime: nil,
-                    durationMinutes: 60,
-                    emoji: spot.category.emoji,
-                    media: []
+                    cityName: city?.name ?? spot.cityName ?? "",
+                    cityID: city?.id,
+                    latitude: spot.latitude ?? city?.latitude,
+                    longitude: spot.longitude ?? city?.longitude,
+                    imageURLs: [],
+                    category: spot.category.rawValue,
+                    emoji: spot.category.emoji
                 )
-            ],
-            rating: rating,
-            imagesData: []
-        )
+            )
 
-        do {
-            try await environment.experiences.publishExperience(draft)
-            environment.router.noteExperiencePublished()
+            let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+            _ = try await environment.ratings.submitRating(
+                RatingDraft(
+                    experienceID: spotID,
+                    radar: rating,
+                    review: trimmedNote.isEmpty ? nil : trimmedNote
+                ),
+                userID: user.id
+            )
+            environment.router.noteExperienceCatalogChanged()
 
             isSaving = false
             withAnimation { showEyesRain = true }
@@ -460,6 +450,13 @@ struct RateSpotSheet: View {
             saveError = error.localizedDescription
             UINotificationFeedbackGenerator().notificationOccurred(.error)
         }
+    }
+
+    private func resolveCity() async -> City? {
+        if let cityName = spot.cityName, let match = try? await CityCatalog.shared.city(named: cityName) {
+            return match
+        }
+        return try? await environment.cities.fetchGlobeCities().first
     }
 }
 

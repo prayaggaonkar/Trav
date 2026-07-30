@@ -10,10 +10,9 @@ struct ExperienceDetailView: View {
     @State private var experience: Experience?
     @State private var isLoading = true
     @State private var error: Error?
-    @State private var showEyesRain = false
     @State private var showComments = false
-    @State private var showCompletionSheet = false
     @State private var shareItem: ShareItem?
+    @State private var ratings: [Rating] = []
     @State private var localCommentCount: Int?
     @State private var activeImagePreview: ImagePreviewItem?
     @State private var initialIsSaved: Bool = false
@@ -42,13 +41,6 @@ struct ExperienceDetailView: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .modifier(HiddenToolbarBackgroundVisibility())
         }
-        .overlay(
-            Group {
-                if showEyesRain {
-                    EmojiParticleView()
-                }
-            }
-        )
         .travShareSheet(item: $shareItem)
         .overlay {
             if showComments {
@@ -62,21 +54,6 @@ struct ExperienceDetailView: View {
             }
         }
         .animation(TravAnimation.quick, value: showComments)
-        .sheet(isPresented: $showCompletionSheet) {
-            if let experience {
-                CompletionSheet(experience: summary(from: experience)) { completed in
-                    if completed {
-                        withAnimation { showEyesRain = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
-                            showEyesRain = false
-                        }
-                    }
-                }
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(TravRadius.xl)
-            }
-        }
         .fullScreenCover(item: $activeImagePreview) { item in
             FullScreenImageViewer(urls: item.urls, initialIndex: item.initialIndex) {
                 activeImagePreview = nil
@@ -120,20 +97,7 @@ struct ExperienceDetailView: View {
     }
 
     private func summary(from experience: Experience) -> ExperienceSummary {
-        ExperienceSummary(
-            id: experience.id,
-            cityID: experience.cityID,
-            title: experience.title,
-            imageURLs: experience.imageURLs,
-            creator: experience.creator,
-            durationMinutes: experience.durationMinutes,
-            costLevel: experience.costLevel,
-            estimatedCostUSD: experience.estimatedCostUSD,
-            saveCount: experience.saveCount,
-            likeCount: experience.likeCount,
-            completionCount: experience.completionCount,
-            stops: experience.stops.map { StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji, latitude: $0.latitude, longitude: $0.longitude) }
-        )
+        experience.summary
     }
 
     private var allExperienceImageURLs: [URL] {
@@ -317,35 +281,23 @@ struct ExperienceDetailView: View {
             .buttonStyle(TravPressButtonStyle())
             .disabled(isOwn)
 
+            // Completing requires a rating, so this opens Create Rating rather
+            // than toggling state. Tapping it once completed edits that rating.
             Button {
-                guard !isOwn else { return }
-                if session.currentUser == nil {
-                    router.presentAuth()
-                } else {
-                    if !isCompleted {
-                        withAnimation { showEyesRain = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
-                            showEyesRain = false
-                        }
-                    }
-                    Task {
-                        await engagement.toggleComplete(experienceID: experience.id, summary: summary, using: environment)
-                    }
-                }
+                engagement.requestCompletion(for: summary, using: environment)
             } label: {
                 VStack(spacing: 6) {
                     HStack(spacing: 6) {
-                        Image(systemName: isCompleted ? "checkmark.circle.fill" : "plus.circle.fill")
+                        Image(systemName: isCompleted ? "checkmark.circle.fill" : "checkmark.circle")
                             .font(.system(size: 15, weight: .bold))
-                        Text(isCompleted ? "Watchlisted" : "Watchlist")
+                        Text(isCompleted ? "Completed" : "Complete")
                             .font(TravTypography.labelMedium())
                             .fontWeight(.bold)
                     }
                     .foregroundStyle(isCompleted ? .white : TravColors.accent)
                     .frame(maxWidth: .infinity)
                     .frame(height: 45)
-                    .background(isCompleted ? TravColors.surfaceElevated : TravColors.surfaceElevated)
-                    .opacity(isOwn ? 0.4 : 1.0)
+                    .background(isCompleted ? TravColors.accent : TravColors.surfaceElevated)
 
                     Text(TravFormatters.count(displayCompletionCount(for: experience)))
                         .font(TravTypography.caption())
@@ -353,7 +305,22 @@ struct ExperienceDetailView: View {
                 }
             }
             .buttonStyle(TravPressButtonStyle())
-            .disabled(isOwn)
+            .accessibilityLabel(isCompleted ? "Edit your rating" : "Complete and rate")
+            .contextMenu {
+                if isCompleted {
+                    // The button itself no longer toggles off, so undoing a
+                    // completion means deleting the rating behind it.
+                    Button("Remove Rating", systemImage: "trash", role: .destructive) {
+                        Task {
+                            await engagement.removeCompletion(
+                                experienceID: experience.id,
+                                using: environment
+                            )
+                            await load()
+                        }
+                    }
+                }
+            }
 
             Button {
                 shareItem = ShareItem(
@@ -413,42 +380,107 @@ struct ExperienceDetailView: View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
             ExperienceRouteMapView(stops: experience.stops)
 
-            // Only render the radar when the creator actually rated the experience.
-            if let rating = experience.rating, rating.overallScore > 0 {
-                VStack(alignment: .leading, spacing: TravSpacing.sm) {
-                    HStack(alignment: .top, spacing: TravSpacing.sm) {
-                        Text("RATING")
-                            .font(.system(size: 15, weight: .bold, design: .rounded))
-                            .tracking(2.0)
-                            .foregroundStyle(TravColors.accent)
-
-                        Spacer(minLength: 0)
-
-                        HStack(spacing: 6) {
-                            Image(systemName: "star.fill")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(Color(red: 1.0, green: 0.8, blue: 0.0))
-
-                            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                                Text(String(format: "%.1f", rating.overallScore))
-                                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                                    .foregroundStyle(TravColors.primary)
-
-                                Text("/ 10.0")
-                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(TravColors.muted)
-                            }
-                        }
-                    }
-
-                    ReadOnlyRadarChartView(rating: rating, showsHeader: false)
-                }
-                .padding(.top, TravSpacing.xs)
-            }
+            ratingSection(experience)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, TravSpacing.screenHorizontal)
         .padding(.bottom, TravSpacing.sm)
+    }
+
+    /// Purple once the community has rated, grey while the creator's own score is
+    /// the only one on record — a creator rating is not public validation.
+    @ViewBuilder
+    private func ratingSection(_ experience: Experience) -> some View {
+        let summary = experience.ratingSummary
+        let radar = summary.displayRadar(creatorRadar: experience.rating)
+        let hasCommunity = summary.hasCommunityValidation
+        let score = summary.displayScore
+
+        if let radar, let score, score > 0 {
+            VStack(alignment: .leading, spacing: TravSpacing.sm) {
+                HStack(alignment: .top, spacing: TravSpacing.sm) {
+                    Text(hasCommunity ? "COMMUNITY RATING" : "CREATOR RATING")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .tracking(2.0)
+                        .foregroundStyle(hasCommunity ? TravColors.accent : TravColors.muted)
+
+                    Spacer(minLength: 0)
+
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(TravFormatters.score(score))
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(hasCommunity ? TravColors.accent : TravColors.muted)
+
+                        Text("/ 10.0")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(TravColors.muted)
+                    }
+                }
+
+                Text(summary.caption)
+                    .font(TravTypography.caption())
+                    .foregroundStyle(TravColors.muted)
+
+                ReadOnlyRadarChartView(rating: radar, showsHeader: false)
+                    .saturation(hasCommunity ? 1 : 0)
+                    .opacity(hasCommunity ? 1 : 0.85)
+            }
+            .padding(.top, TravSpacing.xs)
+
+            if !ratings.isEmpty {
+                reviewsSection
+            }
+        }
+    }
+
+    /// Written reviews attached to community ratings.
+    @ViewBuilder
+    private var reviewsSection: some View {
+        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            Text("REVIEWS")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .tracking(2.0)
+                .foregroundStyle(TravColors.accent)
+
+            ForEach(ratings.filter(\.hasReview).prefix(5)) { rating in
+                VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                    HStack(spacing: TravSpacing.xs) {
+                        AvatarView(url: rating.author.avatarURL, size: 28)
+
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(rating.author.displayName)
+                                .font(TravTypography.labelMedium())
+                                .foregroundStyle(TravColors.primary)
+                            Text(TravFormatters.relativeTime(rating.createdAt))
+                                .font(TravTypography.caption())
+                                .foregroundStyle(TravColors.muted)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        Text(TravFormatters.score(rating.overallScore))
+                            .font(TravTypography.labelMedium())
+                            .monospacedDigit()
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, TravSpacing.xs)
+                            .padding(.vertical, 3)
+                            .background(TravColors.accent)
+                            .clipShape(Capsule())
+                    }
+
+                    if let review = rating.review {
+                        Text(review)
+                            .font(TravTypography.bodyMedium())
+                            .foregroundStyle(TravColors.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(TravSpacing.md)
+                .background(TravColors.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -482,11 +514,17 @@ struct ExperienceDetailView: View {
         isLoading = true
         error = nil
         do {
-            experience = try await environment.experiences.fetchExperience(id: experienceID)
+            let loaded = try await environment.experiences.fetchExperience(id: experienceID)
+            experience = loaded
+            initialIsSaved = engagement.isSaved(loaded.id)
+            initialIsCompleted = engagement.isCompleted(loaded.id)
         } catch {
             self.error = error
         }
         isLoading = false
+
+        // Reviews are secondary content: a failure here must not break the page.
+        ratings = (try? await environment.ratings.fetchRatings(experienceID: experienceID, page: 0))?.items ?? []
     }
 }
 

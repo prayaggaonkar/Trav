@@ -57,7 +57,7 @@ struct ExperienceCard: View {
     }
 }
 
-/// Frosted card design with a split action bar (private save + public watchlist) and facepile row.
+/// Frosted card design with a split action bar (private save + public complete) and facepile row.
 struct GemPostCardView: View {
     let experience: ExperienceSummary
     var badgeText: String = ""
@@ -76,22 +76,21 @@ struct GemPostCardView: View {
 
     @State private var isSavedLocal: Bool
     @State private var isLikedLocal: Bool
-    @State private var showEyesRain = false
 
-    private var isWatchlisted: Bool {
+    private var isCompleted: Bool {
         engagement.isCompleted(experience.id)
     }
 
-    private var watchlistedToDisplay: [WatchlistUser] {
-        var toDisplay: [WatchlistUser] = []
-        if isWatchlisted, let currentUser = environment.session.currentUser {
-            toDisplay.append(WatchlistUser(
+    private var completedByToDisplay: [CompletionUser] {
+        var toDisplay: [CompletionUser] = []
+        if isCompleted, let currentUser = environment.session.currentUser {
+            toDisplay.append(CompletionUser(
                 id: currentUser.id,
                 name: currentUser.displayName,
                 avatarImage: currentUser.avatarURL?.absoluteString ?? ""
             ))
         }
-        let followers = experience.watchlistedBy.filter { user in
+        let followers = experience.completedBy.filter { user in
             engagement.followingUserIDs.contains(user.id) && user.id != environment.session.currentUser?.id
         }
         toDisplay.append(contentsOf: followers.prefix(3 - toDisplay.count))
@@ -155,21 +154,31 @@ struct GemPostCardView: View {
                             .background(Capsule().fill(Color.black.opacity(0.45)))
                     }
 
-                    // Rating pill — only shown when the experience has a real rating.
-                    if let rating = experience.rating, rating.overallScore > 0 {
+                    // Purple once the community has rated; grey while the only
+                    // score is the creator's own.
+                    if let score = experience.ratingSummary.displayScore, score > 0 {
+                        let hasCommunity = experience.ratingSummary.hasCommunityValidation
                         HStack(spacing: 3) {
-                            Image(systemName: "star.fill")
+                            Image(systemName: hasCommunity ? "hexagon.fill" : "hexagon")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(Color(red: 1.0, green: 0.8, blue: 0.0))
-
-                            Text(String(format: "%.1f", rating.overallScore))
+                            Text(TravFormatters.score(score))
                                 .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
                         }
+                        .foregroundStyle(.white)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
-                        .background(Capsule().fill(Color.black.opacity(0.55)))
-                        .accessibilityLabel("Rated \(String(format: "%.1f", rating.overallScore)) out of 10")
+                        .background(
+                            Capsule().fill(
+                                hasCommunity
+                                    ? AnyShapeStyle(TravColors.accent.opacity(0.92))
+                                    : AnyShapeStyle(Color.black.opacity(0.55))
+                            )
+                        )
+                        .accessibilityLabel(
+                            hasCommunity
+                                ? "Community rating \(TravFormatters.score(score)) out of 10"
+                                : "Creator rating \(TravFormatters.score(score)) out of 10, no community ratings yet"
+                        )
                     }
 
                     Spacer()
@@ -212,7 +221,7 @@ struct GemPostCardView: View {
                     .foregroundStyle(TravColors.muted)
                     .lineLimit(1)
 
-                Text("\(TravFormatters.count(displayCompletionCount)) watchlisted · \(TravFormatters.count(displaySaveCount)) saved")
+                Text("\(TravFormatters.count(displayCompletionCount)) completed · \(TravFormatters.count(displaySaveCount)) saved")
                     .font(TravTypography.caption())
                     .foregroundStyle(TravColors.muted)
                     .lineLimit(1)
@@ -222,10 +231,10 @@ struct GemPostCardView: View {
                     .padding(.top, TravSpacing.xxs)
 
                 // Facepile (Social Proof) Row
-                if !experience.watchlistedBy.isEmpty {
+                if !experience.completedBy.isEmpty {
                     HStack(spacing: 0) {
                         HStack(spacing: -8) {
-                            ForEach(experience.watchlistedBy.prefix(3)) { user in
+                            ForEach(experience.completedBy.prefix(3)) { user in
                                 AsyncImage(url: URL(string: user.avatarImage)) { image in
                                     image
                                         .resizable()
@@ -242,16 +251,16 @@ struct GemPostCardView: View {
                         .padding(.trailing, 6)
 
                         Group {
-                            if experience.watchlistedBy.count == 1 {
-                                Text("Added to watchlist by ") +
-                                Text(experience.watchlistedBy[0].name)
+                            if experience.completedBy.count == 1 {
+                                Text("Completed by ") +
+                                Text(experience.completedBy[0].name)
                                     .fontWeight(.bold)
                             } else {
-                                Text("Added to watchlist by ") +
-                                Text(experience.watchlistedBy[0].name)
+                                Text("Completed by ") +
+                                Text(experience.completedBy[0].name)
                                     .fontWeight(.bold) +
                                 Text(" and ") +
-                                Text("\(experience.watchlistedBy.count - 1) others")
+                                Text("\(experience.completedBy.count - 1) others")
                                     .fontWeight(.bold)
                             }
                         }
@@ -311,39 +320,22 @@ struct GemPostCardView: View {
 
                         Spacer()
 
-                        // Right Group: Watchlist Pill Button (hidden for own experience)
+                        // Right Group: Complete pill (hidden for own experience).
+                        // Completing means rating, so this jumps to Create Rating.
                         if !isOwnExperience {
                             Button {
                                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                                if environment.session.currentUser == nil {
-                                    environment.router.presentAuth()
-                                } else {
-                                    let expID = experience.id
-                                    let summary = experience
-                                    if !isWatchlisted {
-                                        withAnimation { showEyesRain = true }
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
-                                            showEyesRain = false
-                                        }
-                                    }
-                                    Task {
-                                        _ = await engagement.toggleComplete(
-                                            experienceID: expID,
-                                            summary: summary,
-                                            using: environment
-                                        )
-                                    }
-                                }
+                                engagement.requestCompletion(for: experience, using: environment)
                             } label: {
                                 HStack(spacing: 4) {
-                                    Image(systemName: isWatchlisted ? "checkmark.circle.fill" : "plus.circle.fill")
-                                    Text(isWatchlisted ? "In Watchlist" : "Watchlist")
+                                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "checkmark.circle")
+                                    Text(isCompleted ? "Completed" : "Complete")
                                 }
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 7)
-                                .background(isWatchlisted ? Color.gray.opacity(0.4) : TravColors.accent)
+                                .background(isCompleted ? Color.gray.opacity(0.4) : TravColors.accent)
                                 .clipShape(Capsule())
                             }
                             .buttonStyle(.plain)
@@ -358,7 +350,6 @@ struct GemPostCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : TravRadius.lg, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : TravRadius.lg, style: .continuous))
         .overlay(connectedLayoutOverlay)
-        .overlay(eyesRainOverlay)
         .onTapGesture(perform: onTap)
     }
 
@@ -370,21 +361,18 @@ struct GemPostCardView: View {
     }
 
     private var displayCompletionCount: Int {
-        let base = experience.completionCount
-        let currentlyCompleted = isWatchlisted
-        let delta = (currentlyCompleted ? 1 : 0)
-        return max(0, base + delta)
+        max(0, experience.completionCount + (isCompleted ? 1 : 0))
     }
 
     @ViewBuilder
     private var repostBubble: some View {
-        if !watchlistedToDisplay.isEmpty {
+        if !completedByToDisplay.isEmpty {
             VStack {
                 Spacer()
                 HStack {
                     Spacer()
                     HStack(spacing: -6) {
-                        ForEach(watchlistedToDisplay) { user in
+                        ForEach(completedByToDisplay) { user in
                             avatarView(for: user)
                         }
                         Text("Reposted")
@@ -402,7 +390,7 @@ struct GemPostCardView: View {
     }
 
     @ViewBuilder
-    private func avatarView(for user: WatchlistUser) -> some View {
+    private func avatarView(for user: CompletionUser) -> some View {
         if let url = URL(string: user.avatarImage), !user.avatarImage.isEmpty {
             AsyncImage(url: url) { image in
                 image
@@ -435,12 +423,6 @@ struct GemPostCardView: View {
         }
     }
 
-    @ViewBuilder
-    private var eyesRainOverlay: some View {
-        if showEyesRain {
-            EmojiParticleView()
-        }
-    }
 }
 
 typealias StandardExperienceCard = GemPostCardView

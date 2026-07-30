@@ -166,7 +166,7 @@ final class NotificationStore {
                 return defaults.object(forKey: "trav.settings.notifyReplies") as? Bool ?? true
             case .like, .save:
                 return defaults.object(forKey: "trav.settings.notifyLikes") as? Bool ?? true
-            case .newExperience, .watchlist:
+            case .newExperience, .completion, .rating:
                 return defaults.object(forKey: "trav.settings.notifyUpdates") as? Bool ?? true
             }
         }()

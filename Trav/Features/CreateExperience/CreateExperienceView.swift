@@ -62,20 +62,18 @@ struct CreateExperienceView: View {
     @State private var didRestoreDraft = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                if showSuccess {
-                    successView
-                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                } else {
-                    formContent
-                        .transition(.opacity)
-                }
+        // Chrome (navigation stack, background, tab picker) belongs to
+        // CreateHubView so both create tabs share it.
+        ZStack {
+            if showSuccess {
+                successView
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            } else {
+                formContent
+                    .transition(.opacity)
             }
-            .travScreenBackground()
-            .navigationBarTitleDisplayMode(.inline)
-
-            .animation(TravAnimation.enter, value: showSuccess)
+        }
+        .animation(TravAnimation.enter, value: showSuccess)
             .alert("Publish Failed", isPresented: $showErrorAlert) {
                 Button("Try Again") { submit() }
                 Button("OK", role: .cancel) {}
@@ -106,12 +104,13 @@ struct CreateExperienceView: View {
             }
             .onChange(of: selectedCity) { autosaveDraft() }
             .onChange(of: rating) { autosaveDraft() }
-        }
     }
 
     private func handleStopsChanged() {
-        if stops.count == 1 {
-            title = stops[0].name
+        // Suggest a title from the first stop, but leave it editable: an
+        // itinerary is never named after a single place.
+        if title.trimmingCharacters(in: .whitespaces).isEmpty, let first = stops.first {
+            title = "\(first.name) route"
         }
         Task {
             _ = await resolveCityFromStops()
@@ -223,7 +222,7 @@ struct CreateExperienceView: View {
                             .lineLimit(1)
                     }
 
-                    Text("Map your favorite stops and share them with the world.")
+                    Text("Chain at least two spots into a route and share it with the world.")
                         .font(TravTypography.bodyMedium())
                         .foregroundStyle(TravColors.muted)
                         .fixedSize(horizontal: false, vertical: true)
@@ -239,13 +238,6 @@ struct CreateExperienceView: View {
                                 placeholder: "e.g. SF Coffee & Books Tour",
                                 text: $title
                             )
-                            .disabled(stops.count == 1)
-
-                            if stops.count == 1 {
-                                Text("Named automatically after official Apple Maps place")
-                                    .font(TravTypography.caption())
-                                    .foregroundStyle(TravColors.accent)
-                            }
                         }
 
                         VStack(alignment: .leading, spacing: TravSpacing.xxs) {
@@ -532,16 +524,52 @@ struct CreateExperienceView: View {
 
     // MARK: - Validation
 
+    /// Identity keys for the current stops, matching the server's spot identity
+    /// so duplicate stops are caught while typing.
+    private var stopIdentityKeys: [String] {
+        stops
+            .sorted { $0.orderIndex < $1.orderIndex }
+            .map { SpotIdentity.key(placeID: $0.placeID, name: $0.name, latitude: $0.latitude, longitude: $0.longitude) }
+    }
+
+    private var distinctStopCount: Int {
+        Set(stopIdentityKeys).count
+    }
+
+    private var duplicateStopName: String? {
+        var seen: Set<String> = []
+        for stop in stops.sorted(by: { $0.orderIndex < $1.orderIndex }) {
+            let key = SpotIdentity.key(
+                placeID: stop.placeID,
+                name: stop.name,
+                latitude: stop.latitude,
+                longitude: stop.longitude
+            )
+            if !seen.insert(key).inserted { return stop.name }
+        }
+        return nil
+    }
+
+    /// An itinerary is 2+ distinct spots. A single place is a Spot, and spots
+    /// come from the place catalog rather than being authored here.
     private var canPublish: Bool {
         !title.trimmingCharacters(in: .whitespaces).isEmpty
-            && !stops.isEmpty
+            && distinctStopCount >= ExperienceKind.itinerary.minimumStops
+            && duplicateStopName == nil
             && !selectedImagesData.isEmpty
             && !isSubmitting
     }
 
     private var validationHint: String? {
         if title.trimmingCharacters(in: .whitespaces).isEmpty { return "Add a title to publish." }
-        if stops.isEmpty { return "Add at least one stop to publish." }
+        if let duplicateStopName {
+            return "\(duplicateStopName) is already a stop — every stop has to be a different spot."
+        }
+        if stops.count < 2 {
+            let remaining = 2 - stops.count
+            return "Add \(remaining) more stop\(remaining == 1 ? "" : "s") — an itinerary needs at least 2 spots."
+        }
+        if distinctStopCount < 2 { return "An itinerary needs at least 2 different spots." }
         if selectedImagesData.isEmpty { return "Add at least one photo to publish." }
         return nil
     }

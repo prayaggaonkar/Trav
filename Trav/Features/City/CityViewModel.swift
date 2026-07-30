@@ -32,7 +32,15 @@ final class CityViewModel {
         do {
             async let city = environment.cities.fetchCity(id: cityID)
             async let featured = environment.cities.fetchFeaturedExperience(cityID: cityID)
-            async let feed = environment.experiences.fetchCityFeed(cityID: cityID, page: 0)
+            // Ranked within the city: picking a city narrows the candidate set,
+            // it does not turn the feed chronological.
+            async let feed = environment.experiences.fetchPersonalizedFeed(
+                FeedRequest(
+                    userID: environment.session.currentUser?.id,
+                    cityID: cityID,
+                    page: 0
+                )
+            )
             async let creators = environment.cities.fetchTrendingCreators(cityID: cityID)
 
             let content = Content(

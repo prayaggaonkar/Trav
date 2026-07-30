@@ -94,11 +94,21 @@ final class AppleMapsVibeService: @unchecked Sendable {
                 // Fetch real place photos tailored to place vibe & satellite map view
                 let imageURLs = await fetchRealPlacePhotos(placeName: officialTitle, vibeCategory: cleanCategory, mapItem: mapItem)
 
-                let id = UUID()
                 let coord = mapItem.placemark.coordinate
-                
+
+                // Derived from the place identity, not random, so the same café
+                // always resolves to the same Spot — on this device, on every
+                // other device, and in the database.
+                let spotKey = SpotIdentity.key(
+                    placeID: nil,
+                    name: officialTitle,
+                    latitude: coord.latitude,
+                    longitude: coord.longitude
+                )
+                let id = StableUUID.from(spotKey)
+
                 let stopPreview = StopPreview(
-                    id: UUID(),
+                    id: StableUUID.from("stop:\(spotKey)"),
                     name: officialTitle,
                     emoji: emoji,
                     latitude: coord.latitude,
@@ -115,7 +125,8 @@ final class AppleMapsVibeService: @unchecked Sendable {
 
                 let summary = ExperienceSummary(
                     id: id,
-                    cityID: UUID(),
+                    kind: .spot,
+                    cityID: StableUUID.from("city:\(targetCity.lowercased())"),
                     title: officialTitle, // Official name only!
                     imageURLs: imageURLs,
                     creator: creator,
@@ -128,7 +139,11 @@ final class AppleMapsVibeService: @unchecked Sendable {
                     stops: [stopPreview],
                     rating: nil, // Don't give these types of recommendations a rating
                     cityName: targetCity,
-                    watchlistedBy: realStats.watchlistedBy
+                    completedBy: realStats.completedBy,
+                    spotKey: spotKey,
+                    category: cleanCategory,
+                    latitude: coord.latitude,
+                    longitude: coord.longitude
                 )
 
                 // Store in-memory Experience model for detail view lookup
@@ -149,6 +164,7 @@ final class AppleMapsVibeService: @unchecked Sendable {
 
                 let experience = Experience(
                     id: id,
+                    kind: .spot,
                     cityID: summary.cityID,
                     creator: creator,
                     title: summary.title,
@@ -167,7 +183,10 @@ final class AppleMapsVibeService: @unchecked Sendable {
                     publishedAt: Date(),
                     stops: [stop],
                     routeSegments: [],
-                    rating: nil // Don't give these types of recommendations a rating
+                    rating: nil, // Don't give these types of recommendations a rating
+                    spotKey: spotKey,
+                    category: cleanCategory,
+                    cityName: targetCity
                 )
 
                 cachedRecommendations[id] = experience
@@ -204,8 +223,8 @@ final class AppleMapsVibeService: @unchecked Sendable {
         cachedRecommendations[experience.id] = experience
     }
 
-    /// Fetches real social stats (saves, likes, completions, watchlistedBy profiles) from Supabase if existing for this place.
-    private func fetchRealSocialStats(forPlaceName placeName: String, city: String) async -> (saveCount: Int, likeCount: Int, completionCount: Int, watchlistedBy: [WatchlistUser]) {
+    /// Fetches real social stats (saves, likes, completions, completedBy profiles) from Supabase if existing for this place.
+    private func fetchRealSocialStats(forPlaceName placeName: String, city: String) async -> (saveCount: Int, likeCount: Int, completionCount: Int, completedBy: [CompletionUser]) {
         guard let client = SupabaseManager.client else {
             return (0, 0, 0, [])
         }
@@ -239,7 +258,7 @@ final class AppleMapsVibeService: @unchecked Sendable {
                 matchingExpIDs.append(r.id)
             }
 
-            var watchlistUsers: [WatchlistUser] = []
+            var completionUsers: [CompletionUser] = []
             if !matchingExpIDs.isEmpty {
                 struct SaveRow: Decodable {
                     let user_id: UUID
@@ -268,8 +287,8 @@ final class AppleMapsVibeService: @unchecked Sendable {
                         .execute()
                         .value) ?? []
 
-                    watchlistUsers = profiles.map { p in
-                        WatchlistUser(
+                    completionUsers = profiles.map { p in
+                        CompletionUser(
                             id: p.id,
                             name: p.display_name ?? "Explorer",
                             avatarImage: p.avatar_url ?? ""
@@ -278,7 +297,7 @@ final class AppleMapsVibeService: @unchecked Sendable {
                 }
             }
 
-            return (totalSaves, totalLikes, totalCompletions, watchlistUsers)
+            return (totalSaves, totalLikes, totalCompletions, completionUsers)
         } catch {
             return (0, 0, 0, [])
         }

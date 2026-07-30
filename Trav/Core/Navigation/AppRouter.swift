@@ -69,6 +69,45 @@ struct PrefilledSpot: Identifiable, Equatable, Sendable {
     let cityName: String?
 }
 
+/// The two halves of the Create screen.
+enum CreateTab: String, CaseIterable, Identifiable, Sendable {
+    /// Rate an experience you finished. Completing anything lands here.
+    case rating
+    /// Build a new itinerary.
+    case experience
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .rating: "Rate"
+        case .experience: "Create"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .rating: "hexagon.fill"
+        case .experience: "map.fill"
+        }
+    }
+}
+
+/// The experience a Create Rating session is locked to.
+///
+/// When a user taps Complete we already know exactly what they finished, so the
+/// preview is read-only. Arriving at the Create tab directly leaves this nil and
+/// the user searches for the spot or itinerary instead.
+struct RatingTarget: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let summary: ExperienceSummary
+
+    init(summary: ExperienceSummary) {
+        self.id = summary.id
+        self.summary = summary
+    }
+}
+
 @Observable
 @MainActor
 final class AppRouter {
@@ -77,6 +116,13 @@ final class AppRouter {
 
     /// Spot payload when transferring from Feed search to Create page with autocompleted spot.
     var pendingCreateSpot: PrefilledSpot? = nil
+
+    /// Which half of the Create screen is showing.
+    var createTab: CreateTab = .rating
+    /// Experience locked into Create Rating, set by tapping Complete anywhere.
+    var pendingRatingTarget: RatingTarget? = nil
+    /// Bumped when the Create tab should be brought forward.
+    private(set) var createNavigationToken: UInt = 0
 
     /// Strict city scope for the Feed tab (catalog city only — never free-typed).
     var selectedFeedCity: City?
@@ -92,6 +138,7 @@ final class AppRouter {
     private(set) var experienceCatalogRevision: UInt = 0
 
     func openCreateWithSpot(title: String, subtitle: String, emoji: String, latitude: Double?, longitude: Double?, cityName: String?) {
+        createTab = .experience
         pendingCreateSpot = PrefilledSpot(
             title: title,
             subtitle: subtitle,
@@ -100,6 +147,27 @@ final class AppRouter {
             longitude: longitude,
             cityName: cityName
         )
+    }
+
+    /// Opens Create Rating with `summary` locked in. This is the completion flow:
+    /// no confirmation sheet, straight to the rating the user has to give.
+    func presentRating(for summary: ExperienceSummary) {
+        presentedRoute = nil
+        createTab = .rating
+        pendingRatingTarget = RatingTarget(summary: summary)
+        createNavigationToken &+= 1
+    }
+
+    /// Opens Create Rating with nothing preselected, so the user searches for
+    /// what they finished.
+    func openCreateRating() {
+        createTab = .rating
+        pendingRatingTarget = nil
+        createNavigationToken &+= 1
+    }
+
+    func clearPendingRatingTarget() {
+        pendingRatingTarget = nil
     }
 
     /// Opens the immersive City Page (deep links / explicit city-page entry).
@@ -148,6 +216,12 @@ final class AppRouter {
     }
 
     func noteExperiencePublished() {
+        experienceCatalogRevision &+= 1
+    }
+
+    /// Ratings, completions and new itineraries all change what feeds, profiles
+    /// and detail aggregates should show.
+    func noteExperienceCatalogChanged() {
         experienceCatalogRevision &+= 1
     }
 

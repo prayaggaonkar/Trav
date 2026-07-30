@@ -19,6 +19,51 @@ enum RepositoryError: LocalizedError, Sendable {
     }
 }
 
+/// Violations of the content model, surfaced to the user as copy.
+///
+/// The database raises the same set of conditions with `TRAV_*` prefixes; the
+/// client checks them up front so users get feedback before a round trip.
+enum ContentModelError: LocalizedError, Sendable, Equatable {
+    case itineraryNeedsMoreStops(current: Int)
+    case duplicateStop(name: String)
+    case duplicateItinerary
+    case invalidStop
+    case ratingRequired
+    case tooManyPhotos(limit: Int)
+    case spotsAreNotUserCreated
+
+    var errorDescription: String? {
+        switch self {
+        case .itineraryNeedsMoreStops(let current):
+            let noun = current == 1 ? "spot" : "spots"
+            return "An itinerary needs at least 2 spots — you have \(current) \(noun)."
+        case .duplicateStop(let name):
+            return "\(name) is already in this itinerary. Every stop has to be a different spot."
+        case .duplicateItinerary:
+            return "Someone already published an itinerary with these spots in this order."
+        case .invalidStop:
+            return "Every stop needs a name and a location."
+        case .ratingRequired:
+            return "Add your rating to mark this complete."
+        case .tooManyPhotos(let limit):
+            return "You can attach up to \(limit) photos."
+        case .spotsAreNotUserCreated:
+            return "Spots come from our place catalog and can't be created by hand."
+        }
+    }
+
+    /// Maps a Postgres error message from a `TRAV_*` raise back to a typed case.
+    static func from(serverMessage message: String) -> ContentModelError? {
+        if message.contains("TRAV_MIN_STOPS") { return .itineraryNeedsMoreStops(current: 1) }
+        if message.contains("TRAV_DUPLICATE_ITINERARY") { return .duplicateItinerary }
+        if message.contains("TRAV_DUPLICATE_STOP") { return .duplicateStop(name: "That spot") }
+        if message.contains("TRAV_INVALID_STOP") || message.contains("TRAV_INVALID_SPOT") { return .invalidStop }
+        if message.contains("TRAV_RATING_REQUIRED") { return .ratingRequired }
+        if message.contains("TRAV_PHOTO_LIMIT") { return .tooManyPhotos(limit: RatingDraft.maxPhotos) }
+        return nil
+    }
+}
+
 protocol CityRepository: Sendable {
     func fetchGlobeCities() async throws -> [City]
     func fetchCity(id: UUID) async throws -> City
@@ -35,13 +80,26 @@ protocol ExperienceRepository: Sendable {
     func fetchPlacesFeed(page: Int) async throws -> Paginated<ExperienceSummary>
     /// Upcoming local pop-up events tailored to user's location.
     func fetchPopups(latitude: Double?, longitude: Double?, city: String?) async throws -> [Popup]
-    func publishExperience(_ draft: ExperienceDraft) async throws
+    /// Publishes a user-authored itinerary. Throws `ContentModelError` when the
+    /// draft has fewer than 2 distinct spots or duplicates an existing journey.
+    @discardableResult
+    func publishExperience(_ draft: ExperienceDraft) async throws -> UUID
+    /// Idempotently resolves a provider place to its canonical Spot, creating it
+    /// on first sight. Spots are never authored by users, so this is the only
+    /// way one enters the catalog.
+    @discardableResult
+    func syncSpot(_ request: SpotSyncRequest) async throws -> UUID
+    /// Personalized ranking: the feed's primary source.
+    func fetchPersonalizedFeed(_ request: FeedRequest) async throws -> Paginated<ExperienceSummary>
+    /// Title search across spots and itineraries, used when rating something
+    /// the user did not arrive from.
+    func searchExperiences(query: String, kind: ExperienceKind?, limit: Int) async throws -> [ExperienceSummary]
     func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary]
     /// Leaders sorted by total published experience count.
     func fetchLeaderboardEntries(cityID: UUID?, cityName: String?) async throws -> [LeaderboardEntry]
     /// Active streak leaders fetched from Supabase.
     func fetchHeatStreakEntries(cityID: UUID?, cityName: String?) async throws -> [HeatStreakEntry]
-    /// Impact leaders ranked by total watchlists + saves across all published experiences.
+    /// Impact leaders ranked by total completions + saves across all published experiences.
     func fetchImpactLeaderboard(cityID: UUID?, cityName: String?) async throws -> [ImpactEntry]
     /// Main leaderboard ranked by total score: Total Score = (Impact * 5) + (Experiences * 25) + (Streak Days * 15) + (Streak Posts * 5).
     func fetchMainLeaderboard() async throws -> [MainLeaderboardEntry]
@@ -62,7 +120,10 @@ protocol ExperienceRepository: Sendable {
     ) async throws -> Paginated<RankedCreator>
 }
 
-/// Everything needed to publish a new experience.
+/// Everything needed to publish a new itinerary.
+///
+/// Only itineraries are user-authored, so publishing always enforces the
+/// itinerary invariants: at least 2 stops, each a distinct spot.
 struct ExperienceDraft: Sendable {
     var title: String
     var description: String
@@ -71,6 +132,147 @@ struct ExperienceDraft: Sendable {
     var stops: [Stop]
     var rating: RadarRating?
     var imagesData: [Data]
+
+    /// Stops collapsed to their canonical place identity, preserving order.
+    var stopIdentityKeys: [String] {
+        stops
+            .sorted { $0.orderIndex < $1.orderIndex }
+            .map { SpotIdentity.key(placeID: $0.placeID, name: $0.name, latitude: $0.latitude, longitude: $0.longitude) }
+    }
+
+    var distinctStopCount: Int {
+        Set(stopIdentityKeys).count
+    }
+
+    /// Throws the first content-model violation, so the UI can block publishing
+    /// before a round trip.
+    func validateForPublishing() throws {
+        for stop in stops where stop.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw ContentModelError.invalidStop
+        }
+
+        var seen: Set<String> = []
+        for stop in stops.sorted(by: { $0.orderIndex < $1.orderIndex }) {
+            let key = SpotIdentity.key(
+                placeID: stop.placeID,
+                name: stop.name,
+                latitude: stop.latitude,
+                longitude: stop.longitude
+            )
+            if seen.contains(key) {
+                throw ContentModelError.duplicateStop(name: stop.name)
+            }
+            seen.insert(key)
+        }
+
+        if seen.count < ExperienceKind.itinerary.minimumStops {
+            throw ContentModelError.itineraryNeedsMoreStops(current: seen.count)
+        }
+    }
+}
+
+/// A provider place being promoted into the canonical Spot catalog.
+struct SpotSyncRequest: Sendable {
+    var placeID: String?
+    var name: String
+    var description: String
+    var cityName: String
+    var cityID: UUID?
+    var latitude: Double?
+    var longitude: Double?
+    var imageURLs: [URL]
+    var category: String?
+    var emoji: String?
+
+    init(
+        placeID: String? = nil,
+        name: String,
+        description: String = "",
+        cityName: String = "",
+        cityID: UUID? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        imageURLs: [URL] = [],
+        category: String? = nil,
+        emoji: String? = nil
+    ) {
+        self.placeID = placeID
+        self.name = name
+        self.description = description
+        self.cityName = cityName
+        self.cityID = cityID
+        self.latitude = latitude
+        self.longitude = longitude
+        self.imageURLs = imageURLs
+        self.category = category
+        self.emoji = emoji
+    }
+
+    init(summary: ExperienceSummary) {
+        let stop = summary.stops.first
+        self.init(
+            placeID: nil,
+            name: summary.title,
+            description: "",
+            cityName: summary.cityName ?? "",
+            cityID: summary.cityID,
+            latitude: summary.latitude ?? stop?.latitude,
+            longitude: summary.longitude ?? stop?.longitude,
+            imageURLs: summary.imageURLs,
+            category: summary.category,
+            emoji: stop?.emoji
+        )
+    }
+
+    var identityKey: String {
+        SpotIdentity.key(placeID: placeID, name: name, latitude: latitude ?? 0, longitude: longitude ?? 0)
+    }
+}
+
+/// Mirrors `public.spot_identity_key` in Postgres so the client and database
+/// agree on when two places are the same spot.
+enum SpotIdentity {
+    static func key(placeID: String?, name: String, latitude: Double, longitude: Double) -> String {
+        if let placeID, !placeID.trimmingCharacters(in: .whitespaces).isEmpty {
+            return "place:" + placeID.trimmingCharacters(in: .whitespaces).lowercased()
+        }
+        let slug = name
+            .lowercased()
+            .unicodeScalars
+            .filter { CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+            .joined()
+        return String(format: "geo:%@:%.4f:%.4f", slug, latitude, longitude)
+    }
+}
+
+/// Inputs to the weighted recommendation engine.
+struct FeedRequest: Sendable {
+    var userID: UUID?
+    var latitude: Double?
+    var longitude: Double?
+    var cityID: UUID?
+    var kind: ExperienceKind?
+    var page: Int
+    var pageSize: Int
+
+    init(
+        userID: UUID? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        cityID: UUID? = nil,
+        kind: ExperienceKind? = nil,
+        page: Int = 0,
+        pageSize: Int = 20
+    ) {
+        self.userID = userID
+        self.latitude = latitude
+        self.longitude = longitude
+        self.cityID = cityID
+        self.kind = kind
+        self.page = page
+        self.pageSize = pageSize
+    }
 }
 
 protocol AuthRepository: Sendable {
@@ -120,8 +322,10 @@ protocol EngagementRepository: Sendable {
     func toggleSave(userID: UUID, experienceID: UUID) async throws -> Bool
     /// Always removes the bookmark for this user (no-op if already unsaved).
     func unsave(userID: UUID, experienceID: UUID) async throws
-    /// Returns the new completed state after toggle.
-    func toggleComplete(userID: UUID, experienceID: UUID, note: String?, photosData: [Data]) async throws -> Bool
+    /// Removes a completion by deleting the underlying rating. Completion is a
+    /// consequence of rating, so it cannot be toggled on its own — use
+    /// `RatingRepository.submitRating` to complete an experience.
+    func removeCompletion(userID: UUID, experienceID: UUID) async throws
     /// Returns the new liked state after toggle.
     func toggleLike(userID: UUID, experienceID: UUID) async throws -> Bool
     /// Ensures an `experiences` row exists for `summary.id` so save/completion FKs
@@ -139,6 +343,22 @@ protocol EngagementRepository: Sendable {
     func block(blockerID: UUID, blockedID: UUID) async throws
     func unblock(blockerID: UUID, blockedID: UUID) async throws
     func fetchBlockedIDs(userID: UUID) async throws -> Set<UUID>
+}
+
+/// Ratings are a first-class entity with their own read/write surface.
+protocol RatingRepository: Sendable {
+    /// Creates or replaces this user's rating, which also marks the experience
+    /// complete. Returns the persisted rating.
+    @discardableResult
+    func submitRating(_ draft: RatingDraft, userID: UUID) async throws -> Rating
+    /// This user's rating of an experience, if they have rated it.
+    func fetchMyRating(userID: UUID, experienceID: UUID) async throws -> Rating?
+    /// Every rating on an experience, newest first.
+    func fetchRatings(experienceID: UUID, page: Int) async throws -> Paginated<Rating>
+    /// Database-computed aggregates for an experience.
+    func fetchRatingSummary(experienceID: UUID) async throws -> RatingSummary
+    /// Deleting a rating also removes the completion.
+    func deleteRating(userID: UUID, experienceID: UUID) async throws
 }
 
 protocol NotificationRepository: Sendable {

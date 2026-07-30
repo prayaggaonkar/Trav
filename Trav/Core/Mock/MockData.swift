@@ -177,9 +177,9 @@ enum MockData {
             rating: RadarRating(scores: [
                 "Cost": 7.0, "Food": 9.2, "Memorability": 8.5, "Authenticity": 8.8, "Immersion": 8.0
             ]),
-            watchlistedBy: [
-                WatchlistUser(id: UUID(uuidString: "W1000001-0000-0000-0000-000000000001")!, name: "Vinay", avatarImage: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop"),
-                WatchlistUser(id: UUID(uuidString: "W1000002-0000-0000-0000-000000000002")!, name: "Tanish", avatarImage: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&h=100&fit=crop")
+            completedBy: [
+                CompletionUser(id: UUID(uuidString: "W1000001-0000-0000-0000-000000000001")!, name: "Vinay", avatarImage: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop"),
+                CompletionUser(id: UUID(uuidString: "W1000002-0000-0000-0000-000000000002")!, name: "Tanish", avatarImage: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&h=100&fit=crop")
             ]
         ),
         ExperienceSummary(
@@ -203,10 +203,10 @@ enum MockData {
             rating: RadarRating(scores: [
                 "Cost": 8.5, "Food": 6.5, "Memorability": 9.4, "Authenticity": 7.8, "Immersion": 9.0
             ]),
-            watchlistedBy: [
-                WatchlistUser(id: UUID(uuidString: "W1000001-0000-0000-0000-000000000001")!, name: "Vinay", avatarImage: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop"),
-                WatchlistUser(id: UUID(uuidString: "W1000002-0000-0000-0000-000000000002")!, name: "Tanish", avatarImage: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&h=100&fit=crop"),
-                WatchlistUser(id: UUID(uuidString: "W1000003-0000-0000-0000-000000000003")!, name: "Arjun", avatarImage: "https://images.unsplash.com/photo-1527983359383-4758693f760c?w=100&h=100&fit=crop")
+            completedBy: [
+                CompletionUser(id: UUID(uuidString: "W1000001-0000-0000-0000-000000000001")!, name: "Vinay", avatarImage: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop"),
+                CompletionUser(id: UUID(uuidString: "W1000002-0000-0000-0000-000000000002")!, name: "Tanish", avatarImage: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&h=100&fit=crop"),
+                CompletionUser(id: UUID(uuidString: "W1000003-0000-0000-0000-000000000003")!, name: "Arjun", avatarImage: "https://images.unsplash.com/photo-1527983359383-4758693f760c?w=100&h=100&fit=crop")
             ]
         ),
         ExperienceSummary(
@@ -229,8 +229,8 @@ enum MockData {
             rating: RadarRating(scores: [
                 "Cost": 9.5, "Food": 7.0, "Memorability": 8.8, "Authenticity": 9.2, "Immersion": 8.6
             ]),
-            watchlistedBy: [
-                WatchlistUser(id: UUID(uuidString: "W1000003-0000-0000-0000-000000000003")!, name: "Arjun", avatarImage: "https://images.unsplash.com/photo-1527983359383-4758693f760c?w=100&h=100&fit=crop")
+            completedBy: [
+                CompletionUser(id: UUID(uuidString: "W1000003-0000-0000-0000-000000000003")!, name: "Arjun", avatarImage: "https://images.unsplash.com/photo-1527983359383-4758693f760c?w=100&h=100&fit=crop")
             ]
         ),
         ExperienceSummary(
