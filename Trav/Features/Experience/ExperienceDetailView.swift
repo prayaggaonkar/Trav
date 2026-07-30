@@ -188,13 +188,8 @@ struct ExperienceDetailView: View {
                 descriptionSection(experience)
                     .travAppear(delay: 0.08)
 
-                if experience.stops.count > 1 {
-                    timeline(experience)
-                        .travAppear(delay: 0.1)
-                } else {
-                    singleSpotAddressSection(experience)
-                        .travAppear(delay: 0.1)
-                }
+                timeline(experience, title: experience.stops.count > 1 ? "TIMELINE" : "ADDRESS")
+                    .travAppear(delay: 0.1)
 
                 overviewSection(experience)
                     .travAppear(delay: 0.14)
@@ -413,69 +408,6 @@ struct ExperienceDetailView: View {
         }
     }
 
-    private func singleSpotAddressSection(_ experience: Experience) -> some View {
-        let firstStop = experience.stops.first
-        let addressText = (firstStop?.description.isEmpty == false) ? firstStop!.description : "Berkeley, CA"
-        
-        return VStack(alignment: .leading, spacing: TravSpacing.sm) {
-            HStack(spacing: 6) {
-                Image(systemName: "mappin.circle.fill")
-                    .font(.system(size: 15))
-                    .foregroundStyle(TravColors.accent)
-                Text("ADDRESS & LOCATION")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(TravColors.muted)
-                Spacer()
-            }
-
-            Text(experience.title)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-
-            Text(addressText)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundStyle(TravColors.muted)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let lat = firstStop?.latitude, let lon = firstStop?.longitude, lat != 0, lon != 0 {
-                Button {
-                    openInAppleMaps(title: experience.title, lat: lat, lon: lon)
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
-                            .font(.system(size: 13, weight: .bold))
-                        Text("Get Directions")
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, TravSpacing.md)
-                    .padding(.vertical, 10)
-                    .background(TravColors.accent)
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(TravPressButtonStyle(scale: 0.96))
-                .padding(.top, 4)
-            }
-        }
-        .padding(TravSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                .fill(TravColors.surfaceElevated)
-        )
-        .padding(.horizontal, TravSpacing.screenHorizontal)
-        .padding(.top, TravSpacing.md)
-    }
-
-    private func openInAppleMaps(title: String, lat: Double, lon: Double) {
-        let placemark = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
-        let mapItem = MKMapItem(placemark: placemark)
-        mapItem.name = title
-        mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
-    }
-
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
@@ -520,9 +452,9 @@ struct ExperienceDetailView: View {
     }
 
     @ViewBuilder
-    private func timeline(_ experience: Experience) -> some View {
+    private func timeline(_ experience: Experience, title: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("TIMELINE")
+            Text(title)
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .tracking(2.0)
                 .foregroundStyle(TravColors.accent)
@@ -896,7 +828,7 @@ private struct ExperienceRouteMapView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
             HStack(alignment: .center) {
-                Text("ROUTE MAP")
+                Text("MAP")
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .tracking(2.0)
                     .foregroundStyle(TravColors.accent)
@@ -997,7 +929,7 @@ private struct ExperienceRouteMapView: View {
         }
         .padding(.vertical, TravSpacing.sm)
         .sheet(isPresented: $showInteractiveMap) {
-            InAppInteractiveMapView(title: "Route Map", stops: resolvedStops)
+            InAppInteractiveMapView(title: "Map", stops: resolvedStops)
         }
         .task(id: resolvedStops) {
             updateCameraPosition()
