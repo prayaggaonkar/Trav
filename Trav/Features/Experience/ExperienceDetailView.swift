@@ -16,6 +16,8 @@ struct ExperienceDetailView: View {
     @State private var shareItem: ShareItem?
     @State private var localCommentCount: Int?
     @State private var activeImagePreview: ImagePreviewItem?
+    @State private var initialIsSaved: Bool = false
+    @State private var initialIsCompleted: Bool = false
 
     let experienceID: UUID
 
@@ -152,6 +154,18 @@ struct ExperienceDetailView: View {
         return urls
     }
 
+    private func displaySaveCount(for exp: Experience) -> Int {
+        let isCurrentlySaved = engagement.isSaved(exp.id)
+        let delta = (isCurrentlySaved ? 1 : 0) - (initialIsSaved ? 1 : 0)
+        return max(0, exp.saveCount + delta)
+    }
+
+    private func displayCompletionCount(for exp: Experience) -> Int {
+        let isCurrentlyCompleted = engagement.isCompleted(exp.id)
+        let delta = (isCurrentlyCompleted ? 1 : 0) - (initialIsCompleted ? 1 : 0)
+        return max(0, exp.completionCount + delta)
+    }
+
     private func openImagePreview(url: URL) {
         let allURLs = allExperienceImageURLs
         let initialIndex = allURLs.firstIndex(of: url) ?? 0
@@ -174,8 +188,13 @@ struct ExperienceDetailView: View {
                 descriptionSection(experience)
                     .travAppear(delay: 0.08)
 
-                timeline(experience)
-                    .travAppear(delay: 0.1)
+                if experience.stops.count > 1 {
+                    timeline(experience)
+                        .travAppear(delay: 0.1)
+                } else {
+                    singleSpotAddressSection(experience)
+                        .travAppear(delay: 0.1)
+                }
 
                 overviewSection(experience)
                     .travAppear(delay: 0.14)
@@ -194,6 +213,7 @@ struct ExperienceDetailView: View {
 
         HeroMediaCarousel(
             urls: experience.imageURLs,
+            stops: experience.stops,
             height: TravLayout.heroExperienceHeight,
             onImageTap: { index in
                 if index < experience.imageURLs.count {
@@ -210,20 +230,35 @@ struct ExperienceDetailView: View {
                 .fixedSize(horizontal: false, vertical: true)
         } accessory: {
             HStack(alignment: .center, spacing: TravSpacing.md) {
-                Button {
-                    router.openProfile(experience.creator.username)
-                } label: {
-                    HStack(spacing: TravSpacing.xs) {
-                        AvatarView(url: experience.creator.avatarURL, size: 32)
-                        Text(experience.creator.displayName)
+                let isSpotRec = (experience.creator.displayName.lowercased() == "rec by trav" || experience.creator.username.lowercased() == "trav" || experience.stops.count <= 1)
+
+                if !isSpotRec {
+                    Button {
+                        router.openProfile(experience.creator.username)
+                    } label: {
+                        HStack(spacing: TravSpacing.xs) {
+                            AvatarView(url: experience.creator.avatarURL, size: 32)
+                            Text(experience.creator.displayName)
+                                .font(TravTypography.bodyMedium())
+                                .foregroundStyle(.white.opacity(0.9))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    HStack(spacing: 6) {
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(TravColors.accent)
+                        Text(experience.stops.first?.description.isEmpty == false ? experience.stops.first!.description : "Spot Recommendation")
                             .font(TravTypography.bodyMedium())
                             .foregroundStyle(.white.opacity(0.9))
                             .lineLimit(1)
-                            .minimumScaleFactor(0.85)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Button {
                     showComments = true
@@ -252,7 +287,7 @@ struct ExperienceDetailView: View {
         let isSaved = engagement.isSaved(experience.id)
         let isCompleted = engagement.isCompleted(experience.id)
         let summary = summary(from: experience)
-        let isOwn = (session.currentUser?.id == experience.creator.id)
+        let isOwn = (session.currentUser?.id == experience.creator.id && experience.stops.count > 1)
 
         return HStack(alignment: .top, spacing: 0) {
             Button {
@@ -279,7 +314,7 @@ struct ExperienceDetailView: View {
                     .background(isSaved ? Color(red: 0.78, green: 0.58, blue: 0.06) : TravColors.surfaceElevated)
                     .opacity(isOwn ? 0.4 : 1.0)
 
-                    Text(TravFormatters.count(experience.saveCount))
+                    Text(TravFormatters.count(displaySaveCount(for: experience)))
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.muted)
                 }
@@ -311,13 +346,13 @@ struct ExperienceDetailView: View {
                             .font(TravTypography.labelMedium())
                             .fontWeight(.bold)
                     }
-                    .foregroundStyle(isCompleted ? .white : TravColors.primary)
+                    .foregroundStyle(isCompleted ? .white : TravColors.accent)
                     .frame(maxWidth: .infinity)
                     .frame(height: 45)
-                    .background(isCompleted ? TravColors.accent : TravColors.surfaceElevated)
+                    .background(isCompleted ? TravColors.surfaceElevated : TravColors.surfaceElevated)
                     .opacity(isOwn ? 0.4 : 1.0)
 
-                    Text(TravFormatters.count(experience.completionCount))
+                    Text(TravFormatters.count(displayCompletionCount(for: experience)))
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.muted)
                 }
@@ -376,6 +411,69 @@ struct ExperienceDetailView: View {
             .padding(.top, TravSpacing.sm)
             .padding(.bottom, TravSpacing.lg)
         }
+    }
+
+    private func singleSpotAddressSection(_ experience: Experience) -> some View {
+        let firstStop = experience.stops.first
+        let addressText = (firstStop?.description.isEmpty == false) ? firstStop!.description : "Berkeley, CA"
+        
+        return VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            HStack(spacing: 6) {
+                Image(systemName: "mappin.circle.fill")
+                    .font(.system(size: 15))
+                    .foregroundStyle(TravColors.accent)
+                Text("ADDRESS & LOCATION")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .tracking(1.2)
+                    .foregroundStyle(TravColors.muted)
+                Spacer()
+            }
+
+            Text(experience.title)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+
+            Text(addressText)
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundStyle(TravColors.muted)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let lat = firstStop?.latitude, let lon = firstStop?.longitude, lat != 0, lon != 0 {
+                Button {
+                    openInAppleMaps(title: experience.title, lat: lat, lon: lon)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+                            .font(.system(size: 13, weight: .bold))
+                        Text("Get Directions")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, TravSpacing.md)
+                    .padding(.vertical, 10)
+                    .background(TravColors.accent)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.96))
+                .padding(.top, 4)
+            }
+        }
+        .padding(TravSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                .fill(TravColors.surfaceElevated)
+        )
+        .padding(.horizontal, TravSpacing.screenHorizontal)
+        .padding(.top, TravSpacing.md)
+    }
+
+    private func openInAppleMaps(title: String, lat: Double, lon: Double) {
+        let placemark = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
+        let mapItem = MKMapItem(placemark: placemark)
+        mapItem.name = title
+        mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
     }
 
     @ViewBuilder
@@ -565,6 +663,7 @@ private struct HideTopScrollEdgeBlur: ViewModifier {
 
 private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
     let urls: [URL]
+    var stops: [Stop] = []
     let height: CGFloat
     var onImageTap: ((Int) -> Void)? = nil
     @ViewBuilder let title: () -> Title
@@ -580,21 +679,26 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
             let width = max(geo.size.width, 1)
 
             ZStack(alignment: .bottomLeading) {
-                // Image strip — owns horizontal paging so nested ScrollView can't steal swipes.
-                HStack(spacing: 0) {
-                    ForEach(Array(displayURLs.enumerated()), id: \.offset) { index, url in
-                        RemoteImage(url: url, height: height, cornerRadius: 0)
-                            .frame(width: width, height: height)
-                            .clipped()
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                onImageTap?(index)
-                            }
+                if !urls.isEmpty {
+                    HStack(spacing: 0) {
+                        ForEach(Array(displayURLs.enumerated()), id: \.offset) { index, url in
+                            RemoteImage(url: url, height: height, cornerRadius: 0)
+                                .frame(width: width, height: height)
+                                .clipped()
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    onImageTap?(index)
+                                }
+                        }
                     }
+                    .offset(x: -CGFloat(currentIndex) * width + dragOffset)
+                    .frame(width: width, height: height, alignment: .leading)
+                    .clipped()
+                } else {
+                    ExperienceRouteMapView(stops: stops)
+                        .frame(width: width, height: height)
+                        .clipped()
                 }
-                .offset(x: -CGFloat(currentIndex) * width + dragOffset)
-                .frame(width: width, height: height, alignment: .leading)
-                .clipped()
 
                 LinearGradient(
                     colors: [.clear, .black.opacity(0.75)],

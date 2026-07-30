@@ -192,23 +192,27 @@ struct GemPostCardView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                Button {
-                    onCreatorTap?()
-                } label: {
-                    Text("by \(experience.creator.displayName)")
-                        .font(TravTypography.caption())
-                        .foregroundStyle(TravColors.muted)
-                        .lineLimit(1)
+                let isSpotRec = (experience.creator.displayName.lowercased() == "rec by trav" || experience.creator.username.lowercased() == "trav" || experience.stops.count <= 1)
+
+                if !isSpotRec {
+                    Button {
+                        onCreatorTap?()
+                    } label: {
+                        Text("by \(experience.creator.displayName)")
+                            .font(TravTypography.caption())
+                            .foregroundStyle(TravColors.muted)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(onCreatorTap == nil)
                 }
-                .buttonStyle(.plain)
-                .disabled(onCreatorTap == nil)
 
                 Text("\(TravFormatters.duration(experience.durationMinutes)) · \(experience.costLabel)")
                     .font(TravTypography.caption())
                     .foregroundStyle(TravColors.muted)
                     .lineLimit(1)
 
-                Text("\(TravFormatters.count(experience.completionCount)) completed · \(TravFormatters.count(displaySaveCount)) saved")
+                Text("\(TravFormatters.count(displayCompletionCount)) watchlisted · \(TravFormatters.count(displaySaveCount)) saved")
                     .font(TravTypography.caption())
                     .foregroundStyle(TravColors.muted)
                     .lineLimit(1)
@@ -359,7 +363,17 @@ struct GemPostCardView: View {
     }
 
     private var displaySaveCount: Int {
-        experience.saveCount + (isSavedLocal ? 1 : 0)
+        let base = experience.saveCount
+        let currentlySaved = engagement.isSaved(experience.id)
+        let delta = (currentlySaved ? 1 : 0) - (_isSavedLocal.wrappedValue ? 1 : 0)
+        return max(0, base + delta)
+    }
+
+    private var displayCompletionCount: Int {
+        let base = experience.completionCount
+        let currentlyCompleted = isWatchlisted
+        let delta = (currentlyCompleted ? 1 : 0)
+        return max(0, base + delta)
     }
 
     @ViewBuilder

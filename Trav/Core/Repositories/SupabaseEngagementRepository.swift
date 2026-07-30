@@ -87,18 +87,78 @@ struct SupabaseEngagementRepository: EngagementRepository {
 
     // MARK: - Toggles
 
+    private func ensureExperienceExistsInternal(experienceID: UUID, userID: UUID) async {
+        guard let client = SupabaseManager.client else { return }
+        let idStr = experienceID.uuidString.lowercased()
+        let userStr = userID.uuidString.lowercased()
+
+        struct Existing: Decodable { let id: UUID }
+        let existing: [Existing] = (try? await client
+            .from("experiences")
+            .select("id")
+            .eq("id", value: idStr)
+            .limit(1)
+            .execute()
+            .value) ?? []
+        if !existing.isEmpty { return }
+
+        // If in-memory cached Apple Maps recommendation exists, use its info
+        let cachedExp = AppleMapsVibeService.shared.cachedExperience(for: experienceID)
+        let title = cachedExp?.title ?? "Recommendation Spot"
+        let city = cachedExp?.stops.first?.description ?? "Berkeley, CA"
+        let stops = cachedExp?.stops.map(\.name) ?? []
+
+        struct ShadowInsert: Encodable {
+            let id: String
+            let user_id: String
+            let title: String
+            let description: String
+            let city: String
+            let stops: [String]
+            let is_published: Bool
+        }
+
+        let insert = ShadowInsert(
+            id: idStr,
+            user_id: userStr, // Valid logged-in user ID matching auth.uid() for RLS check
+            title: title,
+            description: "Saved place recommendation",
+            city: city,
+            stops: stops,
+            is_published: false // Shadow place row, never appears as published user post
+        )
+
+        do {
+            try await client.from("experiences").insert(insert).execute()
+        } catch {
+            TravLog.engagement.error("Shadow experience creation: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func ensureExperienceExists(for summary: ExperienceSummary, ownerID: UUID) async throws {
+        await ensureExperienceExistsInternal(experienceID: summary.id, userID: ownerID)
+    }
+
     func toggleSave(userID: UUID, experienceID: UUID) async throws -> Bool {
+        let client = try client
+        let user = userID.uuidString.lowercased()
+        let expIDStr = experienceID.uuidString.lowercased()
+
+        await ensureExperienceExistsInternal(experienceID: experienceID, userID: userID)
+
         struct ExpOwnerRow: Decodable {
             let user_id: UUID
+            let is_published: Bool?
         }
         let expOwner: [ExpOwnerRow] = (try? await client
             .from("experiences")
-            .select("user_id")
-            .eq("id", value: experienceID.uuidString.lowercased())
+            .select("user_id, is_published")
+            .eq("id", value: expIDStr)
             .execute()
             .value) ?? []
 
-        if let owner = expOwner.first, owner.user_id == userID {
+        // Only restrict saving if it's the user's own published multi-stop experience
+        if let owner = expOwner.first, owner.user_id == userID, owner.is_published == true {
             return false
         }
 
@@ -115,8 +175,8 @@ struct SupabaseEngagementRepository: EngagementRepository {
             .from("experience_saves")
             .upsert(
                 Insert(
-                    user_id: userID.uuidString.lowercased(),
-                    experience_id: experienceID.uuidString.lowercased()
+                    user_id: user,
+                    experience_id: expIDStr
                 ),
                 onConflict: "user_id,experience_id"
             )
@@ -125,6 +185,7 @@ struct SupabaseEngagementRepository: EngagementRepository {
     }
 
     func unsave(userID: UUID, experienceID: UUID) async throws {
+        let client = try client
         try await client
             .from("experience_saves")
             .delete()
@@ -138,17 +199,21 @@ struct SupabaseEngagementRepository: EngagementRepository {
         let user = userID.uuidString.lowercased()
         let experience = experienceID.uuidString.lowercased()
 
+        await ensureExperienceExistsInternal(experienceID: experienceID, userID: userID)
+
         struct ExpOwnerRow: Decodable {
             let user_id: UUID
+            let is_published: Bool?
         }
         let expOwner: [ExpOwnerRow] = (try? await client
             .from("experiences")
-            .select("user_id")
+            .select("user_id, is_published")
             .eq("id", value: experience)
             .execute()
             .value) ?? []
 
-        if let owner = expOwner.first, owner.user_id == userID {
+        // Only restrict watchlisting if it's the user's own published multi-stop experience
+        if let owner = expOwner.first, owner.user_id == userID, owner.is_published == true {
             return false
         }
 
@@ -233,59 +298,7 @@ struct SupabaseEngagementRepository: EngagementRepository {
         return true
     }
 
-    /// Creates an unpublished shadow experience row for a curated feed place so
-    /// save/completion foreign keys are satisfied. Shadow rows never surface in
-    /// feeds, profiles, or notifications (`is_published = false`).
-    func ensureExperienceExists(for summary: ExperienceSummary, ownerID: UUID) async throws {
-        let client = try client
-        let id = summary.id.uuidString.lowercased()
 
-        struct Existing: Decodable { let id: UUID }
-        let existing: [Existing] = try await client
-            .from("experiences")
-            .select("id")
-            .eq("id", value: id)
-            .limit(1)
-            .execute()
-            .value
-        if !existing.isEmpty { return }
-
-        struct ShadowInsert: Encodable {
-            let id: String
-            let user_id: String
-            let title: String
-            let description: String
-            let city: String
-            let stops: [String]
-            let image: [String]?
-            let is_published: Bool
-        }
-
-        let insert = ShadowInsert(
-            id: id,
-            user_id: ownerID.uuidString.lowercased(),
-            title: summary.title,
-            description: "",
-            city: summary.displayCityName.isEmpty ? "Unknown" : summary.displayCityName,
-            stops: summary.stops.map(\.name),
-            image: summary.coverImageURL.map { [$0.absoluteString] },
-            is_published: false
-        )
-
-        do {
-            try await client.from("experiences").insert(insert).execute()
-        } catch {
-            // Another user may have created the shadow row concurrently — fine.
-            let again: [Existing] = (try? await client
-                .from("experiences")
-                .select("id")
-                .eq("id", value: id)
-                .limit(1)
-                .execute()
-                .value) ?? []
-            if again.isEmpty { throw error }
-        }
-    }
 
     // MARK: - Comments
 

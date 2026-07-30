@@ -463,9 +463,7 @@ struct RateSpotSheet: View {
     }
 }
 
-/// Comprehensive detail view shown when tapping a spot in search suggestions.
-/// Displays spot info, community & follower ratings, photos, linked follower experience posts,
-/// unified action bar (Watchlist, Save, Rate/Edit), and smart user status.
+/// Sheet presenting spot detail using the unified ExperienceDetailView UI.
 struct SpotDetailSheet: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
@@ -473,530 +471,102 @@ struct SpotDetailSheet: View {
 
     let spot: SpotSuggestion
 
-    @State private var matchingExperiences: [ExperienceSummary] = []
-    @State private var isLoading = true
-    @State private var isWatchlisted = false
-    @State private var isSaved = false
-    @State private var showEyesRain = false
-    @State private var mapSnapshotImage: UIImage? = nil
-
-    private var currentUserID: UUID? {
-        environment.session.currentUser?.id
-    }
-
-    private var userExperience: ExperienceSummary? {
-        guard let currentUserID else { return nil }
-        return matchingExperiences.first(where: { $0.creator.id == currentUserID })
-    }
-
-    /// Follower experiences excluding the logged in user's own post
-    private var followerExperiences: [ExperienceSummary] {
-        guard let currentUserID else { return matchingExperiences }
-        return matchingExperiences.filter { $0.creator.id != currentUserID }
-    }
-
-    private var averageRatingScore: Double? {
-        let ratedExps = followerExperiences.compactMap { $0.rating?.overallScore }
-        guard !ratedExps.isEmpty else { return nil }
-        let sum = ratedExps.reduce(0.0, +)
-        return (sum / Double(ratedExps.count) * 10).rounded() / 10
-    }
-
-    private var userPostImages: [URL] {
-        matchingExperiences.flatMap { $0.imageURLs }
-    }
+    @State private var experienceID: UUID?
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: TravSpacing.md) {
-                        // Hero Media Carousel (User posts or centered Apple Maps satellite snapshot)
-                        heroMediaSection
-
-                        // Spot Title & Category Header (Handles long text)
-                        spotHeaderSection
-
-                        // Action Bar: Watchlist (if not own post), Save, Rate/Edit
-                        quickActionBar
-
-                        // Current User Status (if user already rated)
-                        if let userExp = userExperience {
-                            userAlreadyRatedBanner(userExp: userExp)
-                        }
-
-                        // Follower & Community Rating Summary
-                        communityRatingCard
-
-                        // Linked Follower Experience Posts
-                        linkedPostsSection
-
-                        Spacer(minLength: TravSpacing.lg)
-                    }
-                    .padding(.bottom, TravSpacing.xl)
-                }
-                .travScreenBackground()
-
-                if showEyesRain {
-                    EmojiParticleView()
-                        .ignoresSafeArea()
-                        .allowsHitTesting(false)
-                        .zIndex(100)
-                }
-            }
-            .navigationTitle(spot.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Close") { dismiss() }
-                        .foregroundStyle(TravColors.muted)
-                }
-            }
-            .task {
-                await loadMatchingExperiences()
-                await loadMapSnapshot()
-            }
-        }
-    }
-
-    private var heroMediaSection: some View {
         Group {
-            if !userPostImages.isEmpty {
-                TabView {
-                    ForEach(userPostImages, id: \.self) { url in
-                        RemoteImage(url: url, height: 200, cornerRadius: TravRadius.lg)
-                            .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
-                    }
-                }
-                .tabViewStyle(.page)
-            } else if let snapshot = mapSnapshotImage {
-                ZStack(alignment: .bottom) {
-                    Image(uiImage: snapshot)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 200)
-                        .clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
-
-                    // Centered Apple Maps Badge Overlay
-                    HStack(spacing: 4) {
-                        Image(systemName: "apple.logo")
-                            .font(.system(size: 11))
-                        Text("Apple Maps Satellite View")
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(.black.opacity(0.65))
-                    .clipShape(Capsule())
-                    .padding(.bottom, 10)
-                }
+            if let experienceID {
+                ExperienceDetailView(experienceID: experienceID)
             } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                        .fill(TravColors.surfaceElevated)
-
-                    VStack(spacing: 8) {
-                        Image(systemName: "map.fill")
-                            .font(.system(size: 32))
-                            .foregroundStyle(TravColors.accent)
-                        Text(spot.title)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                            .padding(.horizontal, TravSpacing.md)
-                    }
-                }
-            }
-        }
-        .frame(height: 200)
-        .padding(.horizontal, TravSpacing.screenHorizontal)
-        .padding(.top, TravSpacing.xs)
-    }
-
-    private var spotHeaderSection: some View {
-        VStack(alignment: .leading, spacing: TravSpacing.xs) {
-            HStack(spacing: TravSpacing.xs) {
-                Text(spot.category.emoji)
-                    .font(.system(size: 18))
-                Text(spot.category.rawValue.uppercased())
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(spot.category.badgeColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(spot.category.badgeColor.opacity(0.18))
-                    .clipShape(Capsule())
-            }
-
-            Text(spot.title)
-                .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .lineLimit(2)
-                .minimumScaleFactor(0.85)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(alignment: .top, spacing: 6) {
-                Image(systemName: "mappin.and.ellipse")
-                    .font(.system(size: 13))
-                    .foregroundStyle(TravColors.accent)
-                    .padding(.top, 2)
-
-                Text(spot.displayLocation)
-                    .font(TravTypography.bodyMedium())
-                    .foregroundStyle(TravColors.muted)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.horizontal, TravSpacing.screenHorizontal)
-    }
-
-    private var quickActionBar: some View {
-        HStack(spacing: TravSpacing.sm) {
-            // 1. Watchlist Button with Eyes Rain (Only available if NOT user's own post)
-            if userExperience == nil {
-                Button {
-                    isWatchlisted.toggle()
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    if isWatchlisted {
-                        withAnimation { showEyesRain = true }
-                        UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Text(isWatchlisted ? "👀 Listed" : "👀 Watchlist")
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                    }
-                    .foregroundStyle(isWatchlisted ? .black : .white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 42)
-                    .background(
-                        Capsule()
-                            .fill(isWatchlisted ? TravColors.accent : TravColors.surfaceElevated)
-                    )
-                    .overlay(
-                        Capsule()
-                            .stroke(isWatchlisted ? Color.clear : Color.white.opacity(0.15), lineWidth: 1)
-                    )
-                }
-                .buttonStyle(TravPressButtonStyle())
-            }
-
-            // 2. Save Button
-            Button {
-                isSaved.toggle()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 12, weight: .bold))
-                    Text(isSaved ? "Saved" : "Save")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                }
-                .foregroundStyle(isSaved ? .black : .white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 42)
-                .background(
-                    Capsule()
-                        .fill(isSaved ? Color.yellow : TravColors.surfaceElevated)
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(isSaved ? Color.clear : Color.white.opacity(0.15), lineWidth: 1)
-                )
-            }
-            .buttonStyle(TravPressButtonStyle())
-
-            // 3. Action Button: "Edit Post" if user already rated, otherwise "Rate Spot"
-            Button {
-                dismiss()
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                if let userExp = userExperience {
-                    router.openExperience(userExp.id)
-                } else {
-                    router.openCreateWithSpot(
-                        title: spot.title,
-                        subtitle: spot.displayLocation,
-                        emoji: spot.category.emoji,
-                        latitude: spot.latitude,
-                        longitude: spot.longitude,
-                        cityName: spot.cityName
-                    )
-                }
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: userExperience != nil ? "square.and.pencil" : "star.fill")
-                        .font(.system(size: 12, weight: .bold))
-                    Text(userExperience != nil ? "Edit Post" : "Rate Spot")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                }
-                .foregroundStyle(.black)
-                .frame(maxWidth: .infinity)
-                .frame(height: 42)
-                .background(TravColors.accent)
-                .clipShape(Capsule())
-                .shadow(color: TravColors.accent.opacity(0.35), radius: 8, y: 2)
-            }
-            .buttonStyle(TravPressButtonStyle())
-        }
-        .padding(.horizontal, TravSpacing.screenHorizontal)
-    }
-
-    private func userAlreadyRatedBanner(userExp: ExperienceSummary) -> some View {
-        Button {
-            dismiss()
-            router.openExperience(userExp.id)
-        } label: {
-            HStack(spacing: TravSpacing.sm) {
-                ZStack {
-                    Circle()
-                        .fill(TravColors.accent.opacity(0.2))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(TravColors.accent)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("YOU ALREADY RATED THIS SPOT")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .tracking(1.0)
-                        .foregroundStyle(TravColors.accent)
-
-                    Text(userExp.title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-
-                if let overall = userExp.rating?.overallScore {
-                    HStack(spacing: 3) {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(Color.yellow)
-                        Text(String(format: "%.1f", overall))
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(TravColors.surfaceElevated))
-                }
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(TravColors.muted)
-            }
-            .padding(TravSpacing.md)
-            .background(
-                RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                    .fill(TravColors.accent.opacity(0.12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                            .stroke(TravColors.accent.opacity(0.3), lineWidth: 1)
-                    )
-            )
-        }
-        .buttonStyle(TravPressButtonStyle())
-        .padding(.horizontal, TravSpacing.screenHorizontal)
-    }
-
-    private var communityRatingCard: some View {
-        VStack(alignment: .leading, spacing: TravSpacing.md) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("FOLLOWER & COMMUNITY RATING")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .tracking(1.2)
-                        .foregroundStyle(TravColors.muted)
-
-                    if let _ = averageRatingScore {
-                        Text("Based on \(followerExperiences.count) follower review\(followerExperiences.count == 1 ? "" : "s")")
-                            .font(TravTypography.caption())
-                            .foregroundStyle(Color.white.opacity(0.6))
-                    } else {
-                        Text("Be the first to rate this spot!")
-                            .font(TravTypography.bodyMedium())
-                            .foregroundStyle(Color.white.opacity(0.9))
-                    }
-                }
-
-                Spacer()
-
-                if let score = averageRatingScore {
-                    HStack(spacing: 6) {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(Color.yellow)
-                        Text(String(format: "%.1f", score))
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                        Text("/ 10")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(TravColors.muted)
-                    }
-                    .padding(.horizontal, TravSpacing.md)
-                    .padding(.vertical, 8)
-                    .background(Capsule().fill(TravColors.surfaceElevated))
-                }
-            }
-        }
-        .padding(TravSpacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                .fill(TravColors.surfaceElevated)
-        )
-        .padding(.horizontal, TravSpacing.screenHorizontal)
-    }
-
-    private var linkedPostsSection: some View {
-        VStack(alignment: .leading, spacing: TravSpacing.sm) {
-            Text("POSTS BY PEOPLE YOU FOLLOW")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .tracking(1.2)
-                .foregroundStyle(TravColors.muted)
-                .padding(.horizontal, TravSpacing.screenHorizontal)
-
-            if isLoading {
                 ProgressView()
-                    .tint(.white)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, TravSpacing.lg)
-            } else if followerExperiences.isEmpty {
-                VStack(spacing: TravSpacing.xs) {
-                    Image(systemName: "person.2.slash")
-                        .font(.system(size: 28))
-                        .foregroundStyle(TravColors.muted.opacity(0.5))
-                    Text("No follower posts for this spot yet")
-                        .font(TravTypography.bodyMedium())
-                        .foregroundStyle(TravColors.muted)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, TravSpacing.lg)
-                .background(
-                    RoundedRectangle(cornerRadius: TravRadius.lg)
-                        .fill(TravColors.surfaceElevated.opacity(0.5))
-                )
-                .padding(.horizontal, TravSpacing.screenHorizontal)
-            } else {
-                VStack(spacing: TravSpacing.sm) {
-                    ForEach(followerExperiences, id: \.id) { (experience: ExperienceSummary) in
-                        Button {
-                            dismiss()
-                            router.openExperience(experience.id)
-                        } label: {
-                            HStack(spacing: TravSpacing.md) {
-                                if let avatarURL = experience.creator.avatarURL {
-                                    RemoteImage(url: avatarURL, height: 40, cornerRadius: 20)
-                                        .frame(width: 40, height: 40)
-                                } else {
-                                    Image(systemName: "person.circle.fill")
-                                        .font(.system(size: 40))
-                                        .foregroundStyle(TravColors.accent)
-                                }
-
-                                VStack(alignment: .leading, spacing: 3) {
-                                    HStack {
-                                        Text(experience.creator.displayName)
-                                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                                            .foregroundStyle(.white)
-                                            .lineLimit(1)
-
-                                        Text("@\(experience.creator.username)")
-                                            .font(.system(size: 12, weight: .medium))
-                                            .foregroundStyle(TravColors.muted)
-                                            .lineLimit(1)
-
-                                        Spacer()
-
-                                        if let overall = experience.rating?.overallScore {
-                                            HStack(spacing: 3) {
-                                                Image(systemName: "star.fill")
-                                                    .font(.system(size: 10))
-                                                    .foregroundStyle(Color.yellow)
-                                                Text(String(format: "%.1f", overall))
-                                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                                                    .foregroundStyle(.white)
-                                            }
-                                            .padding(.horizontal, 7)
-                                            .padding(.vertical, 3)
-                                            .background(Capsule().fill(TravColors.accent.opacity(0.2)))
-                                        }
-                                    }
-
-                                    Text(experience.title)
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(TravColors.accent)
-                                        .lineLimit(1)
-
-                                    let stopNames = experience.stops.map(\.name).joined(separator: " • ")
-                                    if !stopNames.isEmpty {
-                                        Text(stopNames)
-                                            .font(.system(size: 12, weight: .regular))
-                                            .foregroundStyle(Color.white.opacity(0.7))
-                                            .lineLimit(2)
-                                    }
-                                }
-
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundStyle(TravColors.muted)
-                            }
-                            .padding(TravSpacing.md)
-                            .background(
-                                RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                                    .fill(TravColors.surfaceElevated)
-                            )
-                        }
-                        .buttonStyle(TravPressButtonStyle(scale: 0.98))
-                    }
-                }
-                .padding(.horizontal, TravSpacing.screenHorizontal)
+                    .tint(TravColors.accent)
             }
+        }
+        .task {
+            await setupExperience()
         }
     }
 
-    private func loadMatchingExperiences() async {
-        isLoading = true
-        defer { isLoading = false }
+    private func setupExperience() async {
+        if let existingUUID = UUID(uuidString: spot.id),
+           let cached = AppleMapsVibeService.shared.cachedExperience(for: existingUUID),
+           !cached.imageURLs.isEmpty {
+            self.experienceID = existingUUID
+            return
+        }
 
-        do {
-            let page = try await environment.experiences.fetchHomeFeed(page: 0)
-            let query = spot.title.lowercased()
-            matchingExperiences = page.items.filter { exp in
+        let id = UUID(uuidString: spot.id) ?? UUID()
+        let emoji = spot.category.emoji
+        var photoURLs: [URL] = []
+
+        // 1. Check for real user-uploaded photos from Supabase for this place
+        let query = spot.title.lowercased()
+        if let page = try? await environment.experiences.fetchHomeFeed(page: 0) {
+            let matches = page.items.filter { exp in
                 exp.title.lowercased().contains(query) ||
-                exp.stops.contains(where: { $0.name.lowercased().contains(query) }) ||
-                (exp.cityName?.lowercased().contains(query) ?? false)
+                exp.stops.contains(where: { $0.name.lowercased().contains(query) })
             }
-        } catch {
-            matchingExperiences = []
+            photoURLs = matches.flatMap(\.imageURLs)
         }
-    }
 
-    private func loadMapSnapshot() async {
-        guard let lat = spot.latitude, let lon = spot.longitude else { return }
-        let options = MKMapSnapshotter.Options()
-        options.region = MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-            latitudinalMeters: 600,
-            longitudinalMeters: 600
+        // 2. Capture actual Apple Maps 3D Street View / Building photo if no user photos exist
+        if photoURLs.isEmpty {
+            if let streetViewURL = await AppleMapsVibeService.shared.fetchStreetViewPhoto(
+                latitude: spot.latitude,
+                longitude: spot.longitude,
+                title: spot.title
+            ) {
+                photoURLs.append(streetViewURL)
+            }
+        }
+        
+        let stop = Stop(
+            id: UUID(),
+            orderIndex: 1,
+            name: spot.title,
+            description: spot.displayLocation,
+            creatorNotes: "Discovered spot in \(spot.displayLocation).",
+            latitude: spot.latitude ?? 0,
+            longitude: spot.longitude ?? 0,
+            placeID: nil,
+            recommendedTime: nil,
+            durationMinutes: 45,
+            emoji: emoji,
+            media: []
         )
-        options.mapType = .hybrid
-        options.size = CGSize(width: 600, height: 320)
-        let snapshotter = MKMapSnapshotter(options: options)
 
-        do {
-            let snapshot = try await snapshotter.start()
-            await MainActor.run {
-                self.mapSnapshotImage = snapshot.image
-            }
-        } catch {
-            // Snapshot fallback
-        }
+        let creator = ProfileSummary(
+            id: ExperienceInsert.travAdminID,
+            username: "trav",
+            displayName: "Rec by Trav",
+            avatarURL: nil,
+            isVerified: true
+        )
+
+        let exp = Experience(
+            id: id,
+            cityID: UUID(),
+            creator: creator,
+            title: spot.title,
+            description: "Featured \(spot.category.rawValue) recommendation in \(spot.displayLocation), sourced from Apple Maps.",
+            imageURLs: photoURLs,
+            durationMinutes: 45,
+            costLevel: .moderate,
+            estimatedCostUSD: nil,
+            transportMode: .walking,
+            totalDistanceMeters: 0,
+            saveCount: 0,
+            likeCount: 0,
+            completionCount: 0,
+            commentCount: 0,
+            isPublished: true,
+            publishedAt: Date(),
+            stops: [stop],
+            routeSegments: [],
+            rating: nil
+        )
+
+        AppleMapsVibeService.shared.cacheCustomExperience(exp)
+        self.experienceID = id
     }
 }

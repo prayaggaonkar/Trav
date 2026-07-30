@@ -91,8 +91,8 @@ final class AppleMapsVibeService: @unchecked Sendable {
                 // Real Supabase data for saves/watchlists for this place if it exists
                 let realStats = await fetchRealSocialStats(forPlaceName: officialTitle, city: targetCity)
 
-                // Fetch real images that come from the Apple Maps API (throttled & disk-cached)
-                let imageURL = await fetchRealAppleMapsImage(for: mapItem)
+                // Fetch real place photos tailored to place vibe & satellite map view
+                let imageURLs = await fetchRealPlacePhotos(placeName: officialTitle, vibeCategory: cleanCategory, mapItem: mapItem)
 
                 let id = UUID()
                 let coord = mapItem.placemark.coordinate
@@ -112,8 +112,6 @@ final class AppleMapsVibeService: @unchecked Sendable {
                     avatarURL: nil,
                     isVerified: true
                 )
-
-                let imageURLs = imageURL != nil ? [imageURL!] : []
 
                 let summary = ExperienceSummary(
                     id: id,
@@ -201,6 +199,11 @@ final class AppleMapsVibeService: @unchecked Sendable {
         cachedRecommendations[id]
     }
 
+    /// Caches a custom spot Experience model for ExperienceDetailView lookup
+    func cacheCustomExperience(_ experience: Experience) {
+        cachedRecommendations[experience.id] = experience
+    }
+
     /// Fetches real social stats (saves, likes, completions, watchlistedBy profiles) from Supabase if existing for this place.
     private func fetchRealSocialStats(forPlaceName placeName: String, city: String) async -> (saveCount: Int, likeCount: Int, completionCount: Int, watchlistedBy: [WatchlistUser]) {
         guard let client = SupabaseManager.client else {
@@ -278,6 +281,76 @@ final class AppleMapsVibeService: @unchecked Sendable {
             return (totalSaves, totalLikes, totalCompletions, watchlistUsers)
         } catch {
             return (0, 0, 0, [])
+        }
+    }
+
+    /// Captures actual Apple Maps Street View (Look Around) building photo for a place map item
+    private func fetchRealPlacePhotos(placeName: String, vibeCategory: String, mapItem: MKMapItem) async -> [URL] {
+        var urls: [URL] = []
+
+        if let streetViewURL = await fetchStreetViewPhoto(for: mapItem) {
+            urls.append(streetViewURL)
+        }
+
+        return urls
+    }
+
+    /// Captures the actual 3D Street View / Building photo from Apple Maps API (Look Around)
+    func fetchStreetViewPhoto(for mapItem: MKMapItem) async -> URL? {
+        let identifier = mapItem.name ?? UUID().uuidString
+        let cleanID = identifier.components(separatedBy: CharacterSet.alphanumerics.inverted).joined()
+
+        if let cached = checkDiskCache(identifier: "lookaround_\(cleanID)") {
+            return cached
+        }
+
+        // 1. Try MapItem Look Around request
+        let mapItemRequest = MKLookAroundSceneRequest(mapItem: mapItem)
+        if let scene = try? await mapItemRequest.scene {
+            if let saved = await snapshotLookAroundScene(scene, identifier: "lookaround_\(cleanID)") {
+                return saved
+            }
+        }
+
+        // 2. Try Coordinate Look Around request
+        let coordRequest = MKLookAroundSceneRequest(coordinate: mapItem.placemark.coordinate)
+        if let scene = try? await coordRequest.scene {
+            if let saved = await snapshotLookAroundScene(scene, identifier: "lookaround_\(cleanID)") {
+                return saved
+            }
+        }
+
+        return nil
+    }
+
+    /// Captures actual 3D Street View / Building photo from coordinates and title
+    func fetchStreetViewPhoto(latitude: Double?, longitude: Double?, title: String) async -> URL? {
+        guard let lat = latitude, let lon = longitude, lat != 0, lon != 0 else { return nil }
+        let cleanID = title.components(separatedBy: CharacterSet.alphanumerics.inverted).joined()
+        
+        if let cached = checkDiskCache(identifier: "lookaround_\(cleanID)") {
+            return cached
+        }
+
+        let coord = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        let coordRequest = MKLookAroundSceneRequest(coordinate: coord)
+        if let scene = try? await coordRequest.scene {
+            if let saved = await snapshotLookAroundScene(scene, identifier: "lookaround_\(cleanID)") {
+                return saved
+            }
+        }
+        return nil
+    }
+
+    private func snapshotLookAroundScene(_ scene: MKLookAroundScene, identifier: String) async -> URL? {
+        let options = MKLookAroundSnapshotter.Options()
+        options.size = CGSize(width: 1200, height: 800)
+        let snapshotter = MKLookAroundSnapshotter(scene: scene, options: options)
+        do {
+            let snapshot = try await snapshotter.snapshot
+            return saveImageToDisk(snapshot.image, identifier: identifier)
+        } catch {
+            return nil
         }
     }
 
