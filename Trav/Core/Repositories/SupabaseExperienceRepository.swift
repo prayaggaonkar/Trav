@@ -33,10 +33,29 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let created_at: Date?
         let creator: DBProfileSummary?
 
+        // Content-model columns. All optional: a database that has not run the
+        // content-model migrations still decodes cleanly and the kind is
+        // inferred from the stop count instead.
+        let kind: ExperienceKind?
+        let spot_key: String?
+        let category: String?
+        let latitude: Double?
+        let longitude: Double?
+        let is_featured: Bool?
+        let rating_count: Int?
+        let average_rating: Double?
+        let community_rating_count: Int?
+        let community_average_rating: Double?
+        let creator_rating: Double?
+        let community_rating: RadarRating?
+
         enum CodingKeys: String, CodingKey {
             case id, user_id, title, description, city, city_id, stops, image, rating
             case save_count, like_count, completion_count, comment_count
             case created_at, creator
+            case kind, spot_key, category, latitude, longitude, is_featured
+            case rating_count, average_rating, community_rating_count
+            case community_average_rating, creator_rating, community_rating
         }
 
         init(from decoder: Decoder) throws {
@@ -56,6 +75,18 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             created_at = try c.decodeIfPresent(Date.self, forKey: .created_at)
             creator = try c.decodeIfPresent(DBProfileSummary.self, forKey: .creator)
 
+            kind = try? c.decodeIfPresent(ExperienceKind.self, forKey: .kind)
+            spot_key = try? c.decodeIfPresent(String.self, forKey: .spot_key)
+            category = try? c.decodeIfPresent(String.self, forKey: .category)
+            latitude = try? c.decodeIfPresent(Double.self, forKey: .latitude)
+            longitude = try? c.decodeIfPresent(Double.self, forKey: .longitude)
+            is_featured = try? c.decodeIfPresent(Bool.self, forKey: .is_featured)
+            rating_count = try? c.decodeIfPresent(Int.self, forKey: .rating_count)
+            average_rating = try? c.decodeIfPresent(Double.self, forKey: .average_rating)
+            community_rating_count = try? c.decodeIfPresent(Int.self, forKey: .community_rating_count)
+            community_average_rating = try? c.decodeIfPresent(Double.self, forKey: .community_average_rating)
+            creator_rating = try? c.decodeIfPresent(Double.self, forKey: .creator_rating)
+
             // Rating is stored as a flat scores dict. Decode leniently so one
             // malformed row does not fail an entire feed fetch.
             if let scores = try? c.decode([String: Double].self, forKey: .rating), !scores.isEmpty {
@@ -66,6 +97,30 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             } else {
                 rating = nil
             }
+
+            if let scores = try? c.decode([String: Double].self, forKey: .community_rating), !scores.isEmpty {
+                community_rating = RadarRating(scores: scores)
+            } else if let decoded = try? c.decode(RadarRating.self, forKey: .community_rating),
+                      !decoded.scores.isEmpty {
+                community_rating = decoded
+            } else {
+                community_rating = nil
+            }
+        }
+
+        var resolvedKind: ExperienceKind {
+            kind ?? .inferred(stopCount: stops.count)
+        }
+
+        var ratingSummary: RatingSummary {
+            RatingSummary(
+                averageScore: average_rating,
+                ratingCount: rating_count ?? (rating == nil ? 0 : 1),
+                communityAverageScore: community_average_rating,
+                communityRatingCount: community_rating_count ?? 0,
+                creatorScore: creator_rating ?? rating?.overallScore,
+                communityRadar: community_rating
+            )
         }
     }
 
@@ -150,24 +205,200 @@ struct SupabaseExperienceRepository: ExperienceRepository {
     id, user_id, title, description, city, city_id, stops, image, rating, \
     save_count, like_count, completion_count, comment_count, created_at
     """
+
+    /// Adds the content-model columns (kind, spot identity, rating aggregates).
+    /// Used first, then dropped permanently for the session if the database has
+    /// not run the content-model migrations yet.
+    static let experienceSelectExtended = """
+    \(experienceSelect), kind, spot_key, category, latitude, longitude, is_featured, \
+    rating_count, average_rating, community_rating_count, community_average_rating, \
+    creator_rating, community_rating
+    """
+
+    /// Tracks, once per launch, whether this database understands the content
+    /// model. Avoids paying for a failed request on every single query.
+    private actor SchemaSupport {
+        static let shared = SchemaSupport()
+        private var extendedColumns = true
+        private var contentModelRPCs = true
+
+        var hasExtendedColumns: Bool { extendedColumns }
+        var hasContentModelRPCs: Bool { contentModelRPCs }
+
+        func disableExtendedColumns() { extendedColumns = false }
+        func disableContentModelRPCs() { contentModelRPCs = false }
+    }
+
+    /// Runs `operation` with the richest select the database supports.
+    private func withExperienceSelect<T: Sendable>(
+        _ operation: (String) async throws -> T
+    ) async throws -> T {
+        if await SchemaSupport.shared.hasExtendedColumns {
+            do {
+                return try await operation(Self.experienceSelectExtended)
+            } catch {
+                guard Self.isUnknownSchemaError(error) else { throw error }
+                await SchemaSupport.shared.disableExtendedColumns()
+                TravLog.network.notice("Content-model columns unavailable; falling back to the legacy experience select.")
+            }
+        }
+        return try await operation(Self.experienceSelect)
+    }
+
+    /// A missing column or a missing function — i.e. pending migrations, not a
+    /// transport or auth failure.
+    static func isUnknownSchemaError(_ error: Error) -> Bool {
+        let text = "\(error)".lowercased()
+        return text.contains("does not exist")
+            || text.contains("42703")
+            || text.contains("42883")
+            || text.contains("pgrst202")
+            || text.contains("pgrst204")
+            || text.contains("could not find")
+    }
+
+    /// Surfaces `TRAV_*` invariants raised by the database as typed errors.
+    static func contentModelError(from error: Error) -> Error {
+        if let mapped = ContentModelError.from(serverMessage: "\(error)") {
+            return mapped
+        }
+        return error
+    }
+
     // MARK: - Publish
 
-    func publishExperience(_ draft: ExperienceDraft) async throws {
+    @discardableResult
+    func publishExperience(_ draft: ExperienceDraft) async throws -> UUID {
+        // Users only author itineraries, and an itinerary is 2+ distinct spots.
+        try draft.validateForPublishing()
+
+        if await SchemaSupport.shared.hasContentModelRPCs {
+            do {
+                return try await publishItineraryViaRPC(draft)
+            } catch let error as ContentModelError {
+                throw error
+            } catch {
+                guard Self.isUnknownSchemaError(error) else {
+                    throw Self.contentModelError(from: error)
+                }
+                await SchemaSupport.shared.disableContentModelRPCs()
+                TravLog.network.notice("publish_itinerary RPC unavailable; publishing with the legacy insert path.")
+            }
+        }
+        return try await publishItineraryLegacy(draft)
+    }
+
+    /// Single atomic call: the database validates stop count, rejects duplicate
+    /// stops and duplicate itineraries, and links every stop to its spot.
+    private func publishItineraryViaRPC(_ draft: ExperienceDraft) async throws -> UUID {
         let client = try client
-        let experienceID = UUID()
-
         let cityID = try await ensureCityExists(draft.city, client: client)
+        let imageURLStrings = try await uploadExperiencePhotos(
+            draft.imagesData,
+            creatorID: draft.creatorID,
+            experienceID: UUID(),
+            client: client
+        )
 
+        struct StopPayload: Encodable {
+            let name: String
+            let description: String
+            let creator_notes: String
+            let latitude: Double
+            let longitude: Double
+            let place_id: String?
+            let recommended_time: String?
+            let duration_minutes: Int
+            let emoji: String?
+        }
+
+        struct Payload: Encodable {
+            let title: String
+            let description: String
+            let city: String
+            let city_id: String
+            let image_urls: [String]
+            let stops: [StopPayload]
+        }
+
+        let payload = Payload(
+            title: draft.title,
+            description: draft.description,
+            city: draft.city.name,
+            city_id: cityID.uuidString.lowercased(),
+            image_urls: imageURLStrings,
+            stops: draft.stops.sorted { $0.orderIndex < $1.orderIndex }.map { stop in
+                StopPayload(
+                    name: stop.name,
+                    description: stop.description,
+                    creator_notes: stop.creatorNotes ?? "",
+                    latitude: stop.latitude,
+                    longitude: stop.longitude,
+                    place_id: stop.placeID,
+                    recommended_time: stop.recommendedTime,
+                    duration_minutes: stop.durationMinutes,
+                    emoji: stop.emoji
+                )
+            }
+        )
+
+        do {
+            let id: UUID = try await client
+                .rpc("publish_itinerary", params: ["p_payload": payload])
+                .execute()
+                .value
+
+            if let rating = draft.rating, !rating.scores.isEmpty {
+                // The creator's own rating is just a rating like any other.
+                try? await SupabaseRatingRepository().submitRating(
+                    RatingDraft(experienceID: id, radar: rating),
+                    userID: draft.creatorID
+                )
+            }
+
+            NotificationCenter.default.post(name: Notification.Name("ExperiencePublishedNotification"), object: nil)
+            return id
+        } catch {
+            throw Self.contentModelError(from: error)
+        }
+    }
+
+    private func uploadExperiencePhotos(
+        _ imagesData: [Data],
+        creatorID: UUID,
+        experienceID: UUID,
+        client: SupabaseClient
+    ) async throws -> [String] {
         var imageURLStrings: [String] = []
-        for (index, data) in draft.imagesData.enumerated() {
+        for (index, data) in imagesData.enumerated() {
             // User-scoped path so storage RLS can authorize the write.
-            let path = "\(draft.creatorID.uuidString.lowercased())/\(experienceID.uuidString.lowercased())/photo_\(index).jpg"
+            let path = "\(creatorID.uuidString.lowercased())/\(experienceID.uuidString.lowercased())/photo_\(index).jpg"
             _ = try await client.storage
                 .from("experiences")
                 .upload(path, data: data, options: FileOptions(contentType: "image/jpeg"))
             let publicURL = try client.storage.from("experiences").getPublicURL(path: path)
             imageURLStrings.append(publicURL.absoluteString)
         }
+        return imageURLStrings
+    }
+
+    private func publishItineraryLegacy(_ draft: ExperienceDraft) async throws -> UUID {
+        let client = try client
+        let experienceID = UUID()
+
+        // Without the RPC the uniqueness check has to happen client-side.
+        if try await legacyDuplicateItineraryExists(draft, client: client) {
+            throw ContentModelError.duplicateItinerary
+        }
+
+        let cityID = try await ensureCityExists(draft.city, client: client)
+
+        let imageURLStrings = try await uploadExperiencePhotos(
+            draft.imagesData,
+            creatorID: draft.creatorID,
+            experienceID: experienceID,
+            client: client
+        )
 
         let encoder = JSONEncoder()
         let stopPayloads: [String] = try draft.stops
@@ -245,6 +476,139 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         }
 
         NotificationCenter.default.post(name: Notification.Name("ExperiencePublishedNotification"), object: nil)
+        return experienceID
+    }
+
+    /// Client-side duplicate detection for databases without `publish_itinerary`.
+    /// Compares the ordered stop identities against every published itinerary in
+    /// the same city.
+    private func legacyDuplicateItineraryExists(
+        _ draft: ExperienceDraft,
+        client: SupabaseClient
+    ) async throws -> Bool {
+        let signature = draft.stopIdentityKeys
+        guard signature.count >= 2 else { return false }
+
+        struct Row: Decodable {
+            let id: UUID
+            let stops: [String]?
+        }
+
+        let rows: [Row] = (try? await client
+            .from("experiences")
+            .select("id, stops")
+            .eq("city", value: draft.city.name)
+            .eq("is_published", value: true)
+            .limit(400)
+            .execute()
+            .value) ?? []
+
+        for row in rows {
+            let existing = Self.parseStops(row.stops ?? [])
+                .sorted { $0.orderIndex < $1.orderIndex }
+                .map {
+                    SpotIdentity.key(
+                        placeID: $0.placeID,
+                        name: $0.name,
+                        latitude: $0.latitude,
+                        longitude: $0.longitude
+                    )
+                }
+            guard existing.count == signature.count else { continue }
+            if existing == signature { return true }
+            // Same spots in a different order is the same journey.
+            let overlap = Set(existing).intersection(signature).count
+            if overlap >= max(2, Int((Double(signature.count) * 0.8).rounded(.up))) {
+                return true
+            }
+        }
+        return false
+    }
+
+    // MARK: - Spots
+
+    @discardableResult
+    func syncSpot(_ request: SpotSyncRequest) async throws -> UUID {
+        let client = try client
+
+        if await SchemaSupport.shared.hasContentModelRPCs {
+            struct Params: Encodable {
+                let p_place_id: String?
+                let p_name: String
+                let p_description: String
+                let p_city: String
+                let p_city_id: String?
+                let p_latitude: Double?
+                let p_longitude: Double?
+                let p_image_urls: [String]
+                let p_category: String?
+                let p_emoji: String?
+            }
+
+            do {
+                let id: UUID = try await client
+                    .rpc("sync_spot", params: Params(
+                        p_place_id: request.placeID,
+                        p_name: request.name,
+                        p_description: request.description,
+                        p_city: request.cityName,
+                        p_city_id: request.cityID?.uuidString.lowercased(),
+                        p_latitude: request.latitude,
+                        p_longitude: request.longitude,
+                        p_image_urls: request.imageURLs.map(\.absoluteString),
+                        p_category: request.category,
+                        p_emoji: request.emoji
+                    ))
+                    .execute()
+                    .value
+                return id
+            } catch {
+                guard Self.isUnknownSchemaError(error) else {
+                    throw Self.contentModelError(from: error)
+                }
+                await SchemaSupport.shared.disableContentModelRPCs()
+                TravLog.network.notice("sync_spot RPC unavailable; using the legacy spot upsert.")
+            }
+        }
+
+        // Legacy path: deterministic id derived the same way the RPC derives it,
+        // so a spot still resolves to one row once migrations land.
+        let id = StableUUID.from(request.placeID ?? request.identityKey)
+        struct Upsert: Encodable {
+            let id: UUID
+            let user_id: UUID
+            let title: String
+            let description: String
+            let city: String
+            let city_id: UUID?
+            let stops: [String]
+            let image: [String]?
+            let is_published: Bool
+        }
+
+        let owner = try await currentUserID(client: client)
+        try await client
+            .from("experiences")
+            .upsert(Upsert(
+                id: id,
+                user_id: owner,
+                title: request.name,
+                description: request.description,
+                city: request.cityName,
+                city_id: request.cityID,
+                stops: [request.name],
+                image: request.imageURLs.isEmpty ? nil : request.imageURLs.map(\.absoluteString),
+                is_published: true
+            ), onConflict: "id")
+            .execute()
+        return id
+    }
+
+    private func currentUserID(client: SupabaseClient) async throws -> UUID {
+        guard let id = client.auth.currentSession?.user.id else {
+            throw RepositoryError.unauthorized
+        }
+        return id
     }
 
     // MARK: - City FK Helper
@@ -345,13 +709,15 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let idStr = id.uuidString.lowercased()
 
         // 1. User-published experience.
-        let expRows: [DBExperienceRow] = try await client
-            .from("experiences")
-            .select(Self.experienceSelect)
-            .eq("id", value: idStr)
-            .limit(1)
-            .execute()
-            .value
+        let expRows: [DBExperienceRow] = try await withExperienceSelect { select in
+            try await client
+                .from("experiences")
+                .select(select)
+                .eq("id", value: idStr)
+                .limit(1)
+                .execute()
+                .value
+        }
 
         if let row = expRows.first {
             let creators = await fetchCreators(for: [row])
@@ -383,15 +749,17 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let client = try client
         let range = Self.pageRange(page)
 
-        let rows: [DBExperienceRow] = try await client
-            .from("experiences")
-            .select(Self.experienceSelect)
-            .eq("city_id", value: cityID.uuidString.lowercased())
-            .eq("is_published", value: true)
-            .order("created_at", ascending: false)
-            .range(from: range.lowerBound, to: range.upperBound)
-            .execute()
-            .value
+        let rows: [DBExperienceRow] = try await withExperienceSelect { select in
+            try await client
+                .from("experiences")
+                .select(select)
+                .eq("city_id", value: cityID.uuidString.lowercased())
+                .eq("is_published", value: true)
+                .order("created_at", ascending: false)
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let creators = await fetchCreators(for: rows)
         return Paginated(
@@ -405,14 +773,16 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let client = try client
         let range = Self.pageRange(page)
 
-        let rows: [DBExperienceRow] = try await client
-            .from("experiences")
-            .select(Self.experienceSelect)
-            .eq("is_published", value: true)
-            .order("created_at", ascending: false)
-            .range(from: range.lowerBound, to: range.upperBound)
-            .execute()
-            .value
+        let rows: [DBExperienceRow] = try await withExperienceSelect { select in
+            try await client
+                .from("experiences")
+                .select(select)
+                .eq("is_published", value: true)
+                .order("created_at", ascending: false)
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
 
         let creators = await fetchCreators(for: rows)
         return Paginated(
@@ -420,6 +790,139 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             page: page,
             hasMore: rows.count == Self.pageSize
         )
+    }
+
+    // MARK: - Recommendations
+
+    /// Weighted ranking computed in the database from location, saves,
+    /// completions, friends, ratings, popularity, recency, distance, trending
+    /// growth, inferred taste, similar users, diversity and editorial picks.
+    func fetchPersonalizedFeed(_ request: FeedRequest) async throws -> Paginated<ExperienceSummary> {
+        let client = try client
+
+        if await SchemaSupport.shared.hasContentModelRPCs {
+            do {
+                let ranked = try await fetchRankedIDs(request, client: client)
+                if !ranked.isEmpty {
+                    let items = try await hydrate(rankedIDs: ranked, client: client)
+                    return Paginated(
+                        items: items,
+                        page: request.page,
+                        hasMore: ranked.count == request.pageSize
+                    )
+                }
+                // An empty first page means the catalog is empty, not that the
+                // engine is unavailable — fall through to the chronological feed
+                // only when there is nothing at all.
+                if request.page > 0 {
+                    return Paginated(items: [], page: request.page, hasMore: false)
+                }
+            } catch {
+                guard Self.isUnknownSchemaError(error) else { throw error }
+                await SchemaSupport.shared.disableContentModelRPCs()
+                TravLog.network.notice("get_personalized_feed unavailable; falling back to the chronological feed.")
+            }
+        }
+
+        // Fallback keeps the feed useful on a database without the engine.
+        if let cityID = request.cityID {
+            return try await fetchCityFeed(cityID: cityID, page: request.page)
+        }
+        return try await fetchHomeFeed(page: request.page)
+    }
+
+    private struct RankedExperience: Decodable {
+        let experience_id: UUID
+        let score: Double
+        let reason: String?
+    }
+
+    private func fetchRankedIDs(
+        _ request: FeedRequest,
+        client: SupabaseClient
+    ) async throws -> [RankedExperience] {
+        struct Params: Encodable {
+            let p_user_id: String?
+            let p_latitude: Double?
+            let p_longitude: Double?
+            let p_city_id: String?
+            let p_kind: String?
+            let p_limit: Int
+            let p_offset: Int
+        }
+
+        return try await client
+            .rpc("get_personalized_feed", params: Params(
+                p_user_id: request.userID?.uuidString.lowercased(),
+                p_latitude: request.latitude,
+                p_longitude: request.longitude,
+                p_city_id: request.cityID?.uuidString.lowercased(),
+                p_kind: request.kind?.rawValue,
+                p_limit: request.pageSize,
+                p_offset: request.page * request.pageSize
+            ))
+            .execute()
+            .value
+    }
+
+    /// Loads the ranked rows and restores the engine's ordering, which a plain
+    /// `in` filter would otherwise discard.
+    private func hydrate(
+        rankedIDs ranked: [RankedExperience],
+        client: SupabaseClient
+    ) async throws -> [ExperienceSummary] {
+        let ids = ranked.map { $0.experience_id.uuidString.lowercased() }
+        let rows: [DBExperienceRow] = try await withExperienceSelect { select in
+            try await client
+                .from("experiences")
+                .select(select)
+                .in("id", values: ids)
+                .execute()
+                .value
+        }
+
+        let creators = await fetchCreators(for: rows)
+        let byID = Dictionary(
+            rows.map { ($0.id, summary(from: $0, creators: creators)) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return ranked.compactMap { byID[$0.experience_id] }
+    }
+
+    func searchExperiences(
+        query: String,
+        kind: ExperienceKind?,
+        limit: Int
+    ) async throws -> [ExperienceSummary] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else { return [] }
+        let client = try client
+        let pattern = "%\(trimmed)%"
+
+        let rows: [DBExperienceRow] = try await withExperienceSelect { select in
+            var builder = client
+                .from("experiences")
+                .select(select)
+                .eq("is_published", value: true)
+                .ilike("title", pattern: pattern)
+            if let kind {
+                builder = builder.eq("kind", value: kind.rawValue)
+            }
+            return try await builder
+                .order("completion_count", ascending: false)
+                .limit(limit)
+                .execute()
+                .value
+        }
+
+        let creators = await fetchCreators(for: rows)
+        var items = rows.map { summary(from: $0, creators: creators) }
+
+        // A database without `kind` still needs the filter honored.
+        if let kind, !(await SchemaSupport.shared.hasExtendedColumns) {
+            items = items.filter { $0.kind == kind }
+        }
+        return items
     }
 
     func fetchPlacesFeed(page: Int) async throws -> Paginated<ExperienceSummary> {
@@ -468,6 +971,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
             return ExperienceSummary(
                 id: place.client_uuid ?? StableUUID.from(place.id),
+                kind: .inferred(stopCount: stopPreviews.count),
                 cityID: city?.id ?? StableUUID.from("city:\(cityName.lowercased())"),
                 title: place.name,
                 imageURLs: imageURLs,
@@ -477,7 +981,16 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 costLevel: stopPreviews.count > 1 ? .moderate : .budget,
                 estimatedCostUSD: nil,
                 stops: stopPreviews,
-                cityName: cityName
+                cityName: cityName,
+                spotKey: SpotIdentity.key(
+                    placeID: place.id,
+                    name: place.name,
+                    latitude: place.latitude,
+                    longitude: place.longitude
+                ),
+                category: place.basic_category,
+                latitude: place.latitude,
+                longitude: place.longitude
             )
         }
 
@@ -1442,6 +1955,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let imageURLs = (row.image?.values ?? []).compactMap { URL(string: $0) }
         return ExperienceSummary(
             id: row.id,
+            kind: row.resolvedKind,
             cityID: row.city_id ?? StableUUID.from("city:\(row.city.lowercased())"),
             title: row.title,
             imageURLs: imageURLs,
@@ -1454,7 +1968,12 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             completionCount: row.completion_count,
             stops: stops.map { StopPreview(id: $0.id, name: $0.name, emoji: $0.emoji, latitude: $0.latitude, longitude: $0.longitude) },
             rating: row.rating,
-            cityName: row.city
+            ratingSummary: row.ratingSummary,
+            cityName: row.city,
+            spotKey: row.spot_key,
+            category: row.category,
+            latitude: row.latitude,
+            longitude: row.longitude
         )
     }
 
@@ -1466,6 +1985,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let imageURLs = (row.image?.values ?? []).compactMap { URL(string: $0) }
         return Experience(
             id: row.id,
+            kind: row.resolvedKind,
             cityID: row.city_id ?? StableUUID.from("city:\(row.city.lowercased())"),
             creator: resolvedCreator(for: row, creators: creators),
             title: row.title,
@@ -1484,7 +2004,11 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             publishedAt: row.created_at,
             stops: stops,
             routeSegments: [],
-            rating: row.rating
+            rating: row.rating,
+            ratingSummary: row.ratingSummary,
+            spotKey: row.spot_key,
+            category: row.category,
+            cityName: row.city
         )
     }
 
@@ -1521,6 +2045,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
         return Experience(
             id: id,
+            kind: .inferred(stopCount: stops.count),
             cityID: city?.id ?? StableUUID.from("city:\(cityName.lowercased())"),
             creator: recCreator,
             title: place.name,
@@ -1539,7 +2064,15 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             isPublished: true,
             publishedAt: nil,
             stops: stops,
-            routeSegments: []
+            routeSegments: [],
+            spotKey: SpotIdentity.key(
+                placeID: place.id,
+                name: place.name,
+                latitude: place.latitude,
+                longitude: place.longitude
+            ),
+            category: place.basic_category,
+            cityName: cityName
         )
     }
 

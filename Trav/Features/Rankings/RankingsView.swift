@@ -136,7 +136,7 @@ struct RankingsView: View {
             case .streaks:
                 return "Active consecutive daily posting streaks"
             case .impact:
-                return "Ranked by total watchlists and saves across all published experiences"
+                return "Ranked by total completions and saves across all published experiences"
             }
         }()
 

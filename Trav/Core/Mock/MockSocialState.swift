@@ -13,6 +13,9 @@ actor MockSocialState {
     private var blocks: Set<FollowEdge> = []
     private var notifications: [AppNotification] = []
     /// Extra summaries (e.g. bookmarked feed places) not present in MockData.experiences.
+    private var ratingsStore: [Rating] = []
+    /// Ordered stop identities per published itinerary, for duplicate detection.
+    private var publishedItineraryRoutes: [UUID: [String]] = [:]
     private var bookmarkedSummaries: [UUID: ExperienceSummary] = [:]
     private var contactHashes: [UUID: Set<ContactHash>] = [:]
     private var didSeed = false
@@ -349,23 +352,133 @@ actor MockSocialState {
         return true
     }
 
-    func toggleComplete(userID: UUID, experienceID: UUID) -> Bool {
+    // MARK: - Ratings
+    //
+    // A rating is what completes an experience, so the completion edge is
+    // written here rather than by a separate toggle.
+
+    func submitRating(_ draft: RatingDraft, userID: UUID) -> Rating {
         seedIfNeeded()
-        if let index = completions.firstIndex(where: { $0.userID == userID && $0.experienceID == experienceID }) {
-            completions.remove(at: index)
-            recalculateCounts()
-            return false
+
+        let author = profiles[userID]?.summary ?? ProfileSummary(
+            id: userID,
+            username: "you",
+            displayName: "You",
+            avatarURL: nil,
+            isVerified: false
+        )
+
+        let existing = ratingsStore.first { $0.author.id == userID && $0.experienceID == draft.experienceID }
+        let review = draft.review?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rating = Rating(
+            id: existing?.id ?? UUID(),
+            experienceID: draft.experienceID,
+            author: author,
+            radar: draft.radar,
+            overallScore: draft.radar.overallScore,
+            review: (review?.isEmpty ?? true) ? nil : review,
+            photoURLs: existing?.photoURLs ?? [],
+            createdAt: existing?.createdAt ?? Date(),
+            updatedAt: Date()
+        )
+
+        ratingsStore.removeAll { $0.author.id == userID && $0.experienceID == draft.experienceID }
+        ratingsStore.append(rating)
+
+        if !completions.contains(where: { $0.userID == userID && $0.experienceID == draft.experienceID }) {
+            completions.append(CompletionEdge(
+                id: UUID(),
+                userID: userID,
+                experienceID: draft.experienceID,
+                completedAt: Date(),
+                note: rating.review
+            ))
+            notifyCompletedExperience(actorID: userID, experienceID: draft.experienceID)
         }
-        completions.append(CompletionEdge(
-            id: UUID(),
-            userID: userID,
-            experienceID: experienceID,
-            completedAt: Date(),
-            note: nil
-        ))
+
         recalculateCounts()
-        notifyWatchlistExperience(actorID: userID, experienceID: experienceID)
-        return true
+        return rating
+    }
+
+    func removeRating(userID: UUID, experienceID: UUID) {
+        seedIfNeeded()
+        ratingsStore.removeAll { $0.author.id == userID && $0.experienceID == experienceID }
+        completions.removeAll { $0.userID == userID && $0.experienceID == experienceID }
+        recalculateCounts()
+    }
+
+    func rating(userID: UUID, experienceID: UUID) -> Rating? {
+        seedIfNeeded()
+        return ratingsStore.first { $0.author.id == userID && $0.experienceID == experienceID }
+    }
+
+    func ratings(experienceID: UUID, page: Int) -> Paginated<Rating> {
+        seedIfNeeded()
+        let all = ratingsStore
+            .filter { $0.experienceID == experienceID }
+            .sorted { $0.createdAt > $1.createdAt }
+        let size = ProfileLimits.pageSize
+        let start = page * size
+        guard start < all.count else { return Paginated(items: [], page: page, hasMore: false) }
+        let end = min(start + size, all.count)
+        return Paginated(items: Array(all[start..<end]), page: page, hasMore: end < all.count)
+    }
+
+    func ratingSummary(experienceID: UUID) -> RatingSummary {
+        seedIfNeeded()
+        let all = ratingsStore.filter { $0.experienceID == experienceID }
+        let creatorID = MockData.experiences.first { $0.id == experienceID }?.creator.id
+        guard !all.isEmpty else {
+            // Fall back to the creator radar baked into the mock data.
+            guard let radar = MockData.experiences.first(where: { $0.id == experienceID })?.rating else {
+                return .empty
+            }
+            return RatingSummary(
+                averageScore: radar.overallScore,
+                ratingCount: 1,
+                creatorScore: radar.overallScore,
+                communityRadar: nil
+            )
+        }
+
+        let community = all.filter { $0.author.id != creatorID }
+        let mean: ([Rating]) -> Double? = { items in
+            guard !items.isEmpty else { return nil }
+            return items.reduce(0.0) { $0 + $1.overallScore } / Double(items.count)
+        }
+
+        return RatingSummary(
+            averageScore: mean(all),
+            ratingCount: all.count,
+            communityAverageScore: mean(community),
+            communityRatingCount: community.count,
+            creatorScore: all.first { $0.author.id == creatorID }?.overallScore,
+            communityRadar: Self.averagedRadar(community)
+        )
+    }
+
+    private static func averagedRadar(_ ratings: [Rating]) -> RadarRating? {
+        guard !ratings.isEmpty else { return nil }
+        var totals: [String: (sum: Double, count: Int)] = [:]
+        for rating in ratings {
+            for (axis, score) in rating.radar.scores where rating.radar.isEnabled(axis) {
+                let current = totals[axis] ?? (0, 0)
+                totals[axis] = (current.sum + score, current.count + 1)
+            }
+        }
+        guard !totals.isEmpty else { return nil }
+        return RadarRating(scores: totals.mapValues { $0.sum / Double($0.count) })
+    }
+
+    // MARK: - Itinerary uniqueness
+
+    func itineraryExists(stopKeys: [String]) -> Bool {
+        guard stopKeys.count >= 2 else { return false }
+        return publishedItineraryRoutes.values.contains(stopKeys)
+    }
+
+    func registerItinerary(id: UUID, stopKeys: [String]) {
+        publishedItineraryRoutes[id] = stopKeys
     }
 
     func isSaved(userID: UUID, experienceID: UUID) -> Bool {
@@ -535,8 +648,8 @@ actor MockSocialState {
         }
     }
 
-    /// Fan-out: notify everyone who follows `actorID` about a watchlisted experience.
-    func notifyWatchlistExperience(actorID: UUID, experienceID: UUID) {
+    /// Fan-out: notify everyone who follows `actorID` about a completed experience.
+    func notifyCompletedExperience(actorID: UUID, experienceID: UUID) {
         seedIfNeeded()
         guard let actor = profiles[actorID]?.summary else { return }
         let recipients = follows
@@ -546,7 +659,7 @@ actor MockSocialState {
             appendNotification(
                 recipientID: recipientID,
                 actor: actor,
-                type: .watchlist,
+                type: .completion,
                 referenceID: experienceID,
                 createdAt: Date(),
                 isRead: false
@@ -562,7 +675,7 @@ actor MockSocialState {
         
         let items = sorted.map { item -> AppNotification in
             var copy = item
-            if let refID = item.referenceID, item.type == .watchlist || item.type == .newExperience {
+            if let refID = item.referenceID, item.type == .completion || item.type == .newExperience {
                 copy.experienceTitle = MockData.experiences.first { $0.id == refID }?.title
             }
             return copy

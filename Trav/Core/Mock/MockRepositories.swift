@@ -139,9 +139,57 @@ struct MockExperienceRepository: ExperienceRepository {
         ]
     }
 
-    func publishExperience(_ draft: ExperienceDraft) async throws {
+    @discardableResult
+    func publishExperience(_ draft: ExperienceDraft) async throws -> UUID {
+        try draft.validateForPublishing()
+        if await MockSocialState.shared.itineraryExists(stopKeys: draft.stopIdentityKeys) {
+            throw ContentModelError.duplicateItinerary
+        }
         try await Task.sleep(for: .milliseconds(500))
-        await MockSocialState.shared.notifyNewExperience(creatorID: draft.creatorID, experienceID: UUID())
+        let id = UUID()
+        await MockSocialState.shared.registerItinerary(id: id, stopKeys: draft.stopIdentityKeys)
+        await MockSocialState.shared.notifyNewExperience(creatorID: draft.creatorID, experienceID: id)
+        return id
+    }
+
+    @discardableResult
+    func syncSpot(_ request: SpotSyncRequest) async throws -> UUID {
+        StableUUID.from(request.placeID ?? request.identityKey)
+    }
+
+    func fetchPersonalizedFeed(_ request: FeedRequest) async throws -> Paginated<ExperienceSummary> {
+        try await Task.sleep(for: .milliseconds(180))
+        guard request.page == 0 else {
+            return Paginated(items: [], page: request.page, hasMore: false)
+        }
+
+        var items = MockData.experiences
+        if let cityID = request.cityID {
+            items = items.filter { $0.cityID == cityID }
+        }
+        if let kind = request.kind {
+            items = items.filter { $0.kind == kind }
+        }
+
+        // A rough stand-in for the database engine: quality, then social proof.
+        let ranked = items.sorted { lhs, rhs in
+            let lScore = (lhs.ratingSummary.displayScore ?? 0) * 2
+                + Double(lhs.completionCount) * 0.5 + Double(lhs.saveCount) * 0.2
+            let rScore = (rhs.ratingSummary.displayScore ?? 0) * 2
+                + Double(rhs.completionCount) * 0.5 + Double(rhs.saveCount) * 0.2
+            return lScore > rScore
+        }
+        return Paginated(items: ranked, page: request.page, hasMore: false)
+    }
+
+    func searchExperiences(query: String, kind: ExperienceKind?, limit: Int) async throws -> [ExperienceSummary] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard trimmed.count >= 2 else { return [] }
+        var items = MockData.experiences.filter { $0.title.lowercased().contains(trimmed) }
+        if let kind {
+            items = items.filter { $0.kind == kind }
+        }
+        return Array(items.prefix(limit))
     }
 
     func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary] {
@@ -414,8 +462,8 @@ struct MockEngagementRepository: EngagementRepository {
         }
     }
 
-    func toggleComplete(userID: UUID, experienceID: UUID, note: String?, photosData: [Data]) async throws -> Bool {
-        await MockSocialState.shared.toggleComplete(userID: userID, experienceID: experienceID)
+    func removeCompletion(userID: UUID, experienceID: UUID) async throws {
+        await MockSocialState.shared.removeRating(userID: userID, experienceID: experienceID)
     }
 
     func fetchLikedIDs(userID: UUID) async throws -> Set<UUID> {
@@ -462,6 +510,35 @@ struct MockEngagementRepository: EngagementRepository {
 
     func fetchBlockedIDs(userID: UUID) async throws -> Set<UUID> {
         await MockSocialState.shared.blockedIDs(of: userID)
+    }
+}
+
+struct MockRatingRepository: RatingRepository {
+    @discardableResult
+    func submitRating(_ draft: RatingDraft, userID: UUID) async throws -> Rating {
+        guard !draft.radar.scores.isEmpty else { throw ContentModelError.ratingRequired }
+        guard draft.photosData.count <= RatingDraft.maxPhotos else {
+            throw ContentModelError.tooManyPhotos(limit: RatingDraft.maxPhotos)
+        }
+        try await Task.sleep(for: .milliseconds(320))
+        return await MockSocialState.shared.submitRating(draft, userID: userID)
+    }
+
+    func fetchMyRating(userID: UUID, experienceID: UUID) async throws -> Rating? {
+        await MockSocialState.shared.rating(userID: userID, experienceID: experienceID)
+    }
+
+    func fetchRatings(experienceID: UUID, page: Int) async throws -> Paginated<Rating> {
+        try await Task.sleep(for: .milliseconds(140))
+        return await MockSocialState.shared.ratings(experienceID: experienceID, page: page)
+    }
+
+    func fetchRatingSummary(experienceID: UUID) async throws -> RatingSummary {
+        await MockSocialState.shared.ratingSummary(experienceID: experienceID)
+    }
+
+    func deleteRating(userID: UUID, experienceID: UUID) async throws {
+        await MockSocialState.shared.removeRating(userID: userID, experienceID: experienceID)
     }
 }
 

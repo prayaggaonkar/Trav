@@ -458,8 +458,8 @@ struct ProfileView: View {
                 let completed = viewModel.completed.filter { !engagement.isBlocked($0.experience.creator.id) }
                 if completed.isEmpty {
                     ProfileEmptyState(
-                        title: "Your watchlist is empty",
-                        description: "Add experiences to your watchlist to start planning your journey."
+                        title: "Nothing completed yet",
+                        description: "Rate a spot or itinerary you've been to and it shows up here."
                     )
                 } else {
                     ForEach(Array(completed.enumerated()), id: \.element.id) { index, item in

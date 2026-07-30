@@ -78,6 +78,7 @@ final class AppEnvironment {
     let auth: any AuthRepository
     let profiles: any ProfileRepository
     let engagementRepo: any EngagementRepository
+    let ratings: any RatingRepository
     let notifications: any NotificationRepository
 
     init(
@@ -92,6 +93,7 @@ final class AppEnvironment {
         auth: any AuthRepository,
         profiles: any ProfileRepository,
         engagementRepo: any EngagementRepository,
+        ratings: any RatingRepository,
         notifications: any NotificationRepository
     ) {
         self.configuration = configuration
@@ -105,6 +107,7 @@ final class AppEnvironment {
         self.auth = auth
         self.profiles = profiles
         self.engagementRepo = engagementRepo
+        self.ratings = ratings
         self.notifications = notifications
     }
 
@@ -121,6 +124,9 @@ final class AppEnvironment {
         let engagementRepo: any EngagementRepository = config.useMockBackend
             ? MockEngagementRepository()
             : SupabaseEngagementRepository()
+        let ratings: any RatingRepository = config.useMockBackend
+            ? MockRatingRepository()
+            : SupabaseRatingRepository()
         let notifications: any NotificationRepository = config.useMockBackend
             ? MockNotificationRepository()
             : SupabaseNotificationRepository()
@@ -137,6 +143,7 @@ final class AppEnvironment {
             auth: config.useMockBackend ? MockAuthRepository() : SupabaseAuthRepository(),
             profiles: profiles,
             engagementRepo: engagementRepo,
+            ratings: ratings,
             notifications: notifications
         )
     }()

@@ -362,74 +362,99 @@ final class EngagementStore {
         }
     }
 
-    @discardableResult
-    func toggleComplete(
-        experienceID: UUID,
-        summary: ExperienceSummary? = nil,
-        note: String? = nil,
-        photosData: [Data] = [],
-        using environment: AppEnvironment
-    ) async -> Bool {
+    // MARK: - Completion
+    //
+    // Completing is no longer a toggle. A rating is mandatory, so tapping
+    // Complete opens Create Rating and the rating submission is what marks the
+    // experience complete. Un-completing deletes the rating.
+
+    /// Entry point for the Complete button. Sends the user to Create Rating with
+    /// the experience locked in; if they already completed it, opens their
+    /// existing rating for editing.
+    func requestCompletion(for summary: ExperienceSummary, using environment: AppEnvironment) {
+        guard environment.session.currentUser != nil else {
+            environment.router.presentAuth()
+            return
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        environment.router.presentRating(for: summary)
+    }
+
+    /// Called after a rating is saved: the experience is now completed, and the
+    /// user's profile and feed reflect it.
+    func applyCompletion(experienceID: UUID, summary: ExperienceSummary?, using environment: AppEnvironment) {
+        let wasCompleted = completedExperienceIDs.contains(experienceID)
+        completedExperienceIDs.insert(experienceID)
+        if let summary {
+            savedSummaries[experienceID] = summary
+        }
+        if !wasCompleted, var user = environment.session.currentUser {
+            user.completionCount += 1
+            environment.session.currentUser = user
+            cache(user)
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        bump()
+        // Profile tabs and feed cards read from the store, so a bump is enough;
+        // the catalog revision makes detail screens refetch their aggregates.
+        environment.router.noteExperienceCatalogChanged()
+    }
+
+    /// Removes a completion by deleting the rating behind it.
+    func removeCompletion(experienceID: UUID, using environment: AppEnvironment) async {
         guard let userID = environment.session.currentUser?.id else {
             environment.router.presentAuth()
-            return false
+            return
         }
-        if let summary, summary.creator.id == userID {
-            return false
-        }
-        // Prevent double-taps from desyncing local and remote completion state.
-        guard !inFlightCompleteIDs.contains(experienceID) else {
-            return completedExperienceIDs.contains(experienceID)
-        }
+        guard !inFlightCompleteIDs.contains(experienceID) else { return }
         inFlightCompleteIDs.insert(experienceID)
         defer { inFlightCompleteIDs.remove(experienceID) }
 
         let wasCompleted = completedExperienceIDs.contains(experienceID)
-        if wasCompleted {
-            completedExperienceIDs.remove(experienceID)
-            if var user = environment.session.currentUser {
-                user.completionCount = max(0, user.completionCount - 1)
-                environment.session.currentUser = user
-                cache(user)
-            }
-        } else {
-            completedExperienceIDs.insert(experienceID)
-            if var user = environment.session.currentUser {
-                user.completionCount += 1
-                environment.session.currentUser = user
-                cache(user)
-            }
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        completedExperienceIDs.remove(experienceID)
+        if wasCompleted, var user = environment.session.currentUser {
+            user.completionCount = max(0, user.completionCount - 1)
+            environment.session.currentUser = user
+            cache(user)
         }
         bump()
 
         do {
-            if !wasCompleted, let summary {
-                try await environment.engagementRepo.ensureExperienceExists(for: summary, ownerID: userID)
-            }
-            let nowCompleted = try await environment.engagementRepo.toggleComplete(
-                userID: userID,
-                experienceID: experienceID,
-                note: note,
-                photosData: photosData
-            )
-            if nowCompleted {
-                completedExperienceIDs.insert(experienceID)
-            } else {
-                completedExperienceIDs.remove(experienceID)
-            }
-            bump()
-            return nowCompleted
+            try await environment.engagementRepo.removeCompletion(userID: userID, experienceID: experienceID)
+            environment.router.noteExperienceCatalogChanged()
         } catch {
-            TravLog.engagement.error("toggleComplete failed: \(error.localizedDescription, privacy: .public)")
+            TravLog.engagement.error("removeCompletion failed: \(error.localizedDescription, privacy: .public)")
             if wasCompleted {
                 completedExperienceIDs.insert(experienceID)
-            } else {
-                completedExperienceIDs.remove(experienceID)
+                if var user = environment.session.currentUser {
+                    user.completionCount += 1
+                    environment.session.currentUser = user
+                    cache(user)
+                }
             }
             bump()
-            return wasCompleted
         }
+    }
+
+    /// Submits a rating and folds the resulting completion into local state.
+    @discardableResult
+    func submitRating(
+        _ draft: RatingDraft,
+        summary: ExperienceSummary?,
+        using environment: AppEnvironment
+    ) async throws -> Rating {
+        guard let userID = environment.session.currentUser?.id else {
+            environment.router.presentAuth()
+            throw RepositoryError.unauthorized
+        }
+
+        if let summary {
+            try? await environment.engagementRepo.ensureExperienceExists(for: summary, ownerID: userID)
+        }
+
+        let rating = try await environment.ratings.submitRating(draft, userID: userID)
+        applyCompletion(experienceID: draft.experienceID, summary: summary, using: environment)
+        return rating
     }
 
     @discardableResult

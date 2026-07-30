@@ -300,8 +300,12 @@ struct HeroExperienceCard: View {
                             .accessibilityLabel("Share")
                         }
 
-                        if showRating {
-                            CircularRatingView(rating: displayRating, size: 40)
+                        if showRating, let score = experience.ratingSummary.displayScore, score > 0 {
+                            CircularRatingView(
+                                rating: score,
+                                size: 40,
+                                isCommunityValidated: experience.ratingSummary.hasCommunityValidation
+                            )
                         }
                     }
                 }
@@ -399,22 +403,16 @@ struct HeroExperienceCard: View {
         return fallbackLocationLabel
     }
 
-    private var displayRating: Double {
-        if let ratingObj = experience.rating, ratingObj.overallScore > 0 {
-            return ratingObj.overallScore
-        }
-        let hash = abs(experience.id.hashValue)
-        let score = 7.5 + Double(hash % 20) * 0.1
-        return min(score, 9.8)
-    }
 }
 
 /// Circular progress bar displaying experience rating out of 10.0.
 /// Ring purple scales hard with score — dull at ~5, strong glowing at 10.
+/// A creator-only score renders grey: it is a claim, not community validation.
 struct CircularRatingView: View {
     let rating: Double // e.g. 8.5 out of 10.0
     var maxRating: Double = 10.0
     var size: CGFloat = 88
+    var isCommunityValidated: Bool = true
 
     var body: some View {
         let progress = min(max(rating / maxRating, 0.0), 1.0)
@@ -422,7 +420,9 @@ struct CircularRatingView: View {
         let intensity = pow(progress, 1.65)
         let strokeWidth = max(2.5, size * (0.07 + 0.04 * intensity))
         let fontSize = size * 0.3
-        let ringColor = Self.purple(intensity: intensity)
+        let ringColor = isCommunityValidated
+            ? Self.purple(intensity: intensity)
+            : TravColors.muted
         let glowOpacity = 0.08 + 0.85 * intensity
         let glowRadius = size * (0.04 + 0.22 * intensity)
 
@@ -449,7 +449,11 @@ struct CircularRatingView: View {
                 .foregroundStyle(TravColors.primary)
         }
         .frame(width: size, height: size)
-        .accessibilityLabel("Rated \(String(format: "%.1f", rating)) out of 10")
+        .accessibilityLabel(
+            isCommunityValidated
+                ? "Community rating \(TravFormatters.score(rating)) out of 10"
+                : "Creator rating \(TravFormatters.score(rating)) out of 10, no community ratings yet"
+        )
     }
 
     /// Dull gray-purple at low intensity → rich, electric purple at full strength.

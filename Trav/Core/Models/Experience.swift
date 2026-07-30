@@ -57,7 +57,8 @@ struct RouteSegment: Identifiable, Codable, Sendable, Hashable {
     var transportMode: TransportMode
 }
 
-struct WatchlistUser: Identifiable, Codable, Sendable, Hashable {
+/// A user shown in the "completed by" facepile on feed cards.
+struct CompletionUser: Identifiable, Codable, Sendable, Hashable {
     let id: UUID
     let name: String
     let avatarImage: String
@@ -65,6 +66,7 @@ struct WatchlistUser: Identifiable, Codable, Sendable, Hashable {
 
 struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
     let id: UUID
+    var kind: ExperienceKind
     var cityID: UUID
     var title: String
     var imageURLs: [URL]
@@ -76,14 +78,29 @@ struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
     var likeCount: Int
     var completionCount: Int
     var stops: [StopPreview]
-    /// Multi-dimensional radar rating data stored as JSON in DB.
+    /// The creator's own radar scores, stored as JSON in DB.
     var rating: RadarRating? = nil
+    /// Database-computed aggregates across every rating of this experience.
+    var ratingSummary: RatingSummary = .empty
     /// Optional display label when city is stored as text (Supabase simplified schema).
     var cityName: String? = nil
-    var watchlistedBy: [WatchlistUser] = []
+    var completedBy: [CompletionUser] = []
+    /// Canonical place identity, present on spots synced from the provider.
+    var spotKey: String? = nil
+    var category: String? = nil
+    var latitude: Double? = nil
+    var longitude: Double? = nil
+
+    var isSpot: Bool { kind == .spot }
+    var isItinerary: Bool { kind == .itinerary }
 
     var coverImageURL: URL? {
         imageURLs.first
+    }
+
+    /// Radar to render, preferring the community average once it exists.
+    var displayRadar: RadarRating? {
+        ratingSummary.displayRadar(creatorRadar: rating)
     }
 
     var costLabel: String {
@@ -101,6 +118,7 @@ struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
 
     init(
         id: UUID,
+        kind: ExperienceKind? = nil,
         cityID: UUID,
         title: String,
         imageURLs: [URL] = [],
@@ -114,10 +132,16 @@ struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
         completionCount: Int = 0,
         stops: [StopPreview] = [],
         rating: RadarRating? = nil,
+        ratingSummary: RatingSummary = .empty,
         cityName: String? = nil,
-        watchlistedBy: [WatchlistUser] = []
+        completedBy: [CompletionUser] = [],
+        spotKey: String? = nil,
+        category: String? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil
     ) {
         self.id = id
+        self.kind = kind ?? .inferred(stopCount: stops.count)
         self.cityID = cityID
         self.title = title
         if !imageURLs.isEmpty {
@@ -136,8 +160,13 @@ struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
         self.completionCount = completionCount
         self.stops = stops
         self.rating = rating
+        self.ratingSummary = ratingSummary
         self.cityName = cityName
-        self.watchlistedBy = watchlistedBy
+        self.completedBy = completedBy
+        self.spotKey = spotKey
+        self.category = category
+        self.latitude = latitude
+        self.longitude = longitude
     }
 }
 
@@ -151,6 +180,7 @@ struct StopPreview: Identifiable, Codable, Sendable, Hashable {
 
 struct Experience: Identifiable, Codable, Sendable, Hashable {
     let id: UUID
+    var kind: ExperienceKind
     var cityID: UUID
     var creator: ProfileSummary
     var title: String
@@ -169,15 +199,29 @@ struct Experience: Identifiable, Codable, Sendable, Hashable {
     var publishedAt: Date?
     var stops: [Stop]
     var routeSegments: [RouteSegment]
-    /// Multi-dimensional radar rating data stored as JSON in DB.
+    /// The creator's own radar scores, stored as JSON in DB.
     var rating: RadarRating? = nil
+    /// Database-computed aggregates across every rating of this experience.
+    var ratingSummary: RatingSummary = .empty
+    var spotKey: String? = nil
+    var category: String? = nil
+    var cityName: String? = nil
+
+    var isSpot: Bool { kind == .spot }
+    var isItinerary: Bool { kind == .itinerary }
 
     var coverImageURL: URL? {
         imageURLs.first
     }
 
+    /// Radar to render, preferring the community average once it exists.
+    var displayRadar: RadarRating? {
+        ratingSummary.displayRadar(creatorRadar: rating)
+    }
+
     init(
         id: UUID,
+        kind: ExperienceKind? = nil,
         cityID: UUID,
         creator: ProfileSummary,
         title: String,
@@ -197,9 +241,14 @@ struct Experience: Identifiable, Codable, Sendable, Hashable {
         publishedAt: Date? = nil,
         stops: [Stop] = [],
         routeSegments: [RouteSegment] = [],
-        rating: RadarRating? = nil
+        rating: RadarRating? = nil,
+        ratingSummary: RatingSummary = .empty,
+        spotKey: String? = nil,
+        category: String? = nil,
+        cityName: String? = nil
     ) {
         self.id = id
+        self.kind = kind ?? .inferred(stopCount: stops.count)
         self.cityID = cityID
         self.creator = creator
         self.title = title
@@ -225,5 +274,43 @@ struct Experience: Identifiable, Codable, Sendable, Hashable {
         self.stops = stops
         self.routeSegments = routeSegments
         self.rating = rating
+        self.ratingSummary = ratingSummary
+        self.spotKey = spotKey
+        self.category = category
+        self.cityName = cityName
+    }
+}
+
+extension Experience {
+    /// Feed-card projection of a full experience.
+    var summary: ExperienceSummary {
+        ExperienceSummary(
+            id: id,
+            kind: kind,
+            cityID: cityID,
+            title: title,
+            imageURLs: imageURLs,
+            creator: creator,
+            durationMinutes: durationMinutes,
+            costLevel: costLevel,
+            estimatedCostUSD: estimatedCostUSD,
+            saveCount: saveCount,
+            likeCount: likeCount,
+            completionCount: completionCount,
+            stops: stops.map {
+                StopPreview(
+                    id: $0.id,
+                    name: $0.name,
+                    emoji: $0.emoji,
+                    latitude: $0.latitude,
+                    longitude: $0.longitude
+                )
+            },
+            rating: rating,
+            ratingSummary: ratingSummary,
+            cityName: cityName,
+            spotKey: spotKey,
+            category: category
+        )
     }
 }

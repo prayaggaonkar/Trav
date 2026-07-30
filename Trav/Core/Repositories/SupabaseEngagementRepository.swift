@@ -87,10 +87,16 @@ struct SupabaseEngagementRepository: EngagementRepository {
 
     // MARK: - Toggles
 
+    /// Makes sure an `experiences` row exists before writing a save, rating or
+    /// completion that references it.
+    ///
+    /// Anything discovered through the place provider is a Spot, so it is synced
+    /// into the catalog rather than inserted as a private shadow row. That keeps
+    /// one canonical row per real-world place, which is what makes ratings and
+    /// engagement on spots add up across users.
     private func ensureExperienceExistsInternal(experienceID: UUID, userID: UUID) async {
         guard let client = SupabaseManager.client else { return }
         let idStr = experienceID.uuidString.lowercased()
-        let userStr = userID.uuidString.lowercased()
 
         struct Existing: Decodable { let id: UUID }
         let existing: [Existing] = (try? await client
@@ -102,41 +108,46 @@ struct SupabaseEngagementRepository: EngagementRepository {
             .value) ?? []
         if !existing.isEmpty { return }
 
-        // If in-memory cached Apple Maps recommendation exists, use its info
-        let cachedExp = AppleMapsVibeService.shared.cachedExperience(for: experienceID)
-        let title = cachedExp?.title ?? "Recommendation Spot"
-        let city = cachedExp?.stops.first?.description ?? "Berkeley, CA"
-        let stops = cachedExp?.stops.map(\.name) ?? []
-
-        struct ShadowInsert: Encodable {
-            let id: String
-            let user_id: String
-            let title: String
-            let description: String
-            let city: String
-            let stops: [String]
-            let is_published: Bool
-        }
-
-        let insert = ShadowInsert(
-            id: idStr,
-            user_id: userStr, // Valid logged-in user ID matching auth.uid() for RLS check
-            title: title,
-            description: "Saved place recommendation",
-            city: city,
-            stops: stops,
-            is_published: false // Shadow place row, never appears as published user post
+        let cached = AppleMapsVibeService.shared.cachedExperience(for: experienceID)
+        let stop = cached?.stops.first
+        let request = SpotSyncRequest(
+            placeID: stop?.placeID,
+            name: cached?.title ?? "Recommendation Spot",
+            description: cached?.description ?? "",
+            cityName: cached?.cityName ?? stop?.description ?? "",
+            cityID: cached?.cityID,
+            latitude: stop?.latitude,
+            longitude: stop?.longitude,
+            imageURLs: cached?.imageURLs ?? [],
+            category: cached?.category,
+            emoji: stop?.emoji
         )
 
         do {
-            try await client.from("experiences").insert(insert).execute()
+            _ = try await SupabaseExperienceRepository().syncSpot(request)
         } catch {
-            TravLog.engagement.error("Shadow experience creation: \(error.localizedDescription, privacy: .public)")
+            TravLog.engagement.error("Spot sync failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     func ensureExperienceExists(for summary: ExperienceSummary, ownerID: UUID) async throws {
-        await ensureExperienceExistsInternal(experienceID: summary.id, userID: ownerID)
+        guard let client = SupabaseManager.client else { return }
+        let idStr = summary.id.uuidString.lowercased()
+
+        struct Existing: Decodable { let id: UUID }
+        let existing: [Existing] = (try? await client
+            .from("experiences")
+            .select("id")
+            .eq("id", value: idStr)
+            .limit(1)
+            .execute()
+            .value) ?? []
+        if !existing.isEmpty { return }
+
+        // Itineraries always originate from publish_itinerary, so a missing row
+        // here can only be a provider spot.
+        guard summary.isSpot else { return }
+        _ = try? await SupabaseExperienceRepository().syncSpot(SpotSyncRequest(summary: summary))
     }
 
     func toggleSave(userID: UUID, experienceID: UUID) async throws -> Bool {
@@ -194,69 +205,19 @@ struct SupabaseEngagementRepository: EngagementRepository {
             .execute()
     }
 
-    func toggleComplete(userID: UUID, experienceID: UUID, note: String?, photosData: [Data]) async throws -> Bool {
+    /// Completion is derived from the rating, so undoing it means deleting the
+    /// rating; the database cascades the completion row away.
+    func removeCompletion(userID: UUID, experienceID: UUID) async throws {
+        try await SupabaseRatingRepository().deleteRating(userID: userID, experienceID: experienceID)
+
+        // Belt and braces for databases where the cascade trigger is absent.
         let client = try client
-        let user = userID.uuidString.lowercased()
-        let experience = experienceID.uuidString.lowercased()
-
-        await ensureExperienceExistsInternal(experienceID: experienceID, userID: userID)
-
-        struct ExpOwnerRow: Decodable {
-            let user_id: UUID
-            let is_published: Bool?
-        }
-        let expOwner: [ExpOwnerRow] = (try? await client
-            .from("experiences")
-            .select("user_id, is_published")
-            .eq("id", value: experience)
-            .execute()
-            .value) ?? []
-
-        // Only restrict watchlisting if it's the user's own published multi-stop experience
-        if let owner = expOwner.first, owner.user_id == userID, owner.is_published == true {
-            return false
-        }
-
-        if try await isCompleted(userID: userID, experienceID: experienceID) {
-            try await client
-                .from("experience_completions")
-                .delete()
-                .eq("user_id", value: user)
-                .eq("experience_id", value: experience)
-                .execute()
-            return false
-        }
-
-        let completionID = UUID()
-        var photoURLs: [String] = []
-        for (index, data) in photosData.enumerated() {
-            let path = "\(user)/\(completionID.uuidString.lowercased())/photo_\(index).jpg"
-            _ = try? await client.storage
-                .from("completions")
-                .upload(path, data: data, options: FileOptions(contentType: "image/jpeg"))
-            if let url = try? client.storage.from("completions").getPublicURL(path: path) {
-                photoURLs.append(url.absoluteString)
-            }
-        }
-
-        struct Insert: Encodable {
-            let id: String
-            let user_id: String
-            let experience_id: String
-            let note: String?
-            let photo_urls: [String]
-        }
-        try await client
+        try? await client
             .from("experience_completions")
-            .insert(Insert(
-                id: completionID.uuidString.lowercased(),
-                user_id: user,
-                experience_id: experience,
-                note: note,
-                photo_urls: photoURLs
-            ))
+            .delete()
+            .eq("user_id", value: userID.uuidString.lowercased())
+            .eq("experience_id", value: experienceID.uuidString.lowercased())
             .execute()
-        return true
     }
 
     func toggleLike(userID: UUID, experienceID: UUID) async throws -> Bool {

@@ -92,12 +92,12 @@ struct RootCoordinator: View {
             if retainedTabs.contains(.create) {
                 tabPane(.create) {
                     if session.isAuthenticated {
-                        CreateExperienceView(isActive: activeTab == .create)
+                        CreateHubView(isActive: activeTab == .create)
                             .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
                     } else {
                         UnauthenticatedPlaceholderView(
-                            title: "Create Experience",
-                            description: "Sign in to document your journeys, add custom stops, and publish your own experiences.",
+                            title: "Rate & Create",
+                            description: "Sign in to rate the places you finish and publish itineraries of your own.",
                             imageName: "plus.circle.fill"
                         )
                         .tabBarBackdrop(appearance.isLightMode ? .light : .dark)
@@ -203,6 +203,10 @@ private struct RootChromeModifier: ViewModifier {
                 if spot != nil {
                     activeTab = .create
                 }
+            }
+            // Tapping Complete anywhere routes straight into Create Rating.
+            .onChange(of: router.createNavigationToken) { _, _ in
+                activeTab = .create
             }
             .onChange(of: router.presentedRoute) { previous, current in
                 guard current == nil, case .notifications = previous else { return }

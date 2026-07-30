@@ -83,7 +83,6 @@
 		E5F6A7B8C9D0488990ABCDEF /* night-sky.png in Resources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E1488990ABCDEF /* night-sky.png */; };
 		E6888FCE0E734087B26A6E2C /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8504B0C4FAF0439AB0EB2AB5 /* ProfileView.swift */; };
 		F05EC542AE7646348C0BADEA /* TravTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7BECECB35284C65AD16C0BC /* TravTheme.swift */; };
-		F422B7C38BCD7FB591BA3C34 /* CompletionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 442D26D69297F08DA7AF6F69 /* CompletionSheet.swift */; };
 		F78F1C88E8624B4B96982725 /* AuthEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 391BB83942334B4B8845FD1C /* AuthEntryView.swift */; };
 		F7A1B2C3D4E5461789ABCDEF /* CityComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A1B2C3D4E5461789ABCD00 /* CityComponents.swift */; };
 		F8926D8B86B5A09BC0905150 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A09FFAAE4AEFDCC33C844C /* FeedView.swift */; };
@@ -103,6 +102,11 @@
 		RANK0020000000000000002 /* RankingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = RANK0010000000000000002 /* RankingsViewModel.swift */; };
 		RANK0020000000000000003 /* RankingRowViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = RANK0010000000000000003 /* RankingRowViews.swift */; };
 		RANK0020000000000000004 /* RankingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = RANK0010000000000000004 /* RankingsView.swift */; };
+		CD614CBFB264523339EBF0B6 /* Rating.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD2A8658EC911DEBA9F87FA6 /* Rating.swift */; };
+		F331E254CC242C0F6F62F343 /* SupabaseRatingRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49331BB170FBFA4ED9A82FA0 /* SupabaseRatingRepository.swift */; };
+		D31AA397118A8F916C910767 /* RatingSummaryBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC7A0F39575002A05E0B06F /* RatingSummaryBadge.swift */; };
+		8415F6F9A7D2B2B48D9EDBE2 /* CreateRatingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEF9C42545CAD50171472481 /* CreateRatingView.swift */; };
+		5778BB29D389F0E224712E75 /* CreateHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 917290BC4CE304D2AC972023 /* CreateHubView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -129,7 +133,6 @@
 		39CE5CA1E5C9417CBF6E98A0 /* CityViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityViewModel.swift; sourceTree = "<group>"; };
 		3A46AA5C500644F89A7A8FFD /* ExperienceCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperienceCard.swift; sourceTree = "<group>"; };
 		3BE19C2DD83847EF8087F603 /* ProfileViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewModel.swift; sourceTree = "<group>"; };
-		442D26D69297F08DA7AF6F69 /* CompletionSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CompletionSheet.swift; sourceTree = "<group>"; };
 		4762DCE38F22479AB6D818E6 /* RepositoryProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProtocols.swift; sourceTree = "<group>"; };
 		495A3A8B9C6E42DFB539E0D3 /* City.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = City.swift; sourceTree = "<group>"; };
 		496BA6B3143F4D3DB499E304 /* earth_day.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = earth_day.jpg; sourceTree = "<group>"; };
@@ -198,6 +201,11 @@
 		RANK0010000000000000002 /* RankingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingsViewModel.swift; sourceTree = "<group>"; };
 		RANK0010000000000000003 /* RankingRowViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingRowViews.swift; sourceTree = "<group>"; };
 		RANK0010000000000000004 /* RankingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingsView.swift; sourceTree = "<group>"; };
+		BD2A8658EC911DEBA9F87FA6 /* Rating.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Rating.swift; sourceTree = "<group>"; };
+		49331BB170FBFA4ED9A82FA0 /* SupabaseRatingRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseRatingRepository.swift; sourceTree = "<group>"; };
+		EFC7A0F39575002A05E0B06F /* RatingSummaryBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingSummaryBadge.swift; sourceTree = "<group>"; };
+		EEF9C42545CAD50171472481 /* CreateRatingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateRatingView.swift; sourceTree = "<group>"; };
+		917290BC4CE304D2AC972023 /* CreateHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateHubView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -271,7 +279,6 @@
 			children = (
 				17E096DED5A54853BC25399A /* ExperienceDetailView.swift */,
 				F9A4FD5E8629270EFF4D0754 /* CommentsSheet.swift */,
-				442D26D69297F08DA7AF6F69 /* CompletionSheet.swift */,
 			);
 			path = Experience;
 			sourceTree = "<group>";
@@ -397,6 +404,8 @@
 			isa = PBXGroup;
 			children = (
 				C7EAD1EAE5A54853BC25399A /* CreateExperienceView.swift */,
+				EEF9C42545CAD50171472481 /* CreateRatingView.swift */,
+				917290BC4CE304D2AC972023 /* CreateHubView.swift */,
 			);
 			path = CreateExperience;
 			sourceTree = "<group>";
@@ -434,6 +443,7 @@
 				1ECA72ADC07B4172BD8D8F12 /* Profile.swift */,
 				8C9C50758E87D7A5F85D3E13 /* Comment.swift */,
 				D56F2816135D445860185FA7 /* Popup.swift */,
+				BD2A8658EC911DEBA9F87FA6 /* Rating.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -454,6 +464,7 @@
 				RADAR0010000000000000004 /* InteractiveRadarChartView.swift */,
 				FBE61151F83DD3E65DAF734D /* ShareSheet.swift */,
 				PROD0000000000000000005 /* OfflineBanner.swift */,
+				EFC7A0F39575002A05E0B06F /* RatingSummaryBadge.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -482,6 +493,7 @@
 				AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */,
 				AC10E298F515465C8669B015 /* SupabaseExperienceRepository.swift */,
 				FB847B2613C0153FD89ABFC2 /* SupabaseCityRepository.swift */,
+				49331BB170FBFA4ED9A82FA0 /* SupabaseRatingRepository.swift */,
 			);
 			path = Repositories;
 			sourceTree = "<group>";
@@ -586,6 +598,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8415F6F9A7D2B2B48D9EDBE2 /* CreateRatingView.swift in Sources */,
+				5778BB29D389F0E224712E75 /* CreateHubView.swift in Sources */,
+				D31AA397118A8F916C910767 /* RatingSummaryBadge.swift in Sources */,
+				F331E254CC242C0F6F62F343 /* SupabaseRatingRepository.swift in Sources */,
+				CD614CBFB264523339EBF0B6 /* Rating.swift in Sources */,
 				FAEEC631BDED43D580C242D5 /* AsyncContentView.swift in Sources */,
 				46A179BD4874465B8AC6B21E /* AvatarView.swift in Sources */,
 				E5BE68835328407E9AA51B15 /* ExperienceCard.swift in Sources */,
@@ -661,7 +678,6 @@
 				A6F1E30F1EB19073DC6A9999 /* SpotSearchComponents.swift in Sources */,
 				A6F1E30F1EB19073DC6A1A96 /* FeedViewModel.swift in Sources */,
 				1C29181213E187231347D9BA /* CommentsSheet.swift in Sources */,
-				F422B7C38BCD7FB591BA3C34 /* CompletionSheet.swift in Sources */,
 				PROD0010000000000000001 /* TravLog.swift in Sources */,
 				PROD0010000000000000002 /* NetworkMonitor.swift in Sources */,
 				PROD0010000000000000003 /* PushNotificationService.swift in Sources */,
