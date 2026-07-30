@@ -80,9 +80,24 @@ struct ProfileStatsRow: View {
 
     var body: some View {
         HStack(spacing: TravSpacing.md) {
-            statButton(valueString: TravFormatters.count(profile.followerCount), label: "Followers", isLoading: isFollowersLoading, action: onFollowers)
-            statButton(valueString: TravFormatters.count(profile.followingCount), label: "Following", isLoading: isFollowingLoading, action: onFollowing)
-            statButton(valueString: rankLabel, label: "Rank", isLoading: isRankLoading, action: onRankTap)
+            statButton(
+                valueString: TravFormatters.count(profile.followerCount),
+                label: "Followers",
+                isLoading: isFollowersLoading && profile.followerCount > 0,
+                action: onFollowers
+            )
+            statButton(
+                valueString: TravFormatters.count(profile.followingCount),
+                label: "Following",
+                isLoading: isFollowingLoading && profile.followingCount > 0,
+                action: onFollowing
+            )
+            statButton(
+                valueString: rankLabel,
+                label: "Rank",
+                isLoading: isRankLoading,
+                action: onRankTap
+            )
         }
     }
 

@@ -18,6 +18,8 @@ struct ProfileView: View {
     @State private var showCreateExperience = false
     @State private var showOtherProfileMenu = false
     @State private var showBlockConfirmation = false
+    @State private var showBlockedWarning = false
+    @State private var hasApprovedBlockedView = false
 
     private var tabs: [ProfileContentTab] {
         if isOwnProfile {
@@ -95,6 +97,20 @@ struct ProfileView: View {
             } message: {
                 Text("You won’t see their profile or posts anymore. You can unblock them later in Settings → Blocked Users.")
             }
+            .alert("View Blocked Profile?", isPresented: $showBlockedWarning) {
+                Button("View Profile") {
+                    hasApprovedBlockedView = true
+                }
+                Button("Go Back", role: .cancel) {
+                    if router.presentedRoute != nil {
+                        router.dismiss()
+                    } else {
+                        dismiss()
+                    }
+                }
+            } message: {
+                Text("You have blocked @\(username). Do you want to view their profile anyway?")
+            }
             .background {
                 if showOtherProfileMenu {
                     Color.black.opacity(0.001)
@@ -138,12 +154,9 @@ struct ProfileView: View {
             }
             if let profile = viewModel.profile,
                !isOwnProfile,
-               engagement.isBlocked(profile.id) {
-                if router.presentedRoute != nil {
-                    router.dismiss()
-                } else {
-                    dismiss()
-                }
+               engagement.isBlocked(profile.id),
+               !hasApprovedBlockedView {
+                showBlockedWarning = true
             }
         }
         .task(id: engagement.revision) {
@@ -326,6 +339,35 @@ struct ProfileView: View {
                 .padding(.top, 6)
             }
             .padding(.top, TravSpacing.xs)
+
+            if !isOwnProfile && engagement.isBlocked(profile.id) {
+                HStack(spacing: TravSpacing.sm) {
+                    Image(systemName: "hand.raised.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(TravColors.error)
+                    Text("You blocked @\(profile.username)")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(TravColors.primary)
+                    Spacer()
+                    Button("Unblock") {
+                        Task {
+                            await engagement.unblock(userID: profile.id, using: environment)
+                            hasApprovedBlockedView = false
+                        }
+                    }
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(TravColors.accent)
+                }
+                .padding(.horizontal, TravSpacing.md)
+                .padding(.vertical, 8)
+                .background(TravColors.error.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                        .stroke(TravColors.error.opacity(0.3), lineWidth: 1)
+                )
+                .padding(.top, TravSpacing.sm)
+            }
         }
         .frame(maxWidth: .infinity)
     }
@@ -390,6 +432,29 @@ struct ProfileView: View {
                 .buttonStyle(TravPressButtonStyle(scale: 0.96))
                 .accessibilityLabel(viewModel.isSuggestionsExpanded ? "Hide suggested users" : "Find people to follow")
             }
+        } else if engagement.isBlocked(profile.id) {
+            Button {
+                Task {
+                    await engagement.unblock(userID: profile.id, using: environment)
+                    hasApprovedBlockedView = false
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "hand.raised.fill")
+                        .font(.system(size: 13, weight: .bold))
+                    Text("Blocked — Tap to Unblock")
+                        .font(.system(size: 13.5, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(TravColors.error)
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
+                .background(TravColors.error.opacity(0.12))
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(TravColors.error.opacity(0.3), lineWidth: 1)
+                )
+            }
+            .buttonStyle(TravPressButtonStyle(scale: 0.97))
         } else {
             HStack(spacing: TravSpacing.sm) {
                 ProfileFollowButton(

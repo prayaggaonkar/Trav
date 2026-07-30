@@ -92,6 +92,8 @@ final class ProfileViewModel {
     func load(using environment: AppEnvironment) async {
         if profile == nil {
             phase = .loading
+        }
+        if (profile?.followerCount ?? 0) > 0 || (profile?.followingCount ?? 0) > 0 {
             isFollowCountsLoading = true
         }
         defer { isFollowCountsLoading = false }
@@ -128,7 +130,9 @@ final class ProfileViewModel {
 
     func refresh(using environment: AppEnvironment) async {
         isRefreshing = true
-        isFollowCountsLoading = true
+        if (profile?.followerCount ?? 0) > 0 || (profile?.followingCount ?? 0) > 0 {
+            isFollowCountsLoading = true
+        }
         defer {
             isRefreshing = false
             isFollowCountsLoading = false

@@ -126,6 +126,7 @@ struct FollowListView: View {
             ProfileView(username: item.username, showDismissButton: true)
         }
         .task { await reload(reset: true) }
+        .task(id: engagement.revision) { await reload(reset: true) }
     }
 
     private var followListTopBar: some View {
@@ -181,7 +182,9 @@ struct FollowListView: View {
         }
     }
 
-    private var filteredUsers: [ProfileSummary] { users }
+    private var filteredUsers: [ProfileSummary] {
+        users.filter { !engagement.isBlocked($0.id) }
+    }
 
     private func reload(reset: Bool) async {
         if reset {

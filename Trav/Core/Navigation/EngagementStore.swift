@@ -265,10 +265,29 @@ final class EngagementStore {
     func block(userID targetID: UUID, using environment: AppEnvironment) async -> Bool {
         guard let userID = environment.session.currentUser?.id, userID != targetID else { return false }
         blockedUserIDs.insert(targetID)
+
+        let wasFollowing = followingUserIDs.contains(targetID)
         followingUserIDs.remove(targetID)
+        unfollowedUserIDs.insert(targetID)
+
+        if wasFollowing, var me = environment.session.currentUser {
+            me.followingCount = max(0, me.followingCount - 1)
+            environment.session.currentUser = me
+            cache(me)
+        }
+        if var target = profileCache[targetID] {
+            if target.followerCount > 0 {
+                target.followerCount -= 1
+            }
+            target.isFollowing = false
+            cache(target)
+        }
         bump()
+
         do {
             try await environment.engagementRepo.block(blockerID: userID, blockedID: targetID)
+            try? await environment.profiles.unfollow(followerID: userID, followingID: targetID)
+            try? await environment.profiles.unfollow(followerID: targetID, followingID: userID)
             return true
         } catch {
             blockedUserIDs.remove(targetID)
