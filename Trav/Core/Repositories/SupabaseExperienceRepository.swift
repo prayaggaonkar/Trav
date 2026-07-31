@@ -1209,17 +1209,42 @@ struct SupabaseExperienceRepository: ExperienceRepository {
     }
 
     private static func parseDate(_ raw: String?) -> Date? {
-        guard let raw else { return nil }
+        guard let raw, !raw.isEmpty else { return nil }
+
+        // 1. Simple YYYY-MM-DD date string (e.g. Eventbrite "2026-08-01")
+        if raw.count == 10, raw.contains("-") {
+            let df = DateFormatter()
+            df.locale = Locale(identifier: "en_US_POSIX")
+            df.dateFormat = "yyyy-MM-dd"
+            df.timeZone = TimeZone.current
+            if let date = df.date(from: raw) {
+                return Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: date) ?? date
+            }
+        }
+
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = iso.date(from: raw) { return date }
         iso.formatOptions = [.withInternetDateTime]
         if let date = iso.date(from: raw) { return date }
+
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        for format in ["yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ", "yyyy-MM-dd'T'HH:mm:ssZZZZZ", "yyyy-MM-dd'T'HH:mm:ss"] {
+        for format in ["yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ", "yyyy-MM-dd'T'HH:mm:ssZZZZZ", "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd"] {
             formatter.dateFormat = format
-            if let date = formatter.date(from: raw) { return date }
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            if let date = formatter.date(from: raw) {
+                let components = Calendar(identifier: .gregorian).dateComponents(in: TimeZone(secondsFromGMT: 0)!, from: date)
+                if components.hour == 0 && components.minute == 0 {
+                    var localComp = DateComponents()
+                    localComp.year = components.year
+                    localComp.month = components.month
+                    localComp.day = components.day
+                    localComp.hour = 12
+                    return Calendar.current.date(from: localComp) ?? date
+                }
+                return date
+            }
         }
         return nil
     }
@@ -1245,15 +1270,28 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 .execute()
         }
 
-        // 2. Check 6-hour refresh timer for this city
+        // 2. Query DB popups table for target city
+        var rows: [DBPopup] = []
+        do {
+            let cityShort = targetCity.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? targetCity
+            rows = try await client
+                .from("popups")
+                .select("id, event_name, address, city, latitude, longitude, category, description, start_time, end_time, external_url, image_url, source")
+                .or("city.ilike.%\(cityShort)%,address.ilike.%\(cityShort)%")
+                .order("start_time", ascending: true)
+                .limit(50)
+                .execute()
+                .value
+        } catch {
+            rows = []
+        }
+
+        // 3. If fewer than 5 real events exist in DB for this location or 6 hours elapsed, trigger Edge Function fetch
         let lastSyncKey = "last_popup_sync_\(cityKey)"
         let lastSyncTime = UserDefaults.standard.object(forKey: lastSyncKey) as? Date ?? Date.distantPast
         let hoursSinceLastSync = now.timeIntervalSince(lastSyncTime) / 3600.0
-        let needsRefetch = hoursSinceLastSync >= 6.0
+        let needsRefetch = hoursSinceLastSync >= 6.0 || rows.count < 5
 
-        var rows: [DBPopup] = []
-
-        // If 6 hours have passed, force fresh Edge Function / MapKit fetch
         if needsRefetch {
             do {
                 struct FunctionBody: Encodable {
@@ -1273,31 +1311,16 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                             latitude: userLat,
                             longitude: userLng,
                             city: targetCity,
-                            radius_miles: 50.0
+                            radius_miles: 30.0
                         )
                     )
                 )
-                rows = res.popups
-                UserDefaults.standard.set(now, forKey: lastSyncKey)
+                if !res.popups.isEmpty {
+                    rows = res.popups
+                    UserDefaults.standard.set(now, forKey: lastSyncKey)
+                }
             } catch {
-                TravLog.network.notice("Edge function fetch-location-popups unavailable: \(error.localizedDescription)")
-            }
-        }
-
-        // If Edge Function didn't populate rows or wasn't needed, query DB popups table for target city
-        if rows.isEmpty {
-            do {
-                let cityShort = targetCity.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? targetCity
-                rows = try await client
-                    .from("popups")
-                    .select("id, event_name, address, city, latitude, longitude, category, description, start_time, end_time, external_url, image_url, source")
-                    .or("city.ilike.%\(cityShort)%,address.ilike.%\(cityShort)%")
-                    .order("start_time", ascending: true)
-                    .limit(50)
-                    .execute()
-                    .value
-            } catch {
-                rows = []
+                TravLog.network.notice("Edge function fetch-location-popups notice: \(error.localizedDescription)")
             }
         }
 
