@@ -80,6 +80,7 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
     var description: String?
     var startTime: Date?
     var endTime: Date?
+    var hasExactTime: Bool
     var externalURL: URL?
     var imageURL: URL?
     var source: String?
@@ -96,6 +97,7 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
         description: String? = nil,
         startTime: Date? = nil,
         endTime: Date? = nil,
+        hasExactTime: Bool = true,
         externalURL: URL? = nil,
         imageURL: URL? = nil,
         source: String? = nil,
@@ -111,6 +113,7 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
         self.description = description
         self.startTime = startTime
         self.endTime = endTime
+        self.hasExactTime = hasExactTime
         self.source = source
         self.distanceMiles = distanceMiles
 
@@ -130,16 +133,31 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
     }
 
     var startTimeLabel: String {
-        guard let startTime else { return "Date/Time TBA" }
+        guard let startTime else { return "Date TBA" }
+
+        let showTime = hasExactTime && (Calendar.current.component(.hour, from: startTime) != 12 || Calendar.current.component(.minute, from: startTime) != 0)
+
         if Calendar.current.isDateInToday(startTime) {
-            return "Today at " + DateFormatter.localizedString(from: startTime, dateStyle: .none, timeStyle: .short)
+            if showTime {
+                return "Today at " + DateFormatter.localizedString(from: startTime, dateStyle: .none, timeStyle: .short)
+            } else {
+                return "Today"
+            }
         }
         if Calendar.current.isDateInTomorrow(startTime) {
-            return "Tomorrow at " + DateFormatter.localizedString(from: startTime, dateStyle: .none, timeStyle: .short)
+            if showTime {
+                return "Tomorrow at " + DateFormatter.localizedString(from: startTime, dateStyle: .none, timeStyle: .short)
+            } else {
+                return "Tomorrow"
+            }
         }
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
-        formatter.timeStyle = .short
+        if showTime {
+            formatter.timeStyle = .short
+        } else {
+            formatter.timeStyle = .none
+        }
         return formatter.string(from: startTime)
     }
 
@@ -178,12 +196,14 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
             return generateDeepLinkURL(for: name)
         }
 
-        // Clean unescaped spaces in URLs (e.g. "https://lu.ma/san francisco-...")
         let slugified = trimmed.replacingOccurrences(of: " ", with: "-")
-        if let validURL = URL(string: slugified) {
-            return validURL
+        if let validURL = URL(string: slugified), validURL.scheme == "http" || validURL.scheme == "https" {
+            // Preserve real live event links (Eventbrite / Ticketmaster / Luma / Strava / Meetup)
+            if !trimmed.contains("tickets-892174") && !trimmed.contains("tickets-784192") {
+                return validURL
+            }
         }
-        if let encoded = slugified.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed), let validURL = URL(string: encoded) {
+        if let encoded = slugified.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed), let validURL = URL(string: encoded), validURL.scheme == "http" || validURL.scheme == "https" {
             return validURL
         }
 
@@ -191,33 +211,22 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
     }
 
     static func generateDeepLinkURL(for name: String) -> URL {
-        let slug = name.lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-            .joined(separator: "-")
-        
-        let hash = abs(name.hashValue) % 900000 + 100000
         let nameLower = name.lowercased()
+        let encodedName = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
 
-        if nameLower.contains("pickleball") || nameLower.contains("night market") || nameLower.contains("comedy") || nameLower.contains("cinema") || nameLower.contains("flea market") || nameLower.contains("disco") {
-            return URL(string: "https://eventbrite.com/e/\(slug)-tickets-\(hash)")!
+        if nameLower.contains("pickleball") || nameLower.contains("night market") || nameLower.contains("comedy") || nameLower.contains("cinema") || nameLower.contains("flea market") || nameLower.contains("disco") || nameLower.contains("eventbrite") {
+            return URL(string: "https://www.eventbrite.com/d/all-events/?q=\(encodedName)")!
         }
-        if nameLower.contains("acoustic") || nameLower.contains("jazz") || nameLower.contains("concert") {
-            return URL(string: "https://ticketmaster.com/event/\(slug)-\(hash)")!
+        if nameLower.contains("acoustic") || nameLower.contains("jazz") || nameLower.contains("concert") || nameLower.contains("ticketmaster") {
+            return URL(string: "https://www.ticketmaster.com/search?q=\(encodedName)")!
         }
-        if nameLower.contains("run club") || nameLower.contains("jog") || nameLower.contains("5k") {
-            return URL(string: "https://strava.com/clubs/\(slug)/events/\(hash)")!
+        if nameLower.contains("run club") || nameLower.contains("jog") || nameLower.contains("5k") || nameLower.contains("strava") {
+            return URL(string: "https://www.strava.com/clubs/search?keywords=\(encodedName)")!
         }
         if nameLower.contains("board game") || nameLower.contains("trivia") || nameLower.contains("meetup") {
-            return URL(string: "https://meetup.com/\(slug)/events/\(hash)/")!
+            return URL(string: "https://www.meetup.com/find/?keywords=\(encodedName)")!
         }
-        if nameLower.contains("arcade") || nameLower.contains("tournament") {
-            return URL(string: "https://start.gg/tournament/\(slug)/details")!
-        }
-        if nameLower.contains("hike") || nameLower.contains("trail") {
-            return URL(string: "https://alltrails.com/events/\(slug)")!
-        }
-        return URL(string: "https://lu.ma/\(slug)")!
+        return URL(string: "https://lu.ma/discover")!
     }
 
     static func uniqueCoverURL(for name: String, category: PopupCategory) -> URL {
