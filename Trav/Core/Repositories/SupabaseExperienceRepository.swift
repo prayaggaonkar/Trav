@@ -1211,41 +1211,38 @@ struct SupabaseExperienceRepository: ExperienceRepository {
     private static func parseDate(_ raw: String?) -> Date? {
         guard let raw, !raw.isEmpty else { return nil }
 
-        // 1. Simple YYYY-MM-DD date string (e.g. Eventbrite "2026-08-01")
+        // 1. Check ISO8601 standard format with internet date/time & fractional seconds
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: raw) { return date }
+
+        iso.formatOptions = [.withInternetDateTime]
+        if let date = iso.date(from: raw) { return date }
+
+        // 2. Custom DateFormatter (preserve local time without forcing GMT offset on ISO strings)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+
+        for format in ["yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ", "yyyy-MM-dd'T'HH:mm:ssZZZZZ", "yyyy-MM-dd'T'HH:mm:ssZ"] {
+            formatter.dateFormat = format
+            if let date = formatter.date(from: raw) { return date }
+        }
+
+        for format in ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss"] {
+            formatter.dateFormat = format
+            formatter.timeZone = TimeZone.current
+            if let date = formatter.date(from: raw) { return date }
+        }
+
+        // 3. Simple YYYY-MM-DD date string (e.g. Eventbrite "2026-08-01")
         if raw.count == 10, raw.contains("-") {
-            let df = DateFormatter()
-            df.locale = Locale(identifier: "en_US_POSIX")
-            df.dateFormat = "yyyy-MM-dd"
-            df.timeZone = TimeZone.current
-            if let date = df.date(from: raw) {
+            formatter.dateFormat = "yyyy-MM-dd"
+            formatter.timeZone = TimeZone.current
+            if let date = formatter.date(from: raw) {
                 return Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: date) ?? date
             }
         }
 
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = iso.date(from: raw) { return date }
-        iso.formatOptions = [.withInternetDateTime]
-        if let date = iso.date(from: raw) { return date }
-
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        for format in ["yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ", "yyyy-MM-dd'T'HH:mm:ssZZZZZ", "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd"] {
-            formatter.dateFormat = format
-            formatter.timeZone = TimeZone(secondsFromGMT: 0)
-            if let date = formatter.date(from: raw) {
-                let components = Calendar(identifier: .gregorian).dateComponents(in: TimeZone(secondsFromGMT: 0)!, from: date)
-                if components.hour == 0 && components.minute == 0 {
-                    var localComp = DateComponents()
-                    localComp.year = components.year
-                    localComp.month = components.month
-                    localComp.day = components.day
-                    localComp.hour = 12
-                    return Calendar.current.date(from: localComp) ?? date
-                }
-                return date
-            }
-        }
         return nil
     }
 
@@ -1543,11 +1540,11 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             rows = []
         }
 
-        // 3. If fewer than 5 real events exist in DB for this location or 6 hours elapsed, fetch multi-source live events!
+        // 3. Cache results for 3 hours: Only refetch external APIs if 3+ hours have passed OR if database has fewer than 3 events
         let lastSyncKey = "last_popup_sync_\(cityKey)"
         let lastSyncTime = UserDefaults.standard.object(forKey: lastSyncKey) as? Date ?? Date.distantPast
         let hoursSinceLastSync = now.timeIntervalSince(lastSyncTime) / 3600.0
-        let needsRefetch = hoursSinceLastSync >= 6.0 || rows.count < 5
+        let needsRefetch = hoursSinceLastSync >= 3.0 || rows.count < 3
 
         if needsRefetch {
             // Attempt Edge Function if deployed
@@ -1619,7 +1616,10 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             }
         }
 
-        // 3. Parse popups and strictly filter ONLY future / current events (no past events!)
+        // 4. Parse popups and strictly filter ONLY events taking place within the next 24 hours!
+        let next24Hours = now.addingTimeInterval(24 * 3600)
+        let past2Hours = now.addingTimeInterval(-2 * 3600)
+
         let parsed = rows
             .map { row in
                 let catEnum = row.category.flatMap { PopupCategory(rawValue: $0.lowercased()) } ?? .general
@@ -1645,10 +1645,10 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             }
             .filter { popup in
                 if let end = popup.endTime {
-                    return end > now
+                    return end >= past2Hours && end <= next24Hours.addingTimeInterval(4 * 3600)
                 } else if let start = popup.startTime {
-                    // Event started less than 2 hours ago or is in the future
-                    return start.addingTimeInterval(2 * 3600) > now
+                    // Event starts within the next 24 hours (and didn't start >2 hours ago)
+                    return start >= past2Hours && start <= next24Hours
                 }
                 return true
             }
