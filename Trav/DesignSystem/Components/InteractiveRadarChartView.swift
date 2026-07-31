@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 /// An interactive SwiftUI Radar Chart (spider chart) view that allows users to drag vertices or handles
-/// directly on the polygon to adjust ratings continuously (1.0 to 10.0), toggle categories ON/OFF (disabled categories render as 0.0 in gray and are excluded from overall average), with a live updating experience score at the top.
+/// directly on the polygon to adjust ratings continuously (1.0 to 10.0), toggle categories ON/OFF (disabled categories render as 0.0 in gray and are excluded from overall average), with a live updating overall score.
 struct InteractiveRadarChartView: View {
     @Binding var rating: RadarRating
     let axes: [RadarAxis]
@@ -27,11 +27,7 @@ struct InteractiveRadarChartView: View {
 
     var body: some View {
         VStack(spacing: TravSpacing.md) {
-            // Live Score Header Display
             headerView
-
-            // Quick Category Toggle Chips
-            categoryToggleBar
 
             GeometryReader { geometry in
                 let size = min(geometry.size.width, geometry.size.height)
@@ -57,13 +53,6 @@ struct InteractiveRadarChartView: View {
             .frame(height: 275)
             .padding(.vertical, TravSpacing.xs)
         }
-        .padding(TravSpacing.md)
-        .background(TravColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: TravRadius.lg)
-                .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
-        )
     }
 
     @ViewBuilder
@@ -214,81 +203,31 @@ struct InteractiveRadarChartView: View {
     // MARK: - Subviews
 
     private var headerView: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("RATING RADAR")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .tracking(1.5)
-                    .foregroundStyle(TravColors.accent)
-                Text("Experience Rating")
-                    .font(TravTypography.titleMedium())
+        HStack(spacing: 6) {
+            Image(systemName: "star.fill")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Color(red: 1.0, green: 0.8, blue: 0.0))
+
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(String(format: "%.1f", rating.overallScore))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(TravColors.primary)
+                    .contentTransition(.numericText())
+
+                Text("/ 10.0")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TravColors.muted)
             }
-
-            Spacer()
-
-            // Prominent Live Score Display at Top (Averages active categories ONLY)
-            HStack(spacing: 6) {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(Color(red: 1.0, green: 0.8, blue: 0.0))
-
-                HStack(alignment: .firstTextBaseline, spacing: 2) {
-                    Text(String(format: "%.1f", rating.overallScore))
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundStyle(TravColors.primary)
-                        .contentTransition(.numericText())
-
-                    Text("/ 10.0")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(TravColors.muted)
-                }
-            }
-            .padding(.horizontal, TravSpacing.md)
-            .padding(.vertical, TravSpacing.xs)
-            .background(TravColors.surfaceElevated)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule().stroke(TravColors.accent.opacity(0.3), lineWidth: 1.5)
-            )
-            .shadow(color: TravColors.accent.opacity(0.12), radius: 6, x: 0, y: 3)
         }
-    }
-
-    private var categoryToggleBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: TravSpacing.xs) {
-                ForEach(axes) { axis in
-                    let isEnabled = rating.isEnabled(axis.id)
-                    Button {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                            rating.toggleCategory(axis.id)
-                        }
-                        hapticFeedback.impactOccurred()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(axis.name)
-                                .font(.system(size: 11, weight: isEnabled ? .bold : .medium, design: .rounded))
-                                .foregroundStyle(isEnabled ? TravColors.primary : Color.gray)
-
-                            Text(isEnabled ? String(format: "%.1f", rating.score(for: axis.id)) : "OFF")
-                                .font(.system(size: 10.5, weight: .bold, design: .rounded))
-                                .foregroundStyle(isEnabled ? TravColors.accent : Color.gray.opacity(0.7))
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(isEnabled ? TravColors.accent.opacity(0.12) : Color.gray.opacity(0.12))
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(isEnabled ? TravColors.accent.opacity(0.35) : Color.gray.opacity(0.3), lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 2)
-        }
+        .padding(.horizontal, TravSpacing.md)
+        .padding(.vertical, TravSpacing.xs)
+        .background(TravColors.surfaceElevated)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule().stroke(TravColors.accent.opacity(0.3), lineWidth: 1.5)
+        )
+        .shadow(color: TravColors.accent.opacity(0.12), radius: 6, x: 0, y: 3)
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
 }

@@ -18,6 +18,8 @@ struct ExperienceDetailView: View {
     @State private var activeImagePreview: ImagePreviewItem?
     @State private var initialIsSaved: Bool = false
     @State private var initialIsCompleted: Bool = false
+    @State private var isSummaryRadarExpanded = false
+    @State private var presentedProfile: PresentedProfile?
 
     let experienceID: UUID
 
@@ -81,6 +83,9 @@ struct ExperienceDetailView: View {
             FullScreenImageViewer(urls: item.urls, initialIndex: item.initialIndex) {
                 activeImagePreview = nil
             }
+        }
+        .fullScreenCover(item: $presentedProfile) { profile in
+            ProfileView(username: profile.username)
         }
         .task {
             if let userID = environment.session.currentUser?.id {
@@ -189,7 +194,7 @@ struct ExperienceDetailView: View {
 
                 if !isSpotRec {
                     Button {
-                        router.openProfile(experience.creator.username)
+                        presentedProfile = PresentedProfile(username: experience.creator.username)
                     } label: {
                         HStack(spacing: TravSpacing.xs) {
                             AvatarView(url: experience.creator.avatarURL, size: 32)
@@ -421,7 +426,10 @@ struct ExperienceDetailView: View {
                 ForEach(sortedRatings(for: experience)) { rating in
                     PersonRatingCard(
                         rating: rating,
-                        isCreator: rating.author.id == experience.creator.id
+                        isCreator: rating.author.id == experience.creator.id,
+                        onProfileTap: {
+                            presentedProfile = PresentedProfile(username: rating.author.username)
+                        }
                     ) { urls, idx in
                         activeImagePreview = ImagePreviewItem(urls: urls, initialIndex: idx)
                     }
@@ -453,54 +461,75 @@ struct ExperienceDetailView: View {
         let isCreatorOnly = !hasCommunity && (summary.isCreatorOnly || score != nil)
 
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
-            HStack(alignment: .center, spacing: TravSpacing.md) {
-                HStack(spacing: 5) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(
-                            hasCommunity
-                                ? Color(red: 0.95, green: 0.75, blue: 0.15)
-                                : Color(red: 0.95, green: 0.75, blue: 0.15).opacity(0.9)
-                        )
-                    Text(score != nil ? TravFormatters.score(score!) : "--")
-                        .font(.system(size: 28, weight: .black, design: .rounded))
-                        .foregroundStyle(hasCommunity ? Color.white : TravColors.primary)
-                        .monospacedDigit()
+            Button {
+                guard radar != nil else { return }
+                withAnimation(TravAnimation.quick) {
+                    isSummaryRadarExpanded.toggle()
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
-                        .fill(hasCommunity ? TravColors.accent : TravColors.surfaceElevated)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
-                                .stroke(
-                                    hasCommunity ? TravColors.accent : TravColors.border.opacity(0.5),
-                                    lineWidth: 1
-                                )
-                        )
-                )
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(isCreatorOnly ? "CREATOR RATING" : "COMMUNITY RATING")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .tracking(1.4)
-                        .foregroundStyle(TravColors.accent)
-
-                    Text(
-                        hasCommunity
-                            ? "\(communityCount) Community \(communityCount == 1 ? "Rating" : "Ratings")"
-                            : "No Community Ratings"
+            } label: {
+                HStack(alignment: .center, spacing: TravSpacing.md) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(Color(red: 0.95, green: 0.75, blue: 0.15).opacity(0.9))
+                        Text(score != nil ? TravFormatters.score(score!) : "--")
+                            .font(.system(size: 28, weight: .black, design: .rounded))
+                            .foregroundStyle(hasCommunity ? Color.white : TravColors.primary)
+                            .monospacedDigit()
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                            .fill(
+                                hasCommunity
+                                    ? Color(red: 0.52, green: 0.24, blue: 0.86)
+                                    : TravColors.surfaceElevated
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                                    .stroke(
+                                        hasCommunity
+                                            ? Color(red: 0.52, green: 0.24, blue: 0.86)
+                                            : TravColors.border.opacity(0.5),
+                                        lineWidth: 1
+                                    )
+                            )
                     )
-                    .font(TravTypography.caption())
-                    .foregroundStyle(TravColors.muted)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(isCreatorOnly ? "CREATOR RATING" : "COMMUNITY RATING")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .tracking(1.4)
+                            .foregroundStyle(TravColors.accent)
+
+                        Text(
+                            hasCommunity
+                                ? "\(communityCount) Community \(communityCount == 1 ? "Rating" : "Ratings")"
+                                : "No Community Ratings"
+                        )
+                        .font(TravTypography.caption())
+                        .foregroundStyle(TravColors.muted)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    if radar != nil {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(TravColors.primary.opacity(0.75))
+                            .rotationEffect(.degrees(isSummaryRadarExpanded ? 180 : 0))
+                            .padding(.trailing, 22)
+                    }
                 }
-
-                Spacer(minLength: 0)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .disabled(radar == nil)
 
-            if let radar {
-                ReadOnlyRadarChartView(rating: radar, showsHeader: false)
+            if isSummaryRadarExpanded, let radar {
+                ReadOnlyRadarChartView(rating: radar, showsHeader: false, showsScoreSummary: false)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1190,10 +1219,42 @@ private struct MapStopAnnotationView: View {
     }
 }
 
+private struct PresentedProfile: Identifiable {
+    let username: String
+    var id: String { username.lowercased() }
+}
+
 private struct PersonRatingCard: View {
     let rating: Rating
     var isCreator: Bool = false
+    var onProfileTap: (() -> Void)? = nil
     let onPhotoTap: (([URL], Int) -> Void)?
+
+    @State private var showSubratings = false
+    @State private var isPhotoExpanded = false
+    @State private var galleryIndex = 0
+
+    private let photoThumbSize: CGFloat = 32
+    /// Horizontal step between stacked thumbs — enough overlap to read as a stack,
+    /// but most of each image stays visible.
+    private let photoStackStep: CGFloat = 16
+
+    private var showsPhotoStack: Bool {
+        !isCreator && !rating.photoURLs.isEmpty
+    }
+
+    private var photoStackWidth: CGFloat {
+        let count = min(rating.photoURLs.count, 3)
+        guard count > 0 else { return 0 }
+        return photoThumbSize + CGFloat(count - 1) * photoStackStep
+    }
+
+    private func toggleSubratings() {
+        guard !rating.radar.scores.isEmpty else { return }
+        withAnimation(TravAnimation.quick) {
+            showSubratings.toggle()
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
@@ -1206,21 +1267,34 @@ private struct PersonRatingCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if !rating.radar.scores.isEmpty {
-                categoryPillsView
+            if showSubratings, !rating.radar.scores.isEmpty {
+                ReadOnlyRadarChartView(
+                    rating: rating.radar,
+                    showsHeader: false,
+                    showsScoreSummary: false,
+                    emphasizesGrid: true
+                )
+                .padding(.top, TravSpacing.md)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            if !rating.photoURLs.isEmpty {
-                photosGalleryView
+            if isPhotoExpanded, showsPhotoStack {
+                expandedPhotoGallery
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
         .padding(TravSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(TravColors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
                 .stroke(TravColors.border.opacity(0.3), lineWidth: 1)
         )
+        .contentShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+        .onTapGesture {
+            toggleSubratings()
+        }
         .overlay(alignment: .topTrailing) {
             if isCreator {
                 Text("Creator")
@@ -1232,36 +1306,49 @@ private struct PersonRatingCard: View {
                     .background(TravColors.accent)
                     .clipShape(Capsule())
                     .shadow(color: TravColors.accent.opacity(0.35), radius: 3, y: 1)
-                    // Hang ~40% of the tag outside the top-right corner.
                     .offset(x: 14, y: -8)
+                    .allowsHitTesting(false)
+            } else if showsPhotoStack {
+                photoStackOverlay
+                    // ~30% hangs outside the card; ~70% stays inside.
+                    .offset(x: photoStackWidth * 0.30, y: -18)
             }
         }
-        // Keep hanging tag from colliding with neighboring content.
+        // Only lift the hanging creator tag — photo stack floats above without shifting the score.
         .padding(.top, isCreator ? 10 : 0)
         .padding(.trailing, isCreator ? 8 : 0)
+        .animation(TravAnimation.quick, value: showSubratings)
+        .animation(TravAnimation.quick, value: isPhotoExpanded)
     }
 
     private var headerView: some View {
         HStack(alignment: .center, spacing: TravSpacing.sm) {
-            AvatarView(url: rating.author.avatarURL, size: 36)
+            Button {
+                onProfileTap?()
+            } label: {
+                HStack(alignment: .center, spacing: TravSpacing.sm) {
+                    AvatarView(url: rating.author.avatarURL, size: 36)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(rating.author.displayName)
-                        .font(TravTypography.labelMedium())
-                        .foregroundStyle(TravColors.primary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text(rating.author.displayName)
+                                .font(TravTypography.labelMedium())
+                                .foregroundStyle(TravColors.primary)
 
-                    if rating.author.isVerified {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(TravColors.accent)
+                            if rating.author.isVerified {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(TravColors.accent)
+                            }
+                        }
+
+                        Text("@\(rating.author.username) • \(TravFormatters.relativeTime(rating.createdAt))")
+                            .font(TravTypography.caption())
+                            .foregroundStyle(TravColors.muted)
                     }
                 }
-
-                Text("@\(rating.author.username) • \(TravFormatters.relativeTime(rating.createdAt))")
-                    .font(TravTypography.caption())
-                    .foregroundStyle(TravColors.muted)
             }
+            .buttonStyle(.plain)
 
             Spacer(minLength: 0)
 
@@ -1274,50 +1361,90 @@ private struct PersonRatingCard: View {
             .foregroundStyle(TravColors.accent)
             .padding(.horizontal, 9)
             .padding(.vertical, 4)
-            .background(Color.clear)
+            .background(showSubratings ? TravColors.accentSoft : Color.clear)
             .clipShape(Capsule())
             .overlay(
                 Capsule().stroke(TravColors.accent, lineWidth: 1.5)
             )
+            .allowsHitTesting(false)
         }
     }
 
-    private var categoryPillsView: some View {
-        let pairs = rating.radar.scores.map { (key: $0.key, value: $0.value) }.sorted(by: { $0.key < $1.key })
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(pairs, id: \.key) { pair in
-                    HStack(spacing: 3) {
-                        Text(pair.key)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(TravColors.muted)
-                        Text(TravFormatters.score(pair.value))
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(TravColors.accent)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(TravColors.surfaceElevated)
-                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
+    private var photoStackOverlay: some View {
+        let urls = rating.photoURLs
+        let visibleCount = min(urls.count, 3)
+
+        return Button {
+            withAnimation(TravAnimation.quick) {
+                if isPhotoExpanded {
+                    isPhotoExpanded = false
+                } else {
+                    galleryIndex = min(galleryIndex, max(urls.count - 1, 0))
+                    isPhotoExpanded = true
                 }
             }
+        } label: {
+            ZStack(alignment: .leading) {
+                ForEach(0..<visibleCount, id: \.self) { index in
+                    RemoteImage(url: urls[index], height: photoThumbSize, cornerRadius: 7, maxPixelSize: 140)
+                        .frame(width: photoThumbSize, height: photoThumbSize)
+                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .stroke(TravColors.surfaceElevated, lineWidth: 1.5)
+                        )
+                        .shadow(color: .black.opacity(0.28), radius: 2, y: 1)
+                        .offset(x: CGFloat(index) * photoStackStep)
+                        .zIndex(Double(index))
+                }
+
+                if urls.count > 3 {
+                    Text("+\(urls.count - 3)")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.black.opacity(0.72)))
+                        .offset(
+                            x: CGFloat(visibleCount - 1) * photoStackStep + photoThumbSize - 6,
+                            y: photoThumbSize * 0.35
+                        )
+                        .zIndex(10)
+                }
+            }
+            .frame(width: photoStackWidth, height: photoThumbSize, alignment: .leading)
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isPhotoExpanded ? "Collapse photos" : "Show photos")
     }
 
-    private var photosGalleryView: some View {
+    private var expandedPhotoGallery: some View {
         let urls = rating.photoURLs
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: TravSpacing.xs) {
-                ForEach(Array(urls.enumerated()), id: \.offset) { idx, url in
+
+        return VStack(spacing: TravSpacing.xs) {
+            TabView(selection: $galleryIndex) {
+                ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
                     Button {
-                        onPhotoTap?(urls, idx)
+                        onPhotoTap?(urls, index)
                     } label: {
-                        RemoteImage(url: url, height: 96, cornerRadius: TravRadius.sm)
-                            .frame(width: 120, height: 96)
+                        RemoteImage(url: url, height: 200, cornerRadius: TravRadius.sm)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 200)
                             .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .tag(index)
                 }
+            }
+            .tabViewStyle(.page(indexDisplayMode: urls.count > 1 ? .automatic : .never))
+            .frame(height: 200)
+            .frame(maxWidth: .infinity)
+
+            if urls.count > 1 {
+                Text("\(galleryIndex + 1) / \(urls.count)")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TravColors.muted)
+                    .frame(maxWidth: .infinity)
             }
         }
     }

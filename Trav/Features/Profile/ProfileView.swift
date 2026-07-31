@@ -102,11 +102,7 @@ struct ProfileView: View {
                     hasApprovedBlockedView = true
                 }
                 Button("Go Back", role: .cancel) {
-                    if router.presentedRoute != nil {
-                        router.dismiss()
-                    } else {
-                        dismiss()
-                    }
+                    dismissPresentedProfile()
                 }
             } message: {
                 Text("You have blocked @\(username). Do you want to view their profile anyway?")
@@ -694,11 +690,7 @@ struct ProfileView: View {
 
     private var profileBackButton: some View {
         Button {
-            if router.presentedRoute != nil {
-                router.dismiss()
-            } else {
-                dismiss()
-            }
+            dismissPresentedProfile()
         } label: {
             Image(systemName: "chevron.left")
                 .font(.system(size: 17, weight: .semibold))
@@ -761,7 +753,14 @@ struct ProfileView: View {
         let succeeded = await engagement.block(userID: profile.id, using: environment)
         guard succeeded else { return }
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-        if router.presentedRoute != nil {
+        dismissPresentedProfile()
+    }
+
+    /// Dismisses this profile without closing an underlying experience/city cover.
+    /// Only clears `presentedRoute` when this profile *is* the presented route.
+    private func dismissPresentedProfile() {
+        if case .profile(let presentedUsername) = router.presentedRoute,
+           presentedUsername.lowercased() == username.lowercased() {
             router.dismiss()
         } else {
             dismiss()

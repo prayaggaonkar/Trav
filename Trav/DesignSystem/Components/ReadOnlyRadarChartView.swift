@@ -10,8 +10,11 @@ struct ReadOnlyRadarChartView: View {
     let fillColor: Color
     let strokeColor: Color
     var showsHeader: Bool
+    var showsScoreSummary: Bool
+    /// Stronger concentric grid — used on individual review radar expansions.
+    var emphasizesGrid: Bool
 
-    @State private var isAnimated: Bool = false
+    @State private var isVisible: Bool = false
 
     init(
         rating: RadarRating,
@@ -20,7 +23,9 @@ struct ReadOnlyRadarChartView: View {
         maxScore: Double = 10.0,
         fillColor: Color = TravColors.accent,
         strokeColor: Color = TravColors.accent,
-        showsHeader: Bool = true
+        showsHeader: Bool = true,
+        showsScoreSummary: Bool = true,
+        emphasizesGrid: Bool = false
     ) {
         self.rating = rating
         self.axes = axes
@@ -29,6 +34,8 @@ struct ReadOnlyRadarChartView: View {
         self.fillColor = fillColor
         self.strokeColor = strokeColor
         self.showsHeader = showsHeader
+        self.showsScoreSummary = showsScoreSummary
+        self.emphasizesGrid = emphasizesGrid
     }
 
     var body: some View {
@@ -40,19 +47,21 @@ struct ReadOnlyRadarChartView: View {
             GeometryReader { geometry in
                 let size = min(geometry.size.width, geometry.size.height)
                 let center = CGPoint(x: geometry.size.width / 2.0, y: geometry.size.height / 2.0)
-                let radius = (size / 2.0) - 36.0 // Leave padding for text labels
+                // Leave room for boxed labels placed by closest-edge gap, not center distance.
+                let radius = (size / 2.0) - 58.0
 
                 radarPlotView(size: size, center: center, radius: radius)
             }
-            .frame(height: 250)
+            .frame(height: 268)
             .onAppear {
-                withAnimation(.spring(response: 0.7, dampingFraction: 0.75)) {
-                    isAnimated = true
+                withAnimation(.easeOut(duration: 0.4)) {
+                    isVisible = true
                 }
             }
 
-            // Summary breakdown bar below chart
-            scoreSummaryGrid
+            if showsScoreSummary {
+                scoreSummaryGrid
+            }
         }
     }
 
@@ -61,9 +70,19 @@ struct ReadOnlyRadarChartView: View {
         ForEach([0.25, 0.5, 0.75, 1.0], id: \.self) { level in
             let w = radius * 2 * CGFloat(level)
             let h = radius * 2 * CGFloat(level)
-            let lw: CGFloat = level == 1.0 ? 1.5 : 1.0
+            let isOuter = level == 1.0
+            let innerOpacity = emphasizesGrid ? 0.72 : 0.35
+            let innerWidth: CGFloat = emphasizesGrid ? 1.35 : 1.0
             RadarChartPolygonShape(values: Array(repeating: level, count: axes.count))
-                .stroke(TravColors.border.opacity(0.4), lineWidth: lw)
+                .stroke(
+                    isOuter ? TravColors.border.opacity(0.85) : TravColors.border.opacity(innerOpacity),
+                    style: StrokeStyle(
+                        lineWidth: isOuter ? 2.5 : innerWidth,
+                        lineCap: .round,
+                        lineJoin: .round,
+                        dash: isOuter ? [7, 5] : []
+                    )
+                )
                 .frame(width: w, height: h)
         }
     }
@@ -113,7 +132,6 @@ struct ReadOnlyRadarChartView: View {
                 minScore: minScore,
                 maxScore: maxScore,
                 activeColor: strokeColor,
-                isAnimated: isAnimated,
                 axesCount: axes.count
             )
         }
@@ -136,8 +154,9 @@ struct ReadOnlyRadarChartView: View {
 
     @ViewBuilder
     private func radarPlotView(size: CGFloat, center: CGPoint, radius: CGFloat) -> some View {
+        // Always draw at final scores so vertices never travel past / below rest positions.
         let normalizedValues = axes.map { axis in
-            isAnimated ? rating.normalizedScore(for: axis.id, min: minScore, max: maxScore) : 0.0
+            rating.normalizedScore(for: axis.id, min: minScore, max: maxScore)
         }
 
         ZStack {
@@ -147,6 +166,8 @@ struct ReadOnlyRadarChartView: View {
             vertexDots(center: center, radius: radius)
             perimeterLabels(center: center, radius: radius)
         }
+        .opacity(isVisible ? 1 : 0)
+        .scaleEffect(isVisible ? 1 : 0.96, anchor: .center)
     }
 
     // MARK: - Subviews
@@ -244,7 +265,6 @@ struct ReadOnlyVertexDotView: View {
     let minScore: Double
     let maxScore: Double
     let activeColor: Color
-    let isAnimated: Bool
     let axesCount: Int
 
     private var isEnabled: Bool {
@@ -252,7 +272,7 @@ struct ReadOnlyVertexDotView: View {
     }
 
     private var val: Double {
-        isAnimated ? rating.normalizedScore(for: axis.id, min: minScore, max: maxScore) : 0.0
+        rating.normalizedScore(for: axis.id, min: minScore, max: maxScore)
     }
 
     private var angle: Double {
@@ -284,6 +304,9 @@ struct ReadOnlyPerimeterLabelView: View {
     let minScore: Double
     let axesCount: Int
 
+    /// Visual gap between the pentagon tip and the nearest point on the label box.
+    private let tipToBoxGap: CGFloat = 12
+
     private var isEnabled: Bool {
         rating.isEnabled(axis.id)
     }
@@ -296,29 +319,56 @@ struct ReadOnlyPerimeterLabelView: View {
         -.pi / 2.0 + Double(index) * (2.0 * .pi / Double(axesCount))
     }
 
+    /// Approximate label box size so we can place by closest-edge distance, not center.
+    private var estimatedLabelSize: CGSize {
+        let nameChars = CGFloat(axis.name.count)
+        let nameWidth = nameChars * 6.2 + 4
+        let scoreWidth: CGFloat = 34
+        let width = max(nameWidth, scoreWidth) + 16
+        let height: CGFloat = 38
+        return CGSize(width: width, height: height)
+    }
+
+    /// Distance from box center to its nearest edge along the inward radial direction.
+    private var radialHalfExtent: CGFloat {
+        let halfW = estimatedLabelSize.width / 2
+        let halfH = estimatedLabelSize.height / 2
+        return halfW * abs(CGFloat(cos(angle))) + halfH * abs(CGFloat(sin(angle)))
+    }
+
     private var labelPoint: CGPoint {
-        let labelRadius = radius + 24.0
+        // tip + gap + distance to nearest box edge (along the radial axis)
+        let distance = radius + tipToBoxGap + radialHalfExtent
         return CGPoint(
-            x: center.x + CGFloat(labelRadius * cos(angle)),
-            y: center.y + CGFloat(labelRadius * sin(angle))
+            x: center.x + CGFloat(distance * cos(angle)),
+            y: center.y + CGFloat(distance * sin(angle))
         )
     }
 
     var body: some View {
         VStack(spacing: 2) {
             Text(axis.name)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundStyle(isEnabled ? TravColors.primary : Color.gray)
 
             Text(isEnabled ? String(format: "%.1f", score) : "OFF")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(isEnabled ? TravColors.accent : Color.gray.opacity(0.8))
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(isEnabled ? TravColors.surface.opacity(0.95) : Color.gray.opacity(0.12))
-        .clipShape(Capsule())
-        .shadow(color: Color.black.opacity(0.08), radius: 2, x: 0, y: 1)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isEnabled ? TravColors.surfaceElevated.opacity(0.95) : Color.gray.opacity(0.1))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(
+                    isEnabled ? TravColors.accent.opacity(0.75) : Color.gray.opacity(0.35),
+                    lineWidth: 1.25
+                )
+        )
+        .fixedSize()
         .position(labelPoint)
     }
 }
