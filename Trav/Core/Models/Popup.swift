@@ -80,6 +80,7 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
     var description: String?
     var startTime: Date?
     var endTime: Date?
+    var hasExactTime: Bool
     var externalURL: URL?
     var imageURL: URL?
     var source: String?
@@ -96,6 +97,7 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
         description: String? = nil,
         startTime: Date? = nil,
         endTime: Date? = nil,
+        hasExactTime: Bool = true,
         externalURL: URL? = nil,
         imageURL: URL? = nil,
         source: String? = nil,
@@ -111,6 +113,7 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
         self.description = description
         self.startTime = startTime
         self.endTime = endTime
+        self.hasExactTime = hasExactTime
         self.source = source
         self.distanceMiles = distanceMiles
 
@@ -130,16 +133,31 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
     }
 
     var startTimeLabel: String {
-        guard let startTime else { return "Date/Time TBA" }
+        guard let startTime else { return "Date TBA" }
+
+        let showTime = hasExactTime && (Calendar.current.component(.hour, from: startTime) != 12 || Calendar.current.component(.minute, from: startTime) != 0)
+
         if Calendar.current.isDateInToday(startTime) {
-            return "Today at " + DateFormatter.localizedString(from: startTime, dateStyle: .none, timeStyle: .short)
+            if showTime {
+                return "Today at " + DateFormatter.localizedString(from: startTime, dateStyle: .none, timeStyle: .short)
+            } else {
+                return "Today"
+            }
         }
         if Calendar.current.isDateInTomorrow(startTime) {
-            return "Tomorrow at " + DateFormatter.localizedString(from: startTime, dateStyle: .none, timeStyle: .short)
+            if showTime {
+                return "Tomorrow at " + DateFormatter.localizedString(from: startTime, dateStyle: .none, timeStyle: .short)
+            } else {
+                return "Tomorrow"
+            }
         }
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
-        formatter.timeStyle = .short
+        if showTime {
+            formatter.timeStyle = .short
+        } else {
+            formatter.timeStyle = .none
+        }
         return formatter.string(from: startTime)
     }
 

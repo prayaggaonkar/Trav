@@ -1208,42 +1208,63 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let distance_miles: Double?
     }
 
-    private static func parseDate(_ raw: String?) -> Date? {
-        guard let raw, !raw.isEmpty else { return nil }
+    private static func parseDateInfo(_ raw: String?) -> (date: Date?, hasExactTime: Bool) {
+        guard let raw, !raw.isEmpty else { return (nil, false) }
 
-        // 1. Check ISO8601 standard format with internet date/time & fractional seconds
+        // 1. Simple YYYY-MM-DD date string (e.g. Eventbrite "2026-08-01") -> No exact time!
+        if raw.count == 10, raw.contains("-") {
+            let df = DateFormatter()
+            df.locale = Locale(identifier: "en_US_POSIX")
+            df.dateFormat = "yyyy-MM-dd"
+            df.timeZone = TimeZone.current
+            if let date = df.date(from: raw) {
+                let noonDate = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: date) ?? date
+                return (noonDate, false)
+            }
+        }
+
+        // 2. Check ISO8601 standard format with internet date/time & fractional seconds
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = iso.date(from: raw) { return date }
+        if let date = iso.date(from: raw) {
+            let hour = Calendar.current.component(.hour, from: date)
+            let minute = Calendar.current.component(.minute, from: date)
+            let hasTime = !(hour == 0 && minute == 0) && !(hour == 12 && minute == 0 && raw.contains("T12:00:00") == false)
+            return (date, hasTime)
+        }
 
         iso.formatOptions = [.withInternetDateTime]
-        if let date = iso.date(from: raw) { return date }
+        if let date = iso.date(from: raw) {
+            let hour = Calendar.current.component(.hour, from: date)
+            let minute = Calendar.current.component(.minute, from: date)
+            let hasTime = !(hour == 0 && minute == 0) && !(hour == 12 && minute == 0 && raw.contains("T12:00:00") == false)
+            return (date, hasTime)
+        }
 
-        // 2. Custom DateFormatter (preserve local time without forcing GMT offset on ISO strings)
+        // 3. Custom DateFormatter
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
 
         for format in ["yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ", "yyyy-MM-dd'T'HH:mm:ssZZZZZ", "yyyy-MM-dd'T'HH:mm:ssZ"] {
             formatter.dateFormat = format
-            if let date = formatter.date(from: raw) { return date }
+            if let date = formatter.date(from: raw) {
+                return (date, true)
+            }
         }
 
         for format in ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss"] {
             formatter.dateFormat = format
             formatter.timeZone = TimeZone.current
-            if let date = formatter.date(from: raw) { return date }
-        }
-
-        // 3. Simple YYYY-MM-DD date string (e.g. Eventbrite "2026-08-01")
-        if raw.count == 10, raw.contains("-") {
-            formatter.dateFormat = "yyyy-MM-dd"
-            formatter.timeZone = TimeZone.current
             if let date = formatter.date(from: raw) {
-                return Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: date) ?? date
+                return (date, true)
             }
         }
 
-        return nil
+        return (nil, false)
+    }
+
+    private static func parseDate(_ raw: String?) -> Date? {
+        return parseDateInfo(raw).date
     }
 
     private static func fetchTicketmasterLiveEvents(latitude: Double, longitude: Double, city: String) async -> [DBPopup] {
@@ -1626,6 +1647,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 let extURL = Popup.cleanURL(row.external_url, name: row.event_name)
                 let imgURL = row.image_url.flatMap { URL(string: $0) } ?? Popup.uniqueCoverURL(for: row.event_name, category: catEnum)
 
+                let startInfo = Self.parseDateInfo(row.start_time)
                 return Popup(
                     id: row.id,
                     name: row.event_name,
@@ -1635,8 +1657,9 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                     longitude: row.longitude,
                     category: catEnum,
                     description: row.description,
-                    startTime: Self.parseDate(row.start_time),
+                    startTime: startInfo.date,
                     endTime: Self.parseDate(row.end_time),
+                    hasExactTime: startInfo.hasExactTime,
                     externalURL: extURL,
                     imageURL: imgURL,
                     source: row.source,
