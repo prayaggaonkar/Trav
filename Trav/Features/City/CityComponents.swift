@@ -332,18 +332,20 @@ struct HeroExperienceCard: View {
                     Spacer(minLength: 4)
 
                     // Bookmark + share + rating — group midpoint centered on the card.
+                    let resolvedIsSaved = engagement.isSaved(experience.id) || isSaved
+
                     VStack(alignment: .center, spacing: 16) {
                         HStack(spacing: 8) {
                             Button {
                                 onSave?()
                             } label: {
-                                Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                                Image(systemName: resolvedIsSaved ? "bookmark.fill" : "bookmark")
                                     .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(isSaved ? Color.yellow : TravColors.muted)
+                                    .foregroundStyle(resolvedIsSaved ? Color.yellow : TravColors.muted)
                                     .frame(width: 22, height: 22)
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel(isSaved ? "Remove bookmark" : "Bookmark")
+                            .accessibilityLabel(resolvedIsSaved ? "Remove bookmark" : "Bookmark")
 
                             Button {
                                 onShare?()
