@@ -385,7 +385,7 @@ struct GemPostCardView: View {
                         }
                     }
             }
-            .padding(connectedLayout ? 20 : TravSpacing.md)
+            .padding(connectedLayout ? 12 : 10)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
