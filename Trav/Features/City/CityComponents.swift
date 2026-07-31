@@ -406,6 +406,7 @@ struct HeroExperienceCard: View {
         }
         .contentShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : cardCornerRadius, style: .continuous))
         .onTapGesture(perform: onTap)
+        .travPopWithDustEffect()
         .task(id: experience.id) {
             resolvedLocation = await resolveLocationLabel()
         }

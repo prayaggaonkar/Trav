@@ -122,7 +122,7 @@ final class AppleMapsVibeService: @unchecked Sendable {
     ) async -> [ExperienceSummary] {
         let cleanCity = city.trimmingCharacters(in: .whitespacesAndNewlines)
         let targetCity = cleanCity.isEmpty ? "Berkeley, CA" : cleanCity
-        
+
         let targetVibes = vibes.isEmpty ? [
             "🎨 Street Art",
             "🌙 Nightlife",
@@ -130,19 +130,21 @@ final class AppleMapsVibeService: @unchecked Sendable {
             "🍷 Rooftop Bars"
         ] : vibes
 
-        lookAroundCount = 0
-
-        let radiusMeters: Double
-        switch page {
-        case 0: radiusMeters = 8000
-        case 1: radiusMeters = 20000
-        case 2: radiusMeters = 40000
-        default: radiusMeters = 60000
+        // Ensure general hangout backup categories are always included so recommendations never run dry
+        var searchVibes = targetVibes
+        let backupVibes = ["☕️ Cozy Cafe", "🍷 Rooftop Bar", "🍰 Artisan Bakery", "🌅 Scenic Viewpoint", "🍸 Speakeasy"]
+        for backup in backupVibes {
+            if !searchVibes.contains(backup) {
+                searchVibes.append(backup)
+            }
         }
+
+        lookAroundCount = 0
+        let radiusMeters = min(100000.0, 10000.0 + Double(page) * 20000.0)
 
         var vibeBuckets: [[ExperienceSummary]] = []
 
-        for vibe in targetVibes.shuffled() {
+        for vibe in searchVibes.shuffled() {
             let (emoji, cleanCategory) = extractEmojiAndText(from: vibe)
             let categoryKey = cleanCategory.lowercased()
             
@@ -155,8 +157,8 @@ final class AppleMapsVibeService: @unchecked Sendable {
             searchReq.naturalLanguageQuery = searchQuery
 
             if let center = center, center.latitude != 0, center.longitude != 0 {
-                let latOffset = Double.random(in: -0.015...0.015)
-                let lngOffset = Double.random(in: -0.015...0.015)
+                let latOffset = Double.random(in: -0.025...0.025)
+                let lngOffset = Double.random(in: -0.025...0.025)
                 let shiftedCenter = CLLocationCoordinate2D(latitude: center.latitude + latOffset, longitude: center.longitude + lngOffset)
                 searchReq.region = MKCoordinateRegion(
                     center: shiftedCenter,
@@ -278,6 +280,7 @@ final class AppleMapsVibeService: @unchecked Sendable {
             }
         }
 
+        // Interleave categories round-robin style so 10 trails/hikes are never grouped sequentially
         var interleaved: [ExperienceSummary] = []
         var maxCount = 0
         for bucket in vibeBuckets {
@@ -292,7 +295,7 @@ final class AppleMapsVibeService: @unchecked Sendable {
             }
         }
 
-        return interleaved.shuffled()
+        return interleaved
     }
 
     /// Resolves an experience by ID from cached recommendations or fallback
