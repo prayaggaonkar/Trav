@@ -377,8 +377,8 @@ struct CreateRatingView: View {
         var loaded: [Data] = []
         var images: [UIImage] = []
         for item in items.prefix(RatingDraft.maxPhotos) {
-            if let data = try? await item.loadTransferable(type: Data.self),
-               let image = UIImage(data: data) {
+            if let image = await Self.loadUIImage(from: item),
+               let data = image.jpegData(compressionQuality: 0.85) {
                 loaded.append(data)
                 images.append(image)
             }
@@ -387,6 +387,17 @@ struct CreateRatingView: View {
             photosData = loaded
             photoImages = images
         }
+    }
+
+    private static func loadUIImage(from item: PhotosPickerItem) async -> UIImage? {
+        if let picked = try? await item.loadTransferable(type: PickedRatingPhotoTransferable.self) {
+            return picked.image
+        }
+        if let data = try? await item.loadTransferable(type: Data.self),
+           let image = UIImage(data: data) {
+            return image
+        }
+        return nil
     }
 
     private func removePhoto(at index: Int) {
@@ -588,6 +599,19 @@ private struct LockedExperiencePreview: View {
         .overlay {
             RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
                 .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
+        }
+    }
+}
+
+private struct PickedRatingPhotoTransferable: Transferable {
+    let image: UIImage
+
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(importedContentType: .image) { data in
+            guard let image = UIImage(data: data) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            return PickedRatingPhotoTransferable(image: image)
         }
     }
 }

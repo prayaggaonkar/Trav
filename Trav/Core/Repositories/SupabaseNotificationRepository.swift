@@ -63,13 +63,15 @@ struct SupabaseNotificationRepository: NotificationRepository {
     }
 
     func unreadCount(userID: UUID) async throws -> Int {
-        let response = try await client
+        struct IDRow: Decodable { let id: UUID }
+        let rows: [IDRow] = (try? await client
             .from("notifications")
-            .select("id", count: .exact)
+            .select("id")
             .eq("user_id", value: userID)
             .eq("is_read", value: false)
             .execute()
-        return response.count ?? 0
+            .value) ?? []
+        return rows.count
     }
 
     func markRead(ids: [UUID]) async throws {

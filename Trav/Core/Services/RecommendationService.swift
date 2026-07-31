@@ -205,14 +205,14 @@ final class RecommendationService: Sendable {
         }
     }
 
-    /// Generates dynamic "Rec by Trav" itineraries using Apple MapKit and Apple NaturalLanguage vector embeddings.
+    /// Generates dynamic "Rec by Trav" single-spot recommendations using AppleMapsVibeService.
     private func generateDynamicAppleMapsFallbacks() async -> [Experience] {
         let cities = ["San Francisco", "Tokyo", "Paris", "New York"]
         var results: [Experience] = []
         for city in cities {
-            if let exp = await AutoSeedManager.shared.generateAppleMapsItinerary(city: city) {
-                results.append(exp)
-            }
+            let vibePlaces = await AppleMapsVibeService.shared.fetchPlacesForVibes(city: city, vibes: ["Cafes", "Nightlife", "Rooftop Bars", "Vintage Shops"])
+            let experiences = vibePlaces.compactMap { AppleMapsVibeService.shared.cachedExperience(for: $0.id) }
+            results.append(contentsOf: experiences)
         }
         return sortWithRealUserPriority(results)
     }

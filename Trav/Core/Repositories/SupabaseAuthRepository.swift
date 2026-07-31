@@ -139,22 +139,25 @@ struct SupabaseAuthRepository: AuthRepository {
             .value
         guard var row = rows.first else { return nil }
 
-        let followerCount: Int = (try? await client
+        struct FollowerRow: Decodable { let follower_id: UUID? }
+        struct FollowingRow: Decodable { let following_id: UUID? }
+
+        let followers: [FollowerRow] = (try? await client
             .from("follows")
-            .select("*", head: true, count: .exact)
+            .select("follower_id")
             .eq("following_id", value: id)
             .execute()
-            .count) ?? row.followerCount
+            .value) ?? []
 
-        let followingCount: Int = (try? await client
+        let followings: [FollowingRow] = (try? await client
             .from("follows")
-            .select("*", head: true, count: .exact)
+            .select("following_id")
             .eq("follower_id", value: id)
             .execute()
-            .count) ?? row.followingCount
+            .value) ?? []
 
-        row.followerCount = followerCount
-        row.followingCount = followingCount
+        row.followerCount = followers.count
+        row.followingCount = followings.count
         return row
     }
 }

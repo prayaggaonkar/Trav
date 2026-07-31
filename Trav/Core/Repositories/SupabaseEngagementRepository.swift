@@ -109,25 +109,28 @@ struct SupabaseEngagementRepository: EngagementRepository {
         if !existing.isEmpty { return }
 
         let cached = AppleMapsVibeService.shared.cachedExperience(for: experienceID)
-        let stop = cached?.stops.first
-        let request = SpotSyncRequest(
-            placeID: stop?.placeID,
-            name: cached?.title ?? "Recommendation Spot",
-            description: cached?.description ?? "",
-            cityName: cached?.cityName ?? stop?.description ?? "",
-            cityID: cached?.cityID,
-            latitude: stop?.latitude,
-            longitude: stop?.longitude,
-            imageURLs: cached?.imageURLs ?? [],
-            category: cached?.category,
-            emoji: stop?.emoji
-        )
-
-        do {
-            _ = try await SupabaseExperienceRepository().syncSpot(request)
-        } catch {
-            TravLog.engagement.error("Spot sync failed: \(error.localizedDescription, privacy: .public)")
+        struct ExperienceShadowInsert: Encodable {
+            let id: UUID
+            let user_id: UUID
+            let title: String
+            let description: String
+            let city: String
+            let stops: [String]
+            let is_published: Bool
         }
+        let shadowInsert = ExperienceShadowInsert(
+            id: experienceID,
+            user_id: userID,
+            title: cached?.title ?? "Spot Recommendation",
+            description: cached?.description ?? "Spot recommendation",
+            city: cached?.cityName ?? "Berkeley, CA",
+            stops: [cached?.title ?? "Spot"],
+            is_published: true
+        )
+        _ = try? await client
+            .from("experiences")
+            .upsert(shadowInsert, onConflict: "id")
+            .execute()
     }
 
     func ensureExperienceExists(for summary: ExperienceSummary, ownerID: UUID) async throws {

@@ -7,6 +7,7 @@ struct ExperienceDetailView: View {
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
     @Environment(EngagementStore.self) private var engagement
+    @Environment(\.dismiss) private var dismissEnv
     @State private var experience: Experience?
     @State private var isLoading = true
     @State private var error: Error?
@@ -54,6 +55,25 @@ struct ExperienceDetailView: View {
             }
         }
         .animation(TravAnimation.quick, value: showComments)
+        .overlay(alignment: .topLeading) {
+            Button {
+                dismissEnv()
+                router.dismiss()
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(Color.black.opacity(0.55))
+                        .frame(width: 34, height: 34)
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+            }
+            .buttonStyle(TravPressButtonStyle())
+            .padding(.leading, TravSpacing.md)
+            .padding(.top, TravSpacing.md)
+            .zIndex(60)
+        }
         .fullScreenCover(item: $activeImagePreview) { item in
             FullScreenImageViewer(urls: item.urls, initialIndex: item.initialIndex) {
                 activeImagePreview = nil
@@ -83,6 +103,7 @@ struct ExperienceDetailView: View {
 
     private var experienceBackButton: some View {
         Button {
+            dismissEnv()
             router.dismiss()
         } label: {
             Image(systemName: "chevron.left")
@@ -284,6 +305,8 @@ struct ExperienceDetailView: View {
             // Completing requires a rating, so this opens Create Rating rather
             // than toggling state. Tapping it once completed edits that rating.
             Button {
+                dismissEnv()
+                router.dismiss()
                 engagement.requestCompletion(for: summary, using: environment)
             } label: {
                 VStack(spacing: 6) {
@@ -378,7 +401,9 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-            ExperienceRouteMapView(stops: experience.stops)
+            if experience.stops.count > 1 {
+                ExperienceRouteMapView(stops: experience.stops)
+            }
 
             ratingSection(experience)
         }
@@ -388,99 +413,119 @@ struct ExperienceDetailView: View {
     }
 
     /// Purple once the community has rated, grey while the creator's own score is
-    /// the only one on record — a creator rating is not public validation.
-    @ViewBuilder
+    /// the only one on record — a creator rating is not public validation    @ViewBuilder
     private func ratingSection(_ experience: Experience) -> some View {
-        let summary = experience.ratingSummary
-        let radar = summary.displayRadar(creatorRadar: experience.rating)
-        let hasCommunity = summary.hasCommunityValidation
-        let score = summary.displayScore
+        VStack(alignment: .leading, spacing: TravSpacing.lg) {
+            averageCommunityRatingCard(experience)
 
-        if let radar, let score, score > 0 {
-            VStack(alignment: .leading, spacing: TravSpacing.sm) {
-                HStack(alignment: .top, spacing: TravSpacing.sm) {
-                    Text(hasCommunity ? "COMMUNITY RATING" : "CREATOR RATING")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .tracking(2.0)
-                        .foregroundStyle(hasCommunity ? TravColors.accent : TravColors.muted)
-
-                    Spacer(minLength: 0)
-
-                    HStack(alignment: .firstTextBaseline, spacing: 2) {
-                        Text(TravFormatters.score(score))
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundStyle(hasCommunity ? TravColors.accent : TravColors.muted)
-
-                        Text("/ 10.0")
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundStyle(TravColors.muted)
-                    }
-                }
-
-                Text(summary.caption)
-                    .font(TravTypography.caption())
-                    .foregroundStyle(TravColors.muted)
-
-                ReadOnlyRadarChartView(rating: radar, showsHeader: false)
-                    .saturation(hasCommunity ? 1 : 0)
-                    .opacity(hasCommunity ? 1 : 0.85)
-            }
-            .padding(.top, TravSpacing.xs)
-
-            if !ratings.isEmpty {
-                reviewsSection
-            }
+            peopleWhoHaveBeenSection(experience)
         }
+        .padding(.top, TravSpacing.xs)
     }
 
-    /// Written reviews attached to community ratings.
     @ViewBuilder
-    private var reviewsSection: some View {
-        VStack(alignment: .leading, spacing: TravSpacing.sm) {
-            Text("REVIEWS")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .tracking(2.0)
-                .foregroundStyle(TravColors.accent)
+    private func averageCommunityRatingCard(_ experience: Experience) -> some View {
+        let summary = experience.ratingSummary
+        let radar = summary.displayRadar(creatorRadar: experience.rating)
+        let totalCount = max(summary.communityRatingCount, ratings.count)
+        let calcAvg = ratings.isEmpty ? nil : (ratings.reduce(0.0) { $0 + $1.overallScore } / Double(ratings.count))
+        let score = summary.displayScore ?? calcAvg
 
-            ForEach(ratings.filter(\.hasReview).prefix(5)) { rating in
-                VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                    HStack(spacing: TravSpacing.xs) {
-                        AvatarView(url: rating.author.avatarURL, size: 28)
-
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(rating.author.displayName)
-                                .font(TravTypography.labelMedium())
-                                .foregroundStyle(TravColors.primary)
-                            Text(TravFormatters.relativeTime(rating.createdAt))
-                                .font(TravTypography.caption())
-                                .foregroundStyle(TravColors.muted)
-                        }
-
-                        Spacer(minLength: 0)
-
-                        Text(TravFormatters.score(rating.overallScore))
-                            .font(TravTypography.labelMedium())
-                            .monospacedDigit()
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, TravSpacing.xs)
-                            .padding(.vertical, 3)
-                            .background(TravColors.accent)
-                            .clipShape(Capsule())
-                    }
-
-                    if let review = rating.review {
-                        Text(review)
-                            .font(TravTypography.bodyMedium())
-                            .foregroundStyle(TravColors.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+        VStack(alignment: .leading, spacing: TravSpacing.md) {
+            HStack(spacing: TravSpacing.md) {
+                // Score Badge
+                HStack(spacing: 5) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color(red: 0.95, green: 0.75, blue: 0.15))
+                    Text(score != nil ? TravFormatters.score(score!) : "--")
+                        .font(.system(size: 26, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
                 }
-                .padding(TravSpacing.md)
-                .background(TravColors.surfaceElevated)
-                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+                .padding(.horizontal, TravSpacing.md)
+                .padding(.vertical, TravSpacing.sm)
+                .background(
+                    RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                        .fill(TravColors.accent.opacity(0.18))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                                .stroke(TravColors.accent.opacity(0.4), lineWidth: 1)
+                        )
+                )
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("COMMUNITY RATING")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .tracking(1.5)
+                        .foregroundStyle(TravColors.accent)
+
+                    Text(totalCount > 0 ? "Based on \(totalCount) community \(totalCount == 1 ? "rating" : "ratings")" : "No community ratings yet")
+                        .font(TravTypography.caption())
+                        .foregroundStyle(TravColors.muted)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            if let radar {
+                ReadOnlyRadarChartView(rating: radar, showsHeader: false)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(TravSpacing.md)
+        .background(TravColors.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private func peopleWhoHaveBeenSection(_ experience: Experience) -> some View {
+        VStack(alignment: .leading, spacing: TravSpacing.md) {
+            HStack {
+                Text("VISITS & RATINGS")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .tracking(1.8)
+                    .foregroundStyle(TravColors.accent)
+
+                Spacer()
+
+                if !ratings.isEmpty {
+                    Text("\(ratings.count)")
+                        .font(TravTypography.caption())
+                        .fontWeight(.bold)
+                        .foregroundStyle(TravColors.accent)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(TravColors.accentSoft)
+                        .clipShape(Capsule())
+                }
+            }
+
+            if ratings.isEmpty {
+                VStack(spacing: TravSpacing.sm) {
+                    Image(systemName: "person.3.fill")
+                        .font(.system(size: 26))
+                        .foregroundStyle(TravColors.muted.opacity(0.6))
+                    Text("No visits or reviews logged yet.\nBe the first to rate & review this spot!")
+                        .font(TravTypography.bodyMedium())
+                        .foregroundStyle(TravColors.muted)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, TravSpacing.lg)
+                .padding(.horizontal, TravSpacing.md)
+                .background(TravColors.surfaceElevated.opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+            } else {
+                ForEach(ratings) { rating in
+                    PersonRatingCard(rating: rating) { urls, idx in
+                        activeImagePreview = ImagePreviewItem(urls: urls, initialIndex: idx)
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -579,6 +624,38 @@ private struct StopTimelineRow: View {
                     .foregroundStyle(TravColors.muted)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
+
+                // Open in Maps Button
+                Button {
+                    let latitude = stop.latitude
+                    let longitude = stop.longitude
+                    if latitude != 0 || longitude != 0 {
+                        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+                        let mapItem = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
+                        mapItem.name = stop.name
+                        mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
+                    } else {
+                        let query = "\(stop.name) \(stop.description)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                        if let url = URL(string: "http://maps.apple.com/?q=\(query)"), UIApplication.shared.canOpenURL(url) {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "map.fill")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Open Maps")
+                            .font(TravTypography.labelMedium())
+                            .fontWeight(.bold)
+                    }
+                    .foregroundStyle(TravColors.accent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(TravColors.accentSoft)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(TravPressButtonStyle())
+                .padding(.top, 2)
 
                 if !stop.media.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -1128,6 +1205,117 @@ private struct MapStopAnnotationView: View {
                 .foregroundStyle(TravColors.accent)
                 .rotationEffect(.degrees(180))
                 .offset(y: -3)
+        }
+    }
+}
+
+private struct PersonRatingCard: View {
+    let rating: Rating
+    let onPhotoTap: (([URL], Int) -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            headerView
+
+            if let review = rating.review, !review.isEmpty {
+                Text(review)
+                    .font(TravTypography.bodyMedium())
+                    .foregroundStyle(TravColors.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !rating.radar.scores.isEmpty {
+                categoryPillsView
+            }
+
+            if !rating.photoURLs.isEmpty {
+                photosGalleryView
+            }
+        }
+        .padding(TravSpacing.md)
+        .background(TravColors.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                .stroke(TravColors.border.opacity(0.3), lineWidth: 1)
+        )
+    }
+
+    private var headerView: some View {
+        HStack(spacing: TravSpacing.sm) {
+            AvatarView(url: rating.author.avatarURL, size: 36)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Text(rating.author.displayName)
+                        .font(TravTypography.labelMedium())
+                        .foregroundStyle(TravColors.primary)
+
+                    if rating.author.isVerified {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(TravColors.accent)
+                    }
+                }
+
+                Text("@\(rating.author.username) • \(TravFormatters.relativeTime(rating.createdAt))")
+                    .font(TravTypography.caption())
+                    .foregroundStyle(TravColors.muted)
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 3) {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 11))
+                Text(TravFormatters.score(rating.overallScore))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(TravColors.accent)
+            .clipShape(Capsule())
+        }
+    }
+
+    private var categoryPillsView: some View {
+        let pairs = rating.radar.scores.map { (key: $0.key, value: $0.value) }.sorted(by: { $0.key < $1.key })
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(pairs, id: \.key) { pair in
+                    HStack(spacing: 3) {
+                        Text(pair.key)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(TravColors.muted)
+                        Text(TravFormatters.score(pair.value))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(TravColors.accent)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(TravColors.surfaceElevated)
+                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
+                }
+            }
+        }
+    }
+
+    private var photosGalleryView: some View {
+        let urls = rating.photoURLs
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: TravSpacing.xs) {
+                ForEach(Array(urls.enumerated()), id: \.offset) { idx, url in
+                    Button {
+                        onPhotoTap?(urls, idx)
+                    } label: {
+                        RemoteImage(url: url, height: 96, cornerRadius: TravRadius.sm)
+                            .frame(width: 120, height: 96)
+                            .clipShape(RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 }

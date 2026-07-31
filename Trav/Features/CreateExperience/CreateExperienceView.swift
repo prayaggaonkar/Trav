@@ -438,8 +438,8 @@ struct CreateExperienceView: View {
                 var datas: [Data] = []
                 var uiImages: [UIImage] = []
                 for item in newItems {
-                    if let data = try? await item.loadTransferable(type: Data.self),
-                       let uiImage = UIImage(data: data) {
+                    if let uiImage = await Self.loadUIImage(from: item),
+                       let data = uiImage.jpegData(compressionQuality: 0.85) {
                         datas.append(data)
                         uiImages.append(uiImage)
                     }
@@ -692,5 +692,29 @@ struct CreateExperienceView: View {
         draft.stops = stops
         draft.ratingScores = rating.scores
         draft.save()
+    }
+
+    private static func loadUIImage(from item: PhotosPickerItem) async -> UIImage? {
+        if let picked = try? await item.loadTransferable(type: PickedCreateExperiencePhotoTransferable.self) {
+            return picked.image
+        }
+        if let data = try? await item.loadTransferable(type: Data.self),
+           let image = UIImage(data: data) {
+            return image
+        }
+        return nil
+    }
+}
+
+private struct PickedCreateExperiencePhotoTransferable: Transferable {
+    let image: UIImage
+
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(importedContentType: .image) { data in
+            guard let image = UIImage(data: data) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            return PickedCreateExperiencePhotoTransferable(image: image)
+        }
     }
 }

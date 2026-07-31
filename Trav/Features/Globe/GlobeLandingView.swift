@@ -200,15 +200,16 @@ struct GlobeLandingView: View {
                         appearance.toggle()
                     }
                 } label: {
-                    ZStack {
-                        Circle()
-                            .fill(TravColors.accent.opacity(0.15))
-                            .frame(width: 46, height: 46)
-
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundStyle(TravColors.accent)
-                    }
+                    Image("AppLogo")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                        )
+                        .shadow(color: Color.purple.opacity(0.4), radius: 6, x: 0, y: 2)
                 }
                 .buttonStyle(TravPressButtonStyle(scale: 0.92))
                 .accessibilityLabel(appearance.isLightMode ? "Switch to dark mode" : "Switch to light mode")

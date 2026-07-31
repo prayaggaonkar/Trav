@@ -71,12 +71,6 @@ struct CityPageView: View {
         }
         .task {
             await viewModel.load(using: environment)
-            if case let .loaded(content) = viewModel.phase {
-                let didSeed = await AutoSeedManager.shared.checkAndSeedCity(city: content.city.name)
-                if didSeed {
-                    await viewModel.load(using: environment)
-                }
-            }
         }
         .onChange(of: session.currentUser) { _, _ in
             Task {

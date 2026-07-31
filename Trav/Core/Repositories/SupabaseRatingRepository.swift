@@ -99,6 +99,44 @@ struct SupabaseRatingRepository: RatingRepository {
         }
 
         let client = try client
+
+        // Ensure experience/spot row exists in Supabase for draft.experienceID so submit_rating Postgres RPC does not throw TRAV_NOT_FOUND
+        let expIDStr = draft.experienceID.uuidString.lowercased()
+        struct CheckRow: Decodable { let id: UUID }
+        let existing: [CheckRow] = (try? await client
+            .from("experiences")
+            .select("id")
+            .eq("id", value: expIDStr)
+            .limit(1)
+            .execute()
+            .value) ?? []
+
+        if existing.isEmpty {
+            let cached = AppleMapsVibeService.shared.cachedExperience(for: draft.experienceID)
+            struct ExperienceShadowInsert: Encodable {
+                let id: UUID
+                let user_id: UUID
+                let title: String
+                let description: String
+                let city: String
+                let stops: [String]
+                let is_published: Bool
+            }
+            let shadowInsert = ExperienceShadowInsert(
+                id: draft.experienceID,
+                user_id: userID,
+                title: cached?.title ?? "Spot Recommendation",
+                description: cached?.description ?? "Spot recommendation",
+                city: cached?.cityName ?? "Berkeley, CA",
+                stops: [cached?.title ?? "Spot"],
+                is_published: true
+            )
+            _ = try? await client
+                .from("experiences")
+                .upsert(shadowInsert, onConflict: "id")
+                .execute()
+        }
+
         let photoURLs = try await uploadPhotos(draft.photosData, userID: userID, experienceID: draft.experienceID)
 
         struct Params: Encodable {

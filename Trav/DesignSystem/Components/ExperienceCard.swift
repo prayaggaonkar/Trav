@@ -90,10 +90,10 @@ struct GemPostCardView: View {
                 avatarImage: currentUser.avatarURL?.absoluteString ?? ""
             ))
         }
-        let followers = experience.completedBy.filter { user in
-            engagement.followingUserIDs.contains(user.id) && user.id != environment.session.currentUser?.id
+        let otherUsers = experience.completedBy.filter { user in
+            user.id != environment.session.currentUser?.id
         }
-        toDisplay.append(contentsOf: followers.prefix(3 - toDisplay.count))
+        toDisplay.append(contentsOf: otherUsers.prefix(max(0, 3 - toDisplay.count)))
         return toDisplay
     }
 
@@ -145,7 +145,56 @@ struct GemPostCardView: View {
                 )
 
                 HStack(spacing: TravSpacing.xs) {
-                    if !badgeText.isEmpty {
+                    let completers = !experience.completedBy.isEmpty ? experience.completedBy : completedByToDisplay
+                    if !completers.isEmpty {
+                        HStack(spacing: 6) {
+                            HStack(spacing: -8) {
+                                ForEach(completers.prefix(3)) { user in
+                                    if let url = URL(string: user.avatarImage), !user.avatarImage.isEmpty {
+                                        AsyncImage(url: url) { image in
+                                            image
+                                                .resizable()
+                                                .scaledToFill()
+                                        } placeholder: {
+                                            Image(systemName: "person.crop.circle.fill")
+                                                .resizable()
+                                                .foregroundStyle(.white.opacity(0.85))
+                                        }
+                                        .frame(width: 22, height: 22)
+                                        .clipShape(Circle())
+                                        .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                                    } else {
+                                        Image(systemName: "person.crop.circle.fill")
+                                            .resizable()
+                                            .foregroundStyle(.white.opacity(0.85))
+                                            .frame(width: 22, height: 22)
+                                            .clipShape(Circle())
+                                            .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                                    }
+                                }
+                            }
+
+                            HStack(spacing: 3) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(Color(red: 0.2, green: 0.85, blue: 0.45))
+
+                                Group {
+                                    if completers.count == 1 {
+                                        Text(experience.isSpot ? "Visited by \(completers[0].name)" : "Completed by \(completers[0].name)")
+                                    } else {
+                                        Text(experience.isSpot ? "Your friends completed this spot" : "Your friends completed this")
+                                    }
+                                }
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                            }
+                        }
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.black.opacity(0.75)))
+                        .overlay(Capsule().stroke(Color(red: 0.2, green: 0.85, blue: 0.45).opacity(0.8), lineWidth: 1.2))
+                    } else if !badgeText.isEmpty {
                         Text(badgeText)
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
@@ -201,7 +250,7 @@ struct GemPostCardView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                let isSpotRec = (experience.creator.displayName.lowercased() == "rec by trav" || experience.creator.username.lowercased() == "trav" || experience.stops.count <= 1)
+                let isSpotRec = experience.isSpot || (experience.creator.displayName.lowercased() == "rec by trav" || experience.creator.username.lowercased() == "trav" || experience.stops.count <= 1)
 
                 if !isSpotRec {
                     Button {
@@ -232,7 +281,7 @@ struct GemPostCardView: View {
 
                 // Facepile (Social Proof) Row
                 if !experience.completedBy.isEmpty {
-                    HStack(spacing: 0) {
+                    HStack(spacing: 6) {
                         HStack(spacing: -8) {
                             ForEach(experience.completedBy.prefix(3)) { user in
                                 AsyncImage(url: URL(string: user.avatarImage)) { image in
@@ -248,26 +297,35 @@ struct GemPostCardView: View {
                                 .overlay(Circle().stroke(Color.white, lineWidth: 2))
                             }
                         }
-                        .padding(.trailing, 6)
 
-                        Group {
-                            if experience.completedBy.count == 1 {
-                                Text("Completed by ") +
-                                Text(experience.completedBy[0].name)
-                                    .fontWeight(.bold)
-                            } else {
-                                Text("Completed by ") +
-                                Text(experience.completedBy[0].name)
-                                    .fontWeight(.bold) +
-                                Text(" and ") +
-                                Text("\(experience.completedBy.count - 1) others")
-                                    .fontWeight(.bold)
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(Color(red: 0.2, green: 0.85, blue: 0.45))
+
+                            Group {
+                                if experience.completedBy.count == 1 {
+                                    Text(experience.isSpot ? "Visited by " : "Completed by ") +
+                                    Text(experience.completedBy[0].name)
+                                        .fontWeight(.bold)
+                                } else {
+                                    Text(experience.isSpot ? "Visited by " : "Completed by ") +
+                                    Text(experience.completedBy[0].name)
+                                        .fontWeight(.bold) +
+                                    Text(" and ") +
+                                    Text("\(experience.completedBy.count - 1) others")
+                                        .fontWeight(.bold)
+                                }
                             }
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
                         }
-                        .font(.footnote)
-                        .foregroundStyle(Color.gray)
                     }
+                    .padding(.horizontal, 10)
                     .padding(.vertical, 6)
+                    .background(Color(red: 0.2, green: 0.85, blue: 0.45).opacity(0.12))
+                    .clipShape(Capsule())
+                    .padding(.vertical, 4)
                 }
 
                 // Split Action Bar

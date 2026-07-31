@@ -153,13 +153,7 @@ struct FeedView: View {
             // Load feed and popups for active app location
             await reloadPopupsForActiveAppLocation()
         }
-        .task(id: currentCity) {
-            guard let city = currentCity, !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            let didSeed = await AutoSeedManager.shared.checkAndSeedCity(city: city)
-            if didSeed {
-                await reloadPopupsForActiveAppLocation()
-            }
-        }
+
         .onChange(of: searchText) { _, newValue in
             router.feedKeyword = newValue
             spotSearchController.query = newValue
@@ -483,8 +477,6 @@ struct FeedView: View {
 
         if let city = activeCity {
             self.currentCity = city
-            // Ensure Rec by Trav itinerary is auto-seeded BEFORE loading feed data
-            await AutoSeedManager.shared.checkAndSeedCity(city: city)
         }
 
         await viewModel.load(
@@ -821,24 +813,50 @@ struct FeedView: View {
     }
 
     private var headerView: some View {
-        FeedSearchBar(
-            text: $searchText,
-            placeholder: "Search spots, cities, creators...",
-            isFocused: $isSearchFocused,
-            isLightMode: appearance.isLightMode,
-            cityToken: router.selectedFeedCity,
-            userToken: router.selectedFeedUser,
-            onClearCity: {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    router.clearFeedCity()
+        HStack(spacing: TravSpacing.sm) {
+            // New Tilted Itinerary Pin App Logo on the top left of the explore page
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    router.clearFeedSearch()
+                    searchText = ""
+                    isSearchFocused = false
+                    userSearchResults = []
+                    spotSearchController.clear()
                 }
-            },
-            onClearUser: {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    router.clearFeedUser()
-                }
+            } label: {
+                Image("AppLogo")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 36, height: 36)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                    )
+                    .shadow(color: Color.purple.opacity(0.4), radius: 6, x: 0, y: 2)
             }
-        )
+            .buttonStyle(TravPressButtonStyle(scale: 0.94))
+            .accessibilityLabel("Explore Home")
+
+            FeedSearchBar(
+                text: $searchText,
+                placeholder: "Search spots, cities, creators...",
+                isFocused: $isSearchFocused,
+                isLightMode: appearance.isLightMode,
+                cityToken: router.selectedFeedCity,
+                userToken: router.selectedFeedUser,
+                onClearCity: {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        router.clearFeedCity()
+                    }
+                },
+                onClearUser: {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        router.clearFeedUser()
+                    }
+                }
+            )
+        }
         .padding(.vertical, TravSpacing.xs)
     }
 

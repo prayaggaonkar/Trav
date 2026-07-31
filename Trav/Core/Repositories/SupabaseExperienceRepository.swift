@@ -66,7 +66,19 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             description = (try c.decodeIfPresent(String.self, forKey: .description)) ?? ""
             city = (try c.decodeIfPresent(String.self, forKey: .city)) ?? ""
             city_id = try c.decodeIfPresent(UUID.self, forKey: .city_id)
-            stops = (try c.decodeIfPresent([String].self, forKey: .stops)) ?? []
+            if let rawStrings = try? c.decodeIfPresent([String].self, forKey: .stops) {
+                stops = rawStrings
+            } else if let rawObjects = try? c.decodeIfPresent([DBStop].self, forKey: .stops) {
+                stops = rawObjects.compactMap { dbStop in
+                    guard let data = try? JSONEncoder().encode(dbStop),
+                          let str = String(data: data, encoding: .utf8) else { return nil }
+                    return str
+                }
+            } else if let single = try? c.decodeIfPresent(String.self, forKey: .stops) {
+                stops = [single]
+            } else {
+                stops = []
+            }
             image = try c.decodeIfPresent(StringOrArray.self, forKey: .image)
             save_count = (try c.decodeIfPresent(Int.self, forKey: .save_count)) ?? 0
             like_count = (try c.decodeIfPresent(Int.self, forKey: .like_count)) ?? 0
@@ -152,6 +164,36 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let city: String?
         let image_urls: [String]?
         let stops: [String]?
+
+        enum CodingKeys: String, CodingKey {
+            case id, client_uuid, name, basic_category, latitude, longitude, city, image_urls, stops
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = (try? c.decode(String.self, forKey: .id)) ?? ""
+            client_uuid = try? c.decodeIfPresent(UUID.self, forKey: .client_uuid)
+            name = (try? c.decodeIfPresent(String.self, forKey: .name)) ?? ""
+            basic_category = try? c.decodeIfPresent(String.self, forKey: .basic_category)
+            latitude = (try? c.decodeIfPresent(Double.self, forKey: .latitude)) ?? 0
+            longitude = (try? c.decodeIfPresent(Double.self, forKey: .longitude)) ?? 0
+            city = try? c.decodeIfPresent(String.self, forKey: .city)
+            image_urls = (try? c.decodeIfPresent(StringOrArray.self, forKey: .image_urls))?.values
+
+            if let rawStrings = try? c.decodeIfPresent([String].self, forKey: .stops) {
+                stops = rawStrings
+            } else if let rawObjects = try? c.decodeIfPresent([DBStop].self, forKey: .stops) {
+                stops = rawObjects.compactMap { dbStop in
+                    guard let data = try? JSONEncoder().encode(dbStop),
+                          let str = String(data: data, encoding: .utf8) else { return nil }
+                    return str
+                }
+            } else if let single = try? c.decodeIfPresent(String.self, forKey: .stops) {
+                stops = [single]
+            } else {
+                stops = []
+            }
+        }
     }
 
     /// JSON payload stored inside `experiences.stops` / `places.stops` entries.
@@ -773,7 +815,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         let client = try client
         let range = Self.pageRange(page)
 
-        let rows: [DBExperienceRow] = try await withExperienceSelect { select in
+        var rows: [DBExperienceRow] = (try? await withExperienceSelect { select in
             try await client
                 .from("experiences")
                 .select(select)
@@ -782,13 +824,51 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 .range(from: range.lowerBound, to: range.upperBound)
                 .execute()
                 .value
+        }) ?? []
+
+        struct ExpRefRow: Decodable {
+            let experience_id: UUID
+        }
+        let recentCompletions: [ExpRefRow] = (try? await client
+            .from("experience_completions")
+            .select("experience_id")
+            .order("completed_at", ascending: false)
+            .limit(20)
+            .execute()
+            .value) ?? []
+
+        let recentRatings: [ExpRefRow] = (try? await client
+            .from("ratings")
+            .select("experience_id")
+            .order("created_at", ascending: false)
+            .limit(20)
+            .execute()
+            .value) ?? []
+
+        let existingIDs = Set(rows.map(\.id))
+        let extraCompletedIDs = Array(Set((recentCompletions + recentRatings).map(\.experience_id)))
+            .filter { !existingIDs.contains($0) }
+
+        if !extraCompletedIDs.isEmpty {
+            let extraIDsStr = extraCompletedIDs.map { $0.uuidString.lowercased() }
+            let extraRows: [DBExperienceRow] = (try? await withExperienceSelect { select in
+                try await client
+                    .from("experiences")
+                    .select(select)
+                    .in("id", values: extraIDsStr)
+                    .execute()
+                    .value
+            }) ?? []
+
+            rows.insert(contentsOf: extraRows, at: 0)
         }
 
         let creators = await fetchCreators(for: rows)
+        let completionsMap = await fetchCompletionsMap(for: rows)
         return Paginated(
-            items: rows.map { summary(from: $0, creators: creators) },
+            items: rows.map { summary(from: $0, creators: creators, completionsMap: completionsMap) },
             page: page,
-            hasMore: rows.count == Self.pageSize
+            hasMore: rows.count >= Self.pageSize
         )
     }
 
@@ -872,7 +952,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         client: SupabaseClient
     ) async throws -> [ExperienceSummary] {
         let ids = ranked.map { $0.experience_id.uuidString.lowercased() }
-        let rows: [DBExperienceRow] = try await withExperienceSelect { select in
+        var rows: [DBExperienceRow] = try await withExperienceSelect { select in
             try await client
                 .from("experiences")
                 .select(select)
@@ -881,12 +961,109 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 .value
         }
 
+        struct ExpRefRow: Decodable {
+            let experience_id: UUID
+        }
+        let recentCompletions: [ExpRefRow] = (try? await client
+            .from("experience_completions")
+            .select("experience_id")
+            .order("completed_at", ascending: false)
+            .limit(20)
+            .execute()
+            .value) ?? []
+
+        let existingIDs = Set(rows.map(\.id))
+        let extraCompletedIDs = Array(Set(recentCompletions.map(\.experience_id)))
+            .filter { !existingIDs.contains($0) }
+
+        if !extraCompletedIDs.isEmpty {
+            let extraIDsStr = extraCompletedIDs.map { $0.uuidString.lowercased() }
+            let extraRows: [DBExperienceRow] = (try? await withExperienceSelect { select in
+                try await client
+                    .from("experiences")
+                    .select(select)
+                    .in("id", values: extraIDsStr)
+                    .execute()
+                    .value
+            }) ?? []
+
+            rows.insert(contentsOf: extraRows, at: 0)
+        }
+
         let creators = await fetchCreators(for: rows)
-        let byID = Dictionary(
-            rows.map { ($0.id, summary(from: $0, creators: creators)) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        return ranked.compactMap { byID[$0.experience_id] }
+        let completionsMap = await fetchCompletionsMap(for: rows)
+        return rows.map { summary(from: $0, creators: creators, completionsMap: completionsMap) }
+    }
+
+    private func fetchCompletionsMap(for rows: [DBExperienceRow]) async -> [UUID: [CompletionUser]] {
+        await fetchCompletionsMap(forExperienceIDs: rows.map(\.id))
+    }
+
+    private func fetchCompletionsMap(forExperienceIDs ids: [UUID]) async -> [UUID: [CompletionUser]] {
+        let idStrings = ids.map { $0.uuidString.lowercased() }
+        guard !idStrings.isEmpty else { return [:] }
+        guard let client = SupabaseManager.client else { return [:] }
+
+        struct CompRow: Decodable {
+            let experience_id: UUID
+            let user_id: UUID
+        }
+
+        do {
+            let compRows: [CompRow] = (try? await client
+                .from("experience_completions")
+                .select("experience_id, user_id")
+                .in("experience_id", values: idStrings)
+                .execute()
+                .value) ?? []
+
+            let ratingRows: [CompRow] = (try? await client
+                .from("ratings")
+                .select("experience_id, user_id")
+                .in("experience_id", values: idStrings)
+                .execute()
+                .value) ?? []
+
+            let combinedRows = compRows + ratingRows
+            guard !combinedRows.isEmpty else { return [:] }
+
+            let userIDs = Array(Set(combinedRows.map { $0.user_id.uuidString.lowercased() }))
+
+            struct DBProfileSummary: Decodable {
+                let id: UUID
+                let display_name: String?
+                let avatar_url: String?
+            }
+
+            let profiles: [DBProfileSummary] = (try? await client
+                .from("profiles")
+                .select("id, display_name, avatar_url")
+                .in("id", values: userIDs)
+                .execute()
+                .value) ?? []
+
+            let profileMap = Dictionary(profiles.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
+            var resultMap: [UUID: [CompletionUser]] = [:]
+            var addedPairs = Set<String>()
+
+            for c in combinedRows {
+                let pairKey = "\(c.experience_id.uuidString.lowercased())_\(c.user_id.uuidString.lowercased())"
+                guard !addedPairs.contains(pairKey) else { continue }
+                addedPairs.insert(pairKey)
+
+                let p = profileMap[c.user_id]
+                let user = CompletionUser(
+                    id: c.user_id,
+                    name: p?.display_name ?? "Explorer",
+                    avatarImage: p?.avatar_url ?? ""
+                )
+                resultMap[c.experience_id, default: []].append(user)
+            }
+            return resultMap
+        } catch {
+            return [:]
+        }
     }
 
     func searchExperiences(
@@ -994,7 +1171,15 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             )
         }
 
-        return Paginated(items: items, page: page, hasMore: places.count == Self.pageSize)
+        let completionsMap = await fetchCompletionsMap(forExperienceIDs: items.map(\.id))
+        var hydratedItems = items
+        for i in 0..<hydratedItems.count {
+            if let completed = completionsMap[hydratedItems[i].id], !completed.isEmpty {
+                hydratedItems[i].completedBy = completed
+            }
+        }
+
+        return Paginated(items: hydratedItems, page: page, hasMore: places.count == Self.pageSize)
     }
 
     func fetchPopups(
@@ -1938,22 +2123,37 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         }
     }
 
+    private static var spotCreator: ProfileSummary {
+        ProfileSummary(
+            id: StableUUID.from("creator:trav"),
+            username: "trav",
+            displayName: "Rec by Trav",
+            avatarURL: nil,
+            isVerified: true
+        )
+    }
+
     private func resolvedCreator(
         for row: DBExperienceRow,
         creators: [UUID: DBProfileSummary]
     ) -> ProfileSummary {
-        row.creator?.summary
+        let isSpot = row.resolvedKind == .spot || row.stops.count <= 1
+        if isSpot {
+            return Self.spotCreator
+        }
+        return row.creator?.summary
             ?? creators[row.user_id]?.summary
             ?? Self.fallbackCreator(id: row.user_id)
     }
 
     func summary(
         from row: DBExperienceRow,
-        creators: [UUID: DBProfileSummary] = [:]
+        creators: [UUID: DBProfileSummary] = [:],
+        completionsMap: [UUID: [CompletionUser]] = [:]
     ) -> ExperienceSummary {
         let stops = Self.parseStops(row.stops)
         let imageURLs = (row.image?.values ?? []).compactMap { URL(string: $0) }
-        return ExperienceSummary(
+        var sum = ExperienceSummary(
             id: row.id,
             kind: row.resolvedKind,
             cityID: row.city_id ?? StableUUID.from("city:\(row.city.lowercased())"),
@@ -1975,6 +2175,10 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             latitude: row.latitude,
             longitude: row.longitude
         )
+        if let completed = completionsMap[row.id], !completed.isEmpty {
+            sum.completedBy = completed
+        }
+        return sum
     }
 
     func experience(

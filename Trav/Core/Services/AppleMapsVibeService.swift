@@ -260,19 +260,38 @@ final class AppleMapsVibeService: @unchecked Sendable {
 
             var completionUsers: [CompletionUser] = []
             if !matchingExpIDs.isEmpty {
-                struct SaveRow: Decodable {
+                struct CompRow: Decodable {
                     let user_id: UUID
                 }
                 let expIDStrings = matchingExpIDs.map { $0.uuidString.lowercased() }
-                let saveRows: [SaveRow] = (try? await client
-                    .from("experience_saves")
+                let compRows: [CompRow] = (try? await client
+                    .from("experience_completions")
                     .select("user_id")
                     .in("experience_id", values: expIDStrings)
                     .limit(5)
                     .execute()
                     .value) ?? []
 
-                let userIDs = Array(Set(saveRows.map { $0.user_id.uuidString.lowercased() }))
+                let ratingRows: [CompRow] = (try? await client
+                    .from("ratings")
+                    .select("user_id")
+                    .in("experience_id", values: expIDStrings)
+                    .limit(5)
+                    .execute()
+                    .value) ?? []
+
+                struct SaveRow: Decodable { let user_id: UUID }
+                let saveRows: [SaveRow] = (try? await client
+                    .from("experience_saves")
+                    .select("user_id")
+                    .in("experience_id", values: expIDStrings)
+                    .execute()
+                    .value) ?? []
+
+                totalSaves = max(totalSaves, saveRows.count)
+                totalCompletions = max(totalCompletions, Set((compRows + ratingRows).map(\.user_id)).count)
+
+                let userIDs = Array(Set((compRows + ratingRows + saveRows.map { CompRow(user_id: $0.user_id) }).map { $0.user_id.uuidString.lowercased() }))
                 if !userIDs.isEmpty {
                     struct UserProfileRow: Decodable {
                         let id: UUID
@@ -283,7 +302,7 @@ final class AppleMapsVibeService: @unchecked Sendable {
                         .from("profiles")
                         .select("id, display_name, avatar_url")
                         .in("id", values: userIDs)
-                        .limit(3)
+                        .limit(5)
                         .execute()
                         .value) ?? []
 
