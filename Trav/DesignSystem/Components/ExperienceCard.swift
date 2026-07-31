@@ -349,7 +349,7 @@ struct GemPostCardView: View {
                     let resolvedIsSaved = isSavedLocal || engagement.isSaved(experience.id)
 
                     HStack {
-                        // Left Group: Save, Comment, Share
+                        // Left Group: Save, Share
                         HStack(spacing: 16) {
 
                             Button {
@@ -363,17 +363,6 @@ struct GemPostCardView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(resolvedIsSaved ? "Remove bookmark" : "Bookmark")
-
-                            Button {
-                                (onComment ?? onTap)()
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            } label: {
-                                Image(systemName: "bubble.right")
-                                    .font(.system(size: 18))
-                                    .foregroundStyle(TravColors.muted)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Comments")
 
                             Button {
                                 onShare?()
