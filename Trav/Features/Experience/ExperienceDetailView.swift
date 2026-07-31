@@ -982,7 +982,6 @@ private extension UIImage {
         return total / CGFloat(pixelCount)
     }
 }
-
 // MARK: - Apple Maps Route Path Visualizer
 
 private struct ExperienceRouteMapView: View {
@@ -993,6 +992,7 @@ private struct ExperienceRouteMapView: View {
     @State private var routePolylines: [MKPolyline] = []
     @State private var mapKitTravelLabel: String? = nil
     @State private var showInteractiveMap = false
+    @State private var streetViewPhotoURL: URL?
 
     private var resolvedStops: [Stop] {
         stops.enumerated().map { index, stop in
@@ -1018,12 +1018,12 @@ private struct ExperienceRouteMapView: View {
             HStack(alignment: .center, spacing: TravSpacing.sm) {
                 if !isRecByTrav {
                     HStack(spacing: 8) {
-                        Image(systemName: "map.fill")
+                        Image(systemName: "mappin.and.ellipse")
                             .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(TravColors.accent)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Map")
+                            Text("Location")
                                 .font(TravTypography.titleMedium())
                                 .fontWeight(.bold)
                                 .foregroundStyle(TravColors.primary)
@@ -1073,44 +1073,21 @@ private struct ExperienceRouteMapView: View {
                 .frame(height: 180)
             } else {
                 ZStack(alignment: .bottomLeading) {
-                    Map(position: $position, interactionModes: []) {
-                        if !routePolylines.isEmpty {
-                            ForEach(Array(routePolylines.enumerated()), id: \.offset) { _, polyline in
-                                MapPolyline(polyline)
-                                    .stroke(
-                                        TravColors.accent,
-                                        style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)
-                                    )
-                            }
-                        } else if coordinates.count > 1 {
-                            MapPolyline(coordinates: coordinates)
-                                .stroke(
-                                    LinearGradient(
-                                        colors: [TravColors.accent, TravColors.accent.opacity(0.85)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    ),
-                                    style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)
-                                )
-                        }
-
-                        ForEach(Array(resolvedStops.enumerated()), id: \.element.id) { index, stop in
-                            Annotation(
-                                stop.name,
-                                coordinate: CLLocationCoordinate2D(latitude: stop.latitude, longitude: stop.longitude),
-                                anchor: .bottom
-                            ) {
-                                MapStopAnnotationView(index: index + 1, name: stop.name)
-                            }
-                        }
+                    if let streetViewPhotoURL {
+                        RemoteImage(
+                            url: streetViewPhotoURL,
+                            height: 260,
+                            cornerRadius: TravRadius.lg
+                        )
+                    } else {
+                        let firstStopTitle = resolvedStops.first?.name ?? ""
+                        let fallbackURL = SupabaseExperienceRepository.defaultCoverForCategory(firstStopTitle) ?? URL(string: "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1000&q=80")!
+                        RemoteImage(
+                            url: fallbackURL,
+                            height: 260,
+                            cornerRadius: TravRadius.lg
+                        )
                     }
-                    .mapStyle(.standard(elevation: .realistic, pointsOfInterest: .excludingAll))
-                    .frame(height: 260)
-                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                            .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
-                    )
 
                     HStack(spacing: TravSpacing.xs) {
                         Label("\(resolvedStops.count) Stop\(resolvedStops.count == 1 ? "" : "s")", systemImage: "flag.fill")
@@ -1130,17 +1107,27 @@ private struct ExperienceRouteMapView: View {
                     .clipShape(Capsule())
                     .padding(TravSpacing.md)
                 }
+                .frame(height: 260)
+                .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
                 .contentShape(Rectangle())
                 .onTapGesture {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     showInteractiveMap = true
                 }
+                .sheet(isPresented: $showInteractiveMap) {
+                    InAppInteractiveMapView(title: resolvedStops.first?.name ?? "", stops: resolvedStops)
+                }
+                .task {
+                    let lat = coordinates.first?.latitude ?? 37.8715
+                    let lng = coordinates.first?.longitude ?? -122.2730
+                    let title = resolvedStops.first?.name ?? ""
+                    if let photo = await AppleMapsVibeService.shared.fetchStreetViewPhoto(latitude: lat, longitude: lng, title: title) {
+                        self.streetViewPhotoURL = photo
+                    }
+                }
             }
         }
         .padding(.vertical, TravSpacing.sm)
-        .sheet(isPresented: $showInteractiveMap) {
-            InAppInteractiveMapView(title: "Map", stops: resolvedStops)
-        }
         .task(id: resolvedStops) {
             updateCameraPosition()
             await fetchRoutes()
