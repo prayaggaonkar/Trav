@@ -72,8 +72,8 @@ struct SpotSuggestion: Identifiable, Hashable, Sendable {
         return parts.first?.trimmingCharacters(in: .whitespaces)
     }
 
-    var asExperienceSummary: ExperienceSummary {
-        let spotUUID = UUID(uuidString: id) ?? UUID()
+    func asExperienceSummary(creator currentUser: ProfileSummary? = nil) -> ExperienceSummary {
+        let spotUUID = UUID(uuidString: id) ?? StableUUID.from(id)
         let stop = StopPreview(
             id: UUID(),
             name: title,
@@ -81,19 +81,20 @@ struct SpotSuggestion: Identifiable, Hashable, Sendable {
             latitude: latitude,
             longitude: longitude
         )
+        let creatorSummary = currentUser ?? ProfileSummary(
+            id: StableUUID.from("provider:apple_maps"),
+            username: "maps",
+            displayName: "Apple Maps",
+            avatarURL: nil,
+            isVerified: true
+        )
         return ExperienceSummary(
             id: spotUUID,
             kind: .spot,
             cityID: UUID(),
             title: title,
             imageURLs: [],
-            creator: ProfileSummary(
-                id: ExperienceInsert.travAdminID,
-                username: "trav",
-                displayName: "Rec by Trav",
-                avatarURL: nil,
-                isVerified: true
-            ),
+            creator: creatorSummary,
             durationMinutes: 45,
             costLevel: .free,
             estimatedCostUSD: nil,

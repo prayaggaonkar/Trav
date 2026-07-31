@@ -2170,8 +2170,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         for row: DBExperienceRow,
         creators: [UUID: DBProfileSummary]
     ) -> ProfileSummary {
-        let isSpot = row.resolvedKind == .spot || row.stops.count <= 1
-        if isSpot {
+        if row.user_id == ExperienceInsert.travAdminID || row.user_id == StableUUID.from("creator:trav") || row.creator?.username == "trav" {
             return Self.spotCreator
         }
         return row.creator?.summary
