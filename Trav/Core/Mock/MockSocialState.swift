@@ -365,20 +365,21 @@ actor MockSocialState {
             isVerified: false
         )
 
-        let existing = ratingsStore.first { $0.author.id == userID && $0.experienceID == draft.experienceID }
         let review = draft.review?.trimmingCharacters(in: .whitespacesAndNewlines)
         let rating = Rating(
-            id: existing?.id ?? UUID(),
+            id: UUID(),
             experienceID: draft.experienceID,
             author: author,
             radar: draft.radar,
             overallScore: draft.radar.overallScore,
             review: (review?.isEmpty ?? true) ? nil : review,
-            photoURLs: existing?.photoURLs ?? [],
-            createdAt: existing?.createdAt ?? Date(),
+            photoURLs: [],
+            createdAt: Date(),
             updatedAt: Date()
         )
 
+        // Replace any prior mock rating so local demos stay consistent with
+        // EngagementStore's already-rated guard as the real gate.
         ratingsStore.removeAll { $0.author.id == userID && $0.experienceID == draft.experienceID }
         ratingsStore.append(rating)
 

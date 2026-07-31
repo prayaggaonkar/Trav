@@ -384,12 +384,15 @@ final class EngagementStore {
     // Complete opens Create Rating and the rating submission is what marks the
     // experience complete. Un-completing deletes the rating.
 
-    /// Entry point for the Complete button. Sends the user to Create Rating with
-    /// the experience locked in; if they already completed it, opens their
-    /// existing rating for editing.
+    /// Entry point for the Complete button. Opens Create Rating with the experience
+    /// locked in. Already-rated experiences cannot be rated again.
     func requestCompletion(for summary: ExperienceSummary, using environment: AppEnvironment) {
         guard environment.session.currentUser != nil else {
             environment.router.presentAuth()
+            return
+        }
+        guard !isCompleted(summary.id) else {
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
             return
         }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -462,6 +465,13 @@ final class EngagementStore {
         guard let userID = environment.session.currentUser?.id else {
             environment.router.presentAuth()
             throw RepositoryError.unauthorized
+        }
+
+        if (try? await environment.ratings.fetchMyRating(
+            userID: userID,
+            experienceID: draft.experienceID
+        )) != nil {
+            throw ContentModelError.alreadyRated
         }
 
         if let summary {

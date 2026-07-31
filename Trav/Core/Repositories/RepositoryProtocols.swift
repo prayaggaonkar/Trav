@@ -29,6 +29,7 @@ enum ContentModelError: LocalizedError, Sendable, Equatable {
     case duplicateItinerary
     case invalidStop
     case ratingRequired
+    case alreadyRated
     case tooManyPhotos(limit: Int)
     case spotsAreNotUserCreated
 
@@ -45,6 +46,8 @@ enum ContentModelError: LocalizedError, Sendable, Equatable {
             return "Every stop needs a name and a location."
         case .ratingRequired:
             return "Add your rating to mark this complete."
+        case .alreadyRated:
+            return "You've already rated this experience."
         case .tooManyPhotos(let limit):
             return "You can attach up to \(limit) photos."
         case .spotsAreNotUserCreated:
@@ -59,6 +62,7 @@ enum ContentModelError: LocalizedError, Sendable, Equatable {
         if message.contains("TRAV_DUPLICATE_STOP") { return .duplicateStop(name: "That spot") }
         if message.contains("TRAV_INVALID_STOP") || message.contains("TRAV_INVALID_SPOT") { return .invalidStop }
         if message.contains("TRAV_RATING_REQUIRED") { return .ratingRequired }
+        if message.contains("TRAV_ALREADY_RATED") { return .alreadyRated }
         if message.contains("TRAV_PHOTO_LIMIT") { return .tooManyPhotos(limit: RatingDraft.maxPhotos) }
         return nil
     }

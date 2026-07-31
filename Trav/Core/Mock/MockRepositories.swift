@@ -520,6 +520,9 @@ struct MockRatingRepository: RatingRepository {
         guard draft.photosData.count <= RatingDraft.maxPhotos else {
             throw ContentModelError.tooManyPhotos(limit: RatingDraft.maxPhotos)
         }
+        if await MockSocialState.shared.rating(userID: userID, experienceID: draft.experienceID) != nil {
+            throw ContentModelError.alreadyRated
+        }
         try await Task.sleep(for: .milliseconds(320))
         return await MockSocialState.shared.submitRating(draft, userID: userID)
     }
