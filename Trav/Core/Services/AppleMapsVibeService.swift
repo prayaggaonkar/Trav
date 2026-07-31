@@ -15,13 +15,85 @@ final class AppleMapsVibeService: @unchecked Sendable {
     private var lookAroundCount = 0
 
     private static let nicheQueriesByVibe: [String: [String]] = [
-        "hike": ["hidden trail", "scenic overlook", "bouldering spot", "secret garden", "nature reserve", "scenic ridge", "waterfall trail", "coastal path"],
+        "hike": ["hidden trail", "scenic overlook", "bouldering spot", "secret garden", "nature reserve", "scenic ridge", "coastal path"],
         "outdoors": ["botanical garden", "panoramic lookout", "cliffside trail", "community garden", "hidden cove", "sunset point", "arboretum"],
-        "food": ["speakeasy", "artisan bakery", "hole in the wall", "family-owned bistro", "rooftop terrace", "tasting room", "local deli", "handcrafted noodles"],
-        "nightlife": ["jazz club", "underground lounge", "craft cocktail bar", "vinyl listening bar", "speakeasy lounge", "local venue"],
+        "food": ["speakeasy", "artisan bakery", "cozy cafe", "hole in the wall", "family-owned bistro", "rooftop terrace", "tasting room", "local deli", "handcrafted noodles", "dessert lounge"],
+        "nightlife": ["jazz club", "underground lounge", "craft cocktail bar", "vinyl listening bar", "speakeasy lounge", "rooftop bar"],
         "art": ["indie bookstore", "niche gallery", "sculpture garden", "vintage vinyl", "artist studio", "historic theater", "ceramic studio"],
-        "shopping": ["vintage boutique", "flea market", "curated thrift", "artisan market", "antique hall", "independent record shop"]
+        "shopping": ["vintage boutique", "curated thrift", "artisan market", "independent record shop", "bookshop"]
     ]
+
+    private func isExcludedPlace(mapItem: MKMapItem) -> Bool {
+        guard let name = mapItem.name?.lowercased() else { return true }
+        let category = mapItem.pointOfInterestCategory?.rawValue.lowercased() ?? ""
+        let subtitle = (mapItem.placemark.title ?? "").lowercased()
+
+        // 1. Excluded keywords (unappealing / non-hangout spots)
+        let excludedKeywords = [
+            "tattoo", "piercing", "ink", "flea market", "swap meet", "thrift warehouse",
+            "gas station", "car wash", "auto repair", "mechanic", "tire", "parking",
+            "bank", "atm", "check cashing", "mortgage", "real estate", "insurance",
+            "dental", "dentist", "medical", "clinic", "pharmacy", "urgent care", "hospital",
+            "storage", "warehouse", "industrial", "construction", "plumbing", "roofing",
+            "laundromat", "dry cleaning", "laundry", "cleaners", "salon", "barber",
+            "pawn", "bail", "court", "police", "fire station", "post office", "dmv",
+            "elementary", "high school", "middle school", "daycare", "preschool"
+        ]
+
+        for keyword in excludedKeywords {
+            if name.contains(keyword) || subtitle.contains(keyword) || category.contains(keyword) {
+                return true
+            }
+        }
+
+        // 2. Excluded Point of Interest categories
+        if let poi = mapItem.pointOfInterestCategory {
+            switch poi {
+            case .atm, .bank, .carRental, .evCharger, .fireStation, .gasStation,
+                 .hospital, .laundry, .parking, .pharmacy, .police, .postOffice,
+                 .publicTransport, .restroom, .school:
+                return true
+            default:
+                break
+            }
+        }
+
+        return false
+    }
+
+    private func isCityOrStateName(_ name: String) -> Bool {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        // Common states, territories, and broad regions
+        let statesAndRegions: Set<String> = [
+            "hawaii", "california", "new york", "texas", "florida", "washington",
+            "oregon", "nevada", "arizona", "colorado", "utah", "alaska", "illinois",
+            "massachusetts", "georgia", "north carolina", "virginia", "pennsylvania",
+            "united states", "usa", "us", "america", "bay area", "northern california",
+            "san francisco bay area", "socal", "norcal", "aloha state"
+        ]
+
+        if statesAndRegions.contains(clean) { return true }
+
+        // Check against known cities catalog
+        if MockData.cities.contains(where: { $0.name.lowercased() == clean }) {
+            return true
+        }
+
+        // Check if name is just a city, state format e.g. "San Francisco, CA" or "Fremont, California"
+        let parts = clean.components(separatedBy: ",")
+        if parts.count == 2 {
+            let cityPart = parts[0].trimmingCharacters(in: .whitespaces)
+            if MockData.cities.contains(where: { $0.name.lowercased() == cityPart }) {
+                return true
+            }
+            if statesAndRegions.contains(cityPart) {
+                return true
+            }
+        }
+
+        return false
+    }
 
     private init() {
         if let stored = UserDefaults.standard.array(forKey: "trav_seen_place_names") as? [String] {
@@ -83,7 +155,6 @@ final class AppleMapsVibeService: @unchecked Sendable {
             searchReq.naturalLanguageQuery = searchQuery
 
             if let center = center, center.latitude != 0, center.longitude != 0 {
-                // Add slight coordinate perturbation to explore different neighborhoods on each launch
                 let latOffset = Double.random(in: -0.015...0.015)
                 let lngOffset = Double.random(in: -0.015...0.015)
                 let shiftedCenter = CLLocationCoordinate2D(latitude: center.latitude + latOffset, longitude: center.longitude + lngOffset)
@@ -99,12 +170,14 @@ final class AppleMapsVibeService: @unchecked Sendable {
             }
 
             var categoryBucket: [ExperienceSummary] = []
-            let candidateItems = Array(searchResponse.mapItems.shuffled().prefix(6))
+            let candidateItems = Array(searchResponse.mapItems.shuffled().prefix(12))
 
             for mapItem in candidateItems {
                 guard let name = mapItem.name, !name.isEmpty else { continue }
                 let lowerName = name.lowercased()
                 if seenPlaceNames.contains(lowerName) { continue }
+                if isExcludedPlace(mapItem: mapItem) { continue }
+                if isCityOrStateName(name) { continue }
                 persistSeenPlace(name)
 
                 let officialTitle = name
