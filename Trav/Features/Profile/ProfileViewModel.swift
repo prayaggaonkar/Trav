@@ -81,14 +81,7 @@ final class ProfileViewModel {
                 calculatedRank = rankPos
             }
         } catch {
-            let fallbackEntries = MockMainLeaderboardData.entries.filter { $0.experienceCount > 0 }
-            if let match = fallbackEntries.firstIndex(where: {
-                $0.id == profile?.id || $0.username.lowercased() == username.lowercased()
-            }) {
-                calculatedRank = fallbackEntries[match].rank
-            } else {
-                calculatedRank = nil
-            }
+            calculatedRank = nil
         }
     }
 

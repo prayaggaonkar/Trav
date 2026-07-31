@@ -16,7 +16,7 @@ final class RankingsViewModel {
     var selectedLocation: LocationOption = LocationOption.allLocations
 
     private(set) var allEntries: [LeaderboardEntry] = []
-    private(set) var availableLocations: [LocationOption] = MockLeaderboardData.locationOptions
+    private(set) var availableLocations: [LocationOption] = [LocationOption.allLocations]
     private(set) var phase: LoadPhase = .loaded
 
     private var currentEnvironment: AppEnvironment?
@@ -47,11 +47,13 @@ final class RankingsViewModel {
 
     func reload(using environment: AppEnvironment) async {
         self.currentEnvironment = environment
-        phase = .loading
+        if allEntries.isEmpty {
+            phase = .loading
+        }
         do {
             // Load globe cities for default location suggestions
             let fetchedCities = (try? await environment.cities.fetchGlobeCities()) ?? []
-            var locs: [LocationOption] = [LocationOption.allLocations, MockLeaderboardData.defaultLocation]
+            var locs: [LocationOption] = [LocationOption.allLocations]
 
             for city in fetchedCities {
                 let name = "\(city.name), \(city.countryName)"
@@ -59,7 +61,6 @@ final class RankingsViewModel {
                     locs.append(LocationOption(id: city.id.uuidString, name: city.name, subtitle: city.countryName))
                 }
             }
-            availableLocations = locs
 
             // Fetch real users and city-specific experience counts strictly from Supabase database
             let cityID: UUID? = (selectedLocation.id == LocationOption.allLocations.id) ? nil : UUID(uuidString: selectedLocation.id)
@@ -68,11 +69,15 @@ final class RankingsViewModel {
                 cityName: selectedLocation.id == LocationOption.allLocations.id ? nil : selectedLocation.name
             )) ?? []
 
-            allEntries = fetchedEntries.filter { $0.experienceCount > 0 }
+            availableLocations = locs
+            if !fetchedEntries.isEmpty || allEntries.isEmpty {
+                allEntries = fetchedEntries
+            }
             phase = allEntries.isEmpty ? .empty : .loaded
         } catch {
-            allEntries = []
-            phase = .empty
+            if allEntries.isEmpty {
+                phase = .empty
+            }
         }
     }
 

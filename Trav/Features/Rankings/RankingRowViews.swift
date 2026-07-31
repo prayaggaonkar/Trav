@@ -436,7 +436,7 @@ struct TrendingLeaderboardView: View {
     @State private var isLoading = true
 
     var filteredEntries: [HeatStreakEntry] {
-        var items = entries.filter { $0.count30Days > 0 && $0.consecutiveDays > 0 }
+        var items = entries
         if memberScope == .friends {
             let following = engagement.followingUserIDs
             let currentUserID = environment.session.currentUser?.id
@@ -496,15 +496,20 @@ struct TrendingLeaderboardView: View {
         }
     }
 
+    @MainActor
     private func loadRealEntries() async {
-        isLoading = true
+        if entries.isEmpty {
+            isLoading = true
+        }
         let cityID: UUID? = (selectedLocation.id == LocationOption.allLocations.id) ? nil : UUID(uuidString: selectedLocation.id)
-        let realUsers = (try? await environment.experiences.fetchHeatStreakEntries(
+        let fetchedUsers = (try? await environment.experiences.fetchHeatStreakEntries(
             cityID: cityID,
             cityName: selectedLocation.id == LocationOption.allLocations.id ? nil : selectedLocation.name
         )) ?? []
 
-        entries = realUsers
+        if !fetchedUsers.isEmpty || entries.isEmpty {
+            entries = fetchedUsers
+        }
         isLoading = false
     }
 }
@@ -648,15 +653,20 @@ struct ImpactLeaderboardView: View {
         }
     }
 
+    @MainActor
     private func loadRealEntries() async {
-        isLoading = true
+        if entries.isEmpty {
+            isLoading = true
+        }
         let cityID: UUID? = (selectedLocation.id == LocationOption.allLocations.id) ? nil : UUID(uuidString: selectedLocation.id)
-        let realUsers = (try? await environment.experiences.fetchImpactLeaderboard(
+        let fetchedUsers = (try? await environment.experiences.fetchImpactLeaderboard(
             cityID: cityID,
             cityName: selectedLocation.id == LocationOption.allLocations.id ? nil : selectedLocation.name
         )) ?? []
 
-        entries = realUsers
+        if !fetchedUsers.isEmpty || entries.isEmpty {
+            entries = fetchedUsers
+        }
         isLoading = false
     }
 }
@@ -722,7 +732,7 @@ struct MainLeaderboardView: View {
     @State private var isLoading = true
 
     var filteredEntries: [MainLeaderboardEntry] {
-        var items = entries.filter { $0.experienceCount > 0 }
+        var items = entries
         if memberScope == .friends {
             let following = engagement.followingUserIDs
             let currentUserID = environment.session.currentUser?.id
@@ -783,14 +793,15 @@ struct MainLeaderboardView: View {
         }
     }
 
+    @MainActor
     private func loadLeaderboard() async {
-        isLoading = true
-        let realEntries = (try? await environment.experiences.fetchMainLeaderboard()) ?? []
-        let validEntries = realEntries.filter { $0.experienceCount > 0 }
-        if !validEntries.isEmpty {
-            entries = validEntries
-        } else {
-            entries = MockMainLeaderboardData.entries.filter { $0.experienceCount > 0 }
+        if entries.isEmpty {
+            isLoading = true
+        }
+        let fetchedEntries = (try? await environment.experiences.fetchMainLeaderboard()) ?? []
+
+        if !fetchedEntries.isEmpty || entries.isEmpty {
+            entries = fetchedEntries
         }
         isLoading = false
     }

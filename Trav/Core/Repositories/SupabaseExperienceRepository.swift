@@ -1612,11 +1612,12 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             let avatar_url: String?
             let is_verified: Bool?
             let onboarding_location: String?
+            let experience_count: Int?
         }
 
         let profiles: [DetailedDBProfile] = (try? await client
             .from("profiles")
-            .select("id, username, display_name, avatar_url, is_verified, onboarding_location")
+            .select("id, username, display_name, avatar_url, is_verified, onboarding_location, experience_count")
             .execute()
             .value) ?? []
 
@@ -1627,7 +1628,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 || profile.id == StableUUID.from("rec_by_trav") {
                 continue
             }
-            let count = userCounts[profile.id] ?? 0
+            let count = max(userCounts[profile.id] ?? 0, profile.experience_count ?? 0)
             guard count > 0 else { continue }
 
             if isFilteredByCity {
@@ -1744,7 +1745,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             } else if let yesterdayStart, postDays.contains(yesterdayStart) {
                 anchorDay = yesterdayStart
             } else {
-                anchorDay = nil
+                anchorDay = dates.sorted(by: >).first.map { calendar.startOfDay(for: $0) }
             }
 
             var consecutiveDays = 0
@@ -1762,6 +1763,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 }
             }
 
+            consecutiveDays = max(1, consecutiveDays)
             guard consecutiveDays > 0 else { continue }
 
             // 2. Count experiences posted during this consecutive streak span
