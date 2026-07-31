@@ -409,6 +409,9 @@ struct FeedView: View {
         if isRecByTrav(experience) {
             return "Rec by Trav"
         }
+        if experience.isSpot || experience.stops.count <= 1 {
+            return ""
+        }
         guard let currentID = session.currentUser?.id,
               experience.creator.id == currentID else {
             return ""

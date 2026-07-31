@@ -863,8 +863,17 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             rows.insert(contentsOf: extraRows, at: 0)
         }
 
+        TravLog.general.notice("[SupabaseRepository] fetchHomeFeed - fetched \(rows.count, privacy: .public) published experience rows")
+        TravLog.general.notice("[SupabaseRepository] fetchHomeFeed - recentCompletions: \(recentCompletions.count, privacy: .public), recentRatings: \(recentRatings.count, privacy: .public), extraCompletedIDs: \(extraCompletedIDs.count, privacy: .public)")
+
         let creators = await fetchCreators(for: rows)
         let completionsMap = await fetchCompletionsMap(for: rows)
+        TravLog.general.notice("[SupabaseRepository] fetchHomeFeed - completionsMap entries count: \(completionsMap.count, privacy: .public)")
+        for (expID, users) in completionsMap {
+            let names = users.map { "\($0.name) (\($0.avatarImage.isEmpty ? "no-pic" : "has-pic"))" }.joined(separator: ", ")
+            TravLog.general.notice("   -> Exp \(expID.uuidString.prefix(8), privacy: .public): \(names, privacy: .public)")
+        }
+
         return Paginated(
             items: rows.map { summary(from: $0, creators: creators, completionsMap: completionsMap) },
             page: page,

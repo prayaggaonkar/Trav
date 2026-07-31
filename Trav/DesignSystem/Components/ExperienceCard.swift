@@ -83,17 +83,12 @@ struct GemPostCardView: View {
 
     private var completedByToDisplay: [CompletionUser] {
         var toDisplay: [CompletionUser] = []
-        if isCompleted, let currentUser = environment.session.currentUser {
-            toDisplay.append(CompletionUser(
-                id: currentUser.id,
-                name: currentUser.displayName,
-                avatarImage: currentUser.avatarURL?.absoluteString ?? ""
-            ))
+        let creatorID = experience.creator.id
+        for user in experience.completedBy {
+            if user.id != creatorID && (engagement.isFollowing(user.id) || user.id == environment.session.currentUser?.id) && !toDisplay.contains(where: { $0.id == user.id }) {
+                toDisplay.append(user)
+            }
         }
-        let otherUsers = experience.completedBy.filter { user in
-            user.id != environment.session.currentUser?.id
-        }
-        toDisplay.append(contentsOf: otherUsers.prefix(max(0, 3 - toDisplay.count)))
         return toDisplay
     }
 
@@ -126,7 +121,7 @@ struct GemPostCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ZStack(alignment: .topTrailing) {
+            ZStack(alignment: .topLeading) {
                 if let coverURL = experience.coverImageURL {
                     RemoteImage(
                         url: coverURL,
@@ -139,12 +134,12 @@ struct GemPostCardView: View {
                 }
 
                 LinearGradient(
-                    colors: [.black.opacity(0.35), .clear],
+                    colors: [.black.opacity(0.45), .clear],
                     startPoint: .top,
                     endPoint: .center
                 )
 
-                HStack(spacing: TravSpacing.xs) {
+                HStack(alignment: .center, spacing: TravSpacing.xs) {
                     let completers = !experience.completedBy.isEmpty ? experience.completedBy : completedByToDisplay
                     if !completers.isEmpty {
                         HStack(spacing: 6) {
@@ -203,10 +198,11 @@ struct GemPostCardView: View {
                             .background(Capsule().fill(Color.black.opacity(0.45)))
                     }
 
-                    // Purple once the community has rated; grey while the only
-                    // score is the creator's own.
-                    if let score = experience.ratingSummary.displayScore, score > 0 {
-                        let hasCommunity = experience.ratingSummary.hasCommunityValidation
+                    Spacer()
+
+                    let resolvedScore = experience.ratingSummary.displayScore ?? experience.rating?.overallScore
+                    if let score = resolvedScore, score > 0 {
+                        let hasCommunity = experience.ratingSummary.hasCommunityValidation || experience.ratingSummary.communityRatingCount > 0
                         HStack(spacing: 3) {
                             Image(systemName: hasCommunity ? "hexagon.fill" : "hexagon")
                                 .font(.system(size: 10, weight: .bold))
@@ -220,18 +216,12 @@ struct GemPostCardView: View {
                             Capsule().fill(
                                 hasCommunity
                                     ? AnyShapeStyle(TravColors.accent.opacity(0.92))
-                                    : AnyShapeStyle(Color.black.opacity(0.55))
+                                    : AnyShapeStyle(Color.black.opacity(0.65))
                             )
                         )
-                        .accessibilityLabel(
-                            hasCommunity
-                                ? "Community rating \(TravFormatters.score(score)) out of 10"
-                                : "Creator rating \(TravFormatters.score(score)) out of 10, no community ratings yet"
-                        )
                     }
-
-                    Spacer()
                 }
+                .frame(maxWidth: .infinity)
                 .padding(TravSpacing.sm)
 
                 repostBubble
@@ -250,21 +240,6 @@ struct GemPostCardView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                let isSpotRec = experience.isSpot || (experience.creator.displayName.lowercased() == "rec by trav" || experience.creator.username.lowercased() == "trav" || experience.stops.count <= 1)
-
-                if !isSpotRec {
-                    Button {
-                        onCreatorTap?()
-                    } label: {
-                        Text("by \(experience.creator.displayName)")
-                            .font(TravTypography.caption())
-                            .foregroundStyle(TravColors.muted)
-                            .lineLimit(1)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(onCreatorTap == nil)
-                }
-
                 Text("\(TravFormatters.duration(experience.durationMinutes)) · \(experience.costLabel)")
                     .font(TravTypography.caption())
                     .foregroundStyle(TravColors.muted)
@@ -280,10 +255,11 @@ struct GemPostCardView: View {
                     .padding(.top, TravSpacing.xxs)
 
                 // Facepile (Social Proof) Row
-                if !experience.completedBy.isEmpty {
+                let facepileUsers = completedByToDisplay
+                if !facepileUsers.isEmpty {
                     HStack(spacing: 6) {
                         HStack(spacing: -8) {
-                            ForEach(experience.completedBy.prefix(3)) { user in
+                            ForEach(facepileUsers.prefix(3)) { user in
                                 AsyncImage(url: URL(string: user.avatarImage)) { image in
                                     image
                                         .resizable()
@@ -304,16 +280,17 @@ struct GemPostCardView: View {
                                 .foregroundStyle(Color(red: 0.2, green: 0.85, blue: 0.45))
 
                             Group {
-                                if experience.completedBy.count == 1 {
-                                    Text(experience.isSpot ? "Visited by " : "Completed by ") +
-                                    Text(experience.completedBy[0].name)
+                                let isSpotCard = experience.isSpot || experience.stops.count <= 1
+                                if facepileUsers.count == 1 {
+                                    Text(isSpotCard ? "Visited by " : "Completed by ") +
+                                    Text(facepileUsers[0].name)
                                         .fontWeight(.bold)
                                 } else {
-                                    Text(experience.isSpot ? "Visited by " : "Completed by ") +
-                                    Text(experience.completedBy[0].name)
+                                    Text(isSpotCard ? "Visited by " : "Completed by ") +
+                                    Text(facepileUsers[0].name)
                                         .fontWeight(.bold) +
                                     Text(" and ") +
-                                    Text("\(experience.completedBy.count - 1) others")
+                                    Text("\(facepileUsers.count - 1) others")
                                         .fontWeight(.bold)
                                 }
                             }
@@ -327,6 +304,34 @@ struct GemPostCardView: View {
                     .clipShape(Capsule())
                     .padding(.vertical, 4)
                 }
+
+                // Author line ALWAYS at the VERY BOTTOM of the text column with extra spacing
+                let systemNames = ["rec by trav", "system", "trav editorial", "editorial", "trav"]
+                let creatorName = experience.creator.displayName.lowercased()
+                let isRecByTrav = systemNames.contains(creatorName) || experience.creator.username.lowercased() == "trav"
+
+                Button {
+                    onCreatorTap?()
+                } label: {
+                    HStack(spacing: 4) {
+                        if isRecByTrav {
+                            Text("by Trav")
+                                .font(TravTypography.caption())
+                                .foregroundStyle(TravColors.muted)
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(TravColors.accent)
+                        } else {
+                            Text("by \(experience.creator.displayName)")
+                                .font(TravTypography.caption())
+                                .foregroundStyle(TravColors.muted)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(onCreatorTap == nil)
+                .padding(.top, 6)
 
                 // Split Action Bar
                 Divider()
@@ -409,6 +414,13 @@ struct GemPostCardView: View {
         .contentShape(RoundedRectangle(cornerRadius: connectedLayout ? 0 : TravRadius.lg, style: .continuous))
         .overlay(connectedLayoutOverlay)
         .onTapGesture(perform: onTap)
+        .onAppear {
+            let completers = !experience.completedBy.isEmpty ? experience.completedBy : completedByToDisplay
+            let compNames = experience.completedBy.map(\.name).joined(separator: ", ")
+            let dispNames = completers.map(\.name).joined(separator: ", ")
+            let scoreStr = String(format: "%.1f", experience.ratingSummary.displayScore ?? experience.rating?.overallScore ?? -1.0)
+            TravLog.general.notice("[GemPostCardView] Rendering '\(experience.title, privacy: .public)', isSpot: \(experience.isSpot, privacy: .public), completedBy: [\(compNames, privacy: .public)], completersToDisplay: [\(dispNames, privacy: .public)], score: \(scoreStr, privacy: .public)")
+        }
     }
 
     private var displaySaveCount: Int {

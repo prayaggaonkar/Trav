@@ -205,16 +205,17 @@ struct HeroExperienceCard: View {
     var onShare: (() -> Void)? = nil
     var onComment: (() -> Void)? = nil
 
+    @Environment(EngagementStore.self) private var engagement
     @State private var resolvedLocation: String?
 
     /// Reserved leading slot — same width with or without a cover photo.
     private let coverWidth: CGFloat = 96
     /// Fixed height so "Created by You" never grows the card.
-    private let cardHeight: CGFloat = 120
+    private let cardHeight: CGFloat = 128
     private let cardCornerRadius: CGFloat = 18
 
     private var showRating: Bool {
-        experience.creator.displayName.lowercased() != "rec by trav"
+        true
     }
 
     private var hasCoverImage: Bool {
@@ -247,27 +248,83 @@ struct HeroExperienceCard: View {
 
                         Spacer(minLength: 0)
 
-                        // One bottom attribution line: "Created by You" or creator name.
-                        Group {
-                            if isCreatedByYou {
-                                Text(badgeText)
-                                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                                    .foregroundStyle(TravColors.muted)
-                                    .lineLimit(1)
-                            } else {
-                                Button {
-                                    onCreatorTap?()
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        AvatarView(url: experience.creator.avatarURL, size: 18)
-                                        Text(experience.creator.displayName)
-                                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                                            .foregroundStyle(TravColors.muted)
-                                            .lineLimit(1)
+                        // Visited by / Completed by badge & Author line at very bottom
+                        VStack(alignment: .leading, spacing: 6) {
+                            let isSpotCard = experience.isSpot || experience.stops.count <= 1
+                            let systemNames = ["rec by trav", "system", "trav editorial", "editorial", "trav"]
+                            let creatorName = experience.creator.displayName.lowercased()
+                            let isRecByTrav = systemNames.contains(creatorName) || experience.creator.username.lowercased() == "trav"
+
+                            // 1. Visited by / Completed by badge — ONLY displayed if current user follows a friend who completed it!
+                            let followedCompleters = experience.completedBy.filter { user in
+                                user.id != experience.creator.id && engagement.isFollowing(user.id)
+                            }
+
+                            if let friendVisitor = followedCompleters.first {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(Color(red: 0.2, green: 0.85, blue: 0.45))
+
+                                    AvatarView(url: URL(string: friendVisitor.avatarImage), size: 14)
+
+                                    Group {
+                                        Text(isSpotCard ? "Visited by " : "Completed by ")
+                                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                                            .foregroundStyle(TravColors.muted) +
+                                        Text(friendVisitor.name)
+                                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                                            .foregroundStyle(TravColors.primary)
                                     }
+                                    .lineLimit(1)
                                 }
-                                .buttonStyle(.plain)
-                                .disabled(onCreatorTap == nil)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2.5)
+                                .background(Color(red: 0.2, green: 0.85, blue: 0.45).opacity(0.12))
+                                .clipShape(Capsule())
+                                .overlay(
+                                    Capsule().stroke(Color(red: 0.2, green: 0.85, blue: 0.45).opacity(0.25), lineWidth: 1)
+                                )
+                                .padding(.bottom, 5)
+                            }
+
+                            // 2. Author line — ALWAYS displayed at the VERY BOTTOM of the card
+                            HStack(spacing: 4) {
+                                if isRecByTrav {
+                                    Button {
+                                        onCreatorTap?()
+                                    } label: {
+                                        HStack(spacing: 4) {
+                                            Text("by Trav")
+                                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                                .foregroundStyle(TravColors.muted)
+                                            Image(systemName: "checkmark.seal.fill")
+                                                .font(.system(size: 11, weight: .bold))
+                                                .foregroundStyle(TravColors.accent)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(onCreatorTap == nil)
+                                } else if isCreatedByYou && !isSpotCard {
+                                    Text(badgeText)
+                                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                                        .foregroundStyle(TravColors.muted)
+                                        .lineLimit(1)
+                                } else {
+                                    Button {
+                                        onCreatorTap?()
+                                    } label: {
+                                        HStack(spacing: 5) {
+                                            AvatarView(url: experience.creator.avatarURL, size: 18)
+                                            Text("by \(experience.creator.displayName)")
+                                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                                .foregroundStyle(TravColors.muted)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(onCreatorTap == nil)
+                                }
                             }
                         }
                     }
@@ -300,19 +357,20 @@ struct HeroExperienceCard: View {
                             .accessibilityLabel("Share")
                         }
 
-                        if showRating, let score = experience.ratingSummary.displayScore, score > 0 {
+                        let resolvedScore = experience.ratingSummary.displayScore ?? experience.rating?.overallScore
+                        if let score = resolvedScore, score > 0 {
                             CircularRatingView(
                                 rating: score,
                                 size: 40,
-                                isCommunityValidated: experience.ratingSummary.hasCommunityValidation
+                                isCommunityValidated: experience.ratingSummary.hasCommunityValidation || experience.ratingSummary.communityRatingCount > 0
                             )
                         }
                     }
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 12)
-            .padding(.bottom, 16)
+            .padding(.horizontal, 14)
+            .padding(.top, 13)
+            .padding(.bottom, 15)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(height: cardHeight)
