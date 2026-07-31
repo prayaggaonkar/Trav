@@ -170,9 +170,16 @@ final class AppleMapsVibeService: @unchecked Sendable {
             }
 
             var categoryBucket: [ExperienceSummary] = []
-            let candidateItems = Array(searchResponse.mapItems.shuffled().prefix(12))
+            
+            // Run candidates through Local AI Curator Engine for vibe scoring & hangout confidence ranking
+            let curatedResults = LocalVibeAICurator.shared.curateAndRank(
+                mapItems: searchResponse.mapItems,
+                vibes: [vibe],
+                cityName: targetCity
+            )
 
-            for mapItem in candidateItems {
+            for result in curatedResults.prefix(5) {
+                let mapItem = result.mapItem
                 guard let name = mapItem.name, !name.isEmpty else { continue }
                 let lowerName = name.lowercased()
                 if seenPlaceNames.contains(lowerName) { continue }
@@ -210,7 +217,7 @@ final class AppleMapsVibeService: @unchecked Sendable {
                     title: officialTitle,
                     imageURLs: imageURLs,
                     creator: creator,
-                    durationMinutes: 45,
+                    durationMinutes: result.recommendedDurationMinutes,
                     costLevel: .moderate,
                     estimatedCostUSD: nil,
                     saveCount: realStats.saveCount,
@@ -230,13 +237,13 @@ final class AppleMapsVibeService: @unchecked Sendable {
                     id: stopPreview.id,
                     orderIndex: 1,
                     name: officialTitle,
-                    description: mapItem.placemark.title ?? officialTitle,
-                    creatorNotes: "Discovered via Apple Maps.",
+                    description: result.relatableVibeNote,
+                    creatorNotes: "Curated by Local AI (\(Int(result.hangoutConfidence * 100))% hangout match).",
                     latitude: coord.latitude,
                     longitude: coord.longitude,
                     placeID: nil,
-                    recommendedTime: nil,
-                    durationMinutes: 45,
+                    recommendedTime: result.bestTimeOfDay,
+                    durationMinutes: result.recommendedDurationMinutes,
                     emoji: emoji,
                     media: []
                 )
@@ -247,9 +254,9 @@ final class AppleMapsVibeService: @unchecked Sendable {
                     cityID: summary.cityID,
                     creator: creator,
                     title: officialTitle,
-                    description: mapItem.placemark.title ?? "A curated \(cleanCategory) spot in \(targetCity).",
+                    description: result.relatableVibeNote,
                     imageURLs: imageURLs,
-                    durationMinutes: 45,
+                    durationMinutes: result.recommendedDurationMinutes,
                     costLevel: .moderate,
                     saveCount: realStats.saveCount,
                     likeCount: realStats.likeCount,
