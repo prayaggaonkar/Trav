@@ -20,6 +20,8 @@ struct GlobeLandingView: View {
     @State private var isSearchingUsers = false
     @State private var userSearchTask: Task<Void, Never>?
     @State private var cityFilterTask: Task<Void, Never>?
+    @State private var showFullSearchResults = false
+    @State private var fullSearchInitialTab: SearchTab = .all
 
     var body: some View {
         ZStack {
@@ -355,6 +357,29 @@ struct GlobeLandingView: View {
 
     private var searchResultsOverlay: some View {
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            // MARK: - Header with Close Button
+            HStack {
+                Text("Search Results")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
+
+                Spacer()
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        searchText = ""
+                        userSearchResults = []
+                        spotSearchController.clear()
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(TravColors.muted)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, TravSpacing.xs)
+
             // MARK: - Spots Section
             if spotSearchController.isSearching || !spotSearchController.spots.isEmpty {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
@@ -375,7 +400,7 @@ struct GlobeLandingView: View {
                     .padding(.horizontal, TravSpacing.xs)
 
                     VStack(spacing: 6) {
-                        ForEach(spotSearchController.spots.prefix(4)) { spot in
+                        ForEach(spotSearchController.spots.prefix(3)) { spot in
                             Button {
                                 searchText = ""
                                 userSearchResults = []
@@ -435,6 +460,23 @@ struct GlobeLandingView: View {
                             }
                             .buttonStyle(TravPressButtonStyle(scale: 0.98))
                         }
+
+                        if spotSearchController.spots.count > 3 {
+                            Button {
+                                fullSearchInitialTab = .spots
+                                showFullSearchResults = true
+                            } label: {
+                                HStack {
+                                    Text("View all \(spotSearchController.spots.count) spots")
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 10, weight: .bold))
+                                }
+                                .foregroundStyle(TravColors.accent)
+                                .padding(.vertical, 4)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             }
@@ -449,7 +491,7 @@ struct GlobeLandingView: View {
                         .padding(.horizontal, TravSpacing.xs)
 
                     VStack(spacing: 6) {
-                        ForEach(matchingCities.prefix(4)) { city in
+                        ForEach(matchingCities.prefix(3)) { city in
                             Button {
                                 searchText = ""
                                 userSearchResults = []
@@ -492,6 +534,23 @@ struct GlobeLandingView: View {
                             }
                             .buttonStyle(TravPressButtonStyle(scale: 0.98))
                         }
+
+                        if matchingCities.count > 3 {
+                            Button {
+                                fullSearchInitialTab = .cities
+                                showFullSearchResults = true
+                            } label: {
+                                HStack {
+                                    Text("View all \(matchingCities.count) cities")
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 10, weight: .bold))
+                                }
+                                .foregroundStyle(TravColors.accent)
+                                .padding(.vertical, 4)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             }
@@ -522,7 +581,7 @@ struct GlobeLandingView: View {
                         .padding(.vertical, 4)
                 } else if !userSearchResults.isEmpty {
                     VStack(spacing: 6) {
-                        ForEach(userSearchResults.prefix(4)) { user in
+                        ForEach(userSearchResults.prefix(3)) { user in
                             GlobeUserSearchResultRow(user: user) {
                                 searchText = ""
                                 userSearchResults = []
@@ -536,8 +595,49 @@ struct GlobeLandingView: View {
                                     .fill(appearance.isLightMode ? Color.white.opacity(0.85) : Color.white.opacity(0.08))
                             )
                         }
+
+                        if userSearchResults.count > 3 {
+                            Button {
+                                fullSearchInitialTab = .creators
+                                showFullSearchResults = true
+                            } label: {
+                                HStack {
+                                    Text("View all \(userSearchResults.count) creators")
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 10, weight: .bold))
+                                }
+                                .foregroundStyle(TravColors.accent)
+                                .padding(.vertical, 4)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
+            }
+
+            // MARK: - View All Results Button
+            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Divider()
+                    .padding(.vertical, 4)
+
+                Button {
+                    fullSearchInitialTab = .all
+                    showFullSearchResults = true
+                } label: {
+                    HStack {
+                        Text("View all results for \"\(searchText)\"")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(TravColors.accent)
+                        Spacer()
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(TravColors.accent)
+                    }
+                    .padding(.horizontal, TravSpacing.xs)
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(TravSpacing.sm)
@@ -551,6 +651,9 @@ struct GlobeLandingView: View {
                 .stroke(appearance.isLightMode ? Color.black.opacity(0.1) : Color.white.opacity(0.12), lineWidth: 1)
         )
         .padding(.vertical, TravSpacing.xs)
+        .fullScreenCover(isPresented: $showFullSearchResults) {
+            FullSearchResultsView(initialQuery: searchText, initialTab: fullSearchInitialTab)
+        }
     }
 
     private var bottomCTA: some View {
