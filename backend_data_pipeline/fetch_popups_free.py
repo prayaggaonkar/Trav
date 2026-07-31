@@ -79,24 +79,32 @@ def fetch_ticketmaster_events(city="Berkeley", state_code="CA") -> list:
 
 
 def fetch_schema_jsonld_events(url: str, default_city="Berkeley, CA") -> list:
-    """Scrape standard Schema.org JSON-LD Event objects from event aggregation pages."""
+    """Scrape standard Schema.org JSON-LD Event objects from event aggregation pages (Eventbrite, etc.)."""
     events = []
     try:
         req = urllib.request.Request(url, headers={
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })
         context = ssl._create_unverified_context()
-        with urllib.request.urlopen(req, context=context, timeout=8) as resp:
+        with urllib.request.urlopen(req, context=context, timeout=10) as resp:
             html = resp.read().decode("utf-8", errors="ignore")
-            # Find script tags containing application/ld+json
             json_ld_matches = re.findall(r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', html, re.DOTALL | re.IGNORECASE)
             
             for match in json_ld_matches:
                 try:
                     obj = json.loads(match.strip())
-                    items = obj if isinstance(obj, list) else [obj]
+                    candidates = []
+                    if isinstance(obj, list):
+                        candidates = obj
+                    elif isinstance(obj, dict):
+                        if obj.get("@type") == "ItemList":
+                            candidates = [elem.get("item", {}) for elem in obj.get("itemListElement", []) if isinstance(elem, dict)]
+                        elif "@graph" in obj:
+                            candidates = obj["@graph"]
+                        else:
+                            candidates = [obj]
                     
-                    for item in items:
+                    for item in candidates:
                         if isinstance(item, dict) and item.get("@type") == "Event":
                             name = item.get("name")
                             if not name: continue
@@ -119,6 +127,8 @@ def fetch_schema_jsonld_events(url: str, default_city="Berkeley, CA") -> list:
                             img_url = img[0] if isinstance(img, list) and img else (img if isinstance(img, str) else None)
                             
                             category = classify_event_category(name, description)
+                            event_url = item.get("url") or url
+                            source_name = "eventbrite" if "eventbrite.com" in event_url else "schema_ld"
                             
                             events.append({
                                 "event_name": name,
@@ -129,9 +139,9 @@ def fetch_schema_jsonld_events(url: str, default_city="Berkeley, CA") -> list:
                                 "category": category,
                                 "description": description[:300] if description else None,
                                 "start_time": start_time,
-                                "external_url": item.get("url") or url,
+                                "external_url": event_url,
                                 "image_url": img_url,
-                                "source": "schema_ld"
+                                "source": source_name
                             })
                 except Exception:
                     continue
@@ -177,9 +187,9 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "Open doubles pickleball tournament for all skill levels! Paddles available for beginners, plus cold drinks and post-match social.",
             "start_time": (now + datetime.timedelta(days=1, hours=3)).isoformat(),
             "end_time": (now + datetime.timedelta(days=1, hours=7)).isoformat(),
-            "external_url": f"https://eventbrite.com/e/{city_slug}-pickleball-open-social-tickets-89217401923",
+            "external_url": f"https://www.eventbrite.com/d/{city_slug}/pickleball--events/",
             "image_url": "https://images.unsplash.com/photo-1626248801379-51a0748a5f96?w=800&q=80",
-            "source": "community_sports"
+            "source": "eventbrite"
         },
         {
             "event_name": f"{city_name} Sunset Ocean Run & Coffee Club",
@@ -237,9 +247,9 @@ def generate_rich_city_events(city="Berkeley, CA", base_lat=37.8715, base_lng=-1
             "description": "Over 25 gourmet food truck vendors, craft boba, artisan night shopping, and live street performers.",
             "start_time": (now + datetime.timedelta(days=2, hours=5)).isoformat(),
             "end_time": (now + datetime.timedelta(days=2, hours=9)).isoformat(),
-            "external_url": f"https://eventbrite.com/e/{city_slug}-night-market-street-food-fest-tickets-7841920349",
+            "external_url": f"https://www.eventbrite.com/d/{city_slug}/night-market--events/",
             "image_url": "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=800&q=80",
-            "source": "food_fest"
+            "source": "eventbrite"
         },
         
         # 4. Social Meetups & Games

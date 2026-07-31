@@ -254,7 +254,6 @@ struct ExperienceDetailView: View {
 
         return HStack(alignment: .top, spacing: 0) {
             Button {
-                guard !isOwn else { return }
                 Task {
                     await engagement.toggleSave(
                         experienceID: experience.id,
@@ -275,7 +274,6 @@ struct ExperienceDetailView: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 45)
                     .background(isSaved ? Color(red: 0.78, green: 0.58, blue: 0.06) : TravColors.surfaceElevated)
-                    .opacity(isOwn ? 0.4 : 1.0)
 
                     Text(TravFormatters.count(displaySaveCount(for: experience)))
                         .font(TravTypography.caption())

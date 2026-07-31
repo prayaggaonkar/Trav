@@ -196,22 +196,6 @@ struct SupabaseEngagementRepository: EngagementRepository {
 
         await ensureExperienceExistsInternal(experienceID: experienceID, userID: userID)
 
-        struct ExpOwnerRow: Decodable {
-            let user_id: UUID
-            let is_published: Bool?
-        }
-        let expOwner: [ExpOwnerRow] = (try? await client
-            .from("experiences")
-            .select("user_id, is_published")
-            .eq("id", value: expIDStr)
-            .execute()
-            .value) ?? []
-
-        // Only restrict saving if it's the user's own published multi-stop experience
-        if let owner = expOwner.first, owner.user_id == userID, owner.is_published == true {
-            return false
-        }
-
         if try await isSaved(userID: userID, experienceID: experienceID) {
             try await unsave(userID: userID, experienceID: experienceID)
             return false
