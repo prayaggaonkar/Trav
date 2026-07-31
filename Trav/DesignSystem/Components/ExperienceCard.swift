@@ -401,6 +401,9 @@ struct GemPostCardView: View {
                                 .clipShape(Capsule())
                             }
                             .buttonStyle(.plain)
+                            .disabled(isCompleted)
+                            .opacity(isCompleted ? 0.85 : 1)
+                            .accessibilityLabel(isCompleted ? "Already completed" : "Complete and rate")
                         }
                     }
             }

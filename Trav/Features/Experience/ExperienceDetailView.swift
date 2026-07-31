@@ -283,8 +283,8 @@ struct ExperienceDetailView: View {
             .buttonStyle(TravPressButtonStyle())
             .disabled(isOwn)
 
-            // Completing requires a rating, so this opens Create Rating rather
-            // than toggling state. Tapping it once completed edits that rating.
+            // Completing requires a rating, so this opens Create Rating.
+            // Already-rated experiences cannot be rated again.
             Button {
                 dismissEnv()
                 router.dismiss()
@@ -309,11 +309,11 @@ struct ExperienceDetailView: View {
                 }
             }
             .buttonStyle(TravPressButtonStyle())
-            .accessibilityLabel(isCompleted ? "Edit your rating" : "Complete and rate")
+            .disabled(isCompleted)
+            .accessibilityLabel(isCompleted ? "Already completed" : "Complete and rate")
             .contextMenu {
                 if isCompleted {
-                    // The button itself no longer toggles off, so undoing a
-                    // completion means deleting the rating behind it.
+                    // Undo a completion by deleting the rating behind it.
                     Button("Remove Rating", systemImage: "trash", role: .destructive) {
                         Task {
                             await engagement.removeCompletion(
@@ -1236,20 +1236,34 @@ private struct PersonRatingCard: View {
     /// Horizontal step between stacked thumbs — enough overlap to read as a stack,
     /// but most of each image stays visible.
     private let photoStackStep: CGFloat = 16
+    /// Each image to the left of the front thumb is this fraction of the one to its right.
+    private let photoStackScaleStep: CGFloat = 0.85
 
     private var showsPhotoStack: Bool {
         !isCreator && !rating.photoURLs.isEmpty
     }
 
+    private var photoStackVisibleCount: Int {
+        min(rating.photoURLs.count, 3)
+    }
+
+    /// Width is anchored to the rightmost (largest) thumb so that thumb stays fixed.
     private var photoStackWidth: CGFloat {
-        let count = min(rating.photoURLs.count, 3)
+        let count = photoStackVisibleCount
         guard count > 0 else { return 0 }
         return photoThumbSize + CGFloat(count - 1) * photoStackStep
+    }
+
+    private func photoThumbSize(atStackIndex index: Int) -> CGFloat {
+        photoThumbSize * pow(photoStackScaleStep, CGFloat(index))
     }
 
     private func toggleSubratings() {
         guard !rating.radar.scores.isEmpty else { return }
         withAnimation(TravAnimation.quick) {
+            if isPhotoExpanded {
+                isPhotoExpanded = false
+            }
             showSubratings.toggle()
         }
     }
@@ -1370,30 +1384,35 @@ private struct PersonRatingCard: View {
 
     private var photoStackOverlay: some View {
         let urls = rating.photoURLs
-        let visibleCount = min(urls.count, 3)
+        let visibleCount = photoStackVisibleCount
 
         return Button {
             withAnimation(TravAnimation.quick) {
                 if isPhotoExpanded {
                     isPhotoExpanded = false
                 } else {
-                    galleryIndex = min(galleryIndex, max(urls.count - 1, 0))
+                    showSubratings = false
+                    galleryIndex = 0
                     isPhotoExpanded = true
                 }
             }
         } label: {
-            ZStack(alignment: .leading) {
-                ForEach(0..<visibleCount, id: \.self) { index in
-                    RemoteImage(url: urls[index], height: photoThumbSize, cornerRadius: 7, maxPixelSize: 140)
-                        .frame(width: photoThumbSize, height: photoThumbSize)
+            ZStack(alignment: .trailing) {
+                // Draw back-to-front: last visible photo furthest left/smallest,
+                // first photo rightmost, largest, and on top.
+                ForEach((0..<visibleCount).reversed(), id: \.self) { index in
+                    let size = photoThumbSize(atStackIndex: index)
+                    RemoteImage(url: urls[index], height: size, cornerRadius: 7, maxPixelSize: 140)
+                        .frame(width: size, height: size)
                         .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .stroke(TravColors.surfaceElevated, lineWidth: 1.5)
+                                .stroke(Color.white.opacity(0.92), lineWidth: 1.25)
                         )
                         .shadow(color: .black.opacity(0.28), radius: 2, y: 1)
-                        .offset(x: CGFloat(index) * photoStackStep)
-                        .zIndex(Double(index))
+                        // Rightmost (index 0) stays fixed; each next image steps left.
+                        .offset(x: -CGFloat(index) * photoStackStep)
+                        .zIndex(Double(visibleCount - index))
                 }
 
                 if urls.count > 3 {
@@ -1403,14 +1422,11 @@ private struct PersonRatingCard: View {
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(Capsule().fill(Color.black.opacity(0.72)))
-                        .offset(
-                            x: CGFloat(visibleCount - 1) * photoStackStep + photoThumbSize - 6,
-                            y: photoThumbSize * 0.35
-                        )
-                        .zIndex(10)
+                        .offset(x: 4, y: photoThumbSize * 0.35)
+                        .zIndex(100)
                 }
             }
-            .frame(width: photoStackWidth, height: photoThumbSize, alignment: .leading)
+            .frame(width: photoStackWidth, height: photoThumbSize, alignment: .trailing)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isPhotoExpanded ? "Collapse photos" : "Show photos")

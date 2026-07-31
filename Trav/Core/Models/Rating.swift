@@ -4,8 +4,7 @@ import Foundation
 ///
 /// Ratings are the only way to complete an experience: submitting one marks the
 /// experience completed, folds into its averages, and adds it to the author's
-/// Completed tab. There is exactly one rating per user per experience — editing
-/// replaces it rather than adding another.
+/// Completed tab. There is exactly one rating per user per experience.
 struct Rating: Identifiable, Codable, Sendable, Hashable {
     let id: UUID
     var experienceID: UUID

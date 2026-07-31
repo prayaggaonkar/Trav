@@ -97,6 +97,9 @@ struct SupabaseRatingRepository: RatingRepository {
         guard draft.photosData.count <= RatingDraft.maxPhotos else {
             throw ContentModelError.tooManyPhotos(limit: RatingDraft.maxPhotos)
         }
+        if try await fetchMyRating(userID: userID, experienceID: draft.experienceID) != nil {
+            throw ContentModelError.alreadyRated
+        }
 
         let client = try client
 
