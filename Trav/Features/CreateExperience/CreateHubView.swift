@@ -19,7 +19,7 @@ struct CreateHubView: View {
                 ))
                 .padding(.horizontal, TravSpacing.screenHorizontal)
                 .padding(.top, TravSpacing.sm)
-                .padding(.bottom, TravSpacing.xs)
+                .padding(.bottom, 12)
 
                 ZStack {
                     CreateRatingView(isActive: isActive && router.createTab == .rating)
@@ -39,32 +39,33 @@ struct CreateHubView: View {
 }
 
 private struct CreateTabPicker: View {
+    @Environment(AppearanceStore.self) private var appearance
     @Binding var selection: CreateTab
-    @Namespace private var indicator
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 3) {
             ForEach(CreateTab.allCases) { tab in
                 Button {
                     guard selection != tab else { return }
-                    withAnimation(TravAnimation.enter) { selection = tab }
+                    withAnimation(TravAnimation.quick) { selection = tab }
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 } label: {
-                    HStack(spacing: TravSpacing.xxs) {
-                        Image(systemName: tab.symbolName)
-                            .font(.system(size: 12, weight: .semibold))
-                        Text(tab.title)
-                            .font(TravTypography.labelMedium())
-                    }
-                    .foregroundStyle(selection == tab ? .white : TravColors.muted)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, TravSpacing.sm)
-                    .background {
-                        if selection == tab {
-                            Capsule()
-                                .fill(TravColors.accent)
-                                .matchedGeometryEffect(id: "createTabIndicator", in: indicator)
-                        }
-                    }
+                    Text(tab.title)
+                        .font(.system(size: 13, weight: selection == tab ? .semibold : .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .foregroundStyle(selection == tab ? TravColors.primary : TravColors.muted)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(
+                            Group {
+                                if selection == tab {
+                                    RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                                        .fill(TravColors.surfaceElevated)
+                                        .shadow(color: Color.black.opacity(0.08), radius: 3, y: 1)
+                                }
+                            }
+                        )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(tab == .rating ? "Create rating" : "Create experience")
@@ -72,10 +73,9 @@ private struct CreateTabPicker: View {
             }
         }
         .padding(4)
-        .background(TravColors.surfaceElevated)
-        .clipShape(Capsule())
-        .overlay {
-            Capsule().stroke(TravColors.border.opacity(0.5), lineWidth: 1)
-        }
+        .background(
+            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                .fill(appearance.isLightMode ? Color(red: 0.94, green: 0.94, blue: 0.96) : Color.white.opacity(0.08))
+        )
     }
 }
