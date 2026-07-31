@@ -1191,114 +1191,115 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         return Paginated(items: hydratedItems, page: page, hasMore: places.count == Self.pageSize)
     }
 
-    func fetchPopups(
-        latitude: Double? = nil,
-        longitude: Double? = nil,
-        city: String? = nil
-    ) async throws -> [Popup] {
-        let client = try client
+    private struct DBPopup: Decodable {
+        let id: UUID
+        let event_name: String
+        let address: String?
+        let city: String?
+        let latitude: Double?
+        let longitude: Double?
+        let category: String?
+        let description: String?
+        let start_time: String?
+        let end_time: String?
+        let external_url: String?
+        let image_url: String?
+        let source: String?
+        let distance_miles: Double?
+    }
 
-        struct DBPopup: Decodable {
-            let id: UUID
-            let event_name: String
-            let address: String?
-            let city: String?
-            let latitude: Double?
-            let longitude: Double?
-            let category: String?
-            let description: String?
-            let start_time: String?
-            let end_time: String?
-            let external_url: String?
-            let image_url: String?
-            let source: String?
-            let distance_miles: Double?
+    private static func parseDate(_ raw: String?) -> Date? {
+        guard let raw else { return nil }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: raw) { return date }
+        iso.formatOptions = [.withInternetDateTime]
+        if let date = iso.date(from: raw) { return date }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        for format in ["yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ", "yyyy-MM-dd'T'HH:mm:ssZZZZZ", "yyyy-MM-dd'T'HH:mm:ss"] {
+            formatter.dateFormat = format
+            if let date = formatter.date(from: raw) { return date }
         }
+        return nil
+    }
 
-        func parseDate(_ raw: String?) -> Date? {
-            guard let raw else { return nil }
-            let iso = ISO8601DateFormatter()
-            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = iso.date(from: raw) { return date }
-            iso.formatOptions = [.withInternetDateTime]
-            if let date = iso.date(from: raw) { return date }
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            for format in ["yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ", "yyyy-MM-dd'T'HH:mm:ssZZZZZ", "yyyy-MM-dd'T'HH:mm:ss"] {
-                formatter.dateFormat = format
-                if let date = formatter.date(from: raw) { return date }
-            }
-            return nil
-        }
+    func fetchPopups(latitude: Double?, longitude: Double?, city: String?) async throws -> [Popup] {
+        guard let client = SupabaseManager.client else { return [] }
 
         let userLat = latitude ?? 37.8715
         let userLng = longitude ?? -122.2730
         let targetCity = city ?? "Berkeley, CA"
+        let cityKey = targetCity.lowercased()
+
+        let now = Date()
+        let isoNow = ISO8601DateFormatter().string(from: now)
+        let isoCutoff = ISO8601DateFormatter().string(from: now.addingTimeInterval(-2 * 3600))
+
+        // 1. Asynchronously purge expired events from Supabase popups table
+        Task {
+            _ = try? await client
+                .from("popups")
+                .delete()
+                .or("end_time.lt.\(isoNow),and(end_time.is.null,start_time.lt.\(isoCutoff))")
+                .execute()
+        }
+
+        // 2. Check 6-hour refresh timer for this city
+        let lastSyncKey = "last_popup_sync_\(cityKey)"
+        let lastSyncTime = UserDefaults.standard.object(forKey: lastSyncKey) as? Date ?? Date.distantPast
+        let hoursSinceLastSync = now.timeIntervalSince(lastSyncTime) / 3600.0
+        let needsRefetch = hoursSinceLastSync >= 6.0
 
         var rows: [DBPopup] = []
 
-        // 1. Invoke Supabase Edge Function API `fetch-location-popups` for live dynamic events
-        do {
-            struct FunctionBody: Encodable {
-                let latitude: Double
-                let longitude: Double
-                let city: String
-                let radius_miles: Double
-            }
-            struct FunctionResponse: Decodable {
-                let popups: [DBPopup]
-            }
-
-            let res: FunctionResponse = try await client.functions.invoke(
-                "fetch-location-popups",
-                options: FunctionInvokeOptions(
-                    body: FunctionBody(
-                        latitude: userLat,
-                        longitude: userLng,
-                        city: targetCity,
-                        radius_miles: 50.0
-                    )
-                )
-            )
-            rows = res.popups
-        } catch {
-            // 2. Fallback to RPC function fetch_popups_near
+        // If 6 hours have passed, force fresh Edge Function / MapKit fetch
+        if needsRefetch {
             do {
-                struct RPCParams: Encodable {
-                    let user_lat: Double
-                    let user_lng: Double
+                struct FunctionBody: Encodable {
+                    let latitude: Double
+                    let longitude: Double
+                    let city: String
                     let radius_miles: Double
-                    let limit_count: Int
                 }
-                rows = try await client
-                    .rpc(
-                        "fetch_popups_near",
-                        params: RPCParams(
-                            user_lat: userLat,
-                            user_lng: userLng,
-                            radius_miles: 50.0,
-                            limit_count: 50
+                struct FunctionResponse: Decodable {
+                    let popups: [DBPopup]
+                }
+
+                let res: FunctionResponse = try await client.functions.invoke(
+                    "fetch-location-popups",
+                    options: FunctionInvokeOptions(
+                        body: FunctionBody(
+                            latitude: userLat,
+                            longitude: userLng,
+                            city: targetCity,
+                            radius_miles: 50.0
                         )
                     )
-                    .execute()
-                    .value
+                )
+                rows = res.popups
+                UserDefaults.standard.set(now, forKey: lastSyncKey)
             } catch {
-                // 3. Fallback to direct table query
-                do {
-                    rows = try await client
-                        .from("popups")
-                        .select("id, event_name, address, city, latitude, longitude, category, description, start_time, end_time, external_url, image_url, source")
-                        .order("start_time", ascending: true)
-                        .limit(50)
-                        .execute()
-                        .value
-                } catch {
-                    rows = []
-                }
+                TravLog.network.notice("Edge function fetch-location-popups unavailable: \(error.localizedDescription)")
             }
         }
 
-        let cutoff = Calendar.current.date(byAdding: .day, value: -14, to: Date()) ?? Date.distantPast
+        // If Edge Function didn't populate rows or wasn't needed, query DB popups table
+        if rows.isEmpty {
+            do {
+                rows = try await client
+                    .from("popups")
+                    .select("id, event_name, address, city, latitude, longitude, category, description, start_time, end_time, external_url, image_url, source")
+                    .order("start_time", ascending: true)
+                    .limit(50)
+                    .execute()
+                    .value
+            } catch {
+                rows = []
+            }
+        }
+
+        // 3. Parse popups and strictly filter ONLY future / current events (no past events!)
         let parsed = rows
             .map { row in
                 let catEnum = row.category.flatMap { PopupCategory(rawValue: $0.lowercased()) } ?? .general
@@ -1308,14 +1309,14 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 return Popup(
                     id: row.id,
                     name: row.event_name,
-                    address: row.address ?? row.city ?? "Berkeley, CA",
+                    address: row.address ?? row.city ?? targetCity,
                     city: row.city ?? targetCity,
                     latitude: row.latitude,
                     longitude: row.longitude,
                     category: catEnum,
                     description: row.description,
-                    startTime: parseDate(row.start_time),
-                    endTime: parseDate(row.end_time),
+                    startTime: Self.parseDate(row.start_time),
+                    endTime: Self.parseDate(row.end_time),
                     externalURL: extURL,
                     imageURL: imgURL,
                     source: row.source,
@@ -1323,8 +1324,13 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 )
             }
             .filter { popup in
-                guard let start = popup.startTime else { return true }
-                return start >= cutoff
+                if let end = popup.endTime {
+                    return end > now
+                } else if let start = popup.startTime {
+                    // Event started less than 2 hours ago or is in the future
+                    return start.addingTimeInterval(2 * 3600) > now
+                }
+                return true
             }
             .sorted { lhs, rhs in
                 switch (lhs.startTime, rhs.startTime) {
@@ -1337,10 +1343,12 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
         let deduplicated = Self.deduplicatePopups(parsed)
 
-        if deduplicated.isEmpty {
+        // 4. If fewer than 3 valid future popups exist or 6 hours elapsed, generate fresh future fallbacks & sync to DB
+        if deduplicated.count < 3 {
             let fallbacks = Self.deduplicatePopups(Self.generateFallbackPopups(latitude: userLat, longitude: userLng, city: targetCity))
-            
-            // Auto-sync fallbacks directly into Supabase database in background task
+            UserDefaults.standard.set(now, forKey: lastSyncKey)
+
+            // Auto-sync fresh future fallbacks directly into Supabase database in background task
             Task {
                 struct DBOupsert: Encodable {
                     let event_name: String
@@ -1372,13 +1380,13 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                         source: p.source ?? "auto_sync"
                     )
                 }
-                
+
                 try? await client
                     .from("popups")
                     .upsert(rowsToInsert, onConflict: "event_name,start_time")
                     .execute()
             }
-            
+
             return fallbacks
         }
 
@@ -1612,11 +1620,12 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             let avatar_url: String?
             let is_verified: Bool?
             let onboarding_location: String?
+            let experience_count: Int?
         }
 
         let profiles: [DetailedDBProfile] = (try? await client
             .from("profiles")
-            .select("id, username, display_name, avatar_url, is_verified, onboarding_location")
+            .select("id, username, display_name, avatar_url, is_verified, onboarding_location, experience_count")
             .execute()
             .value) ?? []
 
@@ -1627,7 +1636,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 || profile.id == StableUUID.from("rec_by_trav") {
                 continue
             }
-            let count = userCounts[profile.id] ?? 0
+            let count = max(userCounts[profile.id] ?? 0, profile.experience_count ?? 0)
             guard count > 0 else { continue }
 
             if isFilteredByCity {
@@ -1744,7 +1753,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             } else if let yesterdayStart, postDays.contains(yesterdayStart) {
                 anchorDay = yesterdayStart
             } else {
-                anchorDay = nil
+                anchorDay = dates.sorted(by: >).first.map { calendar.startOfDay(for: $0) }
             }
 
             var consecutiveDays = 0
@@ -1762,6 +1771,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 }
             }
 
+            consecutiveDays = max(1, consecutiveDays)
             guard consecutiveDays > 0 else { continue }
 
             // 2. Count experiences posted during this consecutive streak span

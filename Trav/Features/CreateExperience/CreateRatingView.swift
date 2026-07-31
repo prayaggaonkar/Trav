@@ -465,56 +465,98 @@ struct CreateRatingView: View {
 
     private var photoSection: some View {
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
-            if !photoImages.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: TravSpacing.xs) {
-                        ForEach(Array(photoImages.enumerated()), id: \.offset) { index, image in
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 88, height: 88)
-                                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
-                                .overlay(alignment: .topTrailing) {
-                                    Button {
-                                        removePhoto(at: index)
-                                    } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .font(.system(size: 18))
-                                            .foregroundStyle(.white, .black.opacity(0.5))
-                                    }
-                                    .buttonStyle(.plain)
-                                    .padding(4)
-                                }
-                        }
-                    }
-                }
-            }
-
-            if photosData.count < RatingDraft.maxPhotos {
+            if photoImages.isEmpty {
                 PhotosPicker(
                     selection: $photoItems,
                     maxSelectionCount: RatingDraft.maxPhotos,
                     matching: .images
                 ) {
-                    HStack(spacing: TravSpacing.xs) {
+                    VStack(spacing: TravSpacing.xs) {
                         Image(systemName: "photo.badge.plus")
-                        Text(photosData.isEmpty ? "Add photos" : "Add another")
+                            .font(.system(size: 32))
+                            .foregroundStyle(TravColors.accent)
+                        Text("Add Media")
+                            .font(TravTypography.labelMedium())
+                            .foregroundStyle(TravColors.primary)
+                        Text("Up to \(RatingDraft.maxPhotos) photos (Optional)")
+                            .font(TravTypography.caption())
+                            .foregroundStyle(TravColors.muted)
                     }
-                    .font(TravTypography.labelMedium())
-                    .foregroundStyle(TravColors.accent)
+                    .frame(height: 140)
                     .frame(maxWidth: .infinity)
-                    .padding(TravSpacing.md)
-                    .background(TravColors.accentSoft)
-                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+                    .background(TravColors.surfaceElevated)
+                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: TravRadius.md)
+                            .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                            .foregroundStyle(TravColors.primary.opacity(0.15))
+                    )
                 }
-                .onChange(of: photoItems) { _, items in
-                    Task { await loadPhotos(items) }
-                }
-            }
+                .buttonStyle(.plain)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: TravSpacing.sm) {
+                        ForEach(Array(photoImages.enumerated()), id: \.offset) { index, img in
+                            ZStack(alignment: .topTrailing) {
+                                Image(uiImage: img)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 110, height: 110)
+                                    .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: TravRadius.md)
+                                            .stroke(TravColors.primary.opacity(0.15), lineWidth: 1)
+                                    )
 
-            Text("Up to \(RatingDraft.maxPhotos) photos.")
-                .font(TravTypography.caption())
-                .foregroundStyle(TravColors.muted)
+                                Button {
+                                    withAnimation(TravAnimation.quick) {
+                                        removePhoto(at: index)
+                                    }
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 22))
+                                        .foregroundStyle(.white, Color.black.opacity(0.75))
+                                        .padding(4)
+                                }
+                                .accessibilityLabel("Remove photo \(index + 1)")
+                            }
+                        }
+
+                        if photoImages.count < RatingDraft.maxPhotos {
+                            PhotosPicker(
+                                selection: $photoItems,
+                                maxSelectionCount: RatingDraft.maxPhotos,
+                                matching: .images
+                            ) {
+                                VStack(spacing: TravSpacing.xxs) {
+                                    Image(systemName: "plus.circle.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundStyle(TravColors.accent)
+                                    Text("Add More")
+                                        .font(TravTypography.caption())
+                                        .foregroundStyle(TravColors.primary)
+                                }
+                                .frame(width: 110, height: 110)
+                                .background(TravColors.surfaceElevated)
+                                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: TravRadius.md)
+                                        .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [4]))
+                                        .foregroundStyle(TravColors.accent.opacity(0.4))
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                Text("\(photoImages.count) photo\(photoImages.count == 1 ? "" : "s") added")
+                    .font(TravTypography.caption())
+                    .foregroundStyle(TravColors.muted)
+            }
+        }
+        .onChange(of: photoItems) { _, items in
+            Task { await loadPhotos(items) }
         }
     }
 
