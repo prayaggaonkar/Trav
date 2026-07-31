@@ -345,17 +345,15 @@ struct GemPostCardView: View {
                         HStack(spacing: 16) {
 
                             Button {
-                                guard !isOwnExperience else { return }
                                 isSavedLocal.toggle()
                                 onSave?()
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             } label: {
                                 Image(systemName: isSavedLocal ? "bookmark.fill" : "bookmark")
                                     .font(.system(size: 18))
-                                    .foregroundStyle(isOwnExperience ? TravColors.muted.opacity(0.3) : (isSavedLocal ? Color.yellow : TravColors.muted))
+                                    .foregroundStyle(isSavedLocal ? Color.yellow : TravColors.muted)
                             }
                             .buttonStyle(.plain)
-                            .disabled(isOwnExperience)
                             .accessibilityLabel(isSavedLocal ? "Remove bookmark" : "Bookmark")
 
                             Button {
