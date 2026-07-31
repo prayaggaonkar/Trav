@@ -391,7 +391,7 @@ struct GemPostCardView: View {
                                 engagement.requestCompletion(for: experience, using: environment)
                             } label: {
                                 HStack(spacing: 4) {
-                                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "checkmark.circle")
+                                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "plus")
                                     Text(isCompleted ? "Completed" : "Complete")
                                 }
                                 .font(.system(size: 13, weight: .bold, design: .rounded))

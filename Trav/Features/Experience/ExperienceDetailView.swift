@@ -74,7 +74,7 @@ struct ExperienceDetailView: View {
             }
             .buttonStyle(TravPressButtonStyle())
             .padding(.leading, TravSpacing.md)
-            .padding(.top, 52)
+            .padding(.top, 12)
             .zIndex(60)
         }
         .fullScreenCover(item: $activeImagePreview) { item in
@@ -289,13 +289,13 @@ struct ExperienceDetailView: View {
             } label: {
                 VStack(spacing: 6) {
                     HStack(spacing: 6) {
-                        Image(systemName: isCompleted ? "checkmark.circle.fill" : "checkmark.circle")
+                        Image(systemName: isCompleted ? "checkmark.circle.fill" : "plus")
                             .font(.system(size: 15, weight: .bold))
                         Text(isCompleted ? "Completed" : "Complete")
                             .font(TravTypography.labelMedium())
                             .fontWeight(.bold)
                     }
-                    .foregroundStyle(isCompleted ? .white : TravColors.accent)
+                    .foregroundStyle(isCompleted ? .white : TravColors.primary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 45)
                     .background(isCompleted ? TravColors.accent : TravColors.surfaceElevated)
@@ -393,95 +393,16 @@ struct ExperienceDetailView: View {
     }
 
     /// Purple once the community has rated, grey while the creator's own score is
-    /// the only one on record — a creator rating is not public validation    @ViewBuilder
+    /// the only one on record — a creator rating is not public validation.
+    @ViewBuilder
     private func ratingSection(_ experience: Experience) -> some View {
-        VStack(alignment: .leading, spacing: TravSpacing.lg) {
+        VStack(alignment: .leading, spacing: TravSpacing.md) {
+            Text("RATINGS")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .tracking(1.8)
+                .foregroundStyle(TravColors.accent)
+
             averageCommunityRatingCard(experience)
-
-            peopleWhoHaveBeenSection(experience)
-        }
-        .padding(.top, TravSpacing.xs)
-    }
-
-    @ViewBuilder
-    private func averageCommunityRatingCard(_ experience: Experience) -> some View {
-        let summary = experience.ratingSummary
-        let radar = summary.displayRadar(creatorRadar: experience.rating)
-        let totalCount = max(summary.communityRatingCount, ratings.count)
-        let calcAvg = ratings.isEmpty ? nil : (ratings.reduce(0.0) { $0 + $1.overallScore } / Double(ratings.count))
-        let score = summary.displayScore ?? calcAvg
-
-        VStack(alignment: .leading, spacing: TravSpacing.md) {
-            HStack(spacing: TravSpacing.md) {
-                // Score Badge
-                HStack(spacing: 5) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(Color(red: 0.95, green: 0.75, blue: 0.15))
-                    Text(score != nil ? TravFormatters.score(score!) : "--")
-                        .font(.system(size: 26, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
-                }
-                .padding(.horizontal, TravSpacing.md)
-                .padding(.vertical, TravSpacing.sm)
-                .background(
-                    RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
-                        .fill(TravColors.accent.opacity(0.18))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
-                                .stroke(TravColors.accent.opacity(0.4), lineWidth: 1)
-                        )
-                )
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("COMMUNITY RATING")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .tracking(1.5)
-                        .foregroundStyle(TravColors.accent)
-
-                    Text(totalCount > 0 ? "Based on \(totalCount) community \(totalCount == 1 ? "rating" : "ratings")" : "No community ratings yet")
-                        .font(TravTypography.caption())
-                        .foregroundStyle(TravColors.muted)
-                }
-
-                Spacer(minLength: 0)
-            }
-
-            if let radar {
-                ReadOnlyRadarChartView(rating: radar, showsHeader: false)
-            }
-        }
-        .padding(TravSpacing.md)
-        .background(TravColors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                .stroke(TravColors.border.opacity(0.4), lineWidth: 1)
-        )
-    }
-
-    @ViewBuilder
-    private func peopleWhoHaveBeenSection(_ experience: Experience) -> some View {
-        VStack(alignment: .leading, spacing: TravSpacing.md) {
-            HStack {
-                Text("VISITS & RATINGS")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .tracking(1.8)
-                    .foregroundStyle(TravColors.accent)
-
-                Spacer()
-
-                if !ratings.isEmpty {
-                    Text("\(ratings.count)")
-                        .font(TravTypography.caption())
-                        .fontWeight(.bold)
-                        .foregroundStyle(TravColors.accent)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(TravColors.accentSoft)
-                        .clipShape(Capsule())
-                }
-            }
 
             if ratings.isEmpty {
                 VStack(spacing: TravSpacing.sm) {
@@ -496,15 +417,103 @@ struct ExperienceDetailView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, TravSpacing.lg)
                 .padding(.horizontal, TravSpacing.md)
-                .background(TravColors.surfaceElevated.opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
             } else {
-                ForEach(ratings) { rating in
-                    PersonRatingCard(rating: rating) { urls, idx in
+                ForEach(sortedRatings(for: experience)) { rating in
+                    PersonRatingCard(
+                        rating: rating,
+                        isCreator: rating.author.id == experience.creator.id
+                    ) { urls, idx in
                         activeImagePreview = ImagePreviewItem(urls: urls, initialIndex: idx)
                     }
                 }
             }
+        }
+        .padding(.top, TravSpacing.xs)
+    }
+
+    @ViewBuilder
+    private func averageCommunityRatingCard(_ experience: Experience) -> some View {
+        let summary = experience.ratingSummary
+        let radar = summary.displayRadar(creatorRadar: experience.rating)
+        let creatorID = experience.creator.id
+        let communityRatings = ratings.filter { $0.author.id != creatorID }
+        let communityCount = max(summary.communityRatingCount, communityRatings.count)
+        let hasCommunity = communityCount > 0 || summary.hasCommunityValidation
+        let calcAvg: Double? = {
+            if hasCommunity {
+                return communityRatings.isEmpty
+                    ? summary.communityAverageScore
+                    : communityRatings.reduce(0.0) { $0 + $1.overallScore } / Double(communityRatings.count)
+            }
+            return ratings.isEmpty
+                ? nil
+                : ratings.reduce(0.0) { $0 + $1.overallScore } / Double(ratings.count)
+        }()
+        let score = summary.displayScore ?? calcAvg
+        let isCreatorOnly = !hasCommunity && (summary.isCreatorOnly || score != nil)
+
+        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            HStack(alignment: .center, spacing: TravSpacing.md) {
+                HStack(spacing: 5) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(
+                            hasCommunity
+                                ? Color(red: 0.95, green: 0.75, blue: 0.15)
+                                : Color(red: 0.95, green: 0.75, blue: 0.15).opacity(0.9)
+                        )
+                    Text(score != nil ? TravFormatters.score(score!) : "--")
+                        .font(.system(size: 28, weight: .black, design: .rounded))
+                        .foregroundStyle(hasCommunity ? Color.white : TravColors.primary)
+                        .monospacedDigit()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                        .fill(hasCommunity ? TravColors.accent : TravColors.surfaceElevated)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                                .stroke(
+                                    hasCommunity ? TravColors.accent : TravColors.border.opacity(0.5),
+                                    lineWidth: 1
+                                )
+                        )
+                )
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(isCreatorOnly ? "CREATOR RATING" : "COMMUNITY RATING")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .tracking(1.4)
+                        .foregroundStyle(TravColors.accent)
+
+                    Text(
+                        hasCommunity
+                            ? "\(communityCount) Community \(communityCount == 1 ? "Rating" : "Ratings")"
+                            : "No Community Ratings"
+                    )
+                    .font(TravTypography.caption())
+                    .foregroundStyle(TravColors.muted)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            if let radar {
+                ReadOnlyRadarChartView(rating: radar, showsHeader: false)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, TravSpacing.xs)
+    }
+
+    private func sortedRatings(for experience: Experience) -> [Rating] {
+        let creatorID = experience.creator.id
+        return ratings.sorted { a, b in
+            let aIsCreator = a.author.id == creatorID
+            let bIsCreator = b.author.id == creatorID
+            if aIsCreator != bIsCreator { return aIsCreator }
+            return a.createdAt > b.createdAt
         }
     }
 
@@ -604,38 +613,6 @@ private struct StopTimelineRow: View {
                     .foregroundStyle(TravColors.muted)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
-
-                // Open in Maps Button
-                Button {
-                    let latitude = stop.latitude
-                    let longitude = stop.longitude
-                    if latitude != 0 || longitude != 0 {
-                        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-                        let mapItem = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
-                        mapItem.name = stop.name
-                        mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
-                    } else {
-                        let query = "\(stop.name) \(stop.description)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-                        if let url = URL(string: "http://maps.apple.com/?q=\(query)"), UIApplication.shared.canOpenURL(url) {
-                            UIApplication.shared.open(url)
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "map.fill")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("Open Maps")
-                            .font(TravTypography.labelMedium())
-                            .fontWeight(.bold)
-                    }
-                    .foregroundStyle(TravColors.accent)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(TravColors.accentSoft)
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(TravPressButtonStyle())
-                .padding(.top, 2)
 
                 if !stop.media.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -932,7 +909,7 @@ private struct ExperienceRouteMapView: View {
                             .foregroundStyle(TravColors.accent)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Location & Route")
+                            Text("Map")
                                 .font(TravTypography.titleMedium())
                                 .fontWeight(.bold)
                                 .foregroundStyle(TravColors.primary)
@@ -1215,6 +1192,7 @@ private struct MapStopAnnotationView: View {
 
 private struct PersonRatingCard: View {
     let rating: Rating
+    var isCreator: Bool = false
     let onPhotoTap: (([URL], Int) -> Void)?
 
     var body: some View {
@@ -1243,10 +1221,28 @@ private struct PersonRatingCard: View {
             RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
                 .stroke(TravColors.border.opacity(0.3), lineWidth: 1)
         )
+        .overlay(alignment: .topTrailing) {
+            if isCreator {
+                Text("Creator")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .tracking(0.5)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(TravColors.accent)
+                    .clipShape(Capsule())
+                    .shadow(color: TravColors.accent.opacity(0.35), radius: 3, y: 1)
+                    // Hang ~40% of the tag outside the top-right corner.
+                    .offset(x: 14, y: -8)
+            }
+        }
+        // Keep hanging tag from colliding with neighboring content.
+        .padding(.top, isCreator ? 10 : 0)
+        .padding(.trailing, isCreator ? 8 : 0)
     }
 
     private var headerView: some View {
-        HStack(spacing: TravSpacing.sm) {
+        HStack(alignment: .center, spacing: TravSpacing.sm) {
             AvatarView(url: rating.author.avatarURL, size: 36)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -1275,11 +1271,14 @@ private struct PersonRatingCard: View {
                 Text(TravFormatters.score(rating.overallScore))
                     .font(.system(size: 13, weight: .bold, design: .rounded))
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(TravColors.accent)
             .padding(.horizontal, 9)
             .padding(.vertical, 4)
-            .background(TravColors.accent)
+            .background(Color.clear)
             .clipShape(Capsule())
+            .overlay(
+                Capsule().stroke(TravColors.accent, lineWidth: 1.5)
+            )
         }
     }
 
