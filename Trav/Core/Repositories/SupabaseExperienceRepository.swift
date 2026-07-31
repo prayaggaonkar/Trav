@@ -1284,12 +1284,14 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             }
         }
 
-        // If Edge Function didn't populate rows or wasn't needed, query DB popups table
+        // If Edge Function didn't populate rows or wasn't needed, query DB popups table for target city
         if rows.isEmpty {
             do {
+                let cityShort = targetCity.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? targetCity
                 rows = try await client
                     .from("popups")
                     .select("id, event_name, address, city, latitude, longitude, category, description, start_time, end_time, external_url, image_url, source")
+                    .or("city.ilike.%\(cityShort)%,address.ilike.%\(cityShort)%")
                     .order("start_time", ascending: true)
                     .limit(50)
                     .execute()

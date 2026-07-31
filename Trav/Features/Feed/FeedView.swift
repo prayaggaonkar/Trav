@@ -464,20 +464,27 @@ struct FeedView: View {
         let activeLat: Double?
         let activeLng: Double?
 
-        if let selectedCity = router.selectedFeedCity {
-            // Priority 1: User put/selected a location in the app!
+        if let userCoord = await cityLocator.requestLocationCoordinate(),
+           let userCity = await cityLocator.requestCityLabel(), !userCity.isEmpty {
+            // Priority 1: Device GPS location of the iPhone!
+            activeCity = userCity
+            activeLat = userCoord.latitude
+            activeLng = userCoord.longitude
+        } else if let profileLocation = environment.session.currentUser?.homeCityLabel, !profileLocation.isEmpty {
+            // Priority 2: Location given by the user in their profile!
+            activeCity = profileLocation
+            activeLat = nil
+            activeLng = nil
+        } else if let selectedCity = router.selectedFeedCity {
+            // Priority 3: City selected in app feed dropdown
             activeCity = selectedCity.name
             activeLat = selectedCity.latitude
             activeLng = selectedCity.longitude
-        } else if let userCoord = await cityLocator.requestLocationCoordinate() {
-            // Priority 2: Fallback to device GPS when no city is selected in the app
-            activeCity = await cityLocator.requestCityLabel()
-            activeLat = userCoord.latitude
-            activeLng = userCoord.longitude
         } else {
-            activeCity = catalogCities.first?.name
-            activeLat = nil
-            activeLng = nil
+            // Priority 4: Default catalog city
+            activeCity = catalogCities.first?.name ?? "Berkeley, CA"
+            activeLat = 37.8715
+            activeLng = -122.2730
         }
 
         if let city = activeCity {
