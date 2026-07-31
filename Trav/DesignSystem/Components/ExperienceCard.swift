@@ -339,6 +339,7 @@ struct GemPostCardView: View {
                     .padding(.vertical, 8)
 
                     let isOwnExperience = (environment.session.currentUser?.id == experience.creator.id)
+                    let resolvedIsSaved = isSavedLocal || engagement.isSaved(experience.id)
 
                     HStack {
                         // Left Group: Save, Comment, Share
@@ -349,12 +350,12 @@ struct GemPostCardView: View {
                                 onSave?()
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             } label: {
-                                Image(systemName: isSavedLocal ? "bookmark.fill" : "bookmark")
+                                Image(systemName: resolvedIsSaved ? "bookmark.fill" : "bookmark")
                                     .font(.system(size: 18))
-                                    .foregroundStyle(isSavedLocal ? Color.yellow : TravColors.muted)
+                                    .foregroundStyle(resolvedIsSaved ? Color.yellow : TravColors.muted)
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel(isSavedLocal ? "Remove bookmark" : "Bookmark")
+                            .accessibilityLabel(resolvedIsSaved ? "Remove bookmark" : "Bookmark")
 
                             Button {
                                 (onComment ?? onTap)()
@@ -413,11 +414,15 @@ struct GemPostCardView: View {
         .overlay(connectedLayoutOverlay)
         .onTapGesture(perform: onTap)
         .onAppear {
+            isSavedLocal = isSaved || engagement.isSaved(experience.id)
             let completers = !experience.completedBy.isEmpty ? experience.completedBy : completedByToDisplay
             let compNames = experience.completedBy.map(\.name).joined(separator: ", ")
             let dispNames = completers.map(\.name).joined(separator: ", ")
             let scoreStr = String(format: "%.1f", experience.ratingSummary.displayScore ?? experience.rating?.overallScore ?? -1.0)
             TravLog.general.notice("[GemPostCardView] Rendering '\(experience.title, privacy: .public)', isSpot: \(experience.isSpot, privacy: .public), completedBy: [\(compNames, privacy: .public)], completersToDisplay: [\(dispNames, privacy: .public)], score: \(scoreStr, privacy: .public)")
+        }
+        .onChange(of: engagement.savedExperienceIDs) { _ in
+            isSavedLocal = engagement.isSaved(experience.id)
         }
     }
 
