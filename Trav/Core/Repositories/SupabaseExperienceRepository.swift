@@ -1249,6 +1249,102 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         return nil
     }
 
+    private static func fetchTicketmasterLiveEvents(latitude: Double, longitude: Double, city: String) async -> [DBPopup] {
+        let apiKey = "QmX543w2EkHqth4GQIU6rQb5nVhLn9nn"
+        let urlString = "https://app.ticketmaster.com/discovery/v2/events.json?apikey=\(apiKey)&latlong=\(latitude),\(longitude)&radius=30&unit=miles&size=20&sort=date,asc"
+        guard let url = URL(string: urlString) else { return [] }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else { return [] }
+
+            struct TMEmbedded: Decodable {
+                struct TMEventList: Decodable {
+                    struct TMEvent: Decodable {
+                        struct TMVenueContainer: Decodable {
+                            struct TMVenue: Decodable {
+                                struct TMCity: Decodable { let name: String? }
+                                struct TMAddress: Decodable { let line1: String? }
+                                struct TMLocation: Decodable { let latitude: String?; let longitude: String? }
+                                let name: String?
+                                let city: TMCity?
+                                let address: TMAddress?
+                                let location: TMLocation?
+                            }
+                            let venues: [TMVenue]?
+                        }
+                        struct TMDates: Decodable {
+                            struct TMStart: Decodable {
+                                let dateTime: String?
+                                let localDate: String?
+                                let localTime: String?
+                            }
+                            let start: TMStart?
+                        }
+                        struct TMImage: Decodable {
+                            let url: String?
+                            let width: Int?
+                        }
+                        struct TMClassification: Decodable {
+                            struct TMSegment: Decodable { let name: String? }
+                            let segment: TMSegment?
+                        }
+                        let name: String?
+                        let url: String?
+                        let dates: TMDates?
+                        let images: [TMImage]?
+                        let _embedded: TMVenueContainer?
+                        let classifications: [TMClassification]?
+                    }
+                    let events: [TMEvent]?
+                }
+                let _embedded: TMEventList?
+            }
+
+            let parsed = try JSONDecoder().decode(TMEmbedded.self, from: data)
+            guard let events = parsed._embedded?.events else { return [] }
+
+            var dbPopups: [DBPopup] = []
+            for ev in events {
+                guard let name = ev.name, !name.isEmpty else { continue }
+
+                let venue = ev._embedded?.venues?.first
+                let venueName = venue?.name ?? ""
+                let venueCity = venue?.city?.name ?? city
+                let venueStreet = venue?.address?.line1 ?? ""
+                let addr = [venueName, venueStreet, venueCity].filter { !$0.isEmpty }.joined(separator: ", ")
+
+                let lat = venue?.location?.latitude.flatMap { Double($0) }
+                let lng = venue?.location?.longitude.flatMap { Double($0) }
+
+                let startStr = ev.dates?.start?.dateTime ?? ev.dates?.start?.localDate
+                let rawCategory = ev.classifications?.first?.segment?.name ?? "Music"
+                let bestImg = ev.images?.sorted(by: { ($0.width ?? 0) > ($1.width ?? 0) }).first?.url
+
+                let dbP = DBPopup(
+                    id: UUID(),
+                    event_name: name,
+                    address: addr.isEmpty ? city : addr,
+                    city: venueCity.isEmpty ? city : venueCity,
+                    latitude: lat ?? latitude,
+                    longitude: lng ?? longitude,
+                    category: rawCategory.lowercased(),
+                    description: "Live concert & event ticketed via Ticketmaster.",
+                    start_time: startStr,
+                    end_time: nil,
+                    external_url: ev.url,
+                    image_url: bestImg,
+                    source: "ticketmaster",
+                    distance_miles: nil
+                )
+                dbPopups.append(dbP)
+            }
+            return dbPopups
+        } catch {
+            return []
+        }
+    }
+
     func fetchPopups(latitude: Double?, longitude: Double?, city: String?) async throws -> [Popup] {
         guard let client = SupabaseManager.client else { return [] }
 
@@ -1286,13 +1382,15 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             rows = []
         }
 
-        // 3. If fewer than 5 real events exist in DB for this location or 6 hours elapsed, trigger Edge Function fetch
+        // 3. If fewer than 5 real events exist in DB for this location or 6 hours elapsed, fetch live events directly!
         let lastSyncKey = "last_popup_sync_\(cityKey)"
         let lastSyncTime = UserDefaults.standard.object(forKey: lastSyncKey) as? Date ?? Date.distantPast
         let hoursSinceLastSync = now.timeIntervalSince(lastSyncTime) / 3600.0
         let needsRefetch = hoursSinceLastSync >= 6.0 || rows.count < 5
 
         if needsRefetch {
+            // Attempt Edge Function if deployed
+            var fetchedRows: [DBPopup] = []
             do {
                 struct FunctionBody: Encodable {
                     let latitude: Double
@@ -1315,12 +1413,48 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                         )
                     )
                 )
-                if !res.popups.isEmpty {
-                    rows = res.popups
-                    UserDefaults.standard.set(now, forKey: lastSyncKey)
-                }
+                fetchedRows = res.popups
             } catch {
-                TravLog.network.notice("Edge function fetch-location-popups notice: \(error.localizedDescription)")
+                // Edge function returned 404 or unvailable: Fallback to direct live Ticketmaster API fetch in Swift!
+                fetchedRows = await Self.fetchTicketmasterLiveEvents(latitude: userLat, longitude: userLng, city: targetCity)
+            }
+
+            if !fetchedRows.isEmpty {
+                rows = fetchedRows
+                UserDefaults.standard.set(now, forKey: lastSyncKey)
+
+                // Sync live events to Supabase popups table for shared caching
+                Task {
+                    for r in fetchedRows {
+                        struct InsertPopup: Encodable {
+                            let event_name: String
+                            let address: String
+                            let city: String
+                            let latitude: Double?
+                            let longitude: Double?
+                            let category: String?
+                            let description: String?
+                            let start_time: String?
+                            let external_url: String?
+                            let image_url: String?
+                            let source: String?
+                        }
+                        let insert = InsertPopup(
+                            event_name: r.event_name,
+                            address: r.address ?? targetCity,
+                            city: r.city ?? targetCity,
+                            latitude: r.latitude,
+                            longitude: r.longitude,
+                            category: r.category,
+                            description: r.description,
+                            start_time: r.start_time,
+                            external_url: r.external_url,
+                            image_url: r.image_url,
+                            source: r.source ?? "ticketmaster"
+                        )
+                        _ = try? await client.from("popups").upsert(insert, onConflict: "event_name,start_time").execute()
+                    }
+                }
             }
         }
 
