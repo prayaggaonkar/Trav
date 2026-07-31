@@ -14,13 +14,30 @@ final class AppleMapsVibeService: @unchecked Sendable {
     private var cachedSummariesByCityAndVibes: [String: [ExperienceSummary]] = [:]
     private var lookAroundCount = 0
 
-    private init() {}
+    private static let nicheQueriesByVibe: [String: [String]] = [
+        "hike": ["hidden trail", "scenic overlook", "bouldering spot", "secret garden", "nature reserve", "scenic ridge", "waterfall trail", "coastal path"],
+        "outdoors": ["botanical garden", "panoramic lookout", "cliffside trail", "community garden", "hidden cove", "sunset point", "arboretum"],
+        "food": ["speakeasy", "artisan bakery", "hole in the wall", "family-owned bistro", "rooftop terrace", "tasting room", "local deli", "handcrafted noodles"],
+        "nightlife": ["jazz club", "underground lounge", "craft cocktail bar", "vinyl listening bar", "speakeasy lounge", "local venue"],
+        "art": ["indie bookstore", "niche gallery", "sculpture garden", "vintage vinyl", "artist studio", "historic theater", "ceramic studio"],
+        "shopping": ["vintage boutique", "flea market", "curated thrift", "artisan market", "antique hall", "independent record shop"]
+    ]
+
+    private init() {
+        if let stored = UserDefaults.standard.array(forKey: "trav_seen_place_names") as? [String] {
+            seenPlaceNames = Set(stored)
+        }
+    }
 
     /// Resets pagination tracking when switching cities or pulling to refresh.
     func resetPagination() {
-        seenPlaceNames.removeAll()
-        cachedSummariesByCityAndVibes.removeAll()
         lookAroundCount = 0
+    }
+
+    private func persistSeenPlace(_ name: String) {
+        seenPlaceNames.insert(name.lowercased())
+        let array = Array(seenPlaceNames.suffix(200))
+        UserDefaults.standard.set(array, forKey: "trav_seen_place_names")
     }
 
     /// Fetches vibe recommendations querying Apple Maps based on user selected onboarding vibes and location.
@@ -41,10 +58,8 @@ final class AppleMapsVibeService: @unchecked Sendable {
             "🍷 Rooftop Bars"
         ] : vibes
 
-        // Reset LookAround counter per page fetch cycle to stay well under GeoServices 50 requests/min throttle limit
         lookAroundCount = 0
 
-        // Expand radius dynamically on subsequent scroll pages
         let radiusMeters: Double
         switch page {
         case 0: radiusMeters = 8000
@@ -55,16 +70,25 @@ final class AppleMapsVibeService: @unchecked Sendable {
 
         var vibeBuckets: [[ExperienceSummary]] = []
 
-        for vibe in targetVibes {
+        for vibe in targetVibes.shuffled() {
             let (emoji, cleanCategory) = extractEmojiAndText(from: vibe)
-            let searchQuery = "\(cleanCategory) in \(targetCity)"
+            let categoryKey = cleanCategory.lowercased()
+            
+            // Build niche search query
+            let subQueries = Self.nicheQueriesByVibe.first(where: { categoryKey.contains($0.key) })?.value ?? [cleanCategory]
+            let chosenTerm = subQueries.randomElement() ?? cleanCategory
+            let searchQuery = "\(chosenTerm) in \(targetCity)"
 
             let searchReq = MKLocalSearch.Request()
             searchReq.naturalLanguageQuery = searchQuery
 
             if let center = center, center.latitude != 0, center.longitude != 0 {
+                // Add slight coordinate perturbation to explore different neighborhoods on each launch
+                let latOffset = Double.random(in: -0.015...0.015)
+                let lngOffset = Double.random(in: -0.015...0.015)
+                let shiftedCenter = CLLocationCoordinate2D(latitude: center.latitude + latOffset, longitude: center.longitude + lngOffset)
                 searchReq.region = MKCoordinateRegion(
-                    center: center,
+                    center: shiftedCenter,
                     latitudinalMeters: radiusMeters,
                     longitudinalMeters: radiusMeters
                 )
@@ -75,30 +99,19 @@ final class AppleMapsVibeService: @unchecked Sendable {
             }
 
             var categoryBucket: [ExperienceSummary] = []
-            
-            // Limit to top 6 items per vibe category per page to prevent bursting GeoServices XPC request limit
-            let candidateItems = Array(searchResponse.mapItems.prefix(6))
+            let candidateItems = Array(searchResponse.mapItems.shuffled().prefix(6))
 
             for mapItem in candidateItems {
                 guard let name = mapItem.name, !name.isEmpty else { continue }
                 let lowerName = name.lowercased()
                 if seenPlaceNames.contains(lowerName) { continue }
-                seenPlaceNames.insert(lowerName)
+                persistSeenPlace(name)
 
-                // Official place name (no emdash!)
                 let officialTitle = name
-
-                // Real Supabase data for saves/watchlists for this place if it exists
                 let realStats = await fetchRealSocialStats(forPlaceName: officialTitle, city: targetCity)
-
-                // Fetch real place photos tailored to place vibe & satellite map view
                 let imageURLs = await fetchRealPlacePhotos(placeName: officialTitle, vibeCategory: cleanCategory, mapItem: mapItem)
-
                 let coord = mapItem.placemark.coordinate
 
-                // Derived from the place identity, not random, so the same café
-                // always resolves to the same Spot — on this device, on every
-                // other device, and in the database.
                 let spotKey = SpotIdentity.key(
                     placeID: nil,
                     name: officialTitle,
@@ -121,7 +134,7 @@ final class AppleMapsVibeService: @unchecked Sendable {
                     id: id,
                     kind: .spot,
                     cityID: StableUUID.from("city:\(targetCity.lowercased())"),
-                    title: officialTitle, // Official name only!
+                    title: officialTitle,
                     imageURLs: imageURLs,
                     creator: creator,
                     durationMinutes: 45,
@@ -131,7 +144,7 @@ final class AppleMapsVibeService: @unchecked Sendable {
                     likeCount: realStats.likeCount,
                     completionCount: realStats.completionCount,
                     stops: [stopPreview],
-                    rating: nil, // Don't give these types of recommendations a rating
+                    rating: nil,
                     cityName: targetCity,
                     completedBy: realStats.completedBy,
                     spotKey: spotKey,
@@ -140,12 +153,11 @@ final class AppleMapsVibeService: @unchecked Sendable {
                     longitude: coord.longitude
                 )
 
-                // Store in-memory Experience model for detail view lookup
                 let stop = Stop(
                     id: stopPreview.id,
                     orderIndex: 1,
                     name: officialTitle,
-                    description: "Apple Maps recommendation based on your \(vibe) preference in \(targetCity).",
+                    description: mapItem.placemark.title ?? officialTitle,
                     creatorNotes: "Discovered via Apple Maps.",
                     latitude: coord.latitude,
                     longitude: coord.longitude,
@@ -156,60 +168,60 @@ final class AppleMapsVibeService: @unchecked Sendable {
                     media: []
                 )
 
-                let experience = Experience(
+                let fullExperience = Experience(
                     id: id,
                     kind: .spot,
                     cityID: summary.cityID,
                     creator: creator,
-                    title: summary.title,
-                    description: "Featured \(cleanCategory) recommendation in \(targetCity), sourced directly from Apple Maps based on your vibe profile.",
+                    title: officialTitle,
+                    description: mapItem.placemark.title ?? "A curated \(cleanCategory) spot in \(targetCity).",
                     imageURLs: imageURLs,
                     durationMinutes: 45,
                     costLevel: .moderate,
-                    estimatedCostUSD: nil,
-                    transportMode: .walking,
-                    totalDistanceMeters: 0,
-                    saveCount: summary.saveCount,
-                    likeCount: summary.likeCount,
-                    completionCount: summary.completionCount,
-                    commentCount: 0,
+                    saveCount: realStats.saveCount,
+                    likeCount: realStats.likeCount,
+                    completionCount: realStats.completionCount,
                     isPublished: true,
                     publishedAt: Date(),
                     stops: [stop],
-                    routeSegments: [],
-                    rating: nil, // Don't give these types of recommendations a rating
                     spotKey: spotKey,
                     category: cleanCategory,
                     cityName: targetCity
                 )
 
-                cachedRecommendations[id] = experience
+                cachedRecommendations[id] = fullExperience
                 categoryBucket.append(summary)
             }
 
             if !categoryBucket.isEmpty {
-                vibeBuckets.append(categoryBucket.shuffled())
+                vibeBuckets.append(categoryBucket)
             }
         }
 
-        // Interleave categories round-robin so the feed isn't just a bunch of the same vibe in a row
-        var interleavedSummaries: [ExperienceSummary] = []
-        let maxBucketSize = vibeBuckets.map(\.count).max() ?? 0
+        var interleaved: [ExperienceSummary] = []
+        var maxCount = 0
+        for bucket in vibeBuckets {
+            maxCount = max(maxCount, bucket.count)
+        }
 
-        for index in 0..<maxBucketSize {
+        for index in 0..<maxCount {
             for bucket in vibeBuckets {
                 if index < bucket.count {
-                    interleavedSummaries.append(bucket[index])
+                    interleaved.append(bucket[index])
                 }
             }
         }
 
-        return interleavedSummaries
+        return interleaved.shuffled()
     }
 
-    /// Looks up a cached Apple Maps recommendation Experience by ID
-    func cachedExperience(for id: UUID) -> Experience? {
+    /// Resolves an experience by ID from cached recommendations or fallback
+    func experience(for id: UUID) -> Experience? {
         cachedRecommendations[id]
+    }
+
+    func cachedExperience(for id: UUID) -> Experience? {
+        experience(for: id)
     }
 
     /// Caches a custom spot Experience model for ExperienceDetailView lookup
