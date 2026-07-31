@@ -242,10 +242,10 @@ struct ExperienceDetailView: View {
     }
 
     private func actionBar(_ experience: Experience) -> some View {
+        let isOwn = (session.currentUser?.id == experience.creator.id)
         let isSaved = engagement.isSaved(experience.id)
-        let isCompleted = engagement.isCompleted(experience.id)
+        let isCompleted = isOwn || engagement.isCompleted(experience.id)
         let summary = summary(from: experience)
-        let isOwn = (session.currentUser?.id == experience.creator.id && experience.stops.count > 1)
 
         return HStack(alignment: .top, spacing: 0) {
             Button {
@@ -342,7 +342,7 @@ struct ExperienceDetailView: View {
                     .frame(height: 45)
                     .background(TravColors.surfaceElevated)
 
-                    Text(TravFormatters.count(experience.likeCount))
+                    Text(" ")
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.muted)
                 }

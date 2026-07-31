@@ -272,7 +272,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
     }
 
     /// Runs `operation` with the richest select the database supports.
-    private func withExperienceSelect<T: Sendable>(
+    func withExperienceSelect<T: Sendable>(
         _ operation: (String) async throws -> T
     ) async throws -> T {
         if await SchemaSupport.shared.hasExtendedColumns {
@@ -1532,16 +1532,18 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
     func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary] {
         let client = try client
-        let rows: [DBExperienceRow] = try await client
-            .from("experiences")
-            .select(Self.experienceSelect)
-            .eq("city_id", value: cityID.uuidString.lowercased())
-            .eq("user_id", value: userID.uuidString.lowercased())
-            .eq("is_published", value: true)
-            .order("created_at", ascending: false)
-            .limit(50)
-            .execute()
-            .value
+        let rows: [DBExperienceRow] = try await withExperienceSelect { columns in
+            try await client
+                .from("experiences")
+                .select(columns)
+                .eq("city_id", value: cityID.uuidString.lowercased())
+                .eq("user_id", value: userID.uuidString.lowercased())
+                .eq("is_published", value: true)
+                .order("created_at", ascending: false)
+                .limit(50)
+                .execute()
+                .value
+        }
         let creators = await fetchCreators(for: rows)
         return rows.map { summary(from: $0, creators: creators) }
     }
@@ -2116,24 +2118,26 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         creatorID: UUID?
     ) async throws -> [ExperienceSummary] {
         let client = try client
-        var query = client
-            .from("experiences")
-            .select(Self.experienceSelect)
-            .eq("is_published", value: true)
-            .not("rating", operator: .is, value: "null")
+        let rows: [DBExperienceRow] = try await withExperienceSelect { columns in
+            var query = client
+                .from("experiences")
+                .select(columns)
+                .eq("is_published", value: true)
+                .not("rating", operator: .is, value: "null")
 
-        if let cityID {
-            query = query.eq("city_id", value: cityID.uuidString.lowercased())
-        }
-        if let creatorID {
-            query = query.eq("user_id", value: creatorID.uuidString.lowercased())
-        }
+            if let cityID {
+                query = query.eq("city_id", value: cityID.uuidString.lowercased())
+            }
+            if let creatorID {
+                query = query.eq("user_id", value: creatorID.uuidString.lowercased())
+            }
 
-        let rows: [DBExperienceRow] = try await query
-            .order("created_at", ascending: false)
-            .limit(200)
-            .execute()
-            .value
+            return try await query
+                .order("created_at", ascending: false)
+                .limit(50)
+                .execute()
+                .value
+        }
 
         let creators = await fetchCreators(for: rows)
         return rows.map { summary(from: $0, creators: creators) }

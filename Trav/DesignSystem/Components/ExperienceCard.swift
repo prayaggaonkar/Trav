@@ -77,8 +77,15 @@ struct GemPostCardView: View {
     @State private var isSavedLocal: Bool
     @State private var isLikedLocal: Bool
 
+    private var isOwn: Bool {
+        if let currentUserID = environment.session.currentUser?.id {
+            return currentUserID == experience.creator.id
+        }
+        return badgeText == "Created by You" || badgeText == "Created by Me"
+    }
+
     private var isCompleted: Bool {
-        engagement.isCompleted(experience.id)
+        isOwn || engagement.isCompleted(experience.id)
     }
 
     private var completedByToDisplay: [CompletionUser] {
@@ -395,10 +402,10 @@ struct GemPostCardView: View {
                                     Text(isCompleted ? "Completed" : "Complete")
                                 }
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(isCompleted ? Color.white : TravColors.primary)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 7)
-                                .background(isCompleted ? Color.gray.opacity(0.4) : TravColors.accent)
+                                .background(isCompleted ? TravColors.accent : TravColors.surfaceElevated)
                                 .clipShape(Capsule())
                             }
                             .buttonStyle(.plain)
@@ -677,6 +684,7 @@ struct InAppInteractiveMapView: View {
     let stops: [Stop]
     var initialSelectedStopID: UUID? = nil
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppearanceStore.self) private var appearance
 
     @State private var position: MapCameraPosition = .automatic
     @State private var selectedStopID: UUID?
@@ -813,21 +821,38 @@ struct InAppInteractiveMapView: View {
                 HStack(spacing: TravSpacing.xs) {
                     HStack(spacing: 4) {
                         ForEach(MapStyleOption.allCases) { style in
+                            let isSelected = mapStyleOption == style
                             Button {
                                 mapStyleOption = style
                             } label: {
                                 Text(style.rawValue)
                                     .font(.system(size: 12, weight: .bold, design: .rounded))
-                                    .foregroundStyle(mapStyleOption == style ? Color.white : TravColors.primary)
+                                    .foregroundStyle(
+                                        isSelected
+                                            ? Color.white
+                                            : (appearance.isLightMode ? Color(red: 0.1, green: 0.1, blue: 0.1) : Color.white)
+                                    )
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 8)
                                     .background(
                                         RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous)
-                                            .fill(mapStyleOption == style ? TravColors.accent : Color.black.opacity(0.72))
+                                            .fill(
+                                                isSelected
+                                                    ? TravColors.accent
+                                                    : (appearance.isLightMode ? Color.white.opacity(0.92) : Color.black.opacity(0.72))
+                                            )
                                     )
                                     .overlay(
                                         RoundedRectangle(cornerRadius: TravRadius.sm, style: .continuous)
-                                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                            .stroke(
+                                                appearance.isLightMode ? Color.black.opacity(0.12) : Color.white.opacity(0.12),
+                                                lineWidth: 1
+                                            )
+                                    )
+                                    .shadow(
+                                        color: Color.black.opacity(appearance.isLightMode ? 0.08 : 0.25),
+                                        radius: 4,
+                                        y: 2
                                     )
                             }
                             .buttonStyle(TravPressButtonStyle(scale: 0.97))
@@ -836,20 +861,32 @@ struct InAppInteractiveMapView: View {
 
                     Spacer(minLength: TravSpacing.sm)
 
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 34, height: 34)
-                        .background {
-                            Circle()
-                                .fill(Color.black)
-                        }
-                        .contentShape(Circle())
-                        .onTapGesture {
-                            dismiss()
-                        }
-                        .accessibilityLabel("Close map")
-                        .accessibilityAddTraits(.isButton)
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(appearance.isLightMode ? Color(red: 0.1, green: 0.1, blue: 0.1) : .white)
+                            .frame(width: 34, height: 34)
+                            .background(
+                                Circle()
+                                    .fill(appearance.isLightMode ? Color.white.opacity(0.92) : Color.black.opacity(0.72))
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(
+                                        appearance.isLightMode ? Color.black.opacity(0.12) : Color.white.opacity(0.12),
+                                        lineWidth: 1
+                                    )
+                            )
+                            .shadow(
+                                color: Color.black.opacity(appearance.isLightMode ? 0.08 : 0.25),
+                                radius: 4,
+                                y: 2
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close map")
                 }
                 .padding(.horizontal, TravSpacing.screenHorizontal)
                 .padding(.top, 8)
@@ -900,10 +937,16 @@ struct InAppInteractiveMapView: View {
                             Text(travelLabel)
                                 .font(.system(size: 12, weight: .bold, design: .rounded))
                         }
-                        .foregroundStyle(.white)
+                        .foregroundStyle(appearance.isLightMode ? Color(red: 0.1, green: 0.1, blue: 0.1) : .white)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 7)
-                        .background(Capsule().fill(Color.black.opacity(0.75)))
+                        .background(
+                            Capsule()
+                                .fill(appearance.isLightMode ? Color.white.opacity(0.92) : Color.black.opacity(0.75))
+                        )
+                        .overlay(
+                            Capsule().stroke(appearance.isLightMode ? Color.black.opacity(0.12) : Color.white.opacity(0.12), lineWidth: 1)
+                        )
                     }
                 }
                 .padding(.horizontal, TravSpacing.screenHorizontal)
@@ -984,7 +1027,7 @@ struct InAppInteractiveMapView: View {
             }
             .padding(.bottom, TravSpacing.md)
         }
-        .background(Color.black)
+        .background(TravColors.surface)
         .task {
             selectedStopID = initialSelectedStopID
             setupCameraToFitAll()

@@ -357,18 +357,20 @@ struct SupabaseProfileRepository: ProfileRepository {
         let pageSize = ProfileLimits.pageSize
         let from = page * pageSize
         let to = from + pageSize - 1
-
-        let rows: [SupabaseExperienceRepository.DBExperienceRow] = try await client
-            .from("experiences")
-            .select(SupabaseExperienceRepository.experienceSelect)
-            .eq("user_id", value: userID)
-            .eq("is_published", value: true)
-            .order("created_at", ascending: false)
-            .range(from: from, to: to)
-            .execute()
-            .value
-
         let mapper = SupabaseExperienceRepository()
+
+        let rows: [SupabaseExperienceRepository.DBExperienceRow] = try await mapper.withExperienceSelect { columns in
+            try await client
+                .from("experiences")
+                .select(columns)
+                .eq("user_id", value: userID)
+                .eq("is_published", value: true)
+                .order("created_at", ascending: false)
+                .range(from: from, to: to)
+                .execute()
+                .value
+        }
+
         let creatorsMap = await mapper.fetchCreators(for: rows)
         return Paginated(
             items: rows.map { mapper.summary(from: $0, creators: creatorsMap) },
@@ -398,16 +400,18 @@ struct SupabaseProfileRepository: ProfileRepository {
         }
 
         let expIDs = rows.map { $0.experience_id.uuidString.lowercased() }
+        let mapper = SupabaseExperienceRepository()
 
         // Hydrate: real/published + shadow rows both live in experiences.
-        let exps: [SupabaseExperienceRepository.DBExperienceRow] = try await client
-            .from("experiences")
-            .select(SupabaseExperienceRepository.experienceSelect)
-            .in("id", values: expIDs)
-            .execute()
-            .value
+        let exps: [SupabaseExperienceRepository.DBExperienceRow] = try await mapper.withExperienceSelect { columns in
+            try await client
+                .from("experiences")
+                .select(columns)
+                .in("id", values: expIDs)
+                .execute()
+                .value
+        }
 
-        let mapper = SupabaseExperienceRepository()
         let creatorsMap = await mapper.fetchCreators(for: exps)
         let byID = Dictionary(uniqueKeysWithValues: exps.map { ($0.id, mapper.summary(from: $0, creators: creatorsMap)) })
         let ordered = rows.compactMap { byID[$0.experience_id] }
@@ -442,14 +446,17 @@ struct SupabaseProfileRepository: ProfileRepository {
         }
 
         let expIDs = rows.map { $0.experience_id.uuidString.lowercased() }
-        let exps: [SupabaseExperienceRepository.DBExperienceRow] = try await client
-            .from("experiences")
-            .select(SupabaseExperienceRepository.experienceSelect)
-            .in("id", values: expIDs)
-            .execute()
-            .value
-
         let mapper = SupabaseExperienceRepository()
+
+        let exps: [SupabaseExperienceRepository.DBExperienceRow] = try await mapper.withExperienceSelect { columns in
+            try await client
+                .from("experiences")
+                .select(columns)
+                .in("id", values: expIDs)
+                .execute()
+                .value
+        }
+
         let creatorsMap = await mapper.fetchCreators(for: exps)
         let byID = Dictionary(uniqueKeysWithValues: exps.map { ($0.id, mapper.summary(from: $0, creators: creatorsMap)) })
 
