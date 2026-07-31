@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import MapKit
 
 /// Create Rating: the screen every completion flows through.
 ///
@@ -22,6 +23,7 @@ struct CreateRatingView: View {
 
     @State private var searchText = ""
     @State private var searchResults: [ExperienceSummary] = []
+    @State private var appleMapSpots: [SpotSuggestion] = []
     @State private var isSearching = false
     @State private var searchTask: Task<Void, Never>?
 
@@ -171,7 +173,7 @@ struct CreateRatingView: View {
             }
 
             Text(target == nil
-                 ? "Search for the spot or itinerary you finished, then score it."
+                 ? "Search for any spot, cafe, or creator itinerary you finished, then score it."
                  : "Score what you experienced. Submitting marks it completed.")
                 .font(TravTypography.bodyMedium())
                 .foregroundStyle(TravColors.muted)
@@ -190,7 +192,7 @@ struct CreateRatingView: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(TravColors.muted)
 
-                TextField("Search spots and itineraries", text: $searchText)
+                TextField("Search spots, cafes, and itineraries", text: $searchText)
                     .font(TravTypography.bodyLarge())
                     .autocorrectionDisabled()
                     .submitLabel(.search)
@@ -201,6 +203,7 @@ struct CreateRatingView: View {
                     Button {
                         searchText = ""
                         searchResults = []
+                        appleMapSpots = []
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(TravColors.muted)
@@ -216,24 +219,109 @@ struct CreateRatingView: View {
                     .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
             }
 
-            if !searchResults.isEmpty {
-                VStack(spacing: TravSpacing.xxs) {
-                    ForEach(searchResults) { result in
-                        Button {
-                            select(result)
-                        } label: {
-                            searchResultRow(result)
+            if !appleMapSpots.isEmpty || !searchResults.isEmpty {
+                VStack(alignment: .leading, spacing: TravSpacing.sm) {
+                    // Apple Maps Spots & Cafes Section
+                    if !appleMapSpots.isEmpty {
+                        VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                            Text("APPLE MAPS PLACES & CAFES")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .tracking(1.2)
+                                .foregroundStyle(TravColors.muted)
+                                .padding(.horizontal, TravSpacing.xs)
+
+                            VStack(spacing: TravSpacing.xxs) {
+                                ForEach(appleMapSpots) { spot in
+                                    Button {
+                                        select(spot.asExperienceSummary(creator: session.currentUser?.summary))
+                                    } label: {
+                                        appleMapSpotRow(spot)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
                         }
-                        .buttonStyle(.plain)
+                    }
+
+                    // Other Users' Itineraries Section
+                    if !searchResults.isEmpty {
+                        VStack(alignment: .leading, spacing: TravSpacing.xs) {
+                            Text("ITINERARIES BY CREATORS")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .tracking(1.2)
+                                .foregroundStyle(TravColors.muted)
+                                .padding(.horizontal, TravSpacing.xs)
+
+                            VStack(spacing: TravSpacing.xxs) {
+                                ForEach(searchResults) { result in
+                                    Button {
+                                        select(result)
+                                    } label: {
+                                        searchResultRow(result)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
                     }
                 }
             } else if searchText.count >= 2, !isSearching {
-                Text("Nothing matched \"\(searchText)\". Spots come from our place catalog — try the exact name.")
+                Text("Nothing matched \"\(searchText)\". Try searching for a spot name, cafe, or creator itinerary.")
                     .font(TravTypography.caption())
                     .foregroundStyle(TravColors.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private func appleMapSpotRow(_ spot: SpotSuggestion) -> some View {
+        HStack(spacing: TravSpacing.sm) {
+            ZStack {
+                Circle()
+                    .fill(spot.category.badgeColor.opacity(0.18))
+                    .frame(width: 36, height: 36)
+                Text(spot.category.emoji)
+                    .font(.system(size: 16))
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(spot.title)
+                        .font(TravTypography.labelMedium())
+                        .foregroundStyle(TravColors.primary)
+                        .lineLimit(1)
+
+                    Text(spot.category.rawValue)
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(spot.category.badgeColor)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(spot.category.badgeColor.opacity(0.18))
+                        .clipShape(Capsule())
+                }
+
+                Text(spot.displayLocation)
+                    .font(TravTypography.caption())
+                    .foregroundStyle(TravColors.muted)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 4) {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 11, weight: .bold))
+                Text("Rate")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+            }
+            .foregroundStyle(TravColors.accent)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(TravColors.accent.opacity(0.18)))
+        }
+        .padding(TravSpacing.sm)
+        .background(TravColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
     }
 
     private func searchResultRow(_ result: ExperienceSummary) -> some View {
@@ -255,6 +343,7 @@ struct CreateRatingView: View {
                     if let city = result.cityName, !city.isEmpty {
                         Text("· \(city)")
                     }
+                    Text("· by @\(result.creator.username)")
                 }
                 .font(TravTypography.caption())
                 .foregroundStyle(TravColors.muted)
@@ -272,11 +361,22 @@ struct CreateRatingView: View {
         .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
     }
 
+    private static let straightFoodKeywords = [
+        "restaurant", "pizza", "burger", "tacos", "sushi", "diner", "bistro",
+        "bar", "pub", "grill", "eatery", "kitchen", "noodle", "ramen", "steak", "bbq"
+    ]
+
+    private func isStraightFoodPlace(title: String, subtitle: String) -> Bool {
+        let combined = "\(title) \(subtitle)".lowercased()
+        return Self.straightFoodKeywords.contains { combined.contains($0) }
+    }
+
     private func scheduleSearch(_ query: String) {
         searchTask?.cancel()
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else {
             searchResults = []
+            appleMapSpots = []
             isSearching = false
             return
         }
@@ -285,13 +385,58 @@ struct CreateRatingView: View {
         searchTask = Task {
             try? await Task.sleep(for: .milliseconds(280))
             guard !Task.isCancelled else { return }
+
+            // 1. Apple Maps search (spots, cafes, viewpoints, landmarks, parks)
+            let mapReq = MapKit.MKLocalSearch.Request()
+            mapReq.naturalLanguageQuery = trimmed
+            mapReq.resultTypes = [.pointOfInterest, .address]
+
+            var mapResults: [SpotSuggestion] = []
+            do {
+                let mapSearch = MapKit.MKLocalSearch(request: mapReq)
+                let mapResp = try await mapSearch.start()
+                var seen = Set<String>()
+
+                for item in mapResp.mapItems {
+                    guard let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
+                    let subtitle = item.placemark.title ?? ""
+
+                    // Avoid heavy/straight food, but keep cafes, coffee shops, viewpoints, hikes, landmarks & spots
+                    if isStraightFoodPlace(title: name, subtitle: subtitle) { continue }
+
+                    let category = SpotCategory.infer(title: name, subtitle: subtitle)
+                    let coord = item.placemark.coordinate
+                    let suggestion = SpotSuggestion(
+                        id: "spot|\(name)|\(subtitle)|\(coord.latitude),\(coord.longitude)",
+                        title: name,
+                        subtitle: subtitle,
+                        category: category,
+                        latitude: coord.latitude,
+                        longitude: coord.longitude
+                    )
+
+                    let key = "\(name.lowercased())|\(subtitle.lowercased())"
+                    guard !seen.contains(key) else { continue }
+                    seen.insert(key)
+                    mapResults.append(suggestion)
+
+                    if mapResults.count >= 6 { break }
+                }
+            } catch {}
+
+            guard !Task.isCancelled else { return }
+
+            // 2. Search other users' itineraries in database
             let results = (try? await environment.experiences.searchExperiences(
                 query: trimmed,
                 kind: nil,
-                limit: 12
+                limit: 10
             )) ?? []
+
             guard !Task.isCancelled else { return }
+
             await MainActor.run {
+                appleMapSpots = mapResults
                 searchResults = results
                 isSearching = false
             }

@@ -369,8 +369,9 @@ struct SupabaseProfileRepository: ProfileRepository {
             .value
 
         let mapper = SupabaseExperienceRepository()
+        let creatorsMap = await mapper.fetchCreators(for: rows)
         return Paginated(
-            items: rows.map { mapper.summary(from: $0) },
+            items: rows.map { mapper.summary(from: $0, creators: creatorsMap) },
             page: page,
             hasMore: rows.count == pageSize
         )
@@ -407,7 +408,8 @@ struct SupabaseProfileRepository: ProfileRepository {
             .value
 
         let mapper = SupabaseExperienceRepository()
-        let byID = Dictionary(uniqueKeysWithValues: exps.map { ($0.id, mapper.summary(from: $0)) })
+        let creatorsMap = await mapper.fetchCreators(for: exps)
+        let byID = Dictionary(uniqueKeysWithValues: exps.map { ($0.id, mapper.summary(from: $0, creators: creatorsMap)) })
         let ordered = rows.compactMap { byID[$0.experience_id] }
 
         return Paginated(items: ordered, page: page, hasMore: rows.count == pageSize)
@@ -448,7 +450,8 @@ struct SupabaseProfileRepository: ProfileRepository {
             .value
 
         let mapper = SupabaseExperienceRepository()
-        let byID = Dictionary(uniqueKeysWithValues: exps.map { ($0.id, mapper.summary(from: $0)) })
+        let creatorsMap = await mapper.fetchCreators(for: exps)
+        let byID = Dictionary(uniqueKeysWithValues: exps.map { ($0.id, mapper.summary(from: $0, creators: creatorsMap)) })
 
         let items = rows.compactMap { row -> CompletedExperienceItem? in
             guard let summary = byID[row.experience_id] else { return nil }

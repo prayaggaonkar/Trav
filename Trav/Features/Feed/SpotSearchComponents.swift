@@ -64,16 +64,77 @@ struct SpotSuggestion: Identifiable, Hashable, Sendable {
         return subtitle
     }
 
-    var cityName: String? {
-        let parts = subtitle.components(separatedBy: ",")
-        if parts.count >= 2 {
-            return parts[parts.count - 2].trimmingCharacters(in: .whitespaces)
+    var resolvedCityName: String {
+        let parts = subtitle.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        if parts.count >= 3 {
+            let city = parts[parts.count - 3]
+            let state = parts[parts.count - 2]
+            if !city.isEmpty && !state.isEmpty && state.count <= 3 {
+                return "\(city), \(state)"
+            }
+            return "\(city)"
+        } else if parts.count == 2 {
+            return "\(parts[0]), \(parts[1])"
         }
-        return parts.first?.trimmingCharacters(in: .whitespaces)
+        return subtitle.isEmpty ? "San Francisco, CA" : subtitle
+    }
+
+    var cityName: String? {
+        resolvedCityName
+    }
+
+    func asExperienceSummary(creator currentUser: ProfileSummary? = nil) -> ExperienceSummary {
+        let canonicalKey = SpotIdentity.key(
+            placeID: nil,
+            name: title,
+            latitude: latitude ?? 0,
+            longitude: longitude ?? 0
+        )
+        let spotUUID = StableUUID.from(canonicalKey)
+        let stop = StopPreview(
+            id: UUID(),
+            name: title,
+            emoji: category.emoji,
+            latitude: latitude,
+            longitude: longitude
+        )
+        let city = resolvedCityName
+        let creatorSummary = currentUser ?? ProfileSummary(
+            id: StableUUID.from("provider:apple_maps"),
+            username: "maps",
+            displayName: "Apple Maps",
+            avatarURL: nil,
+            isVerified: true
+        )
+        let summary = ExperienceSummary(
+            id: spotUUID,
+            kind: .spot,
+            cityID: StableUUID.from("city:\(city.lowercased())"),
+            title: title,
+            imageURLs: [],
+            creator: creatorSummary,
+            durationMinutes: 45,
+            costLevel: .free,
+            estimatedCostUSD: nil,
+            saveCount: 0,
+            likeCount: 0,
+            completionCount: 0,
+            stops: [stop],
+            rating: nil,
+            ratingSummary: .empty,
+            cityName: city,
+            completedBy: [],
+            spotKey: canonicalKey,
+            category: category.rawValue,
+            latitude: latitude,
+            longitude: longitude
+        )
+        AppleMapsVibeService.shared.cacheCustomExperience(summary)
+        return summary
     }
 }
 
-/// Controller dedicated to searching non-food spots (Hikes, Viewpoints, Parks, Landmarks, Activities).
+/// Controller leveraging Apple Maps Search API (MKLocalSearch) to find any place, spot, address, or landmark worldwide.
 @Observable
 @MainActor
 final class SpotSearchController: NSObject, CLLocationManagerDelegate {
@@ -81,6 +142,7 @@ final class SpotSearchController: NSObject, CLLocationManagerDelegate {
         didSet {
             let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
             searchTask?.cancel()
+            currentSearch?.cancel()
             if trimmed.isEmpty {
                 spots = []
                 isSearching = false
@@ -88,7 +150,7 @@ final class SpotSearchController: NSObject, CLLocationManagerDelegate {
                 lastQueried = trimmed
                 isSearching = true
                 searchTask = Task {
-                    try? await Task.sleep(for: .milliseconds(220))
+                    try? await Task.sleep(for: .milliseconds(200))
                     guard !Task.isCancelled else { return }
                     await performSpotSearch(for: trimmed)
                 }
@@ -102,6 +164,8 @@ final class SpotSearchController: NSObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     private var lastQueried = ""
     private var searchTask: Task<Void, Never>?
+    private var currentSearch: MKLocalSearch?
+    private var userCoordinate: CLLocationCoordinate2D?
 
     override init() {
         super.init()
@@ -110,62 +174,72 @@ final class SpotSearchController: NSObject, CLLocationManagerDelegate {
         if locationManager.authorizationStatus == .notDetermined {
             locationManager.requestWhenInUseAuthorization()
         }
+        if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
+            userCoordinate = locationManager.location?.coordinate
+        }
     }
 
     func clear() {
         searchTask?.cancel()
+        currentSearch?.cancel()
+        currentSearch = nil
         query = ""
         spots = []
         lastQueried = ""
         isSearching = false
     }
 
-    private static let excludedFoodKeywords = [
-        "restaurant", "cafe", "coffee", "boba", "pizza", "burger", "tacos",
-        "sushi", "bakery", "diner", "bistro", "bar", "pub", "grill", "eatery",
-        "kitchen", "food", "noodle", "ramen", "steak", "bbq", "brewery", "winery"
-    ]
+    // MARK: - CLLocationManagerDelegate (Safe Non-isolated Handlers)
 
-    private func isFoodPlace(title: String, subtitle: String) -> Bool {
-        let combined = "\(title) \(subtitle)".lowercased()
-        return Self.excludedFoodKeywords.contains { combined.contains($0) }
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        let coord = location.coordinate
+        Task { @MainActor in
+            self.userCoordinate = coord
+        }
     }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        if status == .authorizedWhenInUse || status == .authorizedAlways {
+            let loc = manager.location?.coordinate
+            Task { @MainActor in
+                self.userCoordinate = loc
+            }
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
+
+    // MARK: - Apple Maps Search
 
     private func performSpotSearch(for queryText: String) async {
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = queryText
         request.resultTypes = [.pointOfInterest, .address]
 
-        if #available(iOS 13.0, *) {
-            request.pointOfInterestFilter = MKPointOfInterestFilter(excluding: [
-                .restaurant, .cafe, .bakery, .brewery, .winery, .foodMarket, .nightlife
-            ])
-        }
-
-        if let location = locationManager.location {
+        // Localized regional search around user location if available
+        if let coord = userCoordinate {
             request.region = MKCoordinateRegion(
-                center: location.coordinate,
+                center: coord,
                 latitudinalMeters: 100_000,
                 longitudinalMeters: 100_000
             )
         }
 
         do {
-            var search = MKLocalSearch(request: request)
+            let search = MKLocalSearch(request: request)
+            currentSearch = search
             var response = try await search.start()
 
-            // If regional search returned no items, attempt global search without regional bounds
+            // If regional search returned no items, execute global search without bounds
             if response.mapItems.isEmpty {
                 let globalRequest = MKLocalSearch.Request()
                 globalRequest.naturalLanguageQuery = queryText
                 globalRequest.resultTypes = [.pointOfInterest, .address]
-                if #available(iOS 13.0, *) {
-                    globalRequest.pointOfInterestFilter = MKPointOfInterestFilter(excluding: [
-                        .restaurant, .cafe, .bakery, .brewery, .winery, .foodMarket, .nightlife
-                    ])
-                }
-                search = MKLocalSearch(request: globalRequest)
-                response = try await search.start()
+                let globalSearch = MKLocalSearch(request: globalRequest)
+                currentSearch = globalSearch
+                response = try await globalSearch.start()
             }
 
             guard !Task.isCancelled else { return }
@@ -177,13 +251,10 @@ final class SpotSearchController: NSObject, CLLocationManagerDelegate {
                 guard let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
                 let subtitle = item.placemark.title ?? ""
 
-                // Filter out food places to keep search strictly focused on spots, hikes & activities
-                if isFoodPlace(title: name, subtitle: subtitle) { continue }
-
                 let category = SpotCategory.infer(title: name, subtitle: subtitle)
                 let coord = item.placemark.coordinate
                 let suggestion = SpotSuggestion(
-                    id: "spot|\(name)|\(subtitle)",
+                    id: "spot|\(name)|\(subtitle)|\(coord.latitude),\(coord.longitude)",
                     title: name,
                     subtitle: subtitle,
                     category: category,
@@ -191,12 +262,12 @@ final class SpotSearchController: NSObject, CLLocationManagerDelegate {
                     longitude: coord.longitude
                 )
 
-                let key = name.lowercased()
+                let key = "\(name.lowercased())|\(subtitle.lowercased())"
                 guard !seen.contains(key) else { continue }
                 seen.insert(key)
                 results.append(suggestion)
 
-                if results.count >= 12 { break }
+                if results.count >= 15 { break }
             }
 
             self.spots = results
@@ -565,5 +636,488 @@ struct SpotDetailSheet: View {
 
         AppleMapsVibeService.shared.cacheCustomExperience(exp)
         self.experienceID = id
+    }
+}
+
+// MARK: - Full Search Results Component
+
+enum SearchTab: String, CaseIterable, Identifiable {
+    case all = "All"
+    case spots = "Spots"
+    case cities = "Cities"
+    case creators = "Creators"
+    case itineraries = "Itineraries"
+
+    var id: String { rawValue }
+}
+
+struct FullSearchResultsView: View {
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(AppRouter.self) private var router
+    @Environment(AppearanceStore.self) private var appearance
+    @Environment(\.dismiss) private var dismiss
+
+    let initialQuery: String
+    let initialTab: SearchTab
+
+    @State private var query: String
+    @State private var selectedTab: SearchTab
+    @State private var spots: [SpotSuggestion] = []
+    @State private var cities: [City] = []
+    @State private var users: [ProfileSummary] = []
+    @State private var itineraries: [ExperienceSummary] = []
+    @State private var isLoading: Bool = false
+    @State private var selectedSpotDetail: SpotSuggestion?
+    @FocusState private var isSearchFocused: Bool
+
+    init(initialQuery: String, initialTab: SearchTab = .all) {
+        self.initialQuery = initialQuery
+        self.initialTab = initialTab
+        _query = State(initialValue: initialQuery)
+        _selectedTab = State(initialValue: initialTab)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Top Search Bar & Header
+                headerView
+
+                // Category Filter Pills
+                filterPillsView
+                    .padding(.vertical, TravSpacing.xs)
+
+                // Results Content
+                ScrollView {
+                    VStack(alignment: .leading, spacing: TravSpacing.md) {
+                        if isLoading {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                    .tint(TravColors.accent)
+                                    .padding(.top, 40)
+                                Spacer()
+                            }
+                        } else if isEmptyResults {
+                            emptyStateView
+                        } else {
+                            resultsContent
+                        }
+                    }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                    .padding(.bottom, 40)
+                }
+            }
+            .background(TravColors.surface.ignoresSafeArea())
+            .task(id: query) {
+                await performSearch()
+            }
+            .sheet(item: $selectedSpotDetail) { spot in
+                SpotDetailSheet(spot: spot)
+            }
+        }
+    }
+
+    private var headerView: some View {
+        HStack(spacing: TravSpacing.xs) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "arrow.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(TravColors.primary)
+                    .frame(width: 38, height: 38)
+                    .background(TravColors.surfaceElevated)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: TravSpacing.xs) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(TravColors.muted)
+
+                TextField("Search spots, cities, creators...", text: $query)
+                    .font(TravTypography.bodyMedium())
+                    .foregroundStyle(TravColors.primary)
+                    .focused($isSearchFocused)
+                    .autocorrectionDisabled()
+
+                if !query.isEmpty {
+                    Button {
+                        query = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(TravColors.muted)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(TravColors.surfaceElevated)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule().stroke(TravColors.border.opacity(0.4), lineWidth: 1)
+            )
+        }
+        .padding(.horizontal, TravSpacing.screenHorizontal)
+        .padding(.top, TravSpacing.xs)
+    }
+
+    private var filterPillsView: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(SearchTab.allCases) { tab in
+                    let count = countForTab(tab)
+                    Button {
+                        withAnimation(TravAnimation.quick) {
+                            selectedTab = tab
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(tab.rawValue)
+                                .font(.system(size: 13, weight: selectedTab == tab ? .bold : .medium, design: .rounded))
+
+                            if tab != .all && count > 0 {
+                                Text("(\(count))")
+                                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                                    .opacity(0.85)
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        .foregroundStyle(selectedTab == tab ? .white : TravColors.primary)
+                        .background(
+                            Capsule().fill(selectedTab == tab ? AnyShapeStyle(TravColors.accent) : AnyShapeStyle(TravColors.surfaceElevated))
+                        )
+                        .overlay(
+                            Capsule().stroke(selectedTab == tab ? Color.clear : TravColors.border.opacity(0.3), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, TravSpacing.screenHorizontal)
+        }
+    }
+
+    @ViewBuilder
+    private var resultsContent: some View {
+        switch selectedTab {
+        case .all:
+            if !spots.isEmpty {
+                sectionHeader(title: "SPOTS", count: spots.count) { selectedTab = .spots }
+                spotsListView(limit: 4)
+            }
+            if !cities.isEmpty {
+                sectionHeader(title: "CITIES", count: cities.count) { selectedTab = .cities }
+                citiesListView(limit: 4)
+            }
+            if !users.isEmpty {
+                sectionHeader(title: "CREATORS & USERS", count: users.count) { selectedTab = .creators }
+                usersListView(limit: 4)
+            }
+            if !itineraries.isEmpty {
+                sectionHeader(title: "ITINERARIES", count: itineraries.count) { selectedTab = .itineraries }
+                itinerariesListView(limit: 4)
+            }
+        case .spots:
+            spotsListView(limit: nil)
+        case .cities:
+            citiesListView(limit: nil)
+        case .creators:
+            usersListView(limit: nil)
+        case .itineraries:
+            itinerariesListView(limit: nil)
+        }
+    }
+
+    private func countForTab(_ tab: SearchTab) -> Int {
+        switch tab {
+        case .all: spots.count + cities.count + users.count + itineraries.count
+        case .spots: spots.count
+        case .cities: cities.count
+        case .creators: users.count
+        case .itineraries: itineraries.count
+        }
+    }
+
+    private var isEmptyResults: Bool {
+        spots.isEmpty && cities.isEmpty && users.isEmpty && itineraries.isEmpty && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var emptyStateView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 36, weight: .light))
+                .foregroundStyle(TravColors.muted)
+                .padding(.top, 40)
+
+            Text("No results found for \"\(query)\"")
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(TravColors.primary)
+
+            Text("Try searching for a different spot name, city, or creator handle.")
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(TravColors.muted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func sectionHeader(title: String, count: Int, onViewAll: @escaping () -> Void) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .tracking(1.2)
+                .foregroundStyle(TravColors.muted)
+
+            Spacer()
+
+            if count > 4 {
+                Button {
+                    onViewAll()
+                } label: {
+                    HStack(spacing: 3) {
+                        Text("View all (\(count))")
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(TravColors.accent)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.top, TravSpacing.xs)
+    }
+
+    private func spotsListView(limit: Int?) -> some View {
+        let items = limit != nil ? Array(spots.prefix(limit!)) : spots
+        return VStack(spacing: 8) {
+            ForEach(items) { spot in
+                Button {
+                    selectedSpotDetail = spot
+                } label: {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(spot.category.badgeColor.opacity(0.18))
+                                .frame(width: 38, height: 38)
+                            Text(spot.category.emoji)
+                                .font(.system(size: 18))
+                        }
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(spot.title)
+                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(TravColors.primary)
+
+                                Text(spot.category.rawValue)
+                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    .foregroundStyle(spot.category.badgeColor)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(spot.category.badgeColor.opacity(0.18))
+                                    .clipShape(Capsule())
+                            }
+
+                            Text(spot.displayLocation)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(TravColors.muted)
+                                .lineLimit(1)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(TravColors.accent)
+                    }
+                    .padding(12)
+                    .background(TravColors.surfaceElevated)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.98))
+            }
+        }
+    }
+
+    private func citiesListView(limit: Int?) -> some View {
+        let items = limit != nil ? Array(cities.prefix(limit!)) : cities
+        return VStack(spacing: 8) {
+            ForEach(items) { city in
+                Button {
+                    dismiss()
+                    router.openCity(city)
+                } label: {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(TravColors.accent.opacity(0.15))
+                                .frame(width: 38, height: 38)
+
+                            Image(systemName: "mappin.circle.fill")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundStyle(TravColors.accent)
+                        }
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(city.name)
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundStyle(TravColors.primary)
+
+                            Text(city.countryName)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(TravColors.muted)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(TravColors.muted)
+                    }
+                    .padding(12)
+                    .background(TravColors.surfaceElevated)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.98))
+            }
+        }
+    }
+
+    private func usersListView(limit: Int?) -> some View {
+        let items = limit != nil ? Array(users.prefix(limit!)) : users
+        return VStack(spacing: 8) {
+            ForEach(items) { user in
+                Button {
+                    dismiss()
+                    router.openProfile(user.username)
+                } label: {
+                    HStack(spacing: 12) {
+                        AvatarView(url: user.avatarURL, size: 40)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(user.displayName)
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundStyle(TravColors.primary)
+
+                            Text("@\(user.username)")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(TravColors.muted)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(TravColors.muted)
+                    }
+                    .padding(12)
+                    .background(TravColors.surfaceElevated)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.98))
+            }
+        }
+    }
+
+    private func itinerariesListView(limit: Int?) -> some View {
+        let items = limit != nil ? Array(itineraries.prefix(limit!)) : itineraries
+        return VStack(spacing: 12) {
+            ForEach(items) { experience in
+                ExperienceCard(
+                    experience: experience,
+                    onTap: {
+                        dismiss()
+                        router.openExperience(experience.id)
+                    },
+                    onCreatorTap: {
+                        dismiss()
+                        router.openProfile(experience.creator.username)
+                    }
+                )
+            }
+        }
+    }
+
+    private func performSearch() async {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            spots = []
+            cities = []
+            users = []
+            itineraries = []
+            return
+        }
+
+        isLoading = true
+        defer { isLoading = false }
+
+        // 1. Fetch Apple Maps places (MKLocalSearch)
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = trimmed
+        request.resultTypes = [.pointOfInterest, .address]
+
+        do {
+            let search = MKLocalSearch(request: request)
+            let response = try await search.start()
+            var mapSpots: [SpotSuggestion] = []
+            var seen = Set<String>()
+
+            for item in response.mapItems {
+                guard let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
+                let subtitle = item.placemark.title ?? ""
+                let category = SpotCategory.infer(title: name, subtitle: subtitle)
+                let coord = item.placemark.coordinate
+                let suggestion = SpotSuggestion(
+                    id: "spot|\(name)|\(subtitle)|\(coord.latitude),\(coord.longitude)",
+                    title: name,
+                    subtitle: subtitle,
+                    category: category,
+                    latitude: coord.latitude,
+                    longitude: coord.longitude
+                )
+
+                let key = "\(name.lowercased())|\(subtitle.lowercased())"
+                guard !seen.contains(key) else { continue }
+                seen.insert(key)
+                mapSpots.append(suggestion)
+            }
+            spots = mapSpots
+        } catch {
+            spots = []
+        }
+
+        // 2. Fetch matching cities
+        do {
+            let allCities = try await environment.cities.fetchGlobeCities()
+            cities = allCities.filter {
+                $0.name.localizedCaseInsensitiveContains(trimmed) ||
+                $0.countryName.localizedCaseInsensitiveContains(trimmed)
+            }
+        } catch {
+            cities = []
+        }
+
+        // 3. Fetch matching profiles
+        do {
+            users = try await environment.profiles.searchUsers(query: trimmed)
+        } catch {
+            users = []
+        }
+
+        // 4. Fetch matching experiences
+        do {
+            let matches = try await environment.experiences.searchExperiences(query: trimmed, kind: nil, limit: 15)
+            itineraries = matches.filter { !$0.isSpot }
+        } catch {
+            itineraries = []
+        }
     }
 }

@@ -81,6 +81,8 @@ struct FeedView: View {
     @State private var cityLocator = CurrentCityLocator()
     @State private var currentCity: String? = nil
     @State private var selectedSpotDetail: SpotSuggestion? = nil
+    @State private var showFullSearchResults = false
+    @State private var fullSearchInitialTab: SearchTab = .all
 
     // Quick Planner state
     @State private var draftStops: [StopPreview] = []
@@ -817,30 +819,6 @@ struct FeedView: View {
 
     private var headerView: some View {
         HStack(spacing: TravSpacing.sm) {
-            // New Tilted Itinerary Pin App Logo on the top left of the explore page
-            Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    router.clearFeedSearch()
-                    searchText = ""
-                    isSearchFocused = false
-                    userSearchResults = []
-                    spotSearchController.clear()
-                }
-            } label: {
-                Image("AppLogo")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 36, height: 36)
-                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                    )
-                    .shadow(color: Color.purple.opacity(0.4), radius: 6, x: 0, y: 2)
-            }
-            .buttonStyle(TravPressButtonStyle(scale: 0.94))
-            .accessibilityLabel("Explore Home")
-
             FeedSearchBar(
                 text: $searchText,
                 placeholder: "Search spots, cities, creators...",
@@ -865,22 +843,47 @@ struct FeedView: View {
 
     private var searchSuggestionsOverlay: some View {
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            // Header Bar with Close X Button
+            HStack {
+                Text("Search Results")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(TravColors.primary)
+
+                Spacer()
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isSearchFocused = false
+                        searchText = ""
+                        userSearchResults = []
+                        spotSearchController.clear()
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(TravColors.muted)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, TravSpacing.xs)
+
+            // MARK: - Spots Section
             if spotSearchController.isSearching || !spotSearchController.spots.isEmpty {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
                     Text("SPOTS")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .tracking(1.2)
-                        .foregroundStyle(Color.white.opacity(0.55))
+                        .foregroundStyle(TravColors.muted)
                         .padding(.horizontal, TravSpacing.xs)
 
                     if spotSearchController.isSearching && spotSearchController.spots.isEmpty {
                         ProgressView()
-                            .tint(.white)
+                            .tint(TravColors.accent)
                             .padding(.vertical, TravSpacing.sm)
                     }
 
                     VStack(spacing: 6) {
-                        ForEach(spotSearchController.spots) { spot in
+                        ForEach(spotSearchController.spots.prefix(3)) { spot in
                             Button {
                                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                                 selectedSpotDetail = spot
@@ -898,7 +901,7 @@ struct FeedView: View {
                                         HStack(spacing: 6) {
                                             Text(spot.title)
                                                 .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                                .foregroundStyle(.white)
+                                                .foregroundStyle(TravColors.primary)
 
                                             Text(spot.category.rawValue)
                                                 .font(.system(size: 10, weight: .bold, design: .rounded))
@@ -911,7 +914,7 @@ struct FeedView: View {
 
                                         Text(spot.displayLocation)
                                             .font(.system(size: 12, weight: .medium))
-                                            .foregroundStyle(Color.white.opacity(0.5))
+                                            .foregroundStyle(TravColors.muted)
                                             .lineLimit(1)
                                     }
 
@@ -930,8 +933,25 @@ struct FeedView: View {
                                 }
                                 .padding(.horizontal, TravSpacing.sm)
                                 .padding(.vertical, 8)
-                                .background(Color.white.opacity(0.06))
+                                .background(TravColors.surfaceElevated)
                                 .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        if spotSearchController.spots.count > 3 {
+                            Button {
+                                fullSearchInitialTab = .spots
+                                showFullSearchResults = true
+                            } label: {
+                                HStack {
+                                    Text("View all \(spotSearchController.spots.count) spots")
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 10, weight: .bold))
+                                }
+                                .foregroundStyle(TravColors.accent)
+                                .padding(.vertical, 4)
                             }
                             .buttonStyle(.plain)
                         }
@@ -939,6 +959,7 @@ struct FeedView: View {
                 }
             }
 
+            // MARK: - Cities Section
             if !matchingCities.isEmpty {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
                     Text("CITIES")
@@ -948,7 +969,7 @@ struct FeedView: View {
                         .padding(.horizontal, TravSpacing.xs)
 
                     VStack(spacing: 6) {
-                        ForEach(matchingCities.prefix(5)) { city in
+                        ForEach(matchingCities.prefix(3)) { city in
                             Button {
                                 selectFeedCity(city)
                             } label: {
@@ -978,10 +999,28 @@ struct FeedView: View {
                             }
                             .buttonStyle(.plain)
                         }
+
+                        if matchingCities.count > 3 {
+                            Button {
+                                fullSearchInitialTab = .cities
+                                showFullSearchResults = true
+                            } label: {
+                                HStack {
+                                    Text("View all \(matchingCities.count) cities")
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 10, weight: .bold))
+                                }
+                                .foregroundStyle(TravColors.accent)
+                                .padding(.vertical, 4)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             }
 
+            // MARK: - Creators Section
             if isSearchingUsers || !userSearchResults.isEmpty {
                 VStack(alignment: .leading, spacing: TravSpacing.xs) {
                     Text("PEOPLE")
@@ -997,19 +1036,12 @@ struct FeedView: View {
                     }
 
                     VStack(spacing: 6) {
-                        ForEach(userSearchResults.prefix(5)) { user in
+                        ForEach(userSearchResults.prefix(3)) { user in
                             Button {
                                 selectFeedUser(user)
                             } label: {
                                 HStack(spacing: TravSpacing.sm) {
-                                    if let avatarURL = user.avatarURL {
-                                        RemoteImage(url: avatarURL, height: 32, cornerRadius: 16)
-                                            .frame(width: 32, height: 32)
-                                    } else {
-                                        Image(systemName: "person.crop.circle.fill")
-                                            .font(.system(size: 32))
-                                            .foregroundStyle(TravColors.accent.opacity(0.8))
-                                    }
+                                    AvatarView(url: user.avatarURL, size: 32)
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(user.displayName)
                                             .font(.system(size: 14, weight: .semibold, design: .rounded))
@@ -1027,6 +1059,23 @@ struct FeedView: View {
                             }
                             .buttonStyle(.plain)
                         }
+
+                        if userSearchResults.count > 3 {
+                            Button {
+                                fullSearchInitialTab = .creators
+                                showFullSearchResults = true
+                            } label: {
+                                HStack {
+                                    Text("View all \(userSearchResults.count) creators")
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 10, weight: .bold))
+                                }
+                                .foregroundStyle(TravColors.accent)
+                                .padding(.vertical, 4)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             }
@@ -1037,6 +1086,30 @@ struct FeedView: View {
                     .foregroundStyle(TravColors.muted)
                     .padding(.horizontal, TravSpacing.xs)
                     .padding(.vertical, TravSpacing.xs)
+            }
+
+            // MARK: - View All Search Results Button
+            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Divider()
+                    .padding(.vertical, 4)
+
+                Button {
+                    fullSearchInitialTab = .all
+                    showFullSearchResults = true
+                } label: {
+                    HStack {
+                        Text("View all results for \"\(searchText)\"")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(TravColors.accent)
+                        Spacer()
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(TravColors.accent)
+                    }
+                    .padding(.horizontal, TravSpacing.xs)
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(TravSpacing.md)
@@ -1050,6 +1123,9 @@ struct FeedView: View {
                 .stroke(TravColors.border, lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.15), radius: 16, y: 8)
+        .fullScreenCover(isPresented: $showFullSearchResults) {
+            FullSearchResultsView(initialQuery: searchText, initialTab: fullSearchInitialTab)
+        }
     }
 }
 

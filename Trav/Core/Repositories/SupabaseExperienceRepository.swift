@@ -2138,7 +2138,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
     /// Loads creator profiles in one round trip. Failures fall back to placeholders
     /// so a profiles RLS/decode issue never blanks the whole feed.
-    private func fetchCreators(for rows: [DBExperienceRow]) async -> [UUID: DBProfileSummary] {
+    func fetchCreators(for rows: [DBExperienceRow]) async -> [UUID: DBProfileSummary] {
         let ids = Array(Set(rows.map(\.user_id)))
         guard !ids.isEmpty else { return [:] }
         do {
@@ -2156,11 +2156,11 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         }
     }
 
-    private static var spotCreator: ProfileSummary {
+    static var spotCreator: ProfileSummary {
         ProfileSummary(
             id: StableUUID.from("creator:trav"),
             username: "trav",
-            displayName: "Rec by Trav",
+            displayName: "Trav",
             avatarURL: nil,
             isVerified: true
         )
@@ -2170,8 +2170,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         for row: DBExperienceRow,
         creators: [UUID: DBProfileSummary]
     ) -> ProfileSummary {
-        let isSpot = row.resolvedKind == .spot || row.stops.count <= 1
-        if isSpot {
+        if row.user_id == ExperienceInsert.travAdminID || row.user_id == StableUUID.from("creator:trav") || row.creator?.username == "trav" {
             return Self.spotCreator
         }
         return row.creator?.summary

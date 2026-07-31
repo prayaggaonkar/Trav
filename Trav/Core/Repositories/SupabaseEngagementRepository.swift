@@ -118,13 +118,15 @@ struct SupabaseEngagementRepository: EngagementRepository {
             let stops: [String]
             let is_published: Bool
         }
+        let spotTitle = (cached?.title.isEmpty == false) ? cached!.title : "Spot"
+        let spotCity = (cached?.cityName?.isEmpty == false) ? cached!.cityName! : "San Francisco, CA"
         let shadowInsert = ExperienceShadowInsert(
             id: experienceID,
             user_id: userID,
-            title: cached?.title ?? "Spot Recommendation",
-            description: cached?.description ?? "Spot recommendation",
-            city: cached?.cityName ?? "Berkeley, CA",
-            stops: [cached?.title ?? "Spot"],
+            title: spotTitle,
+            description: "Spot rated by traveler.",
+            city: spotCity,
+            stops: [spotTitle],
             is_published: true
         )
         _ = try? await client
@@ -147,10 +149,44 @@ struct SupabaseEngagementRepository: EngagementRepository {
             .value) ?? []
         if !existing.isEmpty { return }
 
-        // Itineraries always originate from publish_itinerary, so a missing row
-        // here can only be a provider spot.
-        guard summary.isSpot else { return }
-        _ = try? await SupabaseExperienceRepository().syncSpot(SpotSyncRequest(summary: summary))
+        // Upsert exact experience row using summary data so place name & city are 100% exact in Supabase!
+        struct ExperienceUpsert: Encodable {
+            let id: UUID
+            let user_id: UUID
+            let title: String
+            let description: String
+            let city: String
+            let city_id: UUID?
+            let stops: [String]
+            let is_published: Bool
+            let category: String?
+            let latitude: Double?
+            let longitude: Double?
+            let spot_key: String?
+        }
+
+        let stopNames = summary.stops.map(\.name)
+        let firstStop = summary.stops.first
+        let cityName = (summary.cityName?.isEmpty == false) ? summary.cityName! : "San Francisco, CA"
+        let upsertData = ExperienceUpsert(
+            id: summary.id,
+            user_id: ownerID,
+            title: summary.title,
+            description: "Spot rated by traveler.",
+            city: cityName,
+            city_id: summary.cityID,
+            stops: stopNames.isEmpty ? [summary.title] : stopNames,
+            is_published: true,
+            category: summary.category,
+            latitude: summary.latitude ?? firstStop?.latitude,
+            longitude: summary.longitude ?? firstStop?.longitude,
+            spot_key: summary.spotKey
+        )
+
+        _ = try? await client
+            .from("experiences")
+            .upsert(upsertData, onConflict: "id")
+            .execute()
     }
 
     func toggleSave(userID: UUID, experienceID: UUID) async throws -> Bool {
