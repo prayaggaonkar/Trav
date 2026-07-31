@@ -364,18 +364,11 @@ struct RemoteImage: View {
                 .resizable()
                 .scaledToFill()
         } else if failed {
-            VStack(spacing: TravSpacing.xs) {
-                Image(systemName: "photo")
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(TravColors.muted)
-                Button("Retry") {
-                    loadToken &+= 1
-                    Task { await load() }
-                }
-                .font(TravTypography.labelMedium())
-                .foregroundStyle(TravColors.accent)
+            AsyncImage(url: URL(string: "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1000&q=80")) { img in
+                img.resizable().scaledToFill()
+            } placeholder: {
+                Color.black.opacity(0.3)
             }
-            .accessibilityLabel("Image failed to load. Retry.")
         } else if url != nil {
             ProgressView().tint(TravColors.muted)
         }

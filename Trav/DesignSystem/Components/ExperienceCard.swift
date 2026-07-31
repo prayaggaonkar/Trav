@@ -18,7 +18,6 @@ struct ExperienceCard: View {
     var onComment: (() -> Void)? = nil
 
     var body: some View {
-        // Destinations and itineraries share one card chrome.
         HeroExperienceCard(
             experience: experience,
             badgeText: badgeText,
