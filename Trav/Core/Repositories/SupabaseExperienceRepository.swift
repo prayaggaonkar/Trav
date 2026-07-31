@@ -1429,16 +1429,18 @@ struct SupabaseExperienceRepository: ExperienceRepository {
     private static func generateFallbackPopups(latitude: Double, longitude: Double, city: String) -> [Popup] {
         let cityShort = city.components(separatedBy: ",").first ?? "Local"
         let now = Date()
-        let todayEvening = Calendar.current.date(bySettingHour: 18, minute: 30, second: 0, of: now)
+        let tomorrowEvening = Calendar.current.date(byAdding: .day, value: 1, to: now).flatMap {
+            Calendar.current.date(bySettingHour: 18, minute: 30, second: 0, of: $0)
+        } ?? now.addingTimeInterval(86400)
         let tomorrowAfternoon = Calendar.current.date(byAdding: .day, value: 1, to: now).flatMap {
             Calendar.current.date(bySettingHour: 14, minute: 0, second: 0, of: $0)
-        }
+        } ?? now.addingTimeInterval(86400)
         let day2Evening = Calendar.current.date(byAdding: .day, value: 2, to: now).flatMap {
             Calendar.current.date(bySettingHour: 19, minute: 0, second: 0, of: $0)
-        }
+        } ?? now.addingTimeInterval(172800)
         let day3Morning = Calendar.current.date(byAdding: .day, value: 3, to: now).flatMap {
             Calendar.current.date(bySettingHour: 10, minute: 30, second: 0, of: $0)
-        }
+        } ?? now.addingTimeInterval(259200)
 
         let citySlug = cityShort.lowercased().replacingOccurrences(of: " ", with: "-")
 
@@ -1454,7 +1456,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 startTime: tomorrowAfternoon,
                 externalURL: URL(string: "https://eventbrite.com/e/\(citySlug)-pickleball-open-social-tickets-89217401923"),
                 imageURL: URL(string: "https://images.unsplash.com/photo-1626248801379-51a0748a5f96?w=800&q=80"),
-                source: "community",
+                source: "eventbrite",
                 distanceMiles: 1.2
             ),
             Popup(
@@ -1465,7 +1467,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 longitude: longitude + 0.006,
                 category: .music,
                 description: "Outdoor acoustic concert featuring regional indie bands, food trucks, and sunset views.",
-                startTime: todayEvening,
+                startTime: tomorrowEvening,
                 externalURL: URL(string: "https://ticketmaster.com/event/Z7r9jZ1AeG0aK8?city=\(citySlug)"),
                 imageURL: URL(string: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80"),
                 source: "ticketmaster",
