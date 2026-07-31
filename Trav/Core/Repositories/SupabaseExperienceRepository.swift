@@ -1730,10 +1730,10 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                     .execute()
             }
 
-            return fallbacks
+            return fallbacks.shuffled()
         }
 
-        return deduplicated
+        return deduplicated.shuffled()
     }
 
     private static func deduplicatePopups(_ list: [Popup]) -> [Popup] {
