@@ -28,7 +28,7 @@ struct RadarAxis: Identifiable, Hashable, Codable, Sendable {
         RadarAxis(id: "Food", name: "Food", iconName: "fork.knife", minValue: 1.0, maxValue: 10.0),
         RadarAxis(id: "Memorability", name: "Memorability", iconName: "sparkles", minValue: 1.0, maxValue: 10.0),
         RadarAxis(id: "Authenticity", name: "Authenticity", iconName: "checkmark.seal.fill", minValue: 1.0, maxValue: 10.0),
-        RadarAxis(id: "Immersion", name: "Immersion", iconName: "globe.americas.fill", minValue: 1.0, maxValue: 10.0)
+        RadarAxis(id: "Niche", name: "Niche", iconName: "globe.americas.fill", minValue: 1.0, maxValue: 10.0)
     ]
 }
 
@@ -53,7 +53,7 @@ struct RadarRating: Codable, Equatable, Hashable, Sendable {
             "Food": 9.0,
             "Memorability": 8.5,
             "Authenticity": 8.2,
-            "Immersion": 7.8
+            "Niche": 7.8
         ])
     }
 
@@ -61,7 +61,9 @@ struct RadarRating: Codable, Equatable, Hashable, Sendable {
 
     /// Returns whether a category is currently active/enabled.
     func isEnabled(_ key: String) -> Bool {
-        !disabledCategories.contains(key)
+        if disabledCategories.contains(key) { return false }
+        if key == "Niche" && disabledCategories.contains("Immersion") { return false }
+        return true
     }
 
     /// Toggles a category between enabled and disabled states.
@@ -96,7 +98,9 @@ struct RadarRating: Codable, Equatable, Hashable, Sendable {
     /// Returns score for a specific axis ID. If disabled, returns 0.0.
     func score(for key: String, default defaultVal: Double = 5.0) -> Double {
         guard isEnabled(key) else { return 0.0 }
-        return scores[key] ?? defaultVal
+        if let val = scores[key] { return val }
+        if key == "Niche", let legacyVal = scores["Immersion"] { return legacyVal }
+        return defaultVal
     }
 
     /// Sets score for a specific axis ID, clamping within [minValue, maxValue]. Automatically enables category if score is set.

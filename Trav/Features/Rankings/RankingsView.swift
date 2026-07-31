@@ -50,6 +50,20 @@ struct RankingsView: View {
         .travScreenBackground()
         .task {
             await viewModel.bootstrap(using: environment)
+            for await _ in environment.experiences.observeExperiencesInsert() {
+                await viewModel.reload(using: environment)
+            }
+        }
+        .task(id: engagement.revision) {
+            await viewModel.reload(using: environment)
+        }
+        .task(id: router.experienceCatalogRevision) {
+            await viewModel.reload(using: environment)
+        }
+        .onChange(of: selectedTab) { _, _ in
+            Task {
+                await viewModel.reload(using: environment)
+            }
         }
         .sheet(isPresented: $showMemberScopeSheet) {
             MemberFilterModalSheet(
@@ -180,15 +194,15 @@ struct RankingsView: View {
             currentUserID: environment.session.currentUser?.id
         )
 
-        if entries.isEmpty {
-            EmptyStateView(
-                icon: "crown",
-                title: "No members found",
-                description: "No members match the selected filters. Try choosing a different location or member scope."
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            ScrollView {
+        ScrollView {
+            if entries.isEmpty {
+                EmptyStateView(
+                    icon: "crown",
+                    title: "No members found",
+                    description: "No members match the selected filters. Try choosing a different location or member scope."
+                )
+                .padding(.top, 40)
+            } else {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                         LeaderboardUserRow(
@@ -200,11 +214,11 @@ struct RankingsView: View {
                         )
                     }
                 }
-                .padding(.bottom, TravSpacing.tabBarBottom + 40)
             }
-            .refreshable {
-                await viewModel.reload(using: environment)
-            }
+        }
+        .padding(.bottom, TravSpacing.tabBarBottom + 40)
+        .refreshable {
+            await viewModel.reload(using: environment)
         }
     }
 }

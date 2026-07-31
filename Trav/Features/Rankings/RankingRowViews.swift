@@ -480,6 +480,12 @@ struct TrendingLeaderboardView: View {
                 await loadRealEntries()
             }
         }
+        .task(id: engagement.revision) {
+            await loadRealEntries()
+        }
+        .task(id: router.experienceCatalogRevision) {
+            await loadRealEntries()
+        }
         .onChange(of: selectedLocation) { _, _ in
             Task { await loadRealEntries() }
         }
@@ -632,6 +638,9 @@ struct ImpactLeaderboardView: View {
         .task(id: engagement.revision) {
             await loadRealEntries()
         }
+        .task(id: router.experienceCatalogRevision) {
+            await loadRealEntries()
+        }
         .onChange(of: selectedLocation) { _, _ in
             Task { await loadRealEntries() }
         }
@@ -776,6 +785,9 @@ struct MainLeaderboardView: View {
             }
         }
         .task(id: engagement.revision) {
+            await loadLeaderboard()
+        }
+        .task(id: router.experienceCatalogRevision) {
             await loadLeaderboard()
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ExperiencePublishedNotification"))) { _ in

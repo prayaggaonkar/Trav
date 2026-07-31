@@ -175,7 +175,7 @@ enum MockData {
                 StopPreview(id: UUID(), name: "Dolores Park", emoji: nil)
             ],
             rating: RadarRating(scores: [
-                "Cost": 7.0, "Food": 9.2, "Memorability": 8.5, "Authenticity": 8.8, "Immersion": 8.0
+                "Cost": 7.0, "Food": 9.2, "Memorability": 8.5, "Authenticity": 8.8, "Niche": 8.0
             ]),
             completedBy: [
                 CompletionUser(id: UUID(uuidString: "W1000001-0000-0000-0000-000000000001")!, name: "Vinay", avatarImage: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop"),
@@ -201,7 +201,7 @@ enum MockData {
                 StopPreview(id: UUID(), name: "Twin Peaks", emoji: nil)
             ],
             rating: RadarRating(scores: [
-                "Cost": 8.5, "Food": 6.5, "Memorability": 9.4, "Authenticity": 7.8, "Immersion": 9.0
+                "Cost": 8.5, "Food": 6.5, "Memorability": 9.4, "Authenticity": 7.8, "Niche": 9.0
             ]),
             completedBy: [
                 CompletionUser(id: UUID(uuidString: "W1000001-0000-0000-0000-000000000001")!, name: "Vinay", avatarImage: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop"),
@@ -227,7 +227,7 @@ enum MockData {
                 StopPreview(id: UUID(), name: "La Reyna Bakery", emoji: nil)
             ],
             rating: RadarRating(scores: [
-                "Cost": 9.5, "Food": 7.0, "Memorability": 8.8, "Authenticity": 9.2, "Immersion": 8.6
+                "Cost": 9.5, "Food": 7.0, "Memorability": 8.8, "Authenticity": 9.2, "Niche": 8.6
             ]),
             completedBy: [
                 CompletionUser(id: UUID(uuidString: "W1000003-0000-0000-0000-000000000003")!, name: "Arjun", avatarImage: "https://images.unsplash.com/photo-1527983359383-4758693f760c?w=100&h=100&fit=crop")
@@ -252,7 +252,7 @@ enum MockData {
                 StopPreview(id: UUID(), name: "Shinjuku Viewpoint", emoji: nil)
             ],
             rating: RadarRating(scores: [
-                "Cost": 6.5, "Food": 9.5, "Memorability": 9.6, "Authenticity": 9.0, "Immersion": 9.4
+                "Cost": 6.5, "Food": 9.5, "Memorability": 9.6, "Authenticity": 9.0, "Niche": 9.4
             ])
         ),
         ExperienceSummary(
@@ -274,7 +274,7 @@ enum MockData {
                 StopPreview(id: UUID(), name: "Temple Garden", emoji: nil)
             ],
             rating: RadarRating(scores: [
-                "Cost": 8.0, "Food": 8.2, "Memorability": 8.0, "Authenticity": 9.5, "Immersion": 9.1
+                "Cost": 8.0, "Food": 8.2, "Memorability": 8.0, "Authenticity": 9.5, "Niche": 9.1
             ])
         ),
         ExperienceSummary(
@@ -296,7 +296,7 @@ enum MockData {
                 StopPreview(id: UUID(), name: "Sunset Bridge", emoji: nil)
             ],
             rating: RadarRating(scores: [
-                "Cost": 5.5, "Food": 8.8, "Memorability": 8.2, "Authenticity": 8.5, "Immersion": 8.0
+                "Cost": 5.5, "Food": 8.8, "Memorability": 8.2, "Authenticity": 8.5, "Niche": 8.0
             ])
         ),
         ExperienceSummary(
@@ -318,7 +318,7 @@ enum MockData {
                 StopPreview(id: UUID(), name: "Skytree View", emoji: nil)
             ],
             rating: RadarRating(scores: [
-                "Cost": 7.5, "Food": 9.0, "Memorability": 8.7, "Authenticity": 8.9, "Immersion": 8.4
+                "Cost": 7.5, "Food": 9.0, "Memorability": 8.7, "Authenticity": 8.9, "Niche": 8.4
             ])
         ),
         ExperienceSummary(
@@ -340,7 +340,7 @@ enum MockData {
                 StopPreview(id: UUID(), name: "Seine Sunset", emoji: nil)
             ],
             rating: RadarRating(scores: [
-                "Cost": 6.0, "Food": 9.1, "Memorability": 8.3, "Authenticity": 8.0, "Immersion": 7.5
+                "Cost": 6.0, "Food": 9.1, "Memorability": 8.3, "Authenticity": 8.0, "Niche": 7.5
             ])
         )
     ]
