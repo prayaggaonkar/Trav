@@ -35,9 +35,6 @@ struct ExperienceDetailView: View {
                 }
             }
             .travScreenBackground()
-            .toolbar {
-                experienceBackToolbar
-            }
             .navigationBarBackButtonHidden(true)
             .toolbarBackground(.hidden, for: .navigationBar)
             .modifier(HiddenToolbarBackgroundVisibility())
@@ -62,16 +59,22 @@ struct ExperienceDetailView: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(Color.black.opacity(0.55))
-                        .frame(width: 34, height: 34)
+                        .fill(Color.black.opacity(0.65))
+                        .frame(width: 38, height: 38)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.35), radius: 6, y: 2)
+
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
                 }
             }
             .buttonStyle(TravPressButtonStyle())
             .padding(.leading, TravSpacing.md)
-            .padding(.top, TravSpacing.md)
+            .padding(.top, 52)
             .zIndex(60)
         }
         .fullScreenCover(item: $activeImagePreview) { item in
@@ -85,36 +88,6 @@ struct ExperienceDetailView: View {
             }
             await load()
         }
-    }
-
-    @ToolbarContentBuilder
-    private var experienceBackToolbar: some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            ToolbarItem(placement: .topBarLeading) {
-                experienceBackButton
-            }
-            .sharedBackgroundVisibility(.hidden)
-        } else {
-            ToolbarItem(placement: .topBarLeading) {
-                experienceBackButton
-            }
-        }
-    }
-
-    private var experienceBackButton: some View {
-        Button {
-            dismissEnv()
-            router.dismiss()
-        } label: {
-            Image(systemName: "chevron.left")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(TravColors.primary)
-                .frame(width: TravLayout.minTouchTarget, height: TravLayout.minTouchTarget, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.leading, TravSpacing.xs)
-        .accessibilityLabel("Back")
     }
 
     private func summary(from experience: Experience) -> ExperienceSummary {
@@ -190,10 +163,12 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func hero(_ experience: Experience) -> some View {
         let commentCount = localCommentCount ?? experience.commentCount
+        let isSpotRec = (experience.creator.displayName.lowercased() == "rec by trav" || experience.creator.username.lowercased() == "trav" || experience.stops.count <= 1)
 
         HeroMediaCarousel(
             urls: experience.imageURLs,
             stops: experience.stops,
+            isRecByTrav: isSpotRec,
             height: TravLayout.heroExperienceHeight,
             onImageTap: { index in
                 if index < experience.imageURLs.count {
@@ -229,14 +204,17 @@ struct ExperienceDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     HStack(spacing: 6) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 14))
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 13, weight: .bold))
                             .foregroundStyle(TravColors.accent)
-                        Text(experience.stops.first?.description.isEmpty == false ? experience.stops.first!.description : "Spot Recommendation")
-                            .font(TravTypography.bodyMedium())
-                            .foregroundStyle(.white.opacity(0.9))
-                            .lineLimit(1)
+                        Text("Rec by Trav")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
                     }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Color.black.opacity(0.55)))
+                    .overlay(Capsule().stroke(TravColors.accent.opacity(0.4), lineWidth: 1))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
@@ -400,9 +378,11 @@ struct ExperienceDetailView: View {
 
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
+        let isSpotRec = (experience.creator.displayName.lowercased() == "rec by trav" || experience.creator.username.lowercased() == "trav" || experience.stops.count <= 1)
+
         VStack(alignment: .leading, spacing: TravSpacing.md) {
             if experience.stops.count > 1 {
-                ExperienceRouteMapView(stops: experience.stops)
+                ExperienceRouteMapView(stops: experience.stops, isRecByTrav: isSpotRec)
             }
 
             ratingSection(experience)
@@ -711,6 +691,7 @@ private struct HideTopScrollEdgeBlur: ViewModifier {
 private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
     let urls: [URL]
     var stops: [Stop] = []
+    var isRecByTrav: Bool = false
     let height: CGFloat
     var onImageTap: ((Int) -> Void)? = nil
     @ViewBuilder let title: () -> Title
@@ -742,7 +723,7 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
                     .frame(width: width, height: height, alignment: .leading)
                     .clipped()
                 } else {
-                    ExperienceRouteMapView(stops: stops)
+                    ExperienceRouteMapView(stops: stops, isRecByTrav: isRecByTrav)
                         .frame(width: width, height: height)
                         .clipped()
                 }
@@ -915,6 +896,7 @@ private extension UIImage {
 
 private struct ExperienceRouteMapView: View {
     let stops: [Stop]
+    var isRecByTrav: Bool = false
 
     @State private var position: MapCameraPosition = .automatic
     @State private var routePolylines: [MKPolyline] = []
@@ -942,28 +924,50 @@ private struct ExperienceRouteMapView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-            HStack(alignment: .center) {
-                Text("MAP")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .tracking(2.0)
-                    .foregroundStyle(TravColors.accent)
+            HStack(alignment: .center, spacing: TravSpacing.sm) {
+                if !isRecByTrav {
+                    HStack(spacing: 8) {
+                        Image(systemName: "map.fill")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(TravColors.accent)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Location & Route")
+                                .font(TravTypography.titleMedium())
+                                .fontWeight(.bold)
+                                .foregroundStyle(TravColors.primary)
+
+                            if !resolvedStops.isEmpty {
+                                Text("\(resolvedStops.count) stop\(resolvedStops.count == 1 ? "" : "s")")
+                                    .font(TravTypography.caption())
+                                    .foregroundStyle(TravColors.muted)
+                            }
+                        }
+                    }
+                }
 
                 Spacer()
 
                 if !coordinates.isEmpty {
                     Button(action: openInAppleMaps) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "map.fill")
-                                .font(.system(size: 11, weight: .bold))
-                            Text("Open Maps")
-                                .font(TravTypography.labelMedium())
-                                .fontWeight(.semibold)
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.triangle.turn.up.right.circle.fill")
+                                .font(.system(size: 14, weight: .bold))
+                            Text("View Directions")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
                         }
-                        .foregroundStyle(TravColors.accent)
-                        .padding(.horizontal, TravSpacing.md)
-                        .padding(.vertical, TravSpacing.xs)
-                        .background(TravColors.accentSoft)
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(
+                            LinearGradient(
+                                colors: [TravColors.accent, TravColors.accent.opacity(0.88)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
                         .clipShape(Capsule())
+                        .shadow(color: TravColors.accent.opacity(0.35), radius: 5, y: 2)
                     }
                     .buttonStyle(TravPressButtonStyle())
                 }

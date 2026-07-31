@@ -1628,11 +1628,12 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 continue
             }
             let count = userCounts[profile.id] ?? 0
+            guard count > 0 else { continue }
 
             if isFilteredByCity {
                 let userLoc = profile.onboarding_location?.lowercased() ?? ""
                 let matchesLocation = searchCity.map { userLoc.contains($0) } ?? false
-                guard count > 0 || matchesLocation else { continue }
+                guard matchesLocation else { continue }
             }
 
             realEntries.append(LeaderboardEntry(
@@ -1851,8 +1852,10 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
         // Map experience ID -> creator user ID
         var expToCreatorMap: [UUID: UUID] = [:]
+        var userExpCounts: [UUID: Int] = [:]
         for row in filteredRows {
             expToCreatorMap[row.id] = row.user_id
+            userExpCounts[row.user_id, default: 0] += 1
         }
 
         struct ExpRefRow: Decodable {
@@ -1921,6 +1924,9 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 || profile.id == StableUUID.from("rec_by_trav") {
                 continue
             }
+            let expCount = userExpCounts[profile.id] ?? 0
+            guard expCount > 0 else { continue }
+
             let impactCount = userImpactMap[profile.id] ?? 0
 
             rawEntries.append(ImpactEntry(
@@ -1969,8 +1975,24 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 $0.username.lowercased() != "rec_by_trav"
                 && $0.displayName.lowercased() != "rec by trav"
                 && $0.id != StableUUID.from("rec_by_trav")
+                && $0.experienceCount > 0
             }
-            return filtered
+            var rankedEntries: [MainLeaderboardEntry] = []
+            for (index, item) in filtered.enumerated() {
+                rankedEntries.append(MainLeaderboardEntry(
+                    id: item.id,
+                    username: item.username,
+                    displayName: item.displayName,
+                    avatarURL: item.avatarURL,
+                    impactCount: item.impactCount,
+                    experienceCount: item.experienceCount,
+                    streakDays: item.streakDays,
+                    streakPosts: item.streakPosts,
+                    totalScore: item.totalScore,
+                    rank: index + 1
+                ))
+            }
+            return rankedEntries
         }
 
         // 2. Fallback calculation in Swift if RPC function is not yet created on Supabase
@@ -2003,8 +2025,10 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 || profile.id == StableUUID.from("rec_by_trav") {
                 continue
             }
-            let impact = impactMap[profile.id] ?? 0
             let expCount = expMap[profile.id] ?? 0
+            guard expCount > 0 else { continue }
+
+            let impact = impactMap[profile.id] ?? 0
             let streakDays = streakDaysMap[profile.id] ?? 0
             let streakPosts = streakPostsMap[profile.id] ?? 0
 

@@ -436,7 +436,7 @@ struct TrendingLeaderboardView: View {
     @State private var isLoading = true
 
     var filteredEntries: [HeatStreakEntry] {
-        var items = entries
+        var items = entries.filter { $0.count30Days > 0 && $0.consecutiveDays > 0 }
         if memberScope == .friends {
             let following = engagement.followingUserIDs
             let currentUserID = environment.session.currentUser?.id
@@ -722,7 +722,7 @@ struct MainLeaderboardView: View {
     @State private var isLoading = true
 
     var filteredEntries: [MainLeaderboardEntry] {
-        var items = entries
+        var items = entries.filter { $0.experienceCount > 0 }
         if memberScope == .friends {
             let following = engagement.followingUserIDs
             let currentUserID = environment.session.currentUser?.id
@@ -786,10 +786,11 @@ struct MainLeaderboardView: View {
     private func loadLeaderboard() async {
         isLoading = true
         let realEntries = (try? await environment.experiences.fetchMainLeaderboard()) ?? []
-        if !realEntries.isEmpty {
-            entries = realEntries
+        let validEntries = realEntries.filter { $0.experienceCount > 0 }
+        if !validEntries.isEmpty {
+            entries = validEntries
         } else {
-            entries = MockMainLeaderboardData.entries
+            entries = MockMainLeaderboardData.entries.filter { $0.experienceCount > 0 }
         }
         isLoading = false
     }

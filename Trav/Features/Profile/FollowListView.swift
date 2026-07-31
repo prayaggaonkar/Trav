@@ -46,7 +46,10 @@ struct FollowListView: View {
                 .padding(.bottom, TravSpacing.xs)
 
             Group {
-                if isLoading && users.isEmpty {
+                let targetCount = (mode == .followers ? profile.followerCount : profile.followingCount)
+                let isOwnProfile = (session.currentUser?.id == profile.id)
+
+                if isLoading && users.isEmpty && targetCount > 0 {
                     SkeletonRankingsList()
                 } else if let error, users.isEmpty {
                     ErrorStateView(message: error.localizedDescription) {
@@ -56,12 +59,14 @@ struct FollowListView: View {
                     EmptyStateView(
                         icon: mode == .followers ? "person.2" : "person.badge.plus",
                         title: query.isEmpty
-                            ? (mode == .followers ? "No followers yet" : "Not following anyone")
+                            ? (mode == .followers
+                                ? (isOwnProfile ? "No Followers" : "No followers yet")
+                                : "Not Following Anyone")
                             : "No matches",
                         description: query.isEmpty
                             ? (mode == .followers
-                                ? "When people follow \(profile.displayName), they’ll show up here."
-                                : "Follow travelers to build your circle.")
+                                ? (isOwnProfile ? "You don’t have any followers yet." : "When people follow \(profile.displayName), they’ll show up here.")
+                                : (isOwnProfile ? "You are currently not following anyone." : "\(profile.displayName) is currently not following anyone."))
                             : "Try a different name or username."
                     )
                 } else {
@@ -187,8 +192,9 @@ struct FollowListView: View {
     }
 
     private func reload(reset: Bool) async {
+        let targetCount = (mode == .followers ? profile.followerCount : profile.followingCount)
         if reset {
-            isLoading = users.isEmpty
+            isLoading = (users.isEmpty && targetCount > 0)
             page = 0
             hasMore = true
         }

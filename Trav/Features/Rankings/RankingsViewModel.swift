@@ -22,7 +22,7 @@ final class RankingsViewModel {
     private var currentEnvironment: AppEnvironment?
 
     func filteredEntries(followingIDs: Set<UUID>, currentUserID: UUID?) -> [LeaderboardEntry] {
-        var items = allEntries
+        var items = allEntries.filter { $0.experienceCount > 0 }
 
         // Member Scope Filter (All Members vs Friends)
         if memberScope == .friends {
@@ -68,7 +68,7 @@ final class RankingsViewModel {
                 cityName: selectedLocation.id == LocationOption.allLocations.id ? nil : selectedLocation.name
             )) ?? []
 
-            allEntries = fetchedEntries
+            allEntries = fetchedEntries.filter { $0.experienceCount > 0 }
             phase = allEntries.isEmpty ? .empty : .loaded
         } catch {
             allEntries = []

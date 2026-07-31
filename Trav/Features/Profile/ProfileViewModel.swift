@@ -62,23 +62,26 @@ final class ProfileViewModel {
         isRankLoading = true
         defer { isRankLoading = false }
 
+        // Users without any created experiences should not have a rank.
+        let userCount = max(profile?.experienceCount ?? 0, created.count)
+        guard userCount > 0 else {
+            calculatedRank = nil
+            return
+        }
+
         do {
             let mainEntries = try await environment.experiences.fetchMainLeaderboard()
-            if let match = mainEntries.firstIndex(where: {
+            let validEntries = mainEntries.filter { $0.experienceCount > 0 }
+            if let match = validEntries.firstIndex(where: {
                 $0.id == profile?.id || $0.username.lowercased() == username.lowercased()
             }) {
-                calculatedRank = mainEntries[match].rank
+                calculatedRank = validEntries[match].rank
             } else {
-                let userCount = max(profile?.experienceCount ?? 0, created.count)
-                if userCount > 0 {
-                    let rankPos = (mainEntries.firstIndex(where: { $0.experienceCount <= userCount }) ?? mainEntries.count) + 1
-                    calculatedRank = rankPos
-                } else {
-                    calculatedRank = nil
-                }
+                let rankPos = (validEntries.firstIndex(where: { $0.experienceCount <= userCount }) ?? validEntries.count) + 1
+                calculatedRank = rankPos
             }
         } catch {
-            let fallbackEntries = MockMainLeaderboardData.entries
+            let fallbackEntries = MockMainLeaderboardData.entries.filter { $0.experienceCount > 0 }
             if let match = fallbackEntries.firstIndex(where: {
                 $0.id == profile?.id || $0.username.lowercased() == username.lowercased()
             }) {
