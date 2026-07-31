@@ -64,16 +64,33 @@ struct SpotSuggestion: Identifiable, Hashable, Sendable {
         return subtitle
     }
 
-    var cityName: String? {
-        let parts = subtitle.components(separatedBy: ",")
-        if parts.count >= 2 {
-            return parts[parts.count - 2].trimmingCharacters(in: .whitespaces)
+    var resolvedCityName: String {
+        let parts = subtitle.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        if parts.count >= 3 {
+            let city = parts[parts.count - 3]
+            let state = parts[parts.count - 2]
+            if !city.isEmpty && !state.isEmpty && state.count <= 3 {
+                return "\(city), \(state)"
+            }
+            return "\(city)"
+        } else if parts.count == 2 {
+            return "\(parts[0]), \(parts[1])"
         }
-        return parts.first?.trimmingCharacters(in: .whitespaces)
+        return subtitle.isEmpty ? "San Francisco, CA" : subtitle
+    }
+
+    var cityName: String? {
+        resolvedCityName
     }
 
     func asExperienceSummary(creator currentUser: ProfileSummary? = nil) -> ExperienceSummary {
-        let spotUUID = UUID(uuidString: id) ?? StableUUID.from(id)
+        let canonicalKey = SpotIdentity.key(
+            placeID: nil,
+            name: title,
+            latitude: latitude ?? 0,
+            longitude: longitude ?? 0
+        )
+        let spotUUID = StableUUID.from(canonicalKey)
         let stop = StopPreview(
             id: UUID(),
             name: title,
@@ -81,6 +98,7 @@ struct SpotSuggestion: Identifiable, Hashable, Sendable {
             latitude: latitude,
             longitude: longitude
         )
+        let city = resolvedCityName
         let creatorSummary = currentUser ?? ProfileSummary(
             id: StableUUID.from("provider:apple_maps"),
             username: "maps",
@@ -88,10 +106,10 @@ struct SpotSuggestion: Identifiable, Hashable, Sendable {
             avatarURL: nil,
             isVerified: true
         )
-        return ExperienceSummary(
+        let summary = ExperienceSummary(
             id: spotUUID,
             kind: .spot,
-            cityID: UUID(),
+            cityID: StableUUID.from("city:\(city.lowercased())"),
             title: title,
             imageURLs: [],
             creator: creatorSummary,
@@ -104,13 +122,15 @@ struct SpotSuggestion: Identifiable, Hashable, Sendable {
             stops: [stop],
             rating: nil,
             ratingSummary: .empty,
-            cityName: displayLocation,
+            cityName: city,
             completedBy: [],
-            spotKey: id,
+            spotKey: canonicalKey,
             category: category.rawValue,
             latitude: latitude,
             longitude: longitude
         )
+        AppleMapsVibeService.shared.cacheCustomExperience(summary)
+        return summary
     }
 }
 

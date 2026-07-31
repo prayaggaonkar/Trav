@@ -122,13 +122,15 @@ struct SupabaseRatingRepository: RatingRepository {
                 let stops: [String]
                 let is_published: Bool
             }
+            let spotTitle = (cached?.title.isEmpty == false) ? cached!.title : "Spot"
+            let spotCity = (cached?.cityName?.isEmpty == false) ? cached!.cityName! : "San Francisco, CA"
             let shadowInsert = ExperienceShadowInsert(
                 id: draft.experienceID,
                 user_id: userID,
-                title: cached?.title ?? "Spot Recommendation",
-                description: cached?.description ?? "Spot recommendation",
-                city: cached?.cityName ?? "Berkeley, CA",
-                stops: [cached?.title ?? "Spot"],
+                title: spotTitle,
+                description: "Spot rated by traveler.",
+                city: spotCity,
+                stops: [spotTitle],
                 is_published: true
             )
             _ = try? await client

@@ -223,6 +223,49 @@ final class AppleMapsVibeService: @unchecked Sendable {
         cachedRecommendations[experience.id] = experience
     }
 
+    /// Caches a custom spot ExperienceSummary model for rating & detail lookup
+    func cacheCustomExperience(_ summary: ExperienceSummary) {
+        let stops = summary.stops.enumerated().map { index, stop in
+            Stop(
+                id: stop.id,
+                orderIndex: index,
+                name: stop.name,
+                description: "",
+                creatorNotes: nil,
+                latitude: stop.latitude ?? 0,
+                longitude: stop.longitude ?? 0,
+                placeID: summary.spotKey,
+                recommendedTime: nil,
+                durationMinutes: 45,
+                emoji: stop.emoji,
+                media: []
+            )
+        }
+        let exp = Experience(
+            id: summary.id,
+            kind: summary.kind,
+            cityID: summary.cityID,
+            creator: summary.creator,
+            title: summary.title,
+            description: "Spot rated by traveler.",
+            imageURLs: summary.imageURLs,
+            durationMinutes: summary.durationMinutes,
+            costLevel: summary.costLevel,
+            estimatedCostUSD: summary.estimatedCostUSD,
+            transportMode: .walking,
+            totalDistanceMeters: 0,
+            saveCount: summary.saveCount,
+            likeCount: summary.likeCount,
+            completionCount: summary.completionCount,
+            commentCount: 0,
+            isPublished: true,
+            publishedAt: Date(),
+            stops: stops,
+            cityName: summary.cityName
+        )
+        cachedRecommendations[summary.id] = exp
+    }
+
     /// Fetches real social stats (saves, likes, completions, completedBy profiles) from Supabase if existing for this place.
     private func fetchRealSocialStats(forPlaceName placeName: String, city: String) async -> (saveCount: Int, likeCount: Int, completionCount: Int, completedBy: [CompletionUser]) {
         guard let client = SupabaseManager.client else {
