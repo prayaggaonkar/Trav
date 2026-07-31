@@ -26,13 +26,21 @@ struct SupabaseEngagementRepository: EngagementRepository {
 
     func fetchCompletedIDs(userID: UUID) async throws -> Set<UUID> {
         struct Row: Decodable { let experience_id: UUID }
-        let rows: [Row] = try await client
+        let completions: [Row] = (try? await client
             .from("experience_completions")
             .select("experience_id")
             .eq("user_id", value: userID.uuidString.lowercased())
             .execute()
-            .value
-        return Set(rows.map(\.experience_id))
+            .value) ?? []
+
+        let ratings: [Row] = (try? await client
+            .from("ratings")
+            .select("experience_id")
+            .eq("user_id", value: userID.uuidString.lowercased())
+            .execute()
+            .value) ?? []
+
+        return Set(completions.map(\.experience_id) + ratings.map(\.experience_id))
     }
 
     func fetchLikedIDs(userID: UUID) async throws -> Set<UUID> {
@@ -74,15 +82,27 @@ struct SupabaseEngagementRepository: EngagementRepository {
 
     func isCompleted(userID: UUID, experienceID: UUID) async throws -> Bool {
         struct Row: Decodable { let experience_id: UUID }
-        let rows: [Row] = try await client
+        let completions: [Row] = (try? await client
             .from("experience_completions")
             .select("experience_id")
             .eq("user_id", value: userID.uuidString.lowercased())
             .eq("experience_id", value: experienceID.uuidString.lowercased())
             .limit(1)
             .execute()
-            .value
-        return !rows.isEmpty
+            .value) ?? []
+
+        if !completions.isEmpty { return true }
+
+        let ratings: [Row] = (try? await client
+            .from("ratings")
+            .select("experience_id")
+            .eq("user_id", value: userID.uuidString.lowercased())
+            .eq("experience_id", value: experienceID.uuidString.lowercased())
+            .limit(1)
+            .execute()
+            .value) ?? []
+
+        return !ratings.isEmpty
     }
 
     // MARK: - Toggles

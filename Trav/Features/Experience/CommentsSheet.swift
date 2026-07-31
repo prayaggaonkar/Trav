@@ -7,6 +7,7 @@ struct CommentsSheet: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(SessionStore.self) private var session
     @Environment(AppRouter.self) private var router
+    @Environment(AppearanceStore.self) private var appearance
     @Environment(\.dismiss) private var dismiss
 
     let experienceID: UUID
@@ -46,12 +47,12 @@ struct CommentsSheet: View {
                 composer
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background(Color.black)
+            .background(TravColors.surface)
             .navigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarBackground(TravColors.surface, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarColorScheme(appearance.isLightMode ? .light : .dark, for: .navigationBar)
         }
         .task { await load() }
         .confirmationDialog(
@@ -253,7 +254,7 @@ struct CommentsSheet: View {
                 .foregroundStyle(TravColors.primary)
                 .padding(.horizontal, TravSpacing.md)
                 .padding(.vertical, 10)
-                .background(Color(white: 0.12))
+                .background(appearance.isLightMode ? Color(red: 0.94, green: 0.94, blue: 0.96) : Color(white: 0.12))
                 .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous))
                 .tint(TravColors.accent)
 
@@ -262,7 +263,7 @@ struct CommentsSheet: View {
                 } label: {
                     if isPosting {
                         ProgressView()
-                            .tint(.white)
+                            .tint(TravColors.primary)
                             .frame(width: 36, height: 36)
                     } else {
                         Image(systemName: "arrow.up.circle.fill")
@@ -278,7 +279,7 @@ struct CommentsSheet: View {
             .padding(.top, TravSpacing.sm)
             .padding(.bottom, TravSpacing.sm)
         }
-        .background(Color.black)
+        .background(TravColors.surface)
     }
 
     private var canPost: Bool {
@@ -390,6 +391,8 @@ struct CommentsSheet: View {
 }
 
 private struct CommentRow: View {
+    @Environment(AppearanceStore.self) private var appearance
+
     let comment: Comment
     var isReply: Bool = false
     let isOwn: Bool
@@ -485,7 +488,7 @@ private struct CommentRow: View {
                         RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
                             .stroke(TravColors.border.opacity(0.7), lineWidth: 1)
                     )
-                    .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+                    .shadow(color: appearance.isLightMode ? .black.opacity(0.12) : .black.opacity(0.35), radius: 10, y: 4)
                     .offset(y: 30)
                     .zIndex(10)
                     .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)))
@@ -504,6 +507,8 @@ private struct CommentRow: View {
 
 /// Custom bottom drawer for comments — flush to the screen bottom (no system-sheet corner gap).
 struct CommentsDrawer: View {
+    @Environment(AppearanceStore.self) private var appearance
+
     let experienceID: UUID
     var onCountChange: ((Int) -> Void)? = nil
     var onDismiss: () -> Void
@@ -533,7 +538,7 @@ struct CommentsDrawer: View {
             )
 
             ZStack(alignment: .bottom) {
-                Color.black.opacity(0.45)
+                Color.black.opacity(appearance.isLightMode ? 0.3 : 0.45)
                     .ignoresSafeArea()
                     .onTapGesture {
                         dismissDrawer()
@@ -542,7 +547,7 @@ struct CommentsDrawer: View {
                 VStack(spacing: 0) {
                     // Grabber — only this area resizes the drawer.
                     Capsule()
-                        .fill(Color.white.opacity(0.35))
+                        .fill(appearance.isLightMode ? Color.black.opacity(0.2) : Color.white.opacity(0.35))
                         .frame(width: 36, height: 5)
                         .padding(.top, 10)
                         .padding(.bottom, 8)
@@ -559,7 +564,7 @@ struct CommentsDrawer: View {
                 }
                 .frame(height: currentHeight, alignment: .top)
                 .frame(maxWidth: .infinity)
-                .background(Color.black)
+                .background(TravColors.surface)
                 .clipShape(
                     UnevenRoundedRectangle(
                         topLeadingRadius: TravRadius.xl,

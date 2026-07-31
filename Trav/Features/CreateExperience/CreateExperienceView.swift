@@ -337,11 +337,11 @@ struct CreateExperienceView: View {
                 ) {
                     submit()
                 }
-                .padding(.top, TravSpacing.sm)
                 .travAppear(delay: 0.18)
+
+                Spacer(minLength: TravSpacing.xxl)
             }
             .padding(.horizontal, TravSpacing.screenHorizontal)
-            .padding(.bottom, 140)
         }
     }
 
@@ -490,22 +490,27 @@ struct CreateExperienceView: View {
     }
 
     private var successView: some View {
-        VStack(spacing: TravSpacing.xl) {
-            Spacer(minLength: TravSpacing.lg)
+        VStack(spacing: TravSpacing.lg) {
+            Spacer(minLength: TravSpacing.xxl)
 
-            Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 72))
-                .foregroundStyle(TravColors.success)
-                .symbolEffect(.bounce, value: showSuccess)
+            ZStack {
+                Circle()
+                    .fill(TravColors.accentSoft)
+                    .frame(width: 108, height: 108)
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 54, weight: .semibold))
+                    .foregroundStyle(TravColors.accent)
+            }
 
-            VStack(spacing: TravSpacing.sm) {
+            VStack(spacing: TravSpacing.xs) {
                 Text("Experience Published!")
                     .font(TravTypography.displayMedium())
                     .foregroundStyle(TravColors.primary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .minimumScaleFactor(0.9)
-                Text("Your itinerary \"\(title)\" is now live!")
+
+                Text("Your itinerary \"\(title)\" is now live on your profile and in the community feed.")
                     .font(TravTypography.bodyMedium())
                     .foregroundStyle(TravColors.muted)
                     .multilineTextAlignment(.center)
