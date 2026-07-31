@@ -71,6 +71,46 @@ struct SpotSuggestion: Identifiable, Hashable, Sendable {
         }
         return parts.first?.trimmingCharacters(in: .whitespaces)
     }
+
+    var asExperienceSummary: ExperienceSummary {
+        let spotUUID = UUID(uuidString: id) ?? UUID()
+        let stop = StopPreview(
+            id: UUID(),
+            name: title,
+            emoji: category.emoji,
+            latitude: latitude,
+            longitude: longitude
+        )
+        return ExperienceSummary(
+            id: spotUUID,
+            kind: .spot,
+            cityID: UUID(),
+            title: title,
+            imageURLs: [],
+            creator: ProfileSummary(
+                id: ExperienceInsert.travAdminID,
+                username: "trav",
+                displayName: "Rec by Trav",
+                avatarURL: nil,
+                isVerified: true
+            ),
+            durationMinutes: 45,
+            costLevel: .free,
+            estimatedCostUSD: nil,
+            saveCount: 0,
+            likeCount: 0,
+            completionCount: 0,
+            stops: [stop],
+            rating: nil,
+            ratingSummary: .empty,
+            cityName: displayLocation,
+            completedBy: [],
+            spotKey: id,
+            category: category.rawValue,
+            latitude: latitude,
+            longitude: longitude
+        )
+    }
 }
 
 /// Controller leveraging Apple Maps Search API (MKLocalSearch) to find any place, spot, address, or landmark worldwide.
