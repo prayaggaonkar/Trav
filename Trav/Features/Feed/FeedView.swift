@@ -402,6 +402,15 @@ struct FeedView: View {
             VStack(spacing: 10) {
                 // 1. Upcoming Trips Section Skeleton
                 VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("Your Feed")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                    .padding(.top, 4)
+
                     UpcomingTripHeaderInputBar { type in
                         createTripInitialType = type
                         showingCreateTripSheet = true
@@ -480,6 +489,15 @@ struct FeedView: View {
 
     private var upcomingTripsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Your Feed")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(TravColors.primary)
+                Spacer()
+            }
+            .padding(.horizontal, TravSpacing.screenHorizontal)
+            .padding(.top, 4)
+
             UpcomingTripHeaderInputBar { type in
                 createTripInitialType = type
                 showingCreateTripSheet = true

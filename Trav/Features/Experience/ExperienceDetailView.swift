@@ -43,7 +43,7 @@ struct ExperienceDetailView: View {
         }
         .travShareSheet(item: $shareItem)
         .overlay {
-            if showComments {
+            if showComments && (experience?.isRealUserItinerary ?? false) {
                 CommentsDrawer(
                     experienceID: experienceID,
                     onCountChange: { localCommentCount = $0 },
@@ -224,25 +224,27 @@ struct ExperienceDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                Button {
-                    showComments = true
-                } label: {
-                    HStack(spacing: 7) {
-                        Image(systemName: "bubble.right.fill")
-                            .font(.system(size: 15.5, weight: .semibold))
-                        Text(TravFormatters.count(commentCount))
-                            .font(.system(size: 13.8, weight: .bold, design: .rounded))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
+                if experience.isRealUserItinerary {
+                    Button {
+                        showComments = true
+                    } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: "bubble.right.fill")
+                                .font(.system(size: 15.5, weight: .semibold))
+                            Text(TravFormatters.count(commentCount))
+                                .font(.system(size: 13.8, weight: .bold, design: .rounded))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 11.5)
+                        .padding(.vertical, 11.5)
+                        .contentShape(Rectangle())
                     }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 11.5)
-                    .padding(.vertical, 11.5)
-                    .contentShape(Rectangle())
+                    .buttonStyle(TravPressButtonStyle())
+                    .layoutPriority(1)
+                    .accessibilityLabel("Comments, \(commentCount)")
                 }
-                .buttonStyle(TravPressButtonStyle())
-                .layoutPriority(1)
-                .accessibilityLabel("Comments, \(commentCount)")
             }
         }
     }

@@ -329,16 +329,18 @@ struct GemPostCardView: View {
                             .buttonStyle(.plain)
                             .accessibilityLabel(resolvedIsSaved ? "Remove bookmark" : "Bookmark")
 
-                            Button {
-                                (onComment ?? onTap)()
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            } label: {
-                                Image(systemName: "bubble.right")
-                                    .font(.system(size: 18))
-                                    .foregroundStyle(TravColors.muted)
+                            if experience.isRealUserItinerary {
+                                Button {
+                                    (onComment ?? onTap)()
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                } label: {
+                                    Image(systemName: "bubble.right")
+                                        .font(.system(size: 18))
+                                        .foregroundStyle(TravColors.muted)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Comments")
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Comments")
 
                             Button {
                                 onShare?()
