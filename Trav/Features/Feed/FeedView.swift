@@ -252,15 +252,7 @@ struct FeedView: View {
     private var feedBody: some View {
         switch viewModel.phase {
         case .idle, .loading:
-            ScrollView {
-                VStack(spacing: 12) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        SkeletonExperienceCard()
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, TravSpacing.sm)
-            }
+            feedSkeletonBody
         case let .failed(message):
             Spacer()
             EmptyStateView(
@@ -403,6 +395,85 @@ struct FeedView: View {
                 }
             }
         )
+    }
+
+    private var feedSkeletonBody: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                // 1. Upcoming Trips Section Skeleton
+                VStack(alignment: .leading, spacing: 10) {
+                    UpcomingTripHeaderInputBar { type in
+                        createTripInitialType = type
+                        showingCreateTripSheet = true
+                    }
+
+                    if selectedFilter == .all {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Upcoming Trips")
+                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .foregroundStyle(TravColors.primary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, TravSpacing.screenHorizontal)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(0..<2, id: \.self) { _ in
+                                        SkeletonUpcomingTripCard()
+                                    }
+                                }
+                                .padding(.horizontal, TravSpacing.screenHorizontal)
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
+                }
+
+                // 2. Happening Soon Popups Skeleton
+                if selectedFilter == .all {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("HAP PEN ING   SOON")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .tracking(2.5)
+                                .foregroundStyle(TravColors.muted)
+                            Spacer()
+                        }
+                        .padding(.horizontal, TravSpacing.screenHorizontal)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(0..<2, id: \.self) { _ in
+                                    SkeletonPopupCard()
+                                }
+                            }
+                            .padding(.horizontal, TravSpacing.screenHorizontal)
+                        }
+                    }
+                }
+
+                // 3. Experiences Section Header Skeleton
+                HStack {
+                    Text("Experiences")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundStyle(TravColors.primary)
+                    Spacer()
+                }
+                .padding(.horizontal, TravSpacing.screenHorizontal)
+                .padding(.bottom, 4)
+
+                // 4. Experiences Feed Cards Skeleton
+                VStack(spacing: 12) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        SkeletonExperienceCard()
+                    }
+                }
+                .padding(.horizontal, 12)
+            }
+            .padding(.vertical, TravSpacing.sm)
+            .padding(.bottom, TravSpacing.tabBarBottom + 20)
+        }
     }
 
     // MARK: - Upcoming Trips section

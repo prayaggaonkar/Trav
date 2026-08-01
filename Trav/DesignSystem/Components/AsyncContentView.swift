@@ -106,6 +106,44 @@ struct SkeletonExperienceCard: View {
     }
 }
 
+struct SkeletonPopupCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SkeletonView(height: 110, cornerRadius: TravRadius.md)
+            SkeletonView(height: 14, cornerRadius: 4).frame(width: 140)
+            SkeletonView(height: 12, cornerRadius: 4).frame(width: 100)
+        }
+        .padding(10)
+        .frame(width: 260)
+        .background(
+            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                .fill(TravColors.surfaceElevated)
+        )
+    }
+}
+
+struct SkeletonUpcomingTripCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                SkeletonView(height: 38, cornerRadius: 19).frame(width: 38)
+                VStack(alignment: .leading, spacing: 4) {
+                    SkeletonView(height: 14, cornerRadius: 4).frame(width: 120)
+                    SkeletonView(height: 12, cornerRadius: 4).frame(width: 80)
+                }
+            }
+            SkeletonView(height: 16, cornerRadius: 4).frame(width: 180)
+            SkeletonView(height: 34, cornerRadius: TravRadius.sm)
+        }
+        .padding(14)
+        .frame(width: 320)
+        .background(
+            RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
+                .fill(TravColors.surfaceElevated)
+        )
+    }
+}
+
 private struct DefaultAsyncErrorView: View {
     let message: String
     let retry: () -> Void

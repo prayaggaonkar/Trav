@@ -202,6 +202,30 @@ enum MockData {
             creatorCount: 0
         ),
         City(
+            id: UUID(uuidString: "C1000020-0000-0000-0000-000000000020")!,
+            name: "Berkeley",
+            slug: "berkeley",
+            countryCode: "US",
+            latitude: 37.8715,
+            longitude: -122.2730,
+            heroImageURL: URL(string: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&q=80"),
+            timezone: "America/Los_Angeles",
+            experienceCount: 8,
+            creatorCount: 5
+        ),
+        City(
+            id: UUID(uuidString: "C1000021-0000-0000-0000-000000000021")!,
+            name: "Los Angeles",
+            slug: "los-angeles",
+            countryCode: "US",
+            latitude: 34.0522,
+            longitude: -118.2437,
+            heroImageURL: URL(string: "https://images.unsplash.com/photo-1580655653885-65763b2597d0?w=1200&q=80"),
+            timezone: "America/Los_Angeles",
+            experienceCount: 6,
+            creatorCount: 4
+        ),
+        City(
             id: UUID(uuidString: "C1000014-0000-0000-0000-000000000014")!,
             name: "Rio de Janeiro",
             slug: "rio-de-janeiro",

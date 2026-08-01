@@ -21,6 +21,7 @@
 		1A16E68EBF364414A7904864 /* VibeSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D3B0EF7FF86451FB9158313 /* VibeSelectionView.swift */; };
 		1C29181213E187231347D9BA /* CommentsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A4FD5E8629270EFF4D0754 /* CommentsSheet.swift */; };
 		2D9C4391DE9B4203970F202E /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10CE54D2D476419EB5E371A9 /* AppEnvironment.swift */; };
+		5C91A0012C1A2B3C4D5E6F7A /* AnimatedSplashScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C91A0022C1A2B3C4D5E6F7B /* AnimatedSplashScreen.swift */; };
 		31C68C88FD69438C896F87E6 /* EngagementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B969E76B8F634876BDCDEE19 /* EngagementStore.swift */; };
 		42F0E192AF2B492C8A5C8288 /* CityAutocompleteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042EA83356B64A548B6D9EE9 /* CityAutocompleteService.swift */; };
 		4471FBD864E94E03B448A4B0 /* EarthGlobeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52B7E6A8F912449E8BCC2CCE /* EarthGlobeView.swift */; };
@@ -127,6 +128,7 @@
 		0F1A2B3C4D5E6F708192A3B3 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
 		0F1A2B3C4D5E6F708192A3B9 /* InAppNotificationBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InAppNotificationBanner.swift; sourceTree = "<group>"; };
 		10CE54D2D476419EB5E371A9 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		5C91A0022C1A2B3C4D5E6F7B /* AnimatedSplashScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedSplashScreen.swift; sourceTree = "<group>"; };
 		118A3664AB2548DA90972DDC /* SupabaseProfileRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseProfileRepository.swift; sourceTree = "<group>"; };
 		11E6F8A4B25B440892DC9677 /* TravApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravApp.swift; sourceTree = "<group>"; };
 		1468F8B546604199BB6747BD /* Enums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Enums.swift; sourceTree = "<group>"; };
@@ -445,6 +447,7 @@
 			isa = PBXGroup;
 			children = (
 				10CE54D2D476419EB5E371A9 /* AppEnvironment.swift */,
+				5C91A0022C1A2B3C4D5E6F7B /* AnimatedSplashScreen.swift */,
 				672FB6BB7F77428D976B3870 /* RootCoordinator.swift */,
 				11E6F8A4B25B440892DC9677 /* TravApp.swift */,
 			);
@@ -656,6 +659,7 @@
 				RADAR0020000000000000004 /* InteractiveRadarChartView.swift in Sources */,
 				8B190362ECF6427BB5B10288 /* Profile.swift in Sources */,
 				2D9C4391DE9B4203970F202E /* AppEnvironment.swift in Sources */,
+				5C91A0012C1A2B3C4D5E6F7A /* AnimatedSplashScreen.swift in Sources */,
 				876F04B073464336BA929541 /* RootCoordinator.swift in Sources */,
 				8DB0861862E74A70A9F34A6E /* TravApp.swift in Sources */,
 				BA61FC3A67154D3FB4379A72 /* ExperienceDetailView.swift in Sources */,

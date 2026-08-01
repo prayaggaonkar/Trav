@@ -654,10 +654,16 @@ struct GlobeLandingView: View {
     private var bottomCTA: some View {
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
             if case let .loaded(cities) = viewModel?.loadState {
+                let allowedNames = ["Berkeley", "San Francisco", "Barcelona", "New York", "Paris", "London", "Tokyo", "Los Angeles"]
                 let filtered = cities.filter { city in
-                    searchText.isEmpty ||
-                    city.name.localizedCaseInsensitiveContains(searchText) ||
-                    city.countryName.localizedCaseInsensitiveContains(searchText)
+                    allowedNames.contains(where: { $0.caseInsensitiveCompare(city.name) == .orderedSame }) &&
+                    (searchText.isEmpty ||
+                     city.name.localizedCaseInsensitiveContains(searchText) ||
+                     city.countryName.localizedCaseInsensitiveContains(searchText))
+                }.sorted { c1, c2 in
+                    let idx1 = allowedNames.firstIndex(where: { $0.caseInsensitiveCompare(c1.name) == .orderedSame }) ?? 99
+                    let idx2 = allowedNames.firstIndex(where: { $0.caseInsensitiveCompare(c2.name) == .orderedSame }) ?? 99
+                    return idx1 < idx2
                 }
 
                 if filtered.isEmpty {

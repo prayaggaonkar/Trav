@@ -50,7 +50,7 @@ struct RootCoordinator: View {
             isSplashFinished: isSplashFinished,
             defaultBackdrop: defaultBackdrop(for:)
         ))
-        .purplePinSplashScreen(isLoading: session.phase == .loading, isFinished: $isSplashFinished)
+        .animatedSplashScreen(isLoading: session.phase == .loading, currentUser: session.currentUser, isFinished: $isSplashFinished)
     }
 
     private func defaultBackdrop(for tab: TravTab) -> TabBarBackdrop {
@@ -245,71 +245,4 @@ private struct UnauthenticatedPlaceholderView: View {
     }
 }
 
-/// Solid purple splash screen with white pin icon and TRAV text that smoothly fades out when app finishes loading.
-struct PurplePinSplashScreenModifier: ViewModifier {
-    let isLoading: Bool
-    @Binding var isFinished: Bool
 
-    @State private var splashOpacity: Double = 1.0
-
-    func body(content: Content) -> some View {
-        ZStack {
-            content
-
-            if !isFinished {
-                ZStack {
-                    // Logo Purple Background (#B368FF)
-                    Color(red: 0.700, green: 0.409, blue: 0.997)
-                        .ignoresSafeArea()
-
-                    // Pure White Map Pin Icon + TRAV branding text
-                    VStack(spacing: 16) {
-                        Image(systemName: "mappin.circle.fill")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 80, height: 80)
-                            .foregroundStyle(.white)
-                            .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 4)
-
-                        Text("TRAV")
-                            .font(.system(size: 26, weight: .black, design: .rounded))
-                            .tracking(3.5)
-                            .foregroundStyle(.white)
-                            .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 2)
-                    }
-                }
-                .opacity(splashOpacity)
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-                .zIndex(999_999)
-            }
-        }
-        .onChange(of: isLoading, initial: true) { _, loading in
-            if !loading {
-                dismissSplash()
-            }
-        }
-    }
-
-    private func dismissSplash() {
-        // Wait 0.2s to guarantee main tab view & globe renderer finish initial layout mounting
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            withAnimation(.easeInOut(duration: 0.5)) {
-                splashOpacity = 0.0
-            }
-            // ONLY after opacity reaches 0.0 completely (0.55s later), mark isFinished = true so bottom tabs load!
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
-                withAnimation(.easeOut(duration: 0.25)) {
-                    isFinished = true
-                }
-            }
-        }
-    }
-}
-
-extension View {
-    /// Applies a purple splash screen with a white pin icon & TRAV title that fades out smoothly when loading finishes.
-    func purplePinSplashScreen(isLoading: Bool, isFinished: Binding<Bool>) -> some View {
-        self.modifier(PurplePinSplashScreenModifier(isLoading: isLoading, isFinished: isFinished))
-    }
-}
