@@ -1927,12 +1927,20 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             let city: String?
         }
 
-        let rows: [ExperienceRow] = (try? await client
+        var rows: [ExperienceRow] = (try? await client
             .from("experiences")
             .select("id, user_id, city_id, city")
             .eq("is_published", value: true)
             .execute()
             .value) ?? []
+
+        if rows.isEmpty {
+            rows = (try? await client
+                .from("experiences")
+                .select("id, user_id, city_id, city")
+                .execute()
+                .value) ?? []
+        }
 
         let searchCity: String? = {
             guard let cityName, !cityName.isEmpty, cityName != LocationOption.allLocations.name else { return nil }
@@ -1989,7 +1997,8 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             if isFilteredByCity {
                 let userLoc = profile.onboarding_location?.lowercased() ?? ""
                 let matchesLocation = searchCity.map { userLoc.contains($0) } ?? false
-                guard matchesLocation else { continue }
+                let createdInCity = (userCounts[profile.id] ?? 0) > 0
+                guard matchesLocation || createdInCity else { continue }
             }
 
             realEntries.append(LeaderboardEntry(
@@ -2215,50 +2224,63 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             userExpCounts[row.user_id, default: 0] += 1
         }
 
-        struct ExpRefRow: Decodable {
+        struct UserExpRefRow: Decodable {
+            let user_id: UUID?
             let experience_id: UUID
         }
 
-        // 1. Tally saves per experience from experience_saves and saved_experiences tables
+        // 1. Tally saves per experience by OTHER users (exclude creator's own saves)
         var savesPerExp: [UUID: Int] = [:]
-        if let expSaves: [ExpRefRow] = try? await client.from("experience_saves").select("experience_id").execute().value {
+        if let expSaves: [UserExpRefRow] = try? await client.from("experience_saves").select("user_id, experience_id").execute().value {
             for item in expSaves {
-                if expToCreatorMap[item.experience_id] != nil {
+                if let creatorID = expToCreatorMap[item.experience_id] {
+                    if let saverID = item.user_id, saverID == creatorID { continue }
                     savesPerExp[item.experience_id, default: 0] += 1
                 }
             }
         }
-        if let legacySaves: [ExpRefRow] = try? await client.from("saved_experiences").select("experience_id").execute().value {
+        if let legacySaves: [UserExpRefRow] = try? await client.from("saved_experiences").select("user_id, experience_id").execute().value {
             for item in legacySaves {
-                if expToCreatorMap[item.experience_id] != nil {
+                if let creatorID = expToCreatorMap[item.experience_id] {
+                    if let saverID = item.user_id, saverID == creatorID { continue }
                     savesPerExp[item.experience_id, default: 0] += 1
                 }
             }
         }
 
-        // 2. Tally watchlists per experience from watchlists and experience_completions tables
-        var watchlistsPerExp: [UUID: Int] = [:]
-        if let watchlists: [ExpRefRow] = try? await client.from("watchlists").select("experience_id").execute().value {
-            for item in watchlists {
-                if expToCreatorMap[item.experience_id] != nil {
-                    watchlistsPerExp[item.experience_id, default: 0] += 1
+        // 2. Tally completions per experience by OTHER users (exclude creator's own completions)
+        var completionsPerExp: [UUID: Int] = [:]
+        if let completions: [UserExpRefRow] = try? await client.from("experience_completions").select("user_id, experience_id").execute().value {
+            for item in completions {
+                if let creatorID = expToCreatorMap[item.experience_id] {
+                    if let completerID = item.user_id, completerID == creatorID { continue }
+                    completionsPerExp[item.experience_id, default: 0] += 1
                 }
             }
         }
-        if let completions: [ExpRefRow] = try? await client.from("experience_completions").select("experience_id").execute().value {
-            for item in completions {
-                if expToCreatorMap[item.experience_id] != nil {
-                    watchlistsPerExp[item.experience_id, default: 0] += 1
+        if let ratings: [UserExpRefRow] = try? await client.from("ratings").select("user_id, experience_id").execute().value {
+            for item in ratings {
+                if let creatorID = expToCreatorMap[item.experience_id] {
+                    if let raterID = item.user_id, raterID == creatorID { continue }
+                    completionsPerExp[item.experience_id, default: 0] += 1
+                }
+            }
+        }
+        if let watchlists: [UserExpRefRow] = try? await client.from("watchlists").select("user_id, experience_id").execute().value {
+            for item in watchlists {
+                if let creatorID = expToCreatorMap[item.experience_id] {
+                    if let user = item.user_id, user == creatorID { continue }
+                    completionsPerExp[item.experience_id, default: 0] += 1
                 }
             }
         }
 
-        // Calculate total impact per creator (sum of watchlists + saves across every experience created by the user)
+        // Calculate total impact per creator (sum of other people's completions + saves across every experience created by the user)
         var userImpactMap: [UUID: Int] = [:]
         for row in filteredRows {
-            let saves = max(row.save_count ?? 0, savesPerExp[row.id] ?? 0)
-            let watchlists = max(row.completion_count ?? 0, watchlistsPerExp[row.id] ?? 0)
-            userImpactMap[row.user_id, default: 0] += (saves + watchlists)
+            let saves = savesPerExp[row.id] ?? 0
+            let completions = completionsPerExp[row.id] ?? 0
+            userImpactMap[row.user_id, default: 0] += (saves + completions)
         }
 
         struct DetailedDBProfile: Decodable {
@@ -2435,16 +2457,27 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 continuation.finish()
                 return
             }
-            let channel = client.channel("public:experiences")
-            let changeStream = channel.postgresChange(
-                InsertAction.self,
-                schema: "public",
-                table: "experiences"
-            )
+            let channel = client.channel("public:realtime_rankings")
+            let expChange = channel.postgresChange(InsertAction.self, schema: "public", table: "experiences")
+            let compChange = channel.postgresChange(InsertAction.self, schema: "public", table: "experience_completions")
+            let ratingChange = channel.postgresChange(InsertAction.self, schema: "public", table: "ratings")
+            let saveChange = channel.postgresChange(InsertAction.self, schema: "public", table: "experience_saves")
+
             let task = Task {
                 await channel.subscribe()
-                for await _ in changeStream {
-                    continuation.yield(())
+                await withTaskGroup(of: Void.self) { group in
+                    group.addTask {
+                        for await _ in expChange { continuation.yield(()) }
+                    }
+                    group.addTask {
+                        for await _ in compChange { continuation.yield(()) }
+                    }
+                    group.addTask {
+                        for await _ in ratingChange { continuation.yield(()) }
+                    }
+                    group.addTask {
+                        for await _ in saveChange { continuation.yield(()) }
+                    }
                 }
             }
             continuation.onTermination = { _ in

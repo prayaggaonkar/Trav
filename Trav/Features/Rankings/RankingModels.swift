@@ -22,7 +22,7 @@ enum RankingAxis: String, CaseIterable, Identifiable, Sendable {
     case food
     case memorability
     case authenticity
-    case immersion
+    case niche
 
     var id: String { rawValue }
 
@@ -33,7 +33,7 @@ enum RankingAxis: String, CaseIterable, Identifiable, Sendable {
         case .food: return "Food"
         case .memorability: return "Memorability"
         case .authenticity: return "Authenticity"
-        case .immersion: return "Immersion"
+        case .niche: return "Niche"
         }
     }
 
@@ -44,7 +44,7 @@ enum RankingAxis: String, CaseIterable, Identifiable, Sendable {
         case .food: return "Food"
         case .memorability: return "Memorability"
         case .authenticity: return "Authenticity"
-        case .immersion: return "Immersion"
+        case .niche: return "Niche"
         }
     }
 }
@@ -62,10 +62,10 @@ enum RankingScore {
         case .overall:
             let score = rating.overallScore
             return score > 0 ? score : nil
-        case .cost, .food, .memorability, .authenticity, .immersion:
+        case .cost, .food, .memorability, .authenticity, .niche:
             guard let key = axis.radarAxisID, rating.isEnabled(key) else { return nil }
-            guard let score = rating.scores[key], score > 0 else { return nil }
-            return score
+            let score = rating.score(for: key, default: 0)
+            return score > 0 ? score : nil
         }
     }
 

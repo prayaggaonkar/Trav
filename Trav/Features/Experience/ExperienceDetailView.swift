@@ -463,7 +463,7 @@ struct ExperienceDetailView: View {
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
             Button {
                 guard radar != nil else { return }
-                withAnimation(TravAnimation.quick) {
+                withAnimation(.spring(duration: 0.32, bounce: 0.0)) {
                     isSummaryRadarExpanded.toggle()
                 }
             } label: {
@@ -534,7 +534,11 @@ struct ExperienceDetailView: View {
 
             if isSummaryRadarExpanded, let radar {
                 ReadOnlyRadarChartView(rating: radar, showsHeader: false, showsScoreSummary: false)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity
+                    ))
+                    .clipped()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1290,7 +1294,7 @@ private struct PersonRatingCard: View {
 
     private func toggleSubratings() {
         guard !rating.radar.scores.isEmpty else { return }
-        withAnimation(TravAnimation.quick) {
+        withAnimation(.spring(duration: 0.32, bounce: 0.0)) {
             if isPhotoExpanded {
                 isPhotoExpanded = false
             }
@@ -1317,7 +1321,11 @@ private struct PersonRatingCard: View {
                     emphasizesGrid: true
                 )
                 .padding(.top, TravSpacing.md)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .top)),
+                    removal: .opacity
+                ))
+                .clipped()
             }
 
             if isPhotoExpanded, showsPhotoStack {
