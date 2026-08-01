@@ -54,21 +54,24 @@ private struct CreateTabPicker: View {
                         .font(.system(size: 13, weight: selection == tab ? .semibold : .medium))
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
-                        .foregroundStyle(selection == tab ? TravColors.primary : TravColors.muted)
+                        .foregroundStyle(
+                            selection == tab
+                                ? TravColors.accent
+                                : TravColors.primary.opacity(appearance.isLightMode ? 0.4 : 0.55)
+                        )
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .background(
                             Group {
                                 if selection == tab {
                                     RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
-                                        .fill(TravColors.surfaceElevated)
-                                        .shadow(color: Color.black.opacity(0.08), radius: 3, y: 1)
+                                        .fill(TravColors.accentSoft)
                                 }
                             }
                         )
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(tab == .rating ? "Create rating" : "Create experience")
+                .accessibilityLabel(tab == .rating ? "Create rating" : "Itinerary")
                 .accessibilityAddTraits(selection == tab ? [.isSelected] : [])
             }
         }

@@ -18,42 +18,20 @@ struct ExperienceCard: View {
     var onComment: (() -> Void)? = nil
 
     var body: some View {
-        if isUserCard {
-            HeroExperienceCard(
-                experience: experience,
-                badgeText: badgeText,
-                isSaved: isSaved,
-                isLiked: isLiked,
-                connectedLayout: connectedLayout,
-                onTap: onTap,
-                onCreatorTap: onCreatorTap,
-                onSave: onSave,
-                onLike: onLike,
-                onShare: onShare,
-                onComment: onComment
-            )
-        } else {
-            GemPostCardView(
-                experience: experience,
-                badgeText: badgeText,
-                isSaved: isSaved,
-                isLiked: isLiked,
-                connectedLayout: connectedLayout,
-                onTap: onTap,
-                onCreatorTap: onCreatorTap,
-                onSave: onSave,
-                onLike: onLike,
-                onShare: onShare,
-                onComment: onComment
-            )
-        }
-    }
-
-    private var isUserCard: Bool {
-        if experience.creator.displayName.lowercased() == "rec by trav" { return true }
-        if badgeText == "Created by You" || badgeText == "Created by Me" { return true }
-        let systemNames = ["system", "trav editorial", "editorial", "trav"]
-        return !systemNames.contains(experience.creator.displayName.lowercased())
+        // Destinations and itineraries share one card chrome.
+        HeroExperienceCard(
+            experience: experience,
+            badgeText: badgeText,
+            isSaved: isSaved,
+            isLiked: isLiked,
+            connectedLayout: connectedLayout,
+            onTap: onTap,
+            onCreatorTap: onCreatorTap,
+            onSave: onSave,
+            onLike: onLike,
+            onShare: onShare,
+            onComment: onComment
+        )
     }
 }
 
@@ -85,7 +63,7 @@ struct GemPostCardView: View {
     }
 
     private var isCompleted: Bool {
-        isOwn || engagement.isCompleted(experience.id)
+        engagement.isCompleted(experience.id)
     }
 
     private var completedByToDisplay: [CompletionUser] {
@@ -207,24 +185,19 @@ struct GemPostCardView: View {
 
                     Spacer()
 
+                    let isSpotCard = experience.isSpot
                     let resolvedScore = experience.ratingSummary.displayScore ?? experience.rating?.overallScore
-                    if let score = resolvedScore, score > 0 {
-                        let hasCommunity = experience.ratingSummary.hasCommunityValidation || experience.ratingSummary.communityRatingCount > 0
-                        HStack(spacing: 3) {
-                            Image(systemName: hasCommunity ? "hexagon.fill" : "hexagon")
-                                .font(.system(size: 10, weight: .bold))
-                            Text(TravFormatters.score(score))
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(
-                            Capsule().fill(
-                                hasCommunity
-                                    ? AnyShapeStyle(TravColors.accent.opacity(0.92))
-                                    : AnyShapeStyle(Color.black.opacity(0.65))
-                            )
+                    let hasAnyRating = experience.ratingSummary.ratingCount > 0
+                        || experience.ratingSummary.communityRatingCount > 0
+                        || (resolvedScore ?? 0) > 0
+
+                    if isSpotCard && !hasAnyRating {
+                        CircularRatingView(unratedSize: 36)
+                    } else if let score = resolvedScore, score > 0 {
+                        CircularRatingView(
+                            rating: score,
+                            size: 36,
+                            isCommunityValidated: experience.showsCommunityValidatedScore
                         )
                     }
                 }
@@ -287,7 +260,7 @@ struct GemPostCardView: View {
                                 .foregroundStyle(Color(red: 0.2, green: 0.85, blue: 0.45))
 
                             Group {
-                                let isSpotCard = experience.isSpot || experience.stops.count <= 1
+                                let isSpotCard = experience.isSpot
                                 if facepileUsers.count == 1 {
                                     Text(isSpotCard ? "Visited by " : "Completed by ") +
                                     Text(facepileUsers[0].name)
@@ -349,7 +322,7 @@ struct GemPostCardView: View {
                     let resolvedIsSaved = isSavedLocal || engagement.isSaved(experience.id)
 
                     HStack {
-                        // Left Group: Save, Share
+                        // Left Group: Save, Comment, Share
                         HStack(spacing: 16) {
 
                             Button {
@@ -363,6 +336,17 @@ struct GemPostCardView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(resolvedIsSaved ? "Remove bookmark" : "Bookmark")
+
+                            Button {
+                                (onComment ?? onTap)()
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            } label: {
+                                Image(systemName: "bubble.right")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(TravColors.muted)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Comments")
 
                             Button {
                                 onShare?()

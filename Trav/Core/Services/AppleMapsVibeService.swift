@@ -115,13 +115,7 @@ final class AppleMapsVibeService: @unchecked Sendable {
                     longitude: coord.longitude
                 )
 
-                let creator = ProfileSummary(
-                    id: ExperienceInsert.travAdminID,
-                    username: "trav",
-                    displayName: "Rec by Trav",
-                    avatarURL: nil,
-                    isVerified: true
-                )
+                let creator = ExperienceInsert.travCreator
 
                 let summary = ExperienceSummary(
                     id: id,

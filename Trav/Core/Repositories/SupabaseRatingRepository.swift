@@ -124,22 +124,51 @@ struct SupabaseRatingRepository: RatingRepository {
                 let city: String
                 let stops: [String]
                 let is_published: Bool
+                let kind: String
+                let spot_key: String?
+                let latitude: Double?
+                let longitude: Double?
+                let category: String?
             }
             let spotTitle = (cached?.title.isEmpty == false) ? cached!.title : "Spot"
             let spotCity = (cached?.cityName?.isEmpty == false) ? cached!.cityName! : "San Francisco, CA"
+            let firstStop = cached?.stops.first
             let shadowInsert = ExperienceShadowInsert(
                 id: draft.experienceID,
-                user_id: userID,
+                user_id: ExperienceInsert.travAdminID,
                 title: spotTitle,
-                description: "Spot rated by traveler.",
+                description: "Destination experience.",
                 city: spotCity,
                 stops: [spotTitle],
-                is_published: true
+                is_published: true,
+                kind: ExperienceKind.spot.rawValue,
+                spot_key: cached?.spotKey,
+                latitude: firstStop?.latitude,
+                longitude: firstStop?.longitude,
+                category: cached?.category
             )
             _ = try? await client
                 .from("experiences")
                 .upsert(shadowInsert, onConflict: "id")
                 .execute()
+        } else {
+            // Reclaim mis-owned destination rows so ratings count as community.
+            struct SpotOwnerPatch: Encodable {
+                let user_id: UUID
+                let kind: String
+            }
+            let cached = AppleMapsVibeService.shared.cachedExperience(for: draft.experienceID)
+            let looksLikeSpot = cached?.isSpot == true || cached?.stops.count ?? 1 <= 1
+            if looksLikeSpot {
+                _ = try? await client
+                    .from("experiences")
+                    .update(SpotOwnerPatch(
+                        user_id: ExperienceInsert.travAdminID,
+                        kind: ExperienceKind.spot.rawValue
+                    ))
+                    .eq("id", value: expIDStr)
+                    .execute()
+            }
         }
 
         let photoURLs = try await uploadPhotos(draft.photosData, userID: userID, experienceID: draft.experienceID)

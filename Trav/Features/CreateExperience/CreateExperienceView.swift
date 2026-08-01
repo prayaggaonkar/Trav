@@ -50,7 +50,7 @@ struct CreateExperienceView: View {
     @State private var selectedImagesData: [Data] = []
     @State private var selectedUIImages: [UIImage] = []
     @State private var stops: [Stop] = []
-    @State private var rating = RadarRating.defaultRating
+    @State private var rating = RadarRating.emptyRating
 
     @State private var cities: [City] = []
     @State private var selectedCity: City?
@@ -197,7 +197,7 @@ struct CreateExperienceView: View {
                 media: []
             )
         ]
-        rating = SpotRatingAxes.defaultRating
+        rating = RadarRating.emptyRating
 
         Task {
             _ = await resolveCityFromStops()
@@ -209,25 +209,20 @@ struct CreateExperienceView: View {
     private var formContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TravSpacing.lg) {
-                VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("CREATE EXPERIENCE")
-                            .font(TravTypography.overline())
-                            .tracking(2.5)
-                            .foregroundStyle(TravColors.accent)
+                VStack(alignment: .leading, spacing: TravSpacing.md) {
+                    Text("Create Itinerary")
+                        .font(TravTypography.displayMedium())
+                        .tracking(2.5)
+                        .foregroundStyle(TravColors.accent)
+                        .lineLimit(1)
 
-                        Text("New Route")
-                            .font(TravTypography.displayMedium())
-                            .foregroundStyle(TravColors.primary)
-                            .lineLimit(1)
-                    }
-
-                    Text("Chain at least two spots into a route and share it with the world.")
+                    Text("Chain multiple spots into an itinerary and share it with the world.")
                         .font(TravTypography.bodyMedium())
                         .foregroundStyle(TravColors.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.top, TravSpacing.md)
+                .padding(.top, TravSpacing.xxs)
+                .padding(.bottom, TravSpacing.sm)
                 .travAppear()
 
                 TravFormSection(title: "Basic Info") {
@@ -238,6 +233,11 @@ struct CreateExperienceView: View {
                                 placeholder: "e.g. SF Coffee & Books Tour",
                                 text: $title
                             )
+                            .onChange(of: title) { _, newValue in
+                                if newValue.count > 100 {
+                                    title = String(newValue.prefix(100))
+                                }
+                            }
                         }
 
                         VStack(alignment: .leading, spacing: TravSpacing.xxs) {
@@ -245,65 +245,31 @@ struct CreateExperienceView: View {
                                 .font(TravTypography.labelMedium())
                                 .foregroundStyle(TravColors.muted)
                             TextField(
-                                "What makes this route special?",
+                                "What makes this itinerary special?",
                                 text: $descriptionText,
                                 axis: .vertical
                             )
                             .font(TravTypography.bodyLarge())
-                            .lineLimit(3...6)
-                            .padding(TravSpacing.md)
+                            .lineLimit(2...12)
+                            .padding(.horizontal, TravSpacing.md)
+                            .padding(.vertical, TravSpacing.sm)
                             .background(TravColors.surfaceElevated)
                             .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
                             .overlay {
                                 RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
                                     .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
                             }
-                        }
-
-                        VStack(alignment: .leading, spacing: TravSpacing.xxs) {
-                            Text("City")
-                                .font(TravTypography.labelMedium())
-                                .foregroundStyle(TravColors.muted)
-
-                            HStack(spacing: TravSpacing.sm) {
-                                Image(systemName: "mappin.and.ellipse")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(selectedCity != nil ? TravColors.accent : TravColors.muted)
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    if let selectedCity {
-                                        Text(selectedCity.name)
-                                            .font(TravTypography.bodyLarge())
-                                            .foregroundStyle(TravColors.primary)
-                                        Text("Automatically set from first stop")
-                                            .font(TravTypography.caption())
-                                            .foregroundStyle(TravColors.muted)
-                                    } else {
-                                        Text("Add your first stop below to detect city")
-                                            .font(TravTypography.bodyLarge())
-                                            .foregroundStyle(TravColors.muted)
-                                    }
+                            .onChange(of: descriptionText) { _, newValue in
+                                if newValue.count > 1000 {
+                                    descriptionText = String(newValue.prefix(1000))
                                 }
-                                Spacer()
-                            }
-                            .padding(TravSpacing.md)
-                            .background(TravColors.surfaceElevated)
-                            .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
-                                    .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
                             }
                         }
                     }
                 }
                 .travAppear(delay: 0.05)
 
-                TravFormSection(title: "Add Media") {
-                    mediaSection
-                }
-                .travAppear(delay: 0.08)
-
-                TravFormSection(title: "Stops Along the Way") {
+                TravFormSection(title: "Destinations Along the Way") {
                     VStack(spacing: TravSpacing.sm) {
                         if !stops.isEmpty {
                             VStack(spacing: TravSpacing.xs) {
@@ -316,19 +282,30 @@ struct CreateExperienceView: View {
                         StopAutocompleteField(stops: $stops)
                     }
                 }
+                .travAppear(delay: 0.08)
+
+                TravFormSection(title: "Add Media") {
+                    mediaSection
+                }
                 .travAppear(delay: 0.12)
 
-                TravFormSection(title: "Experience Ratings") {
-                    InteractiveRadarChartView(rating: $rating)
-                }
-                .travAppear(delay: 0.15)
+                VStack(alignment: .leading, spacing: TravSpacing.sm) {
+                    HStack(alignment: .center, spacing: TravSpacing.sm) {
+                        Text("Creator Rating")
+                            .font(TravTypography.titleMedium())
+                            .foregroundStyle(TravColors.primary)
 
-                if let validationHint {
-                    Text(validationHint)
+                        Spacer(minLength: 0)
+
+                        CreateOverallScoreBox(score: rating.overallScore, hasActiveScores: rating.hasActiveScores)
+                    }
+
+                    InteractiveRadarChartView(rating: $rating, showsHeader: false)
+                    Text("Drag each point to rate. Turn off subratings that don't apply.")
                         .font(TravTypography.caption())
                         .foregroundStyle(TravColors.muted)
-                        .frame(maxWidth: .infinity, alignment: .center)
                 }
+                .travAppear(delay: 0.15)
 
                 PrimaryButton(
                     title: "Publish Experience",
@@ -339,9 +316,17 @@ struct CreateExperienceView: View {
                 }
                 .travAppear(delay: 0.18)
 
-                Spacer(minLength: TravSpacing.xxl)
+                if let validationHint {
+                    Text(validationHint)
+                        .font(TravTypography.caption())
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+
+                Spacer(minLength: TravSpacing.xxl + TravSpacing.xl)
             }
             .padding(.horizontal, TravSpacing.screenHorizontal)
+            .padding(.bottom, TravSpacing.xl)
         }
     }
 
@@ -562,6 +547,7 @@ struct CreateExperienceView: View {
             && distinctStopCount >= ExperienceKind.itinerary.minimumStops
             && duplicateStopName == nil
             && !selectedImagesData.isEmpty
+            && rating.hasActiveScores
             && !isSubmitting
     }
 
@@ -576,6 +562,9 @@ struct CreateExperienceView: View {
         }
         if distinctStopCount < 2 { return "An itinerary needs at least 2 different spots." }
         if selectedImagesData.isEmpty { return "Add at least one photo to publish." }
+        if !rating.hasActiveScores {
+            return "Rate at least one category on the polygon to publish."
+        }
         return nil
     }
 
@@ -598,6 +587,11 @@ struct CreateExperienceView: View {
     private func submit() {
         guard !selectedImagesData.isEmpty else {
             errorMessage = "Add at least one photo to publish."
+            showErrorAlert = true
+            return
+        }
+        guard rating.hasActiveScores else {
+            errorMessage = "Rate at least one category on the polygon to publish."
             showErrorAlert = true
             return
         }
@@ -657,7 +651,7 @@ struct CreateExperienceView: View {
         selectedUIImages = []
         stops = []
         selectedCity = nil
-        rating = RadarRating.defaultRating
+        rating = RadarRating.emptyRating
         showSuccess = false
         CreateDraft.clear()
     }

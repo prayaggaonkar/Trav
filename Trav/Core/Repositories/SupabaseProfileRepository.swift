@@ -372,8 +372,12 @@ struct SupabaseProfileRepository: ProfileRepository {
         }
 
         let creatorsMap = await mapper.fetchCreators(for: rows)
+        // Spots belong to Trav and surface under Completed when rated — not Created.
+        let items = rows
+            .map { mapper.summary(from: $0, creators: creatorsMap) }
+            .filter(\.isItinerary)
         return Paginated(
-            items: rows.map { mapper.summary(from: $0, creators: creatorsMap) },
+            items: items,
             page: page,
             hasMore: rows.count == pageSize
         )

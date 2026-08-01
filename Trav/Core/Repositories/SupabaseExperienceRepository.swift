@@ -628,7 +628,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             let is_published: Bool
         }
 
-        let owner = try await currentUserID(client: client)
+        let owner = ExperienceInsert.travAdminID
         try await client
             .from("experiences")
             .upsert(Upsert(
@@ -1135,13 +1135,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 .value
         }
 
-        let recCreator = ProfileSummary(
-            id: StableUUID.from("rec_by_trav"),
-            username: "rec_by_trav",
-            displayName: "Rec by Trav",
-            avatarURL: nil,
-            isVerified: true
-        )
+        let recCreator = ExperienceInsert.travCreator
 
         let catalog = try? await CityCatalog.shared.all()
 
@@ -2575,20 +2569,20 @@ struct SupabaseExperienceRepository: ExperienceRepository {
     }
 
     static var spotCreator: ProfileSummary {
-        ProfileSummary(
-            id: StableUUID.from("creator:trav"),
-            username: "trav",
-            displayName: "Trav",
-            avatarURL: nil,
-            isVerified: true
-        )
+        ExperienceInsert.travCreator
     }
 
     private func resolvedCreator(
         for row: DBExperienceRow,
         creators: [UUID: DBProfileSummary]
     ) -> ProfileSummary {
-        if row.user_id == ExperienceInsert.travAdminID || row.user_id == StableUUID.from("creator:trav") || row.creator?.username == "trav" {
+        if row.user_id == ExperienceInsert.travAdminID
+            || ExperienceInsert.isTravOwned(
+                creatorID: row.user_id,
+                username: row.creator?.username ?? "",
+                displayName: row.creator?.display_name ?? ""
+            )
+            || row.creator?.username == "trav" {
             return Self.spotCreator
         }
         return row.creator?.summary
@@ -2667,13 +2661,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
     }
 
     private func experience(from place: DBPlace, id: UUID) async throws -> Experience {
-        let recCreator = ProfileSummary(
-            id: StableUUID.from("rec_by_trav"),
-            username: "rec_by_trav",
-            displayName: "Rec by Trav",
-            avatarURL: nil,
-            isVerified: true
-        )
+        let recCreator = ExperienceInsert.travCreator
 
         var stops = Self.parseStops(place.stops ?? [])
         if stops.isEmpty {

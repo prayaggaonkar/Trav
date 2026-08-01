@@ -9,6 +9,7 @@ struct InteractiveRadarChartView: View {
     let axes: [RadarAxis]
     let minScore: Double
     let maxScore: Double
+    var showsHeader: Bool
 
     @State private var activeAxisIndex: Int? = nil
     @State private var activeScoreValue: Double? = nil
@@ -18,17 +19,21 @@ struct InteractiveRadarChartView: View {
         rating: Binding<RadarRating>,
         axes: [RadarAxis] = RadarAxis.defaultAxes,
         minScore: Double = 1.0,
-        maxScore: Double = 10.0
+        maxScore: Double = 10.0,
+        showsHeader: Bool = true
     ) {
         self._rating = rating
         self.axes = axes
         self.minScore = minScore
         self.maxScore = maxScore
+        self.showsHeader = showsHeader
     }
 
     var body: some View {
         VStack(spacing: TravSpacing.sm) {
-            headerView
+            if showsHeader {
+                headerView
+            }
 
             GeometryReader { geometry in
                 let size = min(geometry.size.width, geometry.size.height)

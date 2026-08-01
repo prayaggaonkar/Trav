@@ -708,14 +708,7 @@ struct FeedView: View {
             items = items.filter { engagement.isSaved($0.id) }
         }
 
-        return items.sorted { a, b in
-            let aIsTrav = a.creator.id == ExperienceInsert.travAdminID || a.creator.username.lowercased() == "trav" || a.creator.displayName.lowercased() == "rec by trav"
-            let bIsTrav = b.creator.id == ExperienceInsert.travAdminID || b.creator.username.lowercased() == "trav" || b.creator.displayName.lowercased() == "rec by trav"
-            if aIsTrav != bIsTrav {
-                return !aIsTrav // Real user/follower posts come FIRST! Rec by Trav comes next.
-            }
-            return false
-        }
+        return items
     }
 
     private func experienceMatchesCity(_ experience: ExperienceSummary, city: City) -> Bool {

@@ -99,13 +99,8 @@ struct SpotSuggestion: Identifiable, Hashable, Sendable {
             longitude: longitude
         )
         let city = resolvedCityName
-        let creatorSummary = currentUser ?? ProfileSummary(
-            id: StableUUID.from("provider:apple_maps"),
-            username: "maps",
-            displayName: "Apple Maps",
-            avatarURL: nil,
-            isVerified: true
-        )
+        // Destinations are never person-authored — always Trav.
+        let creatorSummary = ExperienceInsert.travCreator
         let summary = ExperienceSummary(
             id: spotUUID,
             kind: .spot,
@@ -298,6 +293,13 @@ enum SpotRatingAxes {
             "Worth It": 9.2
         ])
     }
+
+    static var emptyRating: RadarRating {
+        RadarRating(
+            scores: [:],
+            disabledCategories: Set(axes.map(\.id))
+        )
+    }
 }
 
 /// Sheet for rating a searched spot (e.g. Big C Hike, Dolores Park, Coit Tower).
@@ -311,7 +313,7 @@ struct RateSpotSheet: View {
     let spot: SpotSuggestion
     var onSaved: (() -> Void)? = nil
 
-    @State private var rating: RadarRating = SpotRatingAxes.defaultRating
+    @State private var rating: RadarRating = SpotRatingAxes.emptyRating
     @State private var note: String = ""
     @State private var isSaving = false
     @State private var saveError: String?
@@ -338,7 +340,7 @@ struct RateSpotSheet: View {
                                 Image(systemName: "star.fill")
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundStyle(Color.yellow)
-                                Text(String(format: "%.1f / 10", rating.overallScore))
+                                Text(rating.hasActiveScores ? String(format: "%.1f / 10", rating.overallScore) : "-- / 10")
                                     .font(.system(size: 14, weight: .bold, design: .rounded))
                                     .foregroundStyle(.white)
                             }
@@ -404,7 +406,7 @@ struct RateSpotSheet: View {
                         .background(TravColors.accent)
                         .clipShape(Capsule())
                     }
-                    .disabled(isSaving)
+                    .disabled(isSaving || !rating.hasActiveScores)
                     .buttonStyle(TravPressButtonStyle())
                 }
                 .padding(TravSpacing.lg)
@@ -426,6 +428,14 @@ struct RateSpotSheet: View {
                 }
             }
         )
+        .alert("Couldn't Save", isPresented: .init(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(saveError ?? "")
+        }
     }
 
     private var spotHeaderCard: some View {
@@ -471,6 +481,10 @@ struct RateSpotSheet: View {
         guard let user = session.currentUser else {
             dismiss()
             router.presentAuth()
+            return
+        }
+        guard rating.hasActiveScores else {
+            saveError = "Rate at least one category on the polygon to submit."
             return
         }
 
@@ -603,13 +617,7 @@ struct SpotDetailSheet: View {
             media: []
         )
 
-        let creator = ProfileSummary(
-            id: ExperienceInsert.travAdminID,
-            username: "trav",
-            displayName: "Rec by Trav",
-            avatarURL: nil,
-            isVerified: true
-        )
+        let creator = ExperienceInsert.travCreator
 
         let exp = Experience(
             id: id,

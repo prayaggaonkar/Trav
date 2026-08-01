@@ -137,17 +137,28 @@ struct SupabaseEngagementRepository: EngagementRepository {
             let city: String
             let stops: [String]
             let is_published: Bool
+            let kind: String
+            let spot_key: String?
+            let latitude: Double?
+            let longitude: Double?
+            let category: String?
         }
         let spotTitle = (cached?.title.isEmpty == false) ? cached!.title : "Spot"
         let spotCity = (cached?.cityName?.isEmpty == false) ? cached!.cityName! : "San Francisco, CA"
+        let firstStop = cached?.stops.first
         let shadowInsert = ExperienceShadowInsert(
             id: experienceID,
-            user_id: userID,
+            user_id: ExperienceInsert.travAdminID,
             title: spotTitle,
-            description: "Spot rated by traveler.",
+            description: "Destination experience.",
             city: spotCity,
             stops: [spotTitle],
-            is_published: true
+            is_published: true,
+            kind: ExperienceKind.spot.rawValue,
+            spot_key: cached?.spotKey,
+            latitude: firstStop?.latitude,
+            longitude: firstStop?.longitude,
+            category: cached?.category
         )
         _ = try? await client
             .from("experiences")
@@ -158,6 +169,7 @@ struct SupabaseEngagementRepository: EngagementRepository {
     func ensureExperienceExists(for summary: ExperienceSummary, ownerID: UUID) async throws {
         guard let client = SupabaseManager.client else { return }
         let idStr = summary.id.uuidString.lowercased()
+        let isSpot = summary.isSpot || summary.stops.count <= 1
 
         struct Existing: Decodable { let id: UUID }
         let existing: [Existing] = (try? await client
@@ -167,7 +179,21 @@ struct SupabaseEngagementRepository: EngagementRepository {
             .limit(1)
             .execute()
             .value) ?? []
-        if !existing.isEmpty { return }
+        if !existing.isEmpty {
+            // Legacy destination rows may have been attributed to the first rater — reclaim for Trav.
+            if isSpot {
+                struct SpotOwnerPatch: Encodable {
+                    let user_id: UUID
+                    let kind: String
+                }
+                _ = try? await client
+                    .from("experiences")
+                    .update(SpotOwnerPatch(user_id: ExperienceInsert.travAdminID, kind: ExperienceKind.spot.rawValue))
+                    .eq("id", value: idStr)
+                    .execute()
+            }
+            return
+        }
 
         // Upsert exact experience row using summary data so place name & city are 100% exact in Supabase!
         struct ExperienceUpsert: Encodable {
@@ -183,6 +209,7 @@ struct SupabaseEngagementRepository: EngagementRepository {
             let latitude: Double?
             let longitude: Double?
             let spot_key: String?
+            let kind: String
         }
 
         let stopNames = summary.stops.map(\.name)
@@ -190,9 +217,9 @@ struct SupabaseEngagementRepository: EngagementRepository {
         let cityName = (summary.cityName?.isEmpty == false) ? summary.cityName! : "San Francisco, CA"
         let upsertData = ExperienceUpsert(
             id: summary.id,
-            user_id: ownerID,
+            user_id: isSpot ? ExperienceInsert.travAdminID : ownerID,
             title: summary.title,
-            description: "Spot rated by traveler.",
+            description: isSpot ? "Destination experience." : summary.title,
             city: cityName,
             city_id: summary.cityID,
             stops: stopNames.isEmpty ? [summary.title] : stopNames,
@@ -200,7 +227,8 @@ struct SupabaseEngagementRepository: EngagementRepository {
             category: summary.category,
             latitude: summary.latitude ?? firstStop?.latitude,
             longitude: summary.longitude ?? firstStop?.longitude,
-            spot_key: summary.spotKey
+            spot_key: summary.spotKey,
+            kind: isSpot ? ExperienceKind.spot.rawValue : ExperienceKind.itinerary.rawValue
         )
 
         _ = try? await client

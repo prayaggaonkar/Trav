@@ -42,6 +42,18 @@ struct ExperienceDetailView: View {
             .modifier(HiddenToolbarBackgroundVisibility())
         }
         .travShareSheet(item: $shareItem)
+        .overlay {
+            if showComments {
+                CommentsDrawer(
+                    experienceID: experienceID,
+                    onCountChange: { localCommentCount = $0 },
+                    onDismiss: { showComments = false }
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(50)
+            }
+        }
+        .animation(TravAnimation.quick, value: showComments)
         .overlay(alignment: .topLeading) {
             Button {
                 dismissEnv()
@@ -156,11 +168,12 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func hero(_ experience: Experience) -> some View {
         let commentCount = localCommentCount ?? experience.commentCount
-        let isSpotRec = (experience.creator.displayName.lowercased() == "rec by trav" || experience.creator.username.lowercased() == "trav" || experience.stops.count <= 1)
+        let isSpotRec = experience.isSpot || experience.isTravOwned
 
         HeroMediaCarousel(
             urls: experience.imageURLs,
-            stops: experience.stops,
+            // Destinations keep the map under ADDRESS — never as the hero fallback.
+            stops: experience.isSpot ? [] : experience.stops,
             isRecByTrav: isSpotRec,
             height: TravLayout.heroExperienceHeight,
             onImageTap: { index in
@@ -178,7 +191,7 @@ struct ExperienceDetailView: View {
                 .fixedSize(horizontal: false, vertical: true)
         } accessory: {
             HStack(alignment: .center, spacing: TravSpacing.md) {
-                let isSpotRec = (experience.creator.displayName.lowercased() == "rec by trav" || experience.creator.username.lowercased() == "trav" || experience.stops.count <= 1)
+                let isSpotRec = experience.isSpot || experience.isTravOwned
 
                 if !isSpotRec {
                     Button {
@@ -210,6 +223,26 @@ struct ExperienceDetailView: View {
                     .overlay(Capsule().stroke(TravColors.accent.opacity(0.4), lineWidth: 1))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+
+                Button {
+                    showComments = true
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: "bubble.right.fill")
+                            .font(.system(size: 15.5, weight: .semibold))
+                        Text(TravFormatters.count(commentCount))
+                            .font(.system(size: 13.8, weight: .bold, design: .rounded))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 11.5)
+                    .padding(.vertical, 11.5)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(TravPressButtonStyle())
+                .layoutPriority(1)
+                .accessibilityLabel("Comments, \(commentCount)")
             }
         }
     }
@@ -217,7 +250,8 @@ struct ExperienceDetailView: View {
     private func actionBar(_ experience: Experience) -> some View {
         let isOwn = (session.currentUser?.id == experience.creator.id)
         let isSaved = engagement.isSaved(experience.id)
-        let isCompleted = isOwn || engagement.isCompleted(experience.id)
+        // Complete always means rated — creators are not auto-completed.
+        let isCompleted = engagement.isCompleted(experience.id)
         let summary = summary(from: experience)
 
         return HStack(alignment: .top, spacing: 0) {
@@ -349,11 +383,10 @@ struct ExperienceDetailView: View {
 
     @ViewBuilder
     private func overviewSection(_ experience: Experience) -> some View {
-        let isSpotRec = (experience.creator.displayName.lowercased() == "rec by trav" || experience.creator.username.lowercased() == "trav" || experience.stops.count <= 1)
-
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-            if experience.stops.count > 1 {
-                ExperienceRouteMapView(stops: experience.stops, isRecByTrav: isSpotRec)
+            // Spots and itineraries both get the map under ADDRESS / TIMELINE.
+            if !experience.stops.isEmpty {
+                ExperienceRouteMapView(stops: experience.stops, isRecByTrav: false)
             }
 
             ratingSection(experience)
@@ -380,7 +413,7 @@ struct ExperienceDetailView: View {
                     Image(systemName: "person.3.fill")
                         .font(.system(size: 26))
                         .foregroundStyle(TravColors.muted.opacity(0.6))
-                    Text("No visits or reviews logged yet.\nBe the first to rate & review this spot!")
+                    Text("No visits or reviews logged yet.\nBe the first to rate & review this experience!")
                         .font(TravTypography.bodyMedium())
                         .foregroundStyle(TravColors.muted)
                         .multilineTextAlignment(.center)
@@ -408,7 +441,6 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func averageCommunityRatingCard(_ experience: Experience) -> some View {
         let summary = experience.ratingSummary
-        let radar = summary.displayRadar(creatorRadar: experience.rating)
         let creatorID = experience.creator.id
         let communityRatings = ratings.filter { $0.author.id != creatorID }
         let communityCount = max(summary.communityRatingCount, communityRatings.count)
@@ -425,6 +457,9 @@ struct ExperienceDetailView: View {
         }()
         let score = summary.displayScore ?? calcAvg
         let isCreatorOnly = !hasCommunity && (summary.isCreatorOnly || score != nil)
+        // Experience.rating is often unset for creator-only posts; fall back to the
+        // creator's entry in the loaded ratings list so the summary row can expand.
+        let radar = resolvedSummaryRadar(for: experience, hasCommunity: hasCommunity)
 
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
             Button {
@@ -434,10 +469,15 @@ struct ExperienceDetailView: View {
                 }
             } label: {
                 HStack(alignment: .center, spacing: TravSpacing.md) {
+                    // Creator-only: only the star is muted — the badge box and score stay full color.
                     HStack(spacing: 5) {
                         Image(systemName: "star.fill")
                             .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(Color(red: 0.95, green: 0.75, blue: 0.15).opacity(0.9))
+                            .foregroundStyle(
+                                hasCommunity
+                                    ? Color(red: 0.95, green: 0.75, blue: 0.15)
+                                    : TravColors.muted
+                            )
                         Text(score != nil ? TravFormatters.score(score!) : "--")
                             .font(.system(size: 28, weight: .black, design: .rounded))
                             .foregroundStyle(hasCommunity ? Color.white : TravColors.primary)
@@ -450,15 +490,15 @@ struct ExperienceDetailView: View {
                             .fill(
                                 hasCommunity
                                     ? Color(red: 0.52, green: 0.24, blue: 0.86)
-                                    : TravColors.surfaceElevated
+                                    : TravColors.surface
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
                                     .stroke(
                                         hasCommunity
                                             ? Color(red: 0.52, green: 0.24, blue: 0.86)
-                                            : TravColors.border.opacity(0.5),
-                                        lineWidth: 1
+                                            : TravColors.accent.opacity(0.45),
+                                        lineWidth: 1.25
                                     )
                             )
                     )
@@ -488,10 +528,10 @@ struct ExperienceDetailView: View {
                             .padding(.trailing, 22)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(radar == nil)
 
             if isSummaryRadarExpanded, let radar {
                 ReadOnlyRadarChartView(rating: radar, showsHeader: false, showsScoreSummary: false)
@@ -504,6 +544,65 @@ struct ExperienceDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, TravSpacing.xs)
+    }
+
+    /// Radar for the summary expander: prefer community/creator radar on the experience,
+    /// then average loaded community ratings (needed for Trav-owned spots), then creator.
+    private func resolvedSummaryRadar(for experience: Experience, hasCommunity: Bool) -> RadarRating? {
+        if let radar = experience.ratingSummary.displayRadar(creatorRadar: experience.rating),
+           !radar.scores.isEmpty {
+            return radar
+        }
+
+        let creatorID = experience.creator.id
+
+        if hasCommunity {
+            let communityRadars = ratings
+                .filter { $0.author.id != creatorID && !$0.radar.scores.isEmpty }
+                .map(\.radar)
+            if let averaged = Self.averageRadars(communityRadars) {
+                return averaged
+            }
+            // Trav-owned spots: every human rating is community validation.
+            if let any = ratings.first(where: { !$0.radar.scores.isEmpty })?.radar {
+                return any
+            }
+        }
+
+        if let creatorRadar = ratings.first(where: { $0.author.id == creatorID })?.radar,
+           !creatorRadar.scores.isEmpty {
+            return creatorRadar
+        }
+
+        if let only = ratings.first(where: { !$0.radar.scores.isEmpty })?.radar {
+            return only
+        }
+
+        return nil
+    }
+
+    /// Mean per-axis scores across raters (only axes each rater left enabled).
+    private static func averageRadars(_ radars: [RadarRating]) -> RadarRating? {
+        guard !radars.isEmpty else { return nil }
+
+        var sums: [String: Double] = [:]
+        var counts: [String: Int] = [:]
+        for radar in radars {
+            for (key, value) in radar.scores where radar.isEnabled(key) {
+                sums[key, default: 0] += value
+                counts[key, default: 0] += 1
+            }
+        }
+        guard !sums.isEmpty else { return nil }
+
+        var averages: [String: Double] = [:]
+        for (key, sum) in sums {
+            let count = Double(counts[key] ?? 1)
+            averages[key] = ((sum / count) * 10.0).rounded() / 10.0
+        }
+
+        let disabled = Set(radars.flatMap(\.scores.keys)).subtracting(averages.keys)
+        return RadarRating(scores: averages, disabledCategories: disabled)
     }
 
     private func sortedRatings(for experience: Experience) -> [Rating] {
@@ -698,10 +797,26 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
                     .offset(x: -CGFloat(currentIndex) * width + dragOffset)
                     .frame(width: width, height: height, alignment: .leading)
                     .clipped()
-                } else {
+                } else if !stops.isEmpty {
                     ExperienceRouteMapView(stops: stops, isRecByTrav: isRecByTrav)
                         .frame(width: width, height: height)
                         .clipped()
+                } else {
+                    // Spot / imageless cover — map lives below ADDRESS instead.
+                    ZStack {
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.12, green: 0.12, blue: 0.16),
+                                Color(red: 0.22, green: 0.18, blue: 0.32)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        Image(systemName: "mappin.and.ellipse")
+                            .font(.system(size: 44, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.28))
+                    }
+                    .frame(width: width, height: height)
                 }
 
                 LinearGradient(

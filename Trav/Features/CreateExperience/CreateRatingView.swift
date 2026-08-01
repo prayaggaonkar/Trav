@@ -5,10 +5,9 @@ import MapKit
 /// Create Rating: the screen every completion flows through.
 ///
 /// Rating is mandatory, so this is where "Complete" lands. Everything describing
-/// the experience is read-only — the user is only adding their own scores, an
-/// optional review and up to three photos. Submitting creates the rating, marks
-/// the experience completed, and lets the database recompute averages, the
-/// profile Completed tab and the feed.
+/// the experience is read-only — the user is only adding their own scores and up
+/// to three photos. Submitting creates the rating, marks the experience completed,
+/// and lets the database recompute averages, the profile Completed tab and the feed.
 struct CreateRatingView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(SessionStore.self) private var session
@@ -27,8 +26,7 @@ struct CreateRatingView: View {
     @State private var isSearching = false
     @State private var searchTask: Task<Void, Never>?
 
-    @State private var radar = RadarRating.defaultRating
-    @State private var review = ""
+    @State private var radar = RadarRating.emptyRating
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var photosData: [Data] = []
     @State private var photoImages: [UIImage] = []
@@ -75,7 +73,7 @@ struct CreateRatingView: View {
                 header
 
                 if let target {
-                    TravFormSection(title: "Experience") {
+                    createRatingSection(title: "Experience") {
                         LockedExperiencePreview(
                             summary: target,
                             canChange: router.pendingRatingTarget == nil && !hasAlreadyRated
@@ -85,7 +83,7 @@ struct CreateRatingView: View {
                     }
                     .travAppear(delay: 0.05)
                 } else {
-                    TravFormSection(title: "What did you finish?") {
+                    createRatingSection(title: "Where did you go?") {
                         searchSection
                     }
                     .travAppear(delay: 0.05)
@@ -95,10 +93,10 @@ struct CreateRatingView: View {
                     alreadyRatedBanner
                         .travAppear(delay: 0.08)
                 } else {
-                    TravFormSection(title: "Your Rating") {
+                    createRatingSection(title: "Your Rating", trailing: { overallScoreBadge }) {
                         VStack(alignment: .leading, spacing: TravSpacing.sm) {
-                            InteractiveRadarChartView(rating: $radar)
-                            Text("Drag each corner to score it. Turn off anything that doesn't apply.")
+                            InteractiveRadarChartView(rating: $radar, showsHeader: false)
+                            Text("Drag each point to rate. Turn off subratings that don't apply.")
                                 .font(TravTypography.caption())
                                 .foregroundStyle(TravColors.muted)
                         }
@@ -107,37 +105,10 @@ struct CreateRatingView: View {
                     .opacity(target == nil ? 0.45 : 1)
                     .disabled(target == nil)
 
-                    TravFormSection(title: "Review (Optional)") {
-                        VStack(alignment: .leading, spacing: TravSpacing.xxs) {
-                            TextField(
-                                "How was it? What should other people know?",
-                                text: $review,
-                                axis: .vertical
-                            )
-                            .font(TravTypography.bodyLarge())
-                            .lineLimit(3...8)
-                            .padding(TravSpacing.md)
-                            .background(TravColors.surfaceElevated)
-                            .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
-                                    .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
-                            }
-
-                            Text("\(review.count)/1000")
-                                .font(TravTypography.caption())
-                                .foregroundStyle(review.count > 1000 ? .red : TravColors.muted)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                    }
-                    .travAppear(delay: 0.13)
-                    .opacity(target == nil ? 0.45 : 1)
-                    .disabled(target == nil)
-
-                    TravFormSection(title: "Photos (Optional)") {
+                    createRatingSection(title: "Photos (Optional)") {
                         photoSection
                     }
-                    .travAppear(delay: 0.16)
+                    .travAppear(delay: 0.13)
                     .opacity(target == nil ? 0.45 : 1)
                     .disabled(target == nil)
 
@@ -158,11 +129,44 @@ struct CreateRatingView: View {
                     .travAppear(delay: 0.19)
                 }
 
-                Spacer(minLength: TravSpacing.xxl)
+                Spacer(minLength: TravSpacing.xxl + TravSpacing.xl)
             }
             .padding(.horizontal, TravSpacing.screenHorizontal)
+            .padding(.bottom, TravSpacing.xl)
         }
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    /// Shared section chrome so Experience / Your Rating / Photos titles stay identical.
+    private func createRatingSection<Content: View>(
+        title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        createRatingSection(title: title, trailing: { EmptyView() }, content: content)
+    }
+
+    private func createRatingSection<Content: View, Trailing: View>(
+        title: String,
+        @ViewBuilder trailing: () -> Trailing,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+            HStack(alignment: .center, spacing: TravSpacing.sm) {
+                Text(title)
+                    .font(TravTypography.titleMedium())
+                    .foregroundStyle(TravColors.primary)
+
+                Spacer(minLength: 0)
+
+                trailing()
+            }
+
+            content()
+        }
+    }
+
+    private var overallScoreBadge: some View {
+        CreateOverallScoreBox(score: radar.overallScore, hasActiveScores: radar.hasActiveScores)
     }
 
     private var alreadyRatedBanner: some View {
@@ -204,32 +208,31 @@ struct CreateRatingView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: TravSpacing.xs) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("CREATE RATING")
-                    .font(TravTypography.overline())
-                    .tracking(2.5)
-                    .foregroundStyle(TravColors.accent)
+        VStack(alignment: .leading, spacing: TravSpacing.md) {
+            Text(hasAlreadyRated ? "Already Rated" : "Create Rating")
+                .font(TravTypography.displayMedium())
+                .tracking(hasAlreadyRated ? 0 : 2.5)
+                .foregroundStyle(hasAlreadyRated ? TravColors.primary : TravColors.accent)
+                .lineLimit(1)
 
-                Text(hasAlreadyRated ? "Already Rated" : "Rate & Complete")
-                    .font(TravTypography.displayMedium())
-                    .foregroundStyle(TravColors.primary)
-                    .lineLimit(1)
-            }
-
-            Text(
-                hasAlreadyRated
-                    ? "Each experience can only be rated once."
-                    : (target == nil
-                        ? "Search for any spot, cafe, or creator itinerary you finished, then score it."
-                        : "Score what you experienced. Submitting marks it completed.")
-            )
+            Text(headerSubtitle)
                 .font(TravTypography.bodyMedium())
                 .foregroundStyle(TravColors.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.top, TravSpacing.md)
+        .padding(.top, TravSpacing.xxs)
+        .padding(.bottom, TravSpacing.sm)
         .travAppear()
+    }
+
+    private var headerSubtitle: String {
+        if hasAlreadyRated {
+            return "Each experience can only be rated once."
+        }
+        if let target {
+            return "Rate \(target.title)! Add photos if you'd like. Submitting a rating marks the experience completed."
+        }
+        return "Search for any destination or creator itinerary you've completed."
     }
 
     // MARK: - Search
@@ -241,7 +244,7 @@ struct CreateRatingView: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(TravColors.muted)
 
-                TextField("Search spots, cafes, and itineraries", text: $searchText)
+                TextField("Search destinations or itineraries.", text: $searchText)
                     .font(TravTypography.bodyLarge())
                     .autocorrectionDisabled()
                     .submitLabel(.search)
@@ -273,7 +276,7 @@ struct CreateRatingView: View {
                     // Apple Maps Spots & Cafes Section
                     if !appleMapSpots.isEmpty {
                         VStack(alignment: .leading, spacing: TravSpacing.xs) {
-                            Text("APPLE MAPS PLACES & CAFES")
+                            Text("DESTINATIONS")
                                 .font(.system(size: 11, weight: .bold, design: .rounded))
                                 .tracking(1.2)
                                 .foregroundStyle(TravColors.muted)
@@ -282,7 +285,7 @@ struct CreateRatingView: View {
                             VStack(spacing: TravSpacing.xxs) {
                                 ForEach(appleMapSpots) { spot in
                                     Button {
-                                        select(spot.asExperienceSummary(creator: session.currentUser?.summary))
+                                        select(spot.asExperienceSummary())
                                     } label: {
                                         appleMapSpotRow(spot)
                                     }
@@ -510,8 +513,7 @@ struct CreateRatingView: View {
     private func clearTarget() {
         target = nil
         existingRating = nil
-        radar = RadarRating.defaultRating
-        review = ""
+        radar = RadarRating.emptyRating
         photoItems = []
         photosData = []
         photoImages = []
@@ -657,19 +659,16 @@ struct CreateRatingView: View {
     private var canSubmit: Bool {
         target != nil
             && !hasAlreadyRated
-            && !radar.scores.isEmpty
-            && radar.scores.contains { radar.isEnabled($0.key) }
-            && review.count <= 1000
+            && radar.hasActiveScores
             && !isSubmitting
     }
 
     private var validationHint: String? {
         if target == nil { return "Pick the experience you finished to start rating." }
         if hasAlreadyRated { return "You've already rated this experience." }
-        if !radar.scores.contains(where: { radar.isEnabled($0.key) }) {
-            return "Keep at least one category on to submit a rating."
+        if !radar.hasActiveScores {
+            return "Rate at least one category on the polygon to submit."
         }
-        if review.count > 1000 { return "Reviews are limited to 1000 characters." }
         return nil
     }
 
@@ -694,7 +693,7 @@ struct CreateRatingView: View {
     }
 
     private func submit() {
-        guard let target, !hasAlreadyRated else { return }
+        guard let target, !hasAlreadyRated, radar.hasActiveScores else { return }
         isSubmitting = true
         errorMessage = nil
 
@@ -703,7 +702,7 @@ struct CreateRatingView: View {
                 let draft = RatingDraft(
                     experienceID: target.id,
                     radar: radar,
-                    review: review.trimmingCharacters(in: .whitespacesAndNewlines),
+                    review: nil,
                     photosData: photosData
                 )
                 try await engagement.submitRating(draft, summary: target, using: environment)
@@ -736,28 +735,29 @@ struct CreateRatingView: View {
         VStack(spacing: TravSpacing.lg) {
             Spacer(minLength: TravSpacing.xxl)
 
-            ZStack {
-                Circle()
-                    .fill(TravColors.accentSoft)
-                    .frame(width: 108, height: 108)
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 54, weight: .semibold))
-                    .foregroundStyle(TravColors.accent)
-            }
-
             VStack(spacing: TravSpacing.xs) {
+                ZStack {
+                    Circle()
+                        .fill(TravColors.accentSoft)
+                        .frame(width: 108, height: 108)
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 54, weight: .semibold))
+                        .foregroundStyle(TravColors.accent)
+                }
+
                 Text("Completed")
                     .font(TravTypography.displayMedium())
                     .foregroundStyle(TravColors.primary)
-
-                Text("Your rating is live. It's on your profile and counts toward the community score.")
-                    .font(TravTypography.bodyMedium())
-                    .foregroundStyle(TravColors.muted)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            PrimaryButton(title: "Rate Something Else") {
+            Text("Your rating is live. Displayed on your profile and is part of the community rating.")
+                .font(TravTypography.bodyMedium())
+                .foregroundStyle(TravColors.muted)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, TravSpacing.sm)
+
+            PrimaryButton(title: "Rate Another Experience") {
                 reset()
             }
 
@@ -816,20 +816,7 @@ private struct LockedExperiencePreview: View {
                     .accessibilityLabel("Experience details are locked")
             }
 
-            if !summary.stops.isEmpty {
-                Text(summary.stops.map(\.name).joined(separator: " → "))
-                    .font(TravTypography.caption())
-                    .foregroundStyle(TravColors.muted)
-                    .lineLimit(2)
-            }
-
             RatingSummaryBadge(summary: summary.ratingSummary)
-
-            if canChange {
-                Button("Choose a different experience", action: onChange)
-                    .font(TravTypography.caption())
-                    .foregroundStyle(TravColors.accent)
-            }
         }
         .padding(TravSpacing.md)
         .background(TravColors.surfaceElevated)
@@ -838,6 +825,25 @@ private struct LockedExperiencePreview: View {
             RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
                 .stroke(TravColors.border.opacity(0.5), lineWidth: 1)
         }
+        .overlay(alignment: .topTrailing) {
+            if canChange {
+                Button(action: onChange) {
+                    Text("Choose a different experience")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .tracking(0.5)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(TravColors.accent)
+                        .clipShape(Capsule())
+                        .shadow(color: TravColors.accent.opacity(0.35), radius: 3, y: 1)
+                }
+                .buttonStyle(.plain)
+                .offset(x: 14, y: -8)
+            }
+        }
+        .padding(.top, canChange ? 10 : 0)
+        .padding(.trailing, canChange ? 8 : 0)
     }
 }
 
