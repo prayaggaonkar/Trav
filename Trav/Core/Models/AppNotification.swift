@@ -10,6 +10,7 @@ enum AppNotificationType: String, Codable, Sendable, Hashable {
     case rating
     case like
     case comment
+    case tripRecommendation = "trip_recommendation"
 
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
@@ -72,6 +73,11 @@ struct AppNotification: Identifiable, Codable, Sendable, Hashable {
                 return "\(name) commented on \"\(title)\"."
             }
             return "\(name) commented on your experience."
+        case .tripRecommendation:
+            if let title = experienceTitle {
+                return "\(name) recommended a spot for your trip to \(title)."
+            }
+            return "\(name) recommended a spot for your upcoming trip."
         }
     }
 
@@ -80,7 +86,7 @@ struct AppNotification: Identifiable, Codable, Sendable, Hashable {
         switch type {
         case .follow, .completion:
             return true
-        case .save, .newExperience, .rating, .like, .comment:
+        case .save, .newExperience, .rating, .like, .comment, .tripRecommendation:
             return referenceID == nil
         }
     }
