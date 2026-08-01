@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import Observation
+import SwiftUI
 
 /// Drives the home Feed tab: pop-up events, user-published experiences, and
 /// curated places. Each source loads independently so a failure in one
@@ -165,26 +166,38 @@ final class FeedViewModel {
         if hasMoreExperiences {
             if let next = await fetchExperiencesPage(experiencePage + 1, using: environment) {
                 experiencePage += 1
-                experiences.append(contentsOf: next.items.filter { item in
+                let newItems = next.items.filter { item in
                     !experiences.contains(where: { $0.id == item.id })
-                })
+                }
+                
+                if !newItems.isEmpty {
+                    Task.detached(priority: .medium) {
+                        for item in newItems {
+                            let lat = item.stops.first?.latitude ?? 0
+                            let lng = item.stops.first?.longitude ?? 0
+                            _ = await AppleMapsVibeService.shared.fetchStreetViewOrMapView(
+                                latitude: lat,
+                                longitude: lng,
+                                title: item.title
+                            )
+                        }
+                    }
+
+                    withAnimation(TravAnimation.enter) {
+                        experiences.append(contentsOf: newItems)
+                    }
+                }
                 hasMoreExperiences = next.hasMore
+                if !newItems.isEmpty { return }
             } else {
                 hasMoreExperiences = false
             }
-            return
         }
 
         await loadMorePlaces(using: environment)
     }
 
     private func loadMorePlaces(using environment: AppEnvironment) async {
-        if appleMapsScrollCount >= 3 {
-            hasMorePlaces = false
-            hasReachedScrollLimit = true
-            return
-        }
-
         let userVibes = environment.session.currentUser?.selectedVibes ?? [
             "🎨 Street Art",
             "🌙 Nightlife",
@@ -195,35 +208,68 @@ final class FeedViewModel {
         let center = cachedLat != nil && cachedLng != nil ? CLLocationCoordinate2D(latitude: cachedLat!, longitude: cachedLng!) : nil
 
         appleMapsScrollCount += 1
-        let nextPageRecs = await AppleMapsVibeService.shared.fetchVibeRecommendations(
+        let nextPage = appleMapsScrollCount
+
+        // 1. Parallelize recommendation engine and DB query execution
+        async let recsTask = AppleMapsVibeService.shared.fetchVibeRecommendations(
             vibes: userVibes,
             city: targetCity,
             center: center,
-            page: appleMapsScrollCount
+            page: nextPage
         )
 
+        let targetPlacePage = places.isEmpty ? 0 : placePage + 1
+        async let dbTask: Paginated<ExperienceSummary>? = hasMorePlaces ? fetchPlacesPage(targetPlacePage, using: environment) : nil
+
+        let (nextPageRecs, dbResult) = await (recsTask, dbTask)
+
         var fetchedFromDB: [ExperienceSummary] = []
-        if hasMorePlaces {
-            let page = places.isEmpty ? 0 : placePage + 1
-            if let next = await fetchPlacesPage(page, using: environment) {
-                placePage = page
-                fetchedFromDB = next.items
-                if !next.hasMore && nextPageRecs.isEmpty {
-                    hasMorePlaces = false
-                }
-            }
+        if let dbResult {
+            placePage = targetPlacePage
+            fetchedFromDB = dbResult.items
         }
 
         let allNewItems = fetchedFromDB + nextPageRecs
-        for item in allNewItems {
-            if !places.contains(where: { $0.id == item.id }) && !experiences.contains(where: { $0.id == item.id }) {
-                places.append(item)
+
+        // If page yielded no new items, try next page offset so infinite scroll never stalls out
+        if allNewItems.isEmpty {
+            let retryRecs = await AppleMapsVibeService.shared.fetchVibeRecommendations(
+                vibes: userVibes,
+                city: targetCity,
+                center: center,
+                page: nextPage + 1
+            )
+            if retryRecs.isEmpty {
+                hasMorePlaces = false
+            } else {
+                appendPlaces(retryRecs)
+            }
+        } else {
+            appendPlaces(allNewItems)
+        }
+    }
+
+    private func appendPlaces(_ newItems: [ExperienceSummary]) {
+        // Pre-warm card images in background so cards appear with zero spinner lag
+        Task.detached(priority: .medium) {
+            for item in newItems {
+                let lat = item.stops.first?.latitude ?? 0
+                let lng = item.stops.first?.longitude ?? 0
+                _ = await AppleMapsVibeService.shared.fetchStreetViewOrMapView(
+                    latitude: lat,
+                    longitude: lng,
+                    title: item.title
+                )
             }
         }
 
-        if appleMapsScrollCount >= 3 {
-            hasMorePlaces = false
-            hasReachedScrollLimit = true
+        // Smooth spring animation state update
+        withAnimation(TravAnimation.enter) {
+            for item in newItems {
+                if !places.contains(where: { $0.id == item.id }) && !experiences.contains(where: { $0.id == item.id }) {
+                    places.append(item)
+                }
+            }
         }
     }
 

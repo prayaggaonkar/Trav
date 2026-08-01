@@ -15,12 +15,71 @@ final class AppleMapsVibeService: @unchecked Sendable {
     private var lookAroundCount = 0
 
     private static let nicheQueriesByVibe: [String: [String]] = [
-        "hike": ["hidden trail", "scenic overlook", "bouldering spot", "secret garden", "nature reserve", "scenic ridge", "coastal path"],
-        "outdoors": ["botanical garden", "panoramic lookout", "cliffside trail", "community garden", "hidden cove", "sunset point", "arboretum"],
-        "food": ["speakeasy", "artisan bakery", "cozy cafe", "hole in the wall", "family-owned bistro", "rooftop terrace", "tasting room", "local deli", "handcrafted noodles", "dessert lounge"],
-        "nightlife": ["jazz club", "underground lounge", "craft cocktail bar", "vinyl listening bar", "speakeasy lounge", "rooftop bar"],
-        "art": ["indie bookstore", "niche gallery", "sculpture garden", "vintage vinyl", "artist studio", "historic theater", "ceramic studio"],
-        "shopping": ["vintage boutique", "curated thrift", "artisan market", "independent record shop", "bookshop"]
+        "food": [
+            "speakeasy", "artisan bakery", "cozy cafe", "craft coffee roaster",
+            "rooftop lounge", "dessert lounge", "tasting room", "tea house", "boba lounge"
+        ],
+        "drink": [
+            "craft cocktail bar", "speakeasy lounge", "vinyl listening bar", "rooftop bar", "wine bar", "brewery"
+        ],
+        "entertainment": [
+            "live music venue", "comedy club", "arcade bar", "bowling lounge",
+            "jazz club", "escape room", "indie cinema", "outdoor theater"
+        ],
+        "art": [
+            "niche art gallery", "sculpture park", "historic theater", "museum garden",
+            "ceramic studio", "art center", "immersive exhibit"
+        ],
+        "culture": [
+            "historic landmark", "cultural center", "historic theater", "heritage house", "indie museum"
+        ],
+        "nature": [
+            "scenic overlook", "botanical garden", "hidden trail", "coastal path",
+            "waterfall viewpoint", "nature reserve", "secret garden"
+        ],
+        "sightseeing": [
+            "panoramic vista", "historic plaza", "scenic pier", "observation deck",
+            "iconic landmark", "historic courtyard"
+        ],
+        "shopping": [
+            "vintage boutique", "curated thrift", "artisan market", "independent record shop",
+            "indie bookshop", "craft bazaar"
+        ],
+        "sports": [
+            "bouldering gym", "skate park", "climbing gym", "kayak spot",
+            "surf break", "mini golf", "scenic running trail"
+        ],
+        "wellness": [
+            "bathhouse", "thermal spa", "zen garden", "tea sanctuary",
+            "reflexology lounge", "peaceful park garden"
+        ],
+        "family": [
+            "science center", "planetarium", "animal sanctuary", "waterfront park carousel",
+            "public promenade"
+        ],
+        "adventure": [
+            "cliffside trail", "ropes course", "sea cave kayaking", "summit hike",
+            "scenic ridge trail"
+        ],
+        "nightlife": [
+            "underground cocktail lounge", "vinyl listening bar", "jazz bar",
+            "rooftop bar", "speakeasy lounge"
+        ],
+        "events": [
+            "night market", "food truck park", "outdoor movie park", "artisan pop-up market"
+        ],
+        "public": [
+            "vibrant plaza", "waterfront promenade", "town square", "scenic public steps",
+            "urban park lawn"
+        ],
+        "classes": [
+            "pottery studio", "cooking school", "glassblowing studio", "coffee roasting workshop",
+            "DIY craft space"
+        ],
+        "unique": [
+            "quirky landmark", "hidden courtyard", "neon museum", "rooftop observation deck",
+            "historic clock tower", "architectural gem"
+        ]
     ]
 
     private func isExcludedPlace(mapItem: MKMapItem) -> Bool {
@@ -28,7 +87,7 @@ final class AppleMapsVibeService: @unchecked Sendable {
         let category = mapItem.pointOfInterestCategory?.rawValue.lowercased() ?? ""
         let subtitle = (mapItem.placemark.title ?? "").lowercased()
 
-        // 1. Excluded keywords (unappealing / non-hangout spots)
+        // 1. Excluded keywords (unappealing / non-hangout spots & fast food chains)
         let excludedKeywords = [
             "tattoo", "piercing", "ink", "flea market", "swap meet", "thrift warehouse",
             "gas station", "car wash", "auto repair", "mechanic", "tire", "parking",
@@ -37,7 +96,10 @@ final class AppleMapsVibeService: @unchecked Sendable {
             "storage", "warehouse", "industrial", "construction", "plumbing", "roofing",
             "laundromat", "dry cleaning", "laundry", "cleaners", "salon", "barber",
             "pawn", "bail", "court", "police", "fire station", "post office", "dmv",
-            "elementary", "high school", "middle school", "daycare", "preschool"
+            "elementary", "high school", "middle school", "daycare", "preschool",
+            "mcdonald", "subway", "burger king", "domino", "dunkin", "taco bell", "kfc",
+            "wendy", "popeyes", "jack in the box", "sonic", "arby", "panda express",
+            "chipotle", "little caesars", "7-eleven", "walgreens", "cvs", "rite aid"
         ]
 
         for keyword in excludedKeywords {
@@ -55,6 +117,19 @@ final class AppleMapsVibeService: @unchecked Sendable {
                 return true
             default:
                 break
+            }
+        }
+
+        // 3. Exclude generic pure restaurants unless they are a hangout spot (cafe, bakery, speakeasy, rooftop, lounge, tea, etc.)
+        if mapItem.pointOfInterestCategory == .restaurant {
+            let hangoutFoodKeywords = [
+                "cafe", "coffee", "bakery", "rooftop", "speakeasy", "lounge", "bistro",
+                "tasting", "bar", "brewery", "dessert", "tea", "roaster", "jazz", "view",
+                "patio", "terrace", "ramen", "izakaya", "tapas"
+            ]
+            let isHangoutFood = hangoutFoodKeywords.contains(where: { name.contains($0) || subtitle.contains($0) })
+            if !isHangoutFood {
+                return true
             }
         }
 
@@ -180,7 +255,7 @@ final class AppleMapsVibeService: @unchecked Sendable {
                 cityName: targetCity
             )
 
-            for result in curatedResults.prefix(5) {
+            for result in curatedResults.prefix(12) {
                 let mapItem = result.mapItem
                 guard let name = mapItem.name, !name.isEmpty else { continue }
                 let lowerName = name.lowercased()
@@ -493,9 +568,44 @@ final class AppleMapsVibeService: @unchecked Sendable {
         return nil
     }
 
+    /// 1. Tries 3D Apple Maps Street View (Look Around photo).
+    /// 2. Fallbacks to Apple Maps Map View snapshot if Street View is unavailable or difficult to obtain.
+    func fetchStreetViewOrMapView(latitude: Double?, longitude: Double?, title: String) async -> URL? {
+        let cleanID = title.components(separatedBy: CharacterSet.alphanumerics.inverted).joined()
+
+        // 1. Check Street View cache
+        if let cachedStreetView = checkDiskCache(identifier: "lookaround_\(cleanID)") {
+            return cachedStreetView
+        }
+
+        // 2. Check Map View cache
+        if let cachedMapView = checkDiskCache(identifier: "mapview_\(cleanID)") {
+            return cachedMapView
+        }
+
+        // 3. Try Street View
+        if let streetViewURL = await fetchStreetViewPhoto(latitude: latitude, longitude: longitude, title: title) {
+            return streetViewURL
+        }
+
+        // 4. Fallback to Apple Maps Map View snapshot
+        return await fetchMapViewSnapshot(latitude: latitude, longitude: longitude, title: title)
+    }
+
     /// Captures actual 3D Street View / Building photo from coordinates and title
     func fetchStreetViewPhoto(latitude: Double?, longitude: Double?, title: String) async -> URL? {
-        guard let lat = latitude, let lon = longitude, lat != 0, lon != 0 else { return nil }
+        var lat = latitude ?? 0
+        var lon = longitude ?? 0
+
+        if (lat == 0 && lon == 0) || (lat < -90 || lat > 90) || (lon < -180 || lon > 180) {
+            if let resolved = await resolveCoordinate(for: title) {
+                lat = resolved.latitude
+                lon = resolved.longitude
+            } else {
+                return nil
+            }
+        }
+
         let cleanID = title.components(separatedBy: CharacterSet.alphanumerics.inverted).joined()
         
         if let cached = checkDiskCache(identifier: "lookaround_\(cleanID)") {
@@ -524,17 +634,88 @@ final class AppleMapsVibeService: @unchecked Sendable {
         }
     }
 
-    /// Fetches a real picture of the place from Apple Maps API using MKLookAroundSnapshotter (Street View)
-    /// If Street View is unavailable for a venue/park, returns a real photographic location photo instead of a map drawing.
+    /// Generates an Apple Maps Map View snapshot image with a place marker pin at the coordinates.
+    func fetchMapViewSnapshot(latitude: Double?, longitude: Double?, title: String) async -> URL? {
+        var lat = latitude ?? 0
+        var lon = longitude ?? 0
+
+        if (lat == 0 && lon == 0) || (lat < -90 || lat > 90) || (lon < -180 || lon > 180) {
+            if let resolved = await resolveCoordinate(for: title) {
+                lat = resolved.latitude
+                lon = resolved.longitude
+            } else {
+                lat = 37.8715
+                lon = -122.2730
+            }
+        }
+
+        let cleanID = title.components(separatedBy: CharacterSet.alphanumerics.inverted).joined()
+        let identifier = "mapview_\(cleanID)"
+
+        if let cached = checkDiskCache(identifier: identifier) {
+            return cached
+        }
+
+        let coord = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        let options = MKMapSnapshotter.Options()
+        options.region = MKCoordinateRegion(center: coord, latitudinalMeters: 450, longitudinalMeters: 450)
+        options.size = CGSize(width: 800, height: 500)
+
+        let snapshotter = MKMapSnapshotter(options: options)
+        do {
+            let snapshot = try await snapshotter.start()
+            let image = snapshot.image
+
+            UIGraphicsBeginImageContextWithOptions(image.size, true, image.scale)
+            image.draw(at: .zero)
+
+            let point = snapshot.point(for: coord)
+            let imageBounds = CGRect(origin: .zero, size: image.size)
+            let drawPoint = imageBounds.contains(point) ? point : CGPoint(x: image.size.width / 2, y: image.size.height / 2)
+
+            let pinSize: CGFloat = 36
+            let pinRect = CGRect(x: drawPoint.x - pinSize / 2, y: drawPoint.y - pinSize, width: pinSize, height: pinSize)
+
+            if let pinImage = UIImage(systemName: "mappin.circle.fill")?.withTintColor(UIColor(red: 0.95, green: 0.35, blue: 0.3, alpha: 1.0), renderingMode: .alwaysOriginal) {
+                pinImage.draw(in: pinRect)
+            }
+
+            let annotatedImage = UIGraphicsGetImageFromCurrentImageContext()
+            UIGraphicsEndImageContext()
+
+            if let result = annotatedImage {
+                return saveImageToDisk(result, identifier: identifier)
+            }
+            return saveImageToDisk(image, identifier: identifier)
+        } catch {
+            return nil
+        }
+    }
+
+    private func resolveCoordinate(for query: String) async -> CLLocationCoordinate2D? {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = query
+        let search = MKLocalSearch(request: request)
+        if let response = try? await search.start(), let first = response.mapItems.first {
+            return first.placemark.coordinate
+        }
+        return nil
+    }
+
+    /// Fetches a real picture of the place from Apple Maps API using MKLookAroundSnapshotter (Street View).
+    /// If Street View is unavailable for a venue/park, returns an Apple Maps Map View snapshot.
     func fetchRealAppleMapsImage(for mapItem: MKMapItem) async -> URL? {
         let identifier = mapItem.name ?? UUID().uuidString
 
-        // 1. Check local disk cache first (real Look Around street view image)
-        if let existingDiskURL = checkDiskCache(identifier: identifier) {
+        // 1. Check local disk cache first
+        if let existingDiskURL = checkDiskCache(identifier: "lookaround_\(identifier)") {
             return existingDiskURL
         }
+        if let existingMapURL = checkDiskCache(identifier: "mapview_\(identifier)") {
+            return existingMapURL
+        }
 
-        // 2. Method 1: Apple Maps Look Around Street/3D Photo Snapshotter (Real Street View photo)
+        // 2. Method 1: Apple Maps Look Around Street/3D Photo Snapshotter
         let sceneRequest = MKLookAroundSceneRequest(mapItem: mapItem)
         do {
             if let scene = try await sceneRequest.scene {
@@ -547,36 +728,15 @@ final class AppleMapsVibeService: @unchecked Sendable {
                 }
             }
         } catch {
-            // Ignore error and fall through to real location photo
+            // Ignore error and fall through
         }
 
-        // 3. Method 2: Real Photographic Location Photo (high-resolution real photo of place type, NO map drawings!)
-        return getRealCategoryPhoto(for: mapItem)
-    }
-
-    private func getRealCategoryPhoto(for mapItem: MKMapItem) -> URL {
-        let nameLower = (mapItem.name ?? "").lowercased()
-        let category = mapItem.pointOfInterestCategory?.rawValue.lowercased() ?? ""
-
-        if nameLower.contains("park") || nameLower.contains("garden") || nameLower.contains("trail") || category.contains("park") {
-            return URL(string: "https://images.unsplash.com/photo-1519331379826-f10be5486c6f?w=1000&q=80")!
-        }
-        if nameLower.contains("coffee") || nameLower.contains("cafe") || nameLower.contains("roaster") || category.contains("cafe") {
-            return URL(string: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1000&q=80")!
-        }
-        if nameLower.contains("bakery") || nameLower.contains("pastry") || nameLower.contains("bread") || category.contains("bakery") {
-            return URL(string: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=1000&q=80")!
-        }
-        if nameLower.contains("pizza") || nameLower.contains("burger") || nameLower.contains("taco") || nameLower.contains("sushi") || category.contains("restaurant") {
-            return URL(string: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1000&q=80")!
-        }
-        if nameLower.contains("beach") || nameLower.contains("cove") || nameLower.contains("pier") || category.contains("beach") {
-            return URL(string: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1000&q=80")!
-        }
-        if nameLower.contains("museum") || nameLower.contains("art") || nameLower.contains("gallery") || category.contains("museum") {
-            return URL(string: "https://images.unsplash.com/photo-1565008447742-97f6f38c985c?w=1000&q=80")!
-        }
-        return URL(string: "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1000&q=80")!
+        // 3. Method 2: Apple Maps Map View snapshot fallback
+        return await fetchMapViewSnapshot(
+            latitude: mapItem.placemark.coordinate.latitude,
+            longitude: mapItem.placemark.coordinate.longitude,
+            title: mapItem.name ?? "Location"
+        )
     }
 
     private func extractEmojiAndText(from vibe: String) -> (String, String) {

@@ -1,5 +1,17 @@
 import SwiftUI
 
+/// Returns true if the given URL is a real user-uploaded image (and not a dummy stock photo URL like Unsplash).
+public func isUserUploadedImage(_ url: URL?) -> Bool {
+    guard let url = url else { return false }
+    let str = url.absoluteString.lowercased()
+    if str.isEmpty { return false }
+    if str.contains("unsplash.com") || str.contains("pexels.com") || str.contains("pixabay.com") {
+        return false
+    }
+    return true
+}
+
+
 // MARK: - Button Styles
 
 struct TravPressButtonStyle: ButtonStyle {

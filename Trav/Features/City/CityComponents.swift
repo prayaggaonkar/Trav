@@ -413,28 +413,11 @@ struct HeroExperienceCard: View {
 
     @ViewBuilder
     private var coverImage: some View {
-        ZStack {
-            if let imageURL = experience.coverImageURL {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: coverWidth, height: cardHeight)
-                            .clipped()
-                    default:
-                        ExperienceStopsMapView(experience: experience)
-                            .frame(width: coverWidth, height: cardHeight)
-                    }
-                }
-            } else {
-                ExperienceStopsMapView(experience: experience)
-                    .frame(width: coverWidth, height: cardHeight)
-            }
-        }
-        .frame(width: coverWidth, height: cardHeight)
-        .clipped()
+        ExperienceStopsMapView(
+            experience: experience,
+            width: coverWidth,
+            height: cardHeight
+        )
         .allowsHitTesting(false)
     }
 

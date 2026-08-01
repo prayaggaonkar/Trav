@@ -106,16 +106,10 @@ struct GemPostCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topLeading) {
-                if let coverURL = experience.coverImageURL {
-                    RemoteImage(
-                        url: coverURL,
-                        height: TravLayout.feedCardImageHeight,
-                        cornerRadius: 0
-                    )
-                } else {
-                    ExperienceStopsMapView(experience: experience)
-                        .frame(height: TravLayout.feedCardImageHeight)
-                }
+                ExperienceStopsMapView(
+                    experience: experience,
+                    height: TravLayout.feedCardImageHeight
+                )
 
                 LinearGradient(
                     colors: [.black.opacity(0.45), .clear],
@@ -515,35 +509,60 @@ struct EmojiParticleView: View {
     }
 }
 
-/// Cover image view displayed on experience cards when no explicit cover image is provided.
-/// Fetches and renders a real 3D Street View photo of the venue/spot from Apple Maps (or real location photo fallback).
+/// Cover image view displayed on experience cards in accordance with strict image tiering:
+/// 1. User uploaded image (if present & valid)
+/// 2. Apple Maps 3D Street View photo (via MKLookAroundSnapshotter)
+/// 3. Apple Maps Map View snapshot (via MKMapSnapshotter) if Street View is unavailable.
 struct ExperienceStopsMapView: View {
     let experience: ExperienceSummary
+    var width: CGFloat? = nil
+    var height: CGFloat = TravLayout.feedCardImageHeight
 
-    @State private var streetViewURL: URL?
+    @State private var resolvedImageURL: URL?
+
+    private var userCoverURL: URL? {
+        if isUserUploadedImage(experience.coverImageURL) {
+            return experience.coverImageURL
+        }
+        return nil
+    }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            if let streetViewURL {
+        ZStack(alignment: .center) {
+            if let userCoverURL {
                 RemoteImage(
-                    url: streetViewURL,
-                    height: TravLayout.feedCardImageHeight,
+                    url: userCoverURL,
+                    height: height,
+                    cornerRadius: 0
+                )
+            } else if let resolvedImageURL {
+                RemoteImage(
+                    url: resolvedImageURL,
+                    height: height,
                     cornerRadius: 0
                 )
             } else {
-                let fallbackURL = SupabaseExperienceRepository.defaultCoverForCategory(experience.category ?? experience.title) ?? URL(string: "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1000&q=80")!
-                RemoteImage(
-                    url: fallbackURL,
-                    height: TravLayout.feedCardImageHeight,
-                    cornerRadius: 0
-                )
+                ZStack {
+                    Color(uiColor: .secondarySystemBackground)
+                    ProgressView()
+                        .tint(TravColors.muted)
+                }
+                .frame(height: height)
             }
         }
-        .task {
-            let lat = experience.stops.first?.latitude ?? 37.8715
-            let lng = experience.stops.first?.longitude ?? -122.2730
-            if let photo = await AppleMapsVibeService.shared.fetchStreetViewPhoto(latitude: lat, longitude: lng, title: experience.title) {
-                self.streetViewURL = photo
+        .frame(height: height)
+        .frame(width: width)
+        .task(id: experience.id) {
+            if userCoverURL == nil {
+                let lat = experience.stops.first?.latitude ?? 0
+                let lng = experience.stops.first?.longitude ?? 0
+                if let url = await AppleMapsVibeService.shared.fetchStreetViewOrMapView(
+                    latitude: lat,
+                    longitude: lng,
+                    title: experience.title
+                ) {
+                    self.resolvedImageURL = url
+                }
             }
         }
     }

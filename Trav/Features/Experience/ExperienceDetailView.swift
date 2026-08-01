@@ -782,7 +782,7 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
             let width = max(geo.size.width, 1)
 
             ZStack(alignment: .bottomLeading) {
-                if !urls.isEmpty {
+                if !userURLs.isEmpty {
                     HStack(spacing: 0) {
                         ForEach(Array(displayURLs.enumerated()), id: \.offset) { index, url in
                             RemoteImage(url: url, height: height, cornerRadius: 0)
@@ -874,9 +874,13 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
         }
     }
 
+    private var userURLs: [URL] {
+        urls.filter { isUserUploadedImage($0) }
+    }
+
     private var displayURLs: [URL?] {
-        if urls.isEmpty { return [nil] }
-        return urls.map { Optional($0) }
+        if userURLs.isEmpty { return [] }
+        return userURLs.map { Optional($0) }
     }
 
     private func updateDotContrast() async {

@@ -628,14 +628,14 @@ struct SpotDetailSheet: View {
             photoURLs = matches.flatMap(\.imageURLs)
         }
 
-        // 2. Capture actual Apple Maps 3D Street View / Building photo if no user photos exist
+        // 2. Capture actual Apple Maps 3D Street View or Map View snapshot if no user photos exist
         if photoURLs.isEmpty {
-            if let streetViewURL = await AppleMapsVibeService.shared.fetchStreetViewPhoto(
+            if let mapURL = await AppleMapsVibeService.shared.fetchStreetViewOrMapView(
                 latitude: spot.latitude,
                 longitude: spot.longitude,
                 title: spot.title
             ) {
-                photoURLs.append(streetViewURL)
+                photoURLs.append(mapURL)
             }
         }
         
