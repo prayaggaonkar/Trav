@@ -1,7 +1,48 @@
 import SwiftUI
 import Foundation
 
+// MARK: - Glistening Purple Rank Text (Moving Gradient within #1, 2, and 3)
+
+struct GlisteningPurpleRankText: View {
+    let text: String
+    let font: Font
+    var shadowRadius: CGFloat = 3
+    var delayOffset: Double = 0.0
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let now = timeline.date.timeIntervalSinceReferenceDate + delayOffset
+            let cycleDuration: Double = 2.8
+            let progress = (now.truncatingRemainder(dividingBy: cycleDuration)) / cycleDuration
+            
+            // Move startPoint & endPoint dynamically to create subtle internal glistening motion
+            let startX = -1.8 + (CGFloat(progress) * 3.6)
+            let endX = startX + 2.0
+            
+            let purpleGlisteningGradient = LinearGradient(
+                gradient: Gradient(stops: [
+                    .init(color: Color(red: 0.54, green: 0.18, blue: 0.86), location: 0.0),   // Deep Violet
+                    .init(color: Color(red: 0.68, green: 0.28, blue: 0.94), location: 0.25),  // Electric Purple
+                    .init(color: Color(red: 0.86, green: 0.70, blue: 0.98), location: 0.42),  // Soft Lavender
+                    .init(color: Color(red: 0.98, green: 0.94, blue: 1.00).opacity(0.85), location: 0.50), // Subtle Glistening Shine Core
+                    .init(color: Color(red: 0.86, green: 0.70, blue: 0.98), location: 0.58),  // Soft Lavender
+                    .init(color: Color(red: 0.72, green: 0.32, blue: 0.95), location: 0.75),  // Soft Purple
+                    .init(color: Color(red: 0.48, green: 0.12, blue: 0.80), location: 1.0)    // Rich Dark Violet
+                ]),
+                startPoint: UnitPoint(x: startX, y: 0.15),
+                endPoint: UnitPoint(x: endX, y: 0.85)
+            )
+
+            Text(text)
+                .font(font)
+                .foregroundStyle(purpleGlisteningGradient)
+                .shadow(color: Color(red: 0.58, green: 0.22, blue: 0.95).opacity(0.30), radius: shadowRadius, x: 0, y: 1.0)
+        }
+    }
+}
+
 // MARK: - 3D Rankings Podium View (Top 3 Showcase with Staggered Entrance Animation)
+
 
 struct RankingsPodiumView<Item: Identifiable>: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -135,12 +176,14 @@ struct RankingsPodiumView<Item: Identifiable>: View {
                 onTap(item)
             } label: {
                 VStack(spacing: 5) {
-                    // BIG Rank Text at top ("#1", "#2", "#3") in Purple
-                    Text(isFirst ? "#1" : (isSecond ? "#2" : "#3"))
-                        .font(.system(size: isFirst ? 26 : 22, weight: .black, design: .rounded))
-                        .foregroundStyle(TravColors.accent)
-                        .shadow(color: TravColors.accent.opacity(0.30), radius: isFirst ? 4 : 2, y: 1.5)
-                        .padding(.bottom, 2)
+                    // BIG Rank Text at top ("#1", "#2", "#3") with Desynchronized Glistening Moving Purple Gradient
+                    GlisteningPurpleRankText(
+                        text: isFirst ? "#1" : (isSecond ? "#2" : "#3"),
+                        font: .system(size: isFirst ? 26 : 22, weight: .black, design: .rounded),
+                        shadowRadius: isFirst ? 4 : 2,
+                        delayOffset: isFirst ? 0.0 : (isSecond ? 0.9 : 1.8)
+                    )
+                    .padding(.bottom, 2)
 
                     // Avatar with Purple border for each spot (#1, #2, #3)
                     LeaderboardAvatarView(
@@ -276,10 +319,21 @@ struct RankingsListView<Item: Identifiable>: View {
                 } label: {
                     HStack(spacing: 14) {
                         // Rank Number
-                        Text("\(rank)")
-                            .font(.system(size: 15, weight: .bold, design: .rounded))
-                            .foregroundStyle(TravColors.muted)
+                        if rank <= 3 {
+                            let delay = Double(rank - 1) * 0.9
+                            GlisteningPurpleRankText(
+                                text: "\(rank)",
+                                font: .system(size: 16, weight: .black, design: .rounded),
+                                shadowRadius: 2,
+                                delayOffset: delay
+                            )
                             .frame(width: 24, alignment: .leading)
+                        } else {
+                            Text("\(rank)")
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .foregroundStyle(TravColors.muted)
+                                .frame(width: 24, alignment: .leading)
+                        }
 
                         // Avatar
                         LeaderboardAvatarView(
@@ -882,11 +936,22 @@ struct HeatStreakUserRow: View {
         Button(action: onTap) {
             HStack(spacing: TravSpacing.md) {
                 // Rank number
-                Text("\(entry.rank)")
-                    .font(TravTypography.titleMedium())
-                    .fontWeight(.bold)
-                    .foregroundStyle(entry.rank <= 3 ? TravColors.primary : TravColors.muted.opacity(0.7))
+                if entry.rank <= 3 {
+                    let delay = Double(entry.rank - 1) * 0.9
+                    GlisteningPurpleRankText(
+                        text: "\(entry.rank)",
+                        font: .system(size: 17, weight: .black, design: .rounded),
+                        shadowRadius: 2,
+                        delayOffset: delay
+                    )
                     .frame(width: 26, alignment: .leading)
+                } else {
+                    Text("\(entry.rank)")
+                        .font(TravTypography.titleMedium())
+                        .fontWeight(.bold)
+                        .foregroundStyle(entry.rank <= 3 ? TravColors.primary : TravColors.muted.opacity(0.7))
+                        .frame(width: 26, alignment: .leading)
+                }
 
                 // Avatar
                 LeaderboardAvatarView(
@@ -1105,11 +1170,22 @@ struct ImpactUserRow: View {
         Button(action: onTap) {
             HStack(spacing: TravSpacing.md) {
                 // Rank number
-                Text("\(entry.rank)")
-                    .font(TravTypography.titleMedium())
-                    .fontWeight(.bold)
-                    .foregroundStyle(entry.rank <= 3 ? TravColors.primary : TravColors.muted.opacity(0.7))
+                if entry.rank <= 3 {
+                    let delay = Double(entry.rank - 1) * 0.9
+                    GlisteningPurpleRankText(
+                        text: "\(entry.rank)",
+                        font: .system(size: 17, weight: .black, design: .rounded),
+                        shadowRadius: 2,
+                        delayOffset: delay
+                    )
                     .frame(width: 26, alignment: .leading)
+                } else {
+                    Text("\(entry.rank)")
+                        .font(TravTypography.titleMedium())
+                        .fontWeight(.bold)
+                        .foregroundStyle(entry.rank <= 3 ? TravColors.primary : TravColors.muted.opacity(0.7))
+                        .frame(width: 26, alignment: .leading)
+                }
 
                 // Avatar
                 LeaderboardAvatarView(
@@ -1280,11 +1356,22 @@ struct MainLeaderboardUserRow: View {
         Button(action: onTap) {
             HStack(spacing: TravSpacing.md) {
                 // Rank number
-                Text("\(entry.rank)")
-                    .font(TravTypography.titleMedium())
-                    .fontWeight(.bold)
-                    .foregroundStyle(entry.rank <= 3 ? TravColors.primary : TravColors.muted.opacity(0.7))
+                if entry.rank <= 3 {
+                    let delay = Double(entry.rank - 1) * 0.9
+                    GlisteningPurpleRankText(
+                        text: "\(entry.rank)",
+                        font: .system(size: 17, weight: .black, design: .rounded),
+                        shadowRadius: 2,
+                        delayOffset: delay
+                    )
                     .frame(width: 26, alignment: .leading)
+                } else {
+                    Text("\(entry.rank)")
+                        .font(TravTypography.titleMedium())
+                        .fontWeight(.bold)
+                        .foregroundStyle(entry.rank <= 3 ? TravColors.primary : TravColors.muted.opacity(0.7))
+                        .frame(width: 26, alignment: .leading)
+                }
 
                 // Avatar
                 LeaderboardAvatarView(
