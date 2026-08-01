@@ -66,17 +66,15 @@ struct SpotSuggestion: Identifiable, Hashable, Sendable {
 
     var resolvedCityName: String {
         let parts = subtitle.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-        if parts.count >= 3 {
-            let city = parts[parts.count - 3]
-            let state = parts[parts.count - 2]
-            if !city.isEmpty && !state.isEmpty && state.count <= 3 {
-                return "\(city), \(state)"
+        if parts.count >= 2 {
+            // Address format: "Street/Venue, City, State Zip" or "City, State"
+            let candidateCity = parts[parts.count - 2]
+            let cleanCity = candidateCity.components(separatedBy: .decimalDigits).joined().trimmingCharacters(in: .whitespaces)
+            if !cleanCity.isEmpty {
+                return cleanCity
             }
-            return "\(city)"
-        } else if parts.count == 2 {
-            return "\(parts[0]), \(parts[1])"
         }
-        return subtitle.isEmpty ? "San Francisco, CA" : subtitle
+        return subtitle.isEmpty ? "" : subtitle
     }
 
     var cityName: String? {
@@ -99,7 +97,6 @@ struct SpotSuggestion: Identifiable, Hashable, Sendable {
             longitude: longitude
         )
         let city = resolvedCityName
-        // Destinations are never person-authored — always Trav.
         let creatorSummary = ExperienceInsert.travCreator
         let summary = ExperienceSummary(
             id: spotUUID,
@@ -538,9 +535,49 @@ struct RateSpotSheet: View {
     }
 
     private func resolveCity() async -> City? {
-        if let cityName = spot.cityName, let match = try? await CityCatalog.shared.city(named: cityName) {
+        if let cityName = spot.cityName, !cityName.isEmpty, let match = try? await CityCatalog.shared.city(named: cityName) {
             return match
         }
+
+        // 1. Reverse-geocode spot's coordinates via CoreLocation CLGeocoder
+        if let lat = spot.latitude, let lng = spot.longitude, lat != 0 && lng != 0 {
+            let location = CLLocation(latitude: lat, longitude: lng)
+            let geocoder = CLGeocoder()
+            if let placemarks = try? await geocoder.reverseGeocodeLocation(location),
+               let placemark = placemarks.first,
+               let localityName = placemark.locality ?? placemark.subAdministrativeArea {
+                let matchedCity = (try? await CityCatalog.shared.city(named: localityName)) ?? City(
+                    id: UUID(),
+                    name: localityName,
+                    slug: localityName.lowercased().replacingOccurrences(of: " ", with: "-"),
+                    countryCode: placemark.isoCountryCode ?? "US",
+                    latitude: lat,
+                    longitude: lng,
+                    heroImageURL: nil,
+                    timezone: TimeZone.current.identifier,
+                    experienceCount: 0,
+                    creatorCount: 0
+                )
+                return matchedCity
+            }
+        }
+
+        // 2. Return city constructed from spot's resolved cityName
+        if let cityName = spot.cityName, !cityName.isEmpty {
+            return City(
+                id: UUID(),
+                name: cityName,
+                slug: cityName.lowercased().replacingOccurrences(of: " ", with: "-"),
+                countryCode: "US",
+                latitude: spot.latitude ?? 37.7749,
+                longitude: spot.longitude ?? -122.4194,
+                heroImageURL: nil,
+                timezone: TimeZone.current.identifier,
+                experienceCount: 0,
+                creatorCount: 0
+            )
+        }
+
         return try? await environment.cities.fetchGlobeCities().first
     }
 }
@@ -591,14 +628,14 @@ struct SpotDetailSheet: View {
             photoURLs = matches.flatMap(\.imageURLs)
         }
 
-        // 2. Capture actual Apple Maps 3D Street View / Building photo if no user photos exist
+        // 2. Capture actual Apple Maps 3D Street View or Map View snapshot if no user photos exist
         if photoURLs.isEmpty {
-            if let streetViewURL = await AppleMapsVibeService.shared.fetchStreetViewPhoto(
+            if let mapURL = await AppleMapsVibeService.shared.fetchStreetViewOrMapView(
                 latitude: spot.latitude,
                 longitude: spot.longitude,
                 title: spot.title
             ) {
-                photoURLs.append(streetViewURL)
+                photoURLs.append(mapURL)
             }
         }
         

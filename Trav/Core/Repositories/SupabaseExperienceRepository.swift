@@ -628,12 +628,11 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             let is_published: Bool
         }
 
-        let owner = ExperienceInsert.travAdminID
         try await client
             .from("experiences")
             .upsert(Upsert(
                 id: id,
-                user_id: owner,
+                user_id: ExperienceInsert.travAdminID,
                 title: request.name,
                 description: request.description,
                 city: request.cityName,
@@ -2811,32 +2810,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
     // MARK: - Category helpers (shared with feed mapping)
 
     static func defaultCoverForCategory(_ text: String) -> URL? {
-        let textLower = text.lowercased()
-        if textLower.contains("bar") || textLower.contains("pub") || textLower.contains("drink") || textLower.contains("lounge") {
-            return URL(string: "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&q=80")
-        }
-        if textLower.contains("coffee") || textLower.contains("cafe") || textLower.contains("brew") || textLower.contains("espresso") {
-            return URL(string: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&q=80")
-        }
-        if textLower.contains("shop") || textLower.contains("store") || textLower.contains("market") || textLower.contains("vintage") {
-            return URL(string: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&q=80")
-        }
-        if textLower.contains("hike") || textLower.contains("trail") || textLower.contains("mountain") || textLower.contains("climb") {
-            return URL(string: "https://images.unsplash.com/photo-1501555088652-021faa106b9b?w=800&q=80")
-        }
-        if textLower.contains("park") || textLower.contains("garden") || textLower.contains("lawn") || textLower.contains("field") {
-            return URL(string: "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=80")
-        }
-        if textLower.contains("view") || textLower.contains("sunset") || textLower.contains("scenic") || textLower.contains("vista") {
-            return URL(string: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&q=80")
-        }
-        if textLower.contains("museum") || textLower.contains("art") || textLower.contains("gallery") {
-            return URL(string: "https://images.unsplash.com/photo-1545987796-200677ee1011?w=800&q=80")
-        }
-        if textLower.contains("book") || textLower.contains("read") || textLower.contains("library") {
-            return URL(string: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?w=800&q=80")
-        }
-        return URL(string: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80")
+        nil
     }
 
     static func emojiForCategory(_ category: String?) -> String {
