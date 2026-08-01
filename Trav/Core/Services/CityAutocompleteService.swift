@@ -2,6 +2,7 @@ import CoreLocation
 import Foundation
 import MapKit
 import Observation
+import UIKit
 
 struct CitySuggestion: Identifiable, Hashable, Sendable {
     let id: String
@@ -23,20 +24,29 @@ struct CitySuggestion: Identifiable, Hashable, Sendable {
     }
 }
 
-/// MapKit autocomplete with light filtering: hide street addresses, keep cities/towns.
+/// MapKit city autocomplete with soft location bias, Trav catalog boost, and popularity ranking.
 @Observable
 @MainActor
-final class CityAutocompleteController: NSObject, MKLocalSearchCompleterDelegate {
+final class CityAutocompleteController: NSObject, MKLocalSearchCompleterDelegate, CLLocationManagerDelegate {
     var query: String = "" {
         didSet {
             let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            debounceTask?.cancel()
             if trimmed.isEmpty {
                 suggestions = []
+                lastQueried = ""
+                isSearching = false
                 completer.queryFragment = ""
             } else if trimmed != lastQueried {
                 lastQueried = trimmed
                 isSearching = true
-                completer.queryFragment = trimmed
+                debounceTask = Task {
+                    try? await Task.sleep(for: .milliseconds(200))
+                    guard !Task.isCancelled else { return }
+                    self.refreshRegionBias()
+                    self.completer.queryFragment = trimmed
+                    await self.mergeCatalogSuggestions(for: trimmed)
+                }
             }
         }
     }
@@ -45,7 +55,11 @@ final class CityAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
     private(set) var isSearching = false
 
     private let completer = MKLocalSearchCompleter()
+    private let locationManager = CLLocationManager()
     private var lastQueried = ""
+    private var debounceTask: Task<Void, Never>?
+    private var pendingCompleterSnapshots: [(title: String, subtitle: String)] = []
+    private var userCoordinate: CLLocationCoordinate2D?
 
     /// Only used as the *last word* of a multi-word title (e.g. "Market Street").
     private static let streetSuffixes: Set<String> = [
@@ -58,13 +72,28 @@ final class CityAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
         super.init()
         completer.delegate = self
         completer.resultTypes = .address
+
+        locationManager.delegate = self
+        locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
+        if locationManager.authorizationStatus == .notDetermined {
+            locationManager.requestWhenInUseAuthorization()
+        }
+        userCoordinate = locationManager.location?.coordinate
+            ?? LocationManager.shared.coordinateForSearch
+        refreshRegionBias()
+        if locationManager.authorizationStatus == .authorizedWhenInUse
+            || locationManager.authorizationStatus == .authorizedAlways {
+            locationManager.requestLocation()
+        }
     }
 
     func clear() {
+        debounceTask?.cancel()
         query = ""
         suggestions = []
         lastQueried = ""
         isSearching = false
+        pendingCompleterSnapshots = []
     }
 
     func dismissSuggestions() {
@@ -76,6 +105,13 @@ final class CityAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = suggestion.displayLabel
         request.resultTypes = .address
+        if let coord = userCoordinate {
+            request.region = MKCoordinateRegion(
+                center: coord,
+                latitudinalMeters: 500_000,
+                longitudinalMeters: 500_000
+            )
+        }
 
         let search = MKLocalSearch(request: request)
         do {
@@ -101,47 +137,165 @@ final class CityAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
         }
     }
 
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        Task { @MainActor in
+            self.userCoordinate = location.coordinate
+            self.refreshRegionBias()
+        }
+    }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        let coord = manager.location?.coordinate
+        Task { @MainActor in
+            if status == .authorizedWhenInUse || status == .authorizedAlways {
+                self.userCoordinate = coord
+                self.refreshRegionBias()
+                self.locationManager.requestLocation()
+            }
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
+
     nonisolated func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
         let snapshots: [(title: String, subtitle: String)] = completer.results.map {
             ($0.title, $0.subtitle)
         }
         Task { @MainActor in
-            self.apply(snapshots: snapshots)
+            self.pendingCompleterSnapshots = snapshots
+            await self.rebuildSuggestions()
         }
     }
 
     nonisolated func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
         Task { @MainActor in
             self.isSearching = false
-            self.suggestions = []
+            await self.rebuildSuggestions()
         }
     }
 
-    private func apply(snapshots: [(title: String, subtitle: String)]) {
-        isSearching = false
-        var mapped: [CitySuggestion] = []
+    private func refreshRegionBias() {
+        guard let coord = userCoordinate ?? LocationManager.shared.coordinateForSearch else { return }
+        userCoordinate = coord
+        // Soft bias (~400km): nearby cities rise for short queries without blocking worldwide.
+        completer.region = MKCoordinateRegion(
+            center: coord,
+            latitudinalMeters: 400_000,
+            longitudinalMeters: 400_000
+        )
+    }
+
+    private func mergeCatalogSuggestions(for query: String) async {
+        await rebuildSuggestions()
+    }
+
+    private func rebuildSuggestions() async {
+        let trimmed = lastQueried
+        guard !trimmed.isEmpty else {
+            suggestions = []
+            isSearching = false
+            return
+        }
+
+        let intent = SearchIntent.classify(trimmed)
+        var scored: [(CitySuggestion, Double)] = []
         var seen = Set<String>()
 
-        for snapshot in snapshots {
-            // Nuclear plain-text scrub — removes 🗽 and every other emoji/symbol.
+        for snapshot in pendingCompleterSnapshots {
             let title = snapshot.title.asPlainPlaceName()
             let subtitle = snapshot.subtitle.asPlainPlaceName()
             guard !title.isEmpty else { continue }
             guard !Self.isStreetAddress(title: title) else { continue }
+            guard !Self.isBroadAdminArea(title: title, subtitle: subtitle) else { continue }
 
             let suggestion = CitySuggestion(
-                id: "\(title)|\(subtitle)",
+                id: "mk|\(title)|\(subtitle)",
                 title: title,
                 subtitle: subtitle
             )
             let key = suggestion.displayLabel.lowercased()
             guard !seen.contains(key) else { continue }
             seen.insert(key)
-            mapped.append(suggestion)
-            if mapped.count >= 20 { break }
+
+            let score = IntelligentSearchRanking.scoreCity(
+                name: title,
+                countryName: subtitle,
+                query: trimmed,
+                experienceCount: 0,
+                creatorCount: 0,
+                coordinate: userCoordinate,
+                userCoordinate: userCoordinate,
+                intent: intent
+            ) + IntelligentSearchRanking.majorCityPrior(name: title) * 0.1
+            scored.append((suggestion, score))
         }
 
-        suggestions = mapped
+        // Boost with Trav catalog cities that match.
+        let catalog = (try? await CityCatalog.shared.all()) ?? []
+        let rankedCatalog = IntelligentSearchRanking.rankCatalogCities(
+            catalog,
+            query: trimmed,
+            userCoordinate: userCoordinate
+        )
+        for city in rankedCatalog.prefix(12) {
+            let suggestion = CitySuggestion(
+                id: "catalog|\(city.id.uuidString)",
+                title: city.name,
+                subtitle: city.countryName
+            )
+            let key = suggestion.displayLabel.lowercased()
+            if seen.contains(key) {
+                // Raise score of existing MapKit row when Trav has activity.
+                if let idx = scored.firstIndex(where: { $0.0.displayLabel.lowercased() == key }) {
+                    let boost = IntelligentSearchRanking.scoreCity(
+                        name: city.name,
+                        countryName: city.countryName,
+                        query: trimmed,
+                        experienceCount: city.experienceCount,
+                        creatorCount: city.creatorCount,
+                        coordinate: CLLocationCoordinate2D(latitude: city.latitude, longitude: city.longitude),
+                        userCoordinate: userCoordinate,
+                        intent: intent
+                    )
+                    scored[idx].1 = max(scored[idx].1, boost + 0.08)
+                }
+                continue
+            }
+            seen.insert(key)
+            let score = IntelligentSearchRanking.scoreCity(
+                name: city.name,
+                countryName: city.countryName,
+                query: trimmed,
+                experienceCount: city.experienceCount,
+                creatorCount: city.creatorCount,
+                coordinate: CLLocationCoordinate2D(latitude: city.latitude, longitude: city.longitude),
+                userCoordinate: userCoordinate,
+                intent: intent
+            )
+            scored.append((suggestion, score))
+        }
+
+        suggestions = scored
+            .sorted { $0.1 > $1.1 }
+            .prefix(20)
+            .map(\.0)
+        isSearching = false
+    }
+
+    private static func isBroadAdminArea(title: String, subtitle: String) -> Bool {
+        let lower = title.lowercased()
+        let adminHints = ["county", "parish", "province", "prefecture", "state of", "united states", "united kingdom"]
+        if adminHints.contains(where: { lower == $0 || lower.hasSuffix(" \($0)") }) {
+            return true
+        }
+        // Bare country rows often have empty locality-style subtitles.
+        if subtitle.isEmpty && IntelligentSearchRanking.majorCityPrior(name: title) < 0.2
+            && !title.contains(",") {
+            // Keep short city-like titles; drop obvious countries handled above.
+        }
+        return false
     }
 
     /// True only for obvious street addresses — not for cities like "St. Louis".
@@ -239,6 +393,11 @@ final class LocationManager: NSObject, CLLocationManagerDelegate, @unchecked Sen
     var authorizationStatus: CLAuthorizationStatus = .notDetermined
     var currentLocation: CLLocation? = nil
     var recordedLocations: [TimestampedLocation] = []
+
+    /// Best-effort coordinate for search bias (live fix or last known).
+    var coordinateForSearch: CLLocationCoordinate2D? {
+        currentLocation?.coordinate ?? manager.location?.coordinate
+    }
 
     private let storageKey = "trav_location_history_24h"
 

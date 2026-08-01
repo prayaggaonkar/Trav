@@ -160,14 +160,14 @@ struct GlobeLandingView: View {
             } else {
                 isSearchingUsers = true
                 userSearchTask = Task {
-                    try? await Task.sleep(for: .milliseconds(250))
+                    try? await Task.sleep(for: .milliseconds(260))
                     guard !Task.isCancelled else { return }
                     if let currentUserID = session.currentUser?.id {
                         await engagement.bootstrap(userID: currentUserID, using: environment)
                     }
                     let results = (try? await environment.profiles.searchUsers(query: trimmed)) ?? []
                     if !Task.isCancelled {
-                        userSearchResults = results
+                        userSearchResults = results.filter { !engagement.isBlocked($0.id) }
                         isSearchingUsers = false
                     }
                 }
@@ -176,10 +176,12 @@ struct GlobeLandingView: View {
                     try? await Task.sleep(for: .milliseconds(150))
                     guard !Task.isCancelled else { return }
                     if case let .loaded(allCities) = viewModel?.loadState {
-                        let filtered = allCities.filter { city in
-                            city.name.localizedCaseInsensitiveContains(newValue) ||
-                            city.countryName.localizedCaseInsensitiveContains(newValue)
-                        }
+                        let filtered = IntelligentSearchRanking.rankCatalogCities(
+                            allCities,
+                            query: newValue,
+                            userCoordinate: spotSearchController.userCoordinate
+                                ?? LocationManager.shared.coordinateForSearch
+                        )
                         viewModel?.renderer.setCities(filtered)
                     }
                 }
@@ -206,11 +208,15 @@ struct GlobeLandingView: View {
                         appearance.toggle()
                     }
                 } label: {
-                    Image("ExploreLogo")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 44, height: 44)
-                        .shadow(color: Color(red: 0.700, green: 0.409, blue: 0.997).opacity(0.35), radius: 6, x: 0, y: 2)
+                    ZStack {
+                        Circle()
+                            .fill(TravColors.accent.opacity(0.15))
+                            .frame(width: 46, height: 46)
+
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundStyle(TravColors.accent)
+                    }
                 }
                 .buttonStyle(TravPressButtonStyle(scale: 0.92))
                 .accessibilityLabel(appearance.isLightMode ? "Switch to dark mode" : "Switch to light mode")
@@ -348,10 +354,12 @@ struct GlobeLandingView: View {
         guard case let .loaded(allCities) = viewModel?.loadState else { return [] }
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
-        return allCities.filter { city in
-            city.name.localizedCaseInsensitiveContains(trimmed) ||
-            city.countryName.localizedCaseInsensitiveContains(trimmed)
-        }
+        return IntelligentSearchRanking.rankCatalogCities(
+            allCities,
+            query: trimmed,
+            userCoordinate: spotSearchController.userCoordinate
+                ?? LocationManager.shared.coordinateForSearch
+        )
     }
 
     private var searchResultsOverlay: some View {

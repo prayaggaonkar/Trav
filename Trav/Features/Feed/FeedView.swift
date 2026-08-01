@@ -789,11 +789,12 @@ struct FeedView: View {
     private var matchingCities: [City] {
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
-        return catalogCities.filter { city in
-            city.name.localizedCaseInsensitiveContains(trimmed)
-                || city.countryName.localizedCaseInsensitiveContains(trimmed)
-                || city.locationLabel.localizedCaseInsensitiveContains(trimmed)
-        }
+        return IntelligentSearchRanking.rankCatalogCities(
+            catalogCities,
+            query: trimmed,
+            userCoordinate: spotSearchController.userCoordinate
+                ?? LocationManager.shared.coordinateForSearch
+        )
     }
 
     private func scheduleUserSearch(for query: String) {
@@ -806,7 +807,7 @@ struct FeedView: View {
         }
         isSearchingUsers = true
         userSearchTask = Task {
-            try? await Task.sleep(for: .milliseconds(280))
+            try? await Task.sleep(for: .milliseconds(260))
             guard !Task.isCancelled else { return }
             let results = (try? await environment.profiles.searchUsers(query: trimmed)) ?? []
             guard !Task.isCancelled else { return }

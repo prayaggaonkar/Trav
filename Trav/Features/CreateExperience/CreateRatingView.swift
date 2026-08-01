@@ -412,60 +412,34 @@ struct CreateRatingView: View {
 
         isSearching = true
         searchTask = Task {
-            try? await Task.sleep(for: .milliseconds(280))
+            try? await Task.sleep(for: .milliseconds(HangoutSpotSearchService.defaultDebounceMilliseconds))
             guard !Task.isCancelled else { return }
 
-            // 1. Apple Maps hangout / travel spots only
-            let mapReq = MapKit.MKLocalSearch.Request()
-            mapReq.naturalLanguageQuery = trimmed
-            mapReq.resultTypes = .pointOfInterest
-            mapReq.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
+            let userCoordinate = LocationManager.shared.coordinateForSearch
 
-            var mapResults: [SpotSuggestion] = []
-            do {
-                let mapSearch = MapKit.MKLocalSearch(request: mapReq)
-                let mapResp = try await mapSearch.start()
-                var seen = Set<String>()
+            async let mapResults = HangoutSpotSearchService.search(
+                query: trimmed,
+                userCoordinate: userCoordinate,
+                limit: 6
+            )
 
-                for item in mapResp.mapItems {
-                    guard HangoutSpotFilter.isEligibleSpot(item) else { continue }
-                    guard let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
-                    let subtitle = item.placemark.title ?? ""
-
-                    let category = HangoutSpotFilter.category(for: item)
-                    let coord = item.placemark.coordinate
-                    let suggestion = SpotSuggestion(
-                        id: "spot|\(name)|\(subtitle)|\(coord.latitude),\(coord.longitude)",
-                        title: name,
-                        subtitle: subtitle,
-                        category: category,
-                        latitude: coord.latitude,
-                        longitude: coord.longitude
-                    )
-
-                    let key = "\(name.lowercased())|\(subtitle.lowercased())"
-                    guard !seen.contains(key) else { continue }
-                    seen.insert(key)
-                    mapResults.append(suggestion)
-
-                    if mapResults.count >= 6 { break }
-                }
-            } catch {}
-
-            guard !Task.isCancelled else { return }
-
-            // 2. Search other users' itineraries in database
-            let results = (try? await environment.experiences.searchExperiences(
+            // Itineraries only (not DB spots) — ranked by Trav popularity + text match
+            let itineraryMatches = (try? await environment.experiences.searchExperiences(
                 query: trimmed,
                 kind: nil,
-                limit: 10
+                limit: 16
             )) ?? []
+            let rankedItineraries = IntelligentSearchRanking.rankExperiences(
+                itineraryMatches.filter { !$0.isSpot },
+                query: trimmed
+            )
 
+            let spots = await mapResults
             guard !Task.isCancelled else { return }
 
             await MainActor.run {
-                appleMapSpots = mapResults
-                searchResults = results
+                appleMapSpots = spots
+                searchResults = Array(rankedItineraries.prefix(10))
                 isSearching = false
             }
         }

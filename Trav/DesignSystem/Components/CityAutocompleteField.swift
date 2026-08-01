@@ -289,9 +289,9 @@ final class StopAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
                 isSearching = true
                 completer.queryFragment = trimmed
 
-                // Execute direct Apple Maps API (MKLocalSearch) search for any place, query, or city
+                // Ranked hangout search replaces completer results when ready
                 searchTask = Task {
-                    try? await Task.sleep(for: .milliseconds(200))
+                    try? await Task.sleep(for: .milliseconds(HangoutSpotSearchService.defaultDebounceMilliseconds))
                     guard !Task.isCancelled else { return }
                     await self.performAppleMapsSearch(for: trimmed)
                 }
@@ -306,6 +306,7 @@ final class StopAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
     private let locationManager = CLLocationManager()
     private var lastQueried = ""
     private var searchTask: Task<Void, Never>?
+    private var userCoordinate: CLLocationCoordinate2D?
 
     override init() {
         super.init()
@@ -314,21 +315,25 @@ final class StopAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
         completer.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
 
         locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         if locationManager.authorizationStatus == .notDetermined {
             locationManager.requestWhenInUseAuthorization()
         }
         if let location = locationManager.location {
+            userCoordinate = location.coordinate
             updateRegion(location.coordinate)
         }
+        locationManager.requestLocation()
         locationManager.startUpdatingLocation()
     }
 
     private func updateRegion(_ coordinate: CLLocationCoordinate2D) {
+        userCoordinate = coordinate
+        let radius = SearchIntent.classify(query).localRadiusMeters
         completer.region = MKCoordinateRegion(
             center: coordinate,
-            latitudinalMeters: 50_000,
-            longitudinalMeters: 50_000
+            latitudinalMeters: radius,
+            longitudinalMeters: radius
         )
     }
 
@@ -360,7 +365,7 @@ final class StopAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
             ($0.title, $0.subtitle)
         }
         Task { @MainActor in
-            // Fast prefix completion while direct Apple Maps API search is loading
+            // Fast prefix completion while ranked search is loading
             if self.suggestions.isEmpty {
                 self.applyCompleter(snapshots: snapshots)
             }
@@ -402,100 +407,40 @@ final class StopAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
         if let lat = suggestion.latitude, let lng = suggestion.longitude {
             return (lat, lng)
         }
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = suggestion.displayLabel
-        if let location = locationManager.location {
-            request.region = MKCoordinateRegion(
-                center: location.coordinate,
-                latitudinalMeters: 50_000,
-                longitudinalMeters: 50_000
-            )
+        let ranked = await HangoutSpotSearchService.search(
+            query: suggestion.displayLabel,
+            userCoordinate: userCoordinate ?? locationManager.location?.coordinate,
+            limit: 1
+        )
+        if let first = ranked.first, let lat = first.latitude, let lng = first.longitude {
+            return (lat, lng)
         }
-        request.resultTypes = .pointOfInterest
-        request.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
-        guard let response = try? await MKLocalSearch(request: request).start(),
-              let item = response.mapItems.first(where: { HangoutSpotFilter.isEligibleSpot($0) }) else {
-            return nil
-        }
-        let coordinate = item.placemark.coordinate
-        return (coordinate.latitude, coordinate.longitude)
+        return nil
     }
 
-    /// Primary search function using Apple Maps Search API (MKLocalSearch).
+    /// Primary search via shared intelligent hangout spot pipeline.
     private func performAppleMapsSearch(for queryText: String) async {
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = queryText
-        request.resultTypes = .pointOfInterest
-        request.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
+        let spots = await HangoutSpotSearchService.search(
+            query: queryText,
+            userCoordinate: userCoordinate ?? locationManager.location?.coordinate,
+            limit: 15
+        )
+        guard !Task.isCancelled else { return }
 
-        if let location = locationManager.location {
-            request.region = MKCoordinateRegion(
-                center: location.coordinate,
-                latitudinalMeters: 50_000,
-                longitudinalMeters: 50_000
+        let apiSuggestions: [StopSuggestion] = spots.map { spot in
+            StopSuggestion(
+                id: "maps_api|\(spot.title)|\(spot.subtitle)",
+                title: spot.title,
+                subtitle: spot.displayLocation,
+                latitude: spot.latitude,
+                longitude: spot.longitude
             )
         }
 
-        let search = MKLocalSearch(request: request)
-        do {
-            let response = try await search.start()
-            guard !Task.isCancelled else { return }
-
-            var apiSuggestions: [StopSuggestion] = []
-            var seen = Set<String>()
-
-            for item in response.mapItems {
-                guard HangoutSpotFilter.isEligibleSpot(item) else { continue }
-                guard let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
-                let subtitle = Self.formatSubtitle(for: item)
-                let coordinate = item.placemark.coordinate
-                let suggestion = StopSuggestion(
-                    id: "maps_api|\(name)|\(subtitle)",
-                    title: name,
-                    subtitle: subtitle,
-                    latitude: coordinate.latitude,
-                    longitude: coordinate.longitude
-                )
-                let key = suggestion.displayLabel.lowercased()
-                guard !seen.contains(key) else { continue }
-                seen.insert(key)
-                apiSuggestions.append(suggestion)
-            }
-
-            if !apiSuggestions.isEmpty {
-                self.suggestions = Array(apiSuggestions.prefix(15))
-            }
-            self.isSearching = false
-        } catch {
-            Task { @MainActor in
-                self.isSearching = false
-            }
+        if !apiSuggestions.isEmpty {
+            self.suggestions = apiSuggestions
         }
-    }
-
-    private static func formatSubtitle(for item: MKMapItem) -> String {
-        let placemark = item.placemark
-        var parts: [String] = []
-
-        if let street = placemark.thoroughfare {
-            if let number = placemark.subThoroughfare {
-                parts.append("\(number) \(street)")
-            } else {
-                parts.append(street)
-            }
-        }
-
-        if let city = placemark.locality ?? placemark.subAdministrativeArea, !city.isEmpty {
-            parts.append(city)
-        }
-
-        if let state = placemark.administrativeArea, !state.isEmpty, state != placemark.locality {
-            parts.append(state)
-        } else if let country = placemark.country, !country.isEmpty, country != placemark.locality {
-            parts.append(country)
-        }
-
-        return parts.joined(separator: ", ")
+        self.isSearching = false
     }
 }
 
