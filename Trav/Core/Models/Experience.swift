@@ -94,6 +94,26 @@ struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
     var isSpot: Bool { kind == .spot }
     var isItinerary: Bool { kind == .itinerary }
 
+    var isTravOwned: Bool {
+        ExperienceInsert.isTravOwned(
+            creatorID: creator.id,
+            username: creator.username,
+            displayName: creator.displayName
+        )
+    }
+
+    /// Destinations are Trav-owned, so any rating is community validation.
+    /// Itineraries need a non-creator rating before the score is social proof.
+    var showsCommunityValidatedScore: Bool {
+        if ratingSummary.hasCommunityValidation || ratingSummary.communityRatingCount > 0 {
+            return true
+        }
+        if isSpot && ratingSummary.ratingCount > 0 {
+            return true
+        }
+        return false
+    }
+
     var coverImageURL: URL? {
         imageURLs.first
     }
@@ -209,6 +229,24 @@ struct Experience: Identifiable, Codable, Sendable, Hashable {
 
     var isSpot: Bool { kind == .spot }
     var isItinerary: Bool { kind == .itinerary }
+
+    var isTravOwned: Bool {
+        ExperienceInsert.isTravOwned(
+            creatorID: creator.id,
+            username: creator.username,
+            displayName: creator.displayName
+        )
+    }
+
+    var showsCommunityValidatedScore: Bool {
+        if ratingSummary.hasCommunityValidation || ratingSummary.communityRatingCount > 0 {
+            return true
+        }
+        if isSpot && ratingSummary.ratingCount > 0 {
+            return true
+        }
+        return false
+    }
 
     var coverImageURL: URL? {
         imageURLs.first

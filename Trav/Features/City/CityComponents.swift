@@ -250,10 +250,10 @@ struct HeroExperienceCard: View {
 
                         // Visited by / Completed by badge & Author line at very bottom
                         VStack(alignment: .leading, spacing: 6) {
-                            let isSpotCard = experience.isSpot || experience.stops.count <= 1
+                            let isSpotCard = experience.isSpot
                             let systemNames = ["rec by trav", "system", "trav editorial", "editorial", "trav"]
                             let creatorName = experience.creator.displayName.lowercased()
-                            let isRecByTrav = systemNames.contains(creatorName) || experience.creator.username.lowercased() == "trav"
+                            let isRecByTrav = experience.isTravOwned || systemNames.contains(creatorName)
 
                             // 1. Visited by / Completed by badge — ONLY displayed if current user follows a friend who completed it!
                             let followedCompleters = experience.completedBy.filter { user in
@@ -357,28 +357,20 @@ struct HeroExperienceCard: View {
                             .accessibilityLabel("Share")
                         }
 
-                        let isSpotCard = experience.isSpot || experience.stops.count <= 1
+                        let isSpotCard = experience.isSpot
                         let resolvedScore = experience.ratingSummary.displayScore ?? experience.rating?.overallScore
                         let hasAnyRating = experience.ratingSummary.ratingCount > 0
                             || experience.ratingSummary.communityRatingCount > 0
                             || (resolvedScore ?? 0) > 0
 
-                        if isSpotCard {
-                            // Spots: grey "--" until anyone rates, then always purple.
-                            if hasAnyRating, let score = resolvedScore ?? experience.ratingSummary.averageScore, score > 0 {
-                                CircularRatingView(
-                                    rating: score,
-                                    size: 40,
-                                    isCommunityValidated: true
-                                )
-                            } else {
-                                CircularRatingView(unratedSize: 40)
-                            }
+                        if isSpotCard && !hasAnyRating {
+                            // Destinations start unrated — grey circle with dashes.
+                            CircularRatingView(unratedSize: 40)
                         } else if let score = resolvedScore, score > 0 {
                             CircularRatingView(
                                 rating: score,
                                 size: 40,
-                                isCommunityValidated: experience.ratingSummary.hasCommunityValidation || experience.ratingSummary.communityRatingCount > 0
+                                isCommunityValidated: experience.showsCommunityValidatedScore
                             )
                         }
                     }

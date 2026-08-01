@@ -99,8 +99,8 @@ struct SpotSuggestion: Identifiable, Hashable, Sendable {
             longitude: longitude
         )
         let city = resolvedCityName
-        // Spots are never person-authored — always Trav.
-        let creatorSummary = currentUser ?? SupabaseExperienceRepository.spotCreator
+        // Destinations are never person-authored — always Trav.
+        let creatorSummary = ExperienceInsert.travCreator
         let summary = ExperienceSummary(
             id: spotUUID,
             kind: .spot,
@@ -598,13 +598,7 @@ struct SpotDetailSheet: View {
             media: []
         )
 
-        let creator = ProfileSummary(
-            id: ExperienceInsert.travAdminID,
-            username: "trav",
-            displayName: "Rec by Trav",
-            avatarURL: nil,
-            isVerified: true
-        )
+        let creator = ExperienceInsert.travCreator
 
         let exp = Experience(
             id: id,

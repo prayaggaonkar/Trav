@@ -217,19 +217,8 @@ final class RecommendationService: Sendable {
         return sortWithRealUserPriority(results)
     }
 
+    /// Destinations and itineraries are first-class — keep recommendation order as-is.
     private func sortWithRealUserPriority(_ list: [Experience]) -> [Experience] {
-        list.sorted { a, b in
-            let aIsTrav = a.creator.id == ExperienceInsert.travAdminID
-                || a.creator.username.lowercased() == "trav"
-                || a.creator.displayName.lowercased().contains("trav")
-            let bIsTrav = b.creator.id == ExperienceInsert.travAdminID
-                || b.creator.username.lowercased() == "trav"
-                || b.creator.displayName.lowercased().contains("trav")
-
-            if aIsTrav != bIsTrav {
-                return !aIsTrav // Real user posts come first!
-            }
-            return false
-        }
+        list
     }
 }

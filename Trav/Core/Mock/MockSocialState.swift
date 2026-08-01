@@ -588,14 +588,8 @@ actor MockSocialState {
         var copy = summary
         let isSpot = summary.isSpot || summary.stops.count <= 1
         if isSpot {
-            // Spots are always owned by Trav — never the rating user.
-            copy.creator = ProfileSummary(
-                id: ExperienceInsert.travAdminID,
-                username: "trav",
-                displayName: "Trav",
-                avatarURL: nil,
-                isVerified: true
-            )
+            // Destinations are always owned by Trav — never the rating user.
+            copy.creator = ExperienceInsert.travCreator
         } else {
             copy.creator = ProfileSummary(
                 id: ownerID,

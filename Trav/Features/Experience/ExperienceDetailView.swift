@@ -168,12 +168,12 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func hero(_ experience: Experience) -> some View {
         let commentCount = localCommentCount ?? experience.commentCount
-        let isSpotRec = (experience.creator.displayName.lowercased() == "rec by trav" || experience.creator.username.lowercased() == "trav" || experience.stops.count <= 1)
+        let isSpotRec = experience.isSpot || experience.isTravOwned
 
         HeroMediaCarousel(
             urls: experience.imageURLs,
-            // Spots keep the map under ADDRESS — never as the hero fallback.
-            stops: (experience.isSpot || experience.stops.count <= 1) ? [] : experience.stops,
+            // Destinations keep the map under ADDRESS — never as the hero fallback.
+            stops: experience.isSpot ? [] : experience.stops,
             isRecByTrav: isSpotRec,
             height: TravLayout.heroExperienceHeight,
             onImageTap: { index in
@@ -191,7 +191,7 @@ struct ExperienceDetailView: View {
                 .fixedSize(horizontal: false, vertical: true)
         } accessory: {
             HStack(alignment: .center, spacing: TravSpacing.md) {
-                let isSpotRec = (experience.creator.displayName.lowercased() == "rec by trav" || experience.creator.username.lowercased() == "trav" || experience.stops.count <= 1)
+                let isSpotRec = experience.isSpot || experience.isTravOwned
 
                 if !isSpotRec {
                     Button {
@@ -250,7 +250,8 @@ struct ExperienceDetailView: View {
     private func actionBar(_ experience: Experience) -> some View {
         let isOwn = (session.currentUser?.id == experience.creator.id)
         let isSaved = engagement.isSaved(experience.id)
-        let isCompleted = isOwn || engagement.isCompleted(experience.id)
+        // Complete always means rated — creators are not auto-completed.
+        let isCompleted = engagement.isCompleted(experience.id)
         let summary = summary(from: experience)
 
         return HStack(alignment: .top, spacing: 0) {
@@ -412,7 +413,7 @@ struct ExperienceDetailView: View {
                     Image(systemName: "person.3.fill")
                         .font(.system(size: 26))
                         .foregroundStyle(TravColors.muted.opacity(0.6))
-                    Text("No visits or reviews logged yet.\nBe the first to rate & review this spot!")
+                    Text("No visits or reviews logged yet.\nBe the first to rate & review this experience!")
                         .font(TravTypography.bodyMedium())
                         .foregroundStyle(TravColors.muted)
                         .multilineTextAlignment(.center)

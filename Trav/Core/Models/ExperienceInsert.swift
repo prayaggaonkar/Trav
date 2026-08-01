@@ -4,6 +4,24 @@ import Foundation
 struct ExperienceInsert: Encodable, Sendable {
     static let travAdminID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
 
+    /// Canonical Trav profile for destinations and system-owned experiences.
+    static var travCreator: ProfileSummary {
+        ProfileSummary(
+            id: travAdminID,
+            username: "trav",
+            displayName: "Trav",
+            avatarURL: nil,
+            isVerified: true
+        )
+    }
+
+    static func isTravOwned(creatorID: UUID, username: String, displayName: String) -> Bool {
+        if creatorID == travAdminID { return true }
+        let user = username.lowercased()
+        let name = displayName.lowercased()
+        return user == "trav" || name == "trav" || name == "rec by trav"
+    }
+
     var id: UUID
     var user_id: UUID
     var title: String
