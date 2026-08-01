@@ -346,8 +346,17 @@ struct AuthEntryView: View {
 
     private func handleGoogleSignIn() async {
         errorMessage = nil
+
+        // Yield one turn before flipping any loading UI so the button press /
+        // modal hierarchy is settled — mutating the sheet while
+        // ASWebAuthenticationSession starts is a common cancel trigger.
+        await Task.yield()
         isGoogleSigningIn = true
         defer { isGoogleSigningIn = false }
+
+        // Another short beat so the ProgressView swap commits before the
+        // system auth session is created.
+        try? await Task.sleep(for: .milliseconds(50))
 
         do {
             let profile = try await environment.auth.signInWithGoogle()
@@ -357,6 +366,8 @@ struct AuthEntryView: View {
             environment.engagement.cache(profile)
             await environment.engagement.bootstrap(userID: profile.id, using: environment)
             onAuthSuccess(isNew)
+        } catch is CancellationError {
+            return
         } catch {
             let nsError = error as NSError
             if nsError.domain == ASWebAuthenticationSessionError.errorDomain,

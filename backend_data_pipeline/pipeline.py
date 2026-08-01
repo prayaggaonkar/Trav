@@ -45,10 +45,13 @@ EXCLUDED_CHAINS = {
     "peet's", "chevron", "shell", "starbucks coffee", "peet’s"
 }
 
-# Permitted non-food hangout category vibes
+# Permitted hangout / travel spot categories (excludes grocery, utilities, admin areas)
 ALLOWED_CATEGORIES = {
-    "bar", "shopping", "vintage_store", "hiking_trail", "park", 
-    "scenic_viewpoint", "museum", "bookstore"
+    "bar", "shopping", "vintage_store", "hiking_trail", "park",
+    "scenic_viewpoint", "museum", "bookstore", "cafe", "restaurant",
+    "bakery", "brewery", "winery", "nightlife", "theater", "gallery",
+    "beach", "campground", "zoo", "aquarium", "amusement_park",
+    "landmark", "spa", "stadium", "marina", "marketplace", "festival"
 }
 
 def parse_args():

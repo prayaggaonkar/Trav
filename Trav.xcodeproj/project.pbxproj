@@ -55,6 +55,7 @@
 		AUTOSEED0000000000000001 /* ExperienceInsert.swift in Sources */ = {isa = PBXBuildFile; fileRef = AUTOSEED0000000000000002 /* ExperienceInsert.swift */; };
 		AUTOSEED0000000000000003 /* AutoSeedManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AUTOSEED0000000000000004 /* AutoSeedManager.swift */; };
 		APPLEMAPSVIBE00000000001 /* AppleMapsVibeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = APPLEMAPSVIBE00000000002 /* AppleMapsVibeService.swift */; };
+		HANGOUTFILTER000000001 /* HangoutSpotFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = HANGOUTFILTER000000002 /* HangoutSpotFilter.swift */; };
 		AC10E298F515465C8669B004 /* SupabaseAuthRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */; };
 		AC10E298F515465C8669B009 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = AC10E298F515465C8669B008 /* Supabase */; };
 		AC10E298F515465C8669B00C /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = AC10E298F515465C8669B00B /* Auth */; };
@@ -157,6 +158,7 @@
 		AUTOSEED0000000000000002 /* ExperienceInsert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperienceInsert.swift; sourceTree = "<group>"; };
 		AUTOSEED0000000000000004 /* AutoSeedManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoSeedManager.swift; sourceTree = "<group>"; };
 		APPLEMAPSVIBE00000000002 /* AppleMapsVibeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMapsVibeService.swift; sourceTree = "<group>"; };
+		HANGOUTFILTER000000002 /* HangoutSpotFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HangoutSpotFilter.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseAuthRepository.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B015 /* SupabaseExperienceRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseExperienceRepository.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B020 /* OAuthWebSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthWebSession.swift; sourceTree = "<group>"; };
@@ -357,6 +359,7 @@
 				042EA83356B64A548B6D9EE9 /* CityAutocompleteService.swift */,
 				AUTOSEED0000000000000004 /* AutoSeedManager.swift */,
 				APPLEMAPSVIBE00000000002 /* AppleMapsVibeService.swift */,
+				HANGOUTFILTER000000002 /* HangoutSpotFilter.swift */,
 				AC10E298F515465C8669B020 /* OAuthWebSession.swift */,
 				AC10E298F515465C8669B001 /* SupabaseManager.swift */,
 				20D1B81412AC87415EFE2CBA /* CityCatalog.swift */,
@@ -657,6 +660,7 @@
 				AUTOSEED0000000000000001 /* ExperienceInsert.swift in Sources */,
 				AUTOSEED0000000000000003 /* AutoSeedManager.swift in Sources */,
 				APPLEMAPSVIBE00000000001 /* AppleMapsVibeService.swift in Sources */,
+				HANGOUTFILTER000000001 /* HangoutSpotFilter.swift in Sources */,
 				AC10E298F515465C8669B021 /* OAuthWebSession.swift in Sources */,
 				AC10E298F515465C8669B004 /* SupabaseAuthRepository.swift in Sources */,
 				AC10E298F515465C8669B016 /* SupabaseExperienceRepository.swift in Sources */,

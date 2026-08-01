@@ -37,15 +37,28 @@ struct SupabaseAuthRepository: AuthRepository {
 
     func signInWithGoogle() async throws -> Profile {
         let callbackScheme = AppConfiguration.oauthRedirectURL?.scheme ?? "trav"
-        let session = try await client.auth.signInWithOAuth(
+        let authClient = try client.auth
+        let authURL = try authClient.getOAuthSignInURL(
             provider: .google,
             redirectTo: AppConfiguration.oauthRedirectURL
-        ) { @MainActor url in
-            // Present from the key window with a retained anchor so sheet-hosted
-            // auth UI does not cancel ASWebAuthenticationSession immediately.
-            try await OAuthWebSession.present(url: url, callbackScheme: callbackScheme)
+        )
+
+        // Single-path callback: ASWebAuthenticationSession and onOpenURL both
+        // report into OAuthLoginFlow; only the first URL is exchanged for a session.
+        // Keep isInProgress through the PKCE exchange so a late onOpenURL cannot
+        // start a second exchange.
+        do {
+            let callbackURL = try await OAuthLoginFlow.run {
+                try await OAuthWebSession.present(url: authURL, callbackScheme: callbackScheme)
+            }
+            let session = try await authClient.session(from: callbackURL)
+            let profile = try await fetchOrCreateProfile(for: session.user)
+            await OAuthLoginFlow.end()
+            return profile
+        } catch {
+            await OAuthLoginFlow.end()
+            throw error
         }
-        return try await fetchOrCreateProfile(for: session.user)
     }
 
     /// Emits the current session immediately, then every subsequent sign-in/out/refresh event.

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <circle cx="512" cy="400" r="180" fill="#A147FF" fill-opacity="0.15"/>
+  <path d="M512 250c-66 0-120 54-120 120 0 90 120 214 120 214s120-124 120-214c0-66-54-120-120-120zm0 172a52 52 0 1 1 0-104 52 52 0 0 1 0 104z" fill="#A147FF"/>
+  <text x="512" y="780" text-anchor="middle" font-family="Arial Rounded MT Bold, Arial Black, Helvetica, sans-serif" font-size="140" font-weight="900" letter-spacing="18" fill="#FFFFFF">TRAV</text>
+</svg>

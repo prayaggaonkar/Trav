@@ -7,7 +7,7 @@ public enum POICategoryType: String, Sendable {
     case nature = "Hikes & Outdoors"
     case nightlife = "Nightlife & Bars"
     case sports = "Sports & Activities"
-    case culture = "Arts & Culture"
+    case culture = "Arts"
     case food = "Eats & Hangouts"
 }
 
@@ -70,8 +70,17 @@ public final class LocalPlaceFetcher: Sendable {
             "West \(targetCity)"
         ]
 
+        var sportsPOIs: [MKPointOfInterestCategory] = [.stadium, .amusementPark, .fitnessCenter]
+        var culturePOIs: [MKPointOfInterestCategory] = [.museum, .theater, .library]
+        var naturePOIs: [MKPointOfInterestCategory] = [.park, .nationalPark, .campground, .beach, .marina]
+        if #available(iOS 18.0, *) {
+            sportsPOIs += [.golf, .tennis, .skating, .skatePark, .rockClimbing, .bowling, .miniGolf, .goKart]
+            culturePOIs += [.landmark, .nationalMonument, .musicVenue]
+            naturePOIs += [.hiking]
+        }
+
         let searchCategories: [(POICategoryType, [MKPointOfInterestCategory], [String])] = [
-            (.nature, [.park, .nationalPark, .campground], [
+            (.nature, naturePOIs, [
                 "hikes parks nature",
                 "scenic view trail",
                 "botanical gardens reserve",
@@ -83,21 +92,23 @@ public final class LocalPlaceFetcher: Sendable {
                 "breweries wine bar",
                 "speakeasy rooftop lounge"
             ]),
-            (.sports, [.stadium, .amusementPark, .fitnessCenter], [
+            (.sports, sportsPOIs, [
                 "sports stadium activities",
                 "recreation park golf",
-                "bowling billiards climbing"
+                "bowling billiards climbing",
+                "spa yoga wellness"
             ]),
-            (.culture, [.museum], [
+            (.culture, culturePOIs, [
                 "museums landmarks art",
                 "historical site gallery",
-                "sculpture park theater"
+                "sculpture park theater",
+                "zoo aquarium theme park"
             ]),
-            (.food, [.cafe, .restaurant, .bakery], [
+            (.food, [.cafe, .restaurant, .bakery, .store], [
                 "cafes food hangouts",
                 "bakery bistro breakfast",
                 "coffee roasters matcha",
-                "artisan pizza ramen sushi"
+                "shopping mall boutique market"
             ])
         ]
 
@@ -125,6 +136,7 @@ public final class LocalPlaceFetcher: Sendable {
                 }
 
                 for item in itemsForCat {
+                    guard HangoutSpotFilter.isEligibleSpot(item) else { continue }
                     guard let name = item.name, !name.isEmpty else { continue }
                     let lowerName = name.lowercased()
                     if !seenNames.contains(lowerName) {

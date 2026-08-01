@@ -310,7 +310,8 @@ final class StopAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
     override init() {
         super.init()
         completer.delegate = self
-        completer.resultTypes = [.pointOfInterest, .address, .query]
+        completer.resultTypes = .pointOfInterest
+        completer.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
 
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
@@ -376,6 +377,7 @@ final class StopAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
             let title = snapshot.title.trimmingCharacters(in: .whitespacesAndNewlines)
             let subtitle = snapshot.subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !title.isEmpty else { continue }
+            guard HangoutSpotFilter.isEligibleText(title: title, subtitle: subtitle) else { continue }
 
             let suggestion = StopSuggestion(
                 id: "completer|\(title)|\(subtitle)",
@@ -409,8 +411,10 @@ final class StopAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
                 longitudinalMeters: 50_000
             )
         }
+        request.resultTypes = .pointOfInterest
+        request.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
         guard let response = try? await MKLocalSearch(request: request).start(),
-              let item = response.mapItems.first else {
+              let item = response.mapItems.first(where: { HangoutSpotFilter.isEligibleSpot($0) }) else {
             return nil
         }
         let coordinate = item.placemark.coordinate
@@ -421,6 +425,8 @@ final class StopAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
     private func performAppleMapsSearch(for queryText: String) async {
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = queryText
+        request.resultTypes = .pointOfInterest
+        request.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
 
         if let location = locationManager.location {
             request.region = MKCoordinateRegion(
@@ -439,6 +445,7 @@ final class StopAutocompleteController: NSObject, MKLocalSearchCompleterDelegate
             var seen = Set<String>()
 
             for item in response.mapItems {
+                guard HangoutSpotFilter.isEligibleSpot(item) else { continue }
                 guard let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
                 let subtitle = Self.formatSubtitle(for: item)
                 let coordinate = item.placemark.coordinate

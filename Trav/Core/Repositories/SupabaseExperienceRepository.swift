@@ -2841,6 +2841,9 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
     static func emojiForCategory(_ category: String?) -> String {
         guard let category else { return "📍" }
+        if let spotCategory = SpotCategory(legacyRawValue: category) {
+            return spotCategory.emoji
+        }
         let emojis: [String: String] = [
             "bar": "🍻",
             "shopping": "🛍️",
@@ -2849,7 +2852,12 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             "park": "🌳",
             "scenic_viewpoint": "🌅",
             "museum": "🖼️",
-            "bookstore": "📚"
+            "bookstore": "📚",
+            "cafe": "☕",
+            "restaurant": "🍽️",
+            "nightlife": "🍸",
+            "zoo": "🦁",
+            "spa": "🧘"
         ]
         return emojis[category.lowercased()] ?? "📍"
     }

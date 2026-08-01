@@ -418,19 +418,10 @@ struct GlobeLandingView: View {
                                     }
 
                                     VStack(alignment: .leading, spacing: 2) {
-                                        HStack(spacing: 6) {
-                                            Text(spot.title)
-                                                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                                .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
-
-                                            Text(spot.category.rawValue)
-                                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                                                .foregroundStyle(spot.category.badgeColor)
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 2)
-                                                .background(spot.category.badgeColor.opacity(0.18))
-                                                .clipShape(Capsule())
-                                        }
+                                        Text(spot.title)
+                                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(appearance.isLightMode ? Color.black : Color.white)
+                                            .lineLimit(1)
 
                                         Text(spot.displayLocation)
                                             .font(.system(size: 12, weight: .medium))
@@ -438,18 +429,15 @@ struct GlobeLandingView: View {
                                             .lineLimit(1)
                                     }
 
-                                    Spacer()
+                                    Spacer(minLength: 0)
 
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "star.fill")
-                                            .font(.system(size: 11, weight: .bold))
-                                        Text("Rate")
-                                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                                    }
-                                    .foregroundStyle(TravColors.accent)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(Capsule().fill(TravColors.accent.opacity(0.18)))
+                                    Text(spot.category.rawValue)
+                                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                                        .foregroundStyle(spot.category.badgeColor)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 5)
+                                        .background(Capsule().fill(spot.category.badgeColor.opacity(0.18)))
+                                        .lineLimit(1)
                                 }
                                 .padding(.horizontal, TravSpacing.sm)
                                 .padding(.vertical, 8)

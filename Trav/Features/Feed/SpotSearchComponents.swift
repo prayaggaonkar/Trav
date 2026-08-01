@@ -2,52 +2,7 @@ import SwiftUI
 import MapKit
 import CoreLocation
 
-enum SpotCategory: String, CaseIterable, Codable, Sendable {
-    case hike = "Hike"
-    case viewpoint = "Viewpoint"
-    case park = "Park"
-    case landmark = "Landmark"
-    case spot = "Spot"
-
-    var emoji: String {
-        switch self {
-        case .hike: return "🥾"
-        case .viewpoint: return "🏔"
-        case .park: return "🏞"
-        case .landmark: return "🏛"
-        case .spot: return "📍"
-        }
-    }
-
-    var badgeColor: Color {
-        switch self {
-        case .hike: return Color(red: 0.1, green: 0.75, blue: 0.45)
-        case .viewpoint: return Color.cyan
-        case .park: return Color.green
-        case .landmark: return Color(red: 0.95, green: 0.65, blue: 0.1)
-        case .spot: return TravColors.accent
-        }
-    }
-
-    static func infer(title: String, subtitle: String) -> SpotCategory {
-        let text = "\(title) \(subtitle)".lowercased()
-        if text.contains("hike") || text.contains("trail") || text.contains("climb") || text.contains("summit") || text.contains("mountain") {
-            return .hike
-        }
-        if text.contains("view") || text.contains("lookout") || text.contains("overlook") || text.contains("vista") || text.contains("point") || text.contains("peak") {
-            return .viewpoint
-        }
-        if text.contains("park") || text.contains("garden") || text.contains("beach") || text.contains("lake") || text.contains("nature") || text.contains("preserve") {
-            return .park
-        }
-        if text.contains("tower") || text.contains("bridge") || text.contains("monument") || text.contains("palace") || text.contains("museum") || text.contains("historic") || text.contains("statue") || text.contains("center") {
-            return .landmark
-        }
-        return .spot
-    }
-}
-
-/// Represents a non-food spot found via MapKit spot search.
+/// Represents a hangout / travel spot found via MapKit spot search.
 struct SpotSuggestion: Identifiable, Hashable, Sendable {
     let id: String
     let title: String
@@ -211,7 +166,8 @@ final class SpotSearchController: NSObject, CLLocationManagerDelegate {
     private func performSpotSearch(for queryText: String) async {
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = queryText
-        request.resultTypes = [.pointOfInterest, .address]
+        request.resultTypes = .pointOfInterest
+        request.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
 
         // Localized regional search around user location if available
         if let coord = userCoordinate {
@@ -231,7 +187,8 @@ final class SpotSearchController: NSObject, CLLocationManagerDelegate {
             if response.mapItems.isEmpty {
                 let globalRequest = MKLocalSearch.Request()
                 globalRequest.naturalLanguageQuery = queryText
-                globalRequest.resultTypes = [.pointOfInterest, .address]
+                globalRequest.resultTypes = .pointOfInterest
+                globalRequest.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
                 let globalSearch = MKLocalSearch(request: globalRequest)
                 currentSearch = globalSearch
                 response = try await globalSearch.start()
@@ -243,10 +200,11 @@ final class SpotSearchController: NSObject, CLLocationManagerDelegate {
             var seen = Set<String>()
 
             for item in response.mapItems {
+                guard HangoutSpotFilter.isEligibleSpot(item) else { continue }
                 guard let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
                 let subtitle = item.placemark.title ?? ""
 
-                let category = SpotCategory.infer(title: name, subtitle: subtitle)
+                let category = HangoutSpotFilter.category(for: item)
                 let coord = item.placemark.coordinate
                 let suggestion = SpotSuggestion(
                     id: "spot|\(name)|\(subtitle)|\(coord.latitude),\(coord.longitude)",
@@ -920,19 +878,10 @@ struct FullSearchResultsView: View {
                         }
 
                         VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 6) {
-                                Text(spot.title)
-                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(TravColors.primary)
-
-                                Text(spot.category.rawValue)
-                                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                                    .foregroundStyle(spot.category.badgeColor)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(spot.category.badgeColor.opacity(0.18))
-                                    .clipShape(Capsule())
-                            }
+                            Text(spot.title)
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundStyle(TravColors.primary)
+                                .lineLimit(1)
 
                             Text(spot.displayLocation)
                                 .font(.system(size: 12, weight: .medium))
@@ -940,11 +889,15 @@ struct FullSearchResultsView: View {
                                 .lineLimit(1)
                         }
 
-                        Spacer()
+                        Spacer(minLength: 0)
 
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(TravColors.accent)
+                        Text(spot.category.rawValue)
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(spot.category.badgeColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(spot.category.badgeColor.opacity(0.18)))
+                            .lineLimit(1)
                     }
                     .padding(12)
                     .background(TravColors.surfaceElevated)
@@ -1067,10 +1020,11 @@ struct FullSearchResultsView: View {
         isLoading = true
         defer { isLoading = false }
 
-        // 1. Fetch Apple Maps places (MKLocalSearch)
+        // 1. Fetch Apple Maps hangout / travel spots only
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = trimmed
-        request.resultTypes = [.pointOfInterest, .address]
+        request.resultTypes = .pointOfInterest
+        request.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
 
         do {
             let search = MKLocalSearch(request: request)
@@ -1079,9 +1033,10 @@ struct FullSearchResultsView: View {
             var seen = Set<String>()
 
             for item in response.mapItems {
+                guard HangoutSpotFilter.isEligibleSpot(item) else { continue }
                 guard let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
                 let subtitle = item.placemark.title ?? ""
-                let category = SpotCategory.infer(title: name, subtitle: subtitle)
+                let category = HangoutSpotFilter.category(for: item)
                 let coord = item.placemark.coordinate
                 let suggestion = SpotSuggestion(
                     id: "spot|\(name)|\(subtitle)|\(coord.latitude),\(coord.longitude)",

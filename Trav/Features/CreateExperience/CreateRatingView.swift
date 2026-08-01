@@ -337,20 +337,10 @@ struct CreateRatingView: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(spot.title)
-                        .font(TravTypography.labelMedium())
-                        .foregroundStyle(TravColors.primary)
-                        .lineLimit(1)
-
-                    Text(spot.category.rawValue)
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundStyle(spot.category.badgeColor)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(spot.category.badgeColor.opacity(0.18))
-                        .clipShape(Capsule())
-                }
+                Text(spot.title)
+                    .font(TravTypography.labelMedium())
+                    .foregroundStyle(TravColors.primary)
+                    .lineLimit(1)
 
                 Text(spot.displayLocation)
                     .font(TravTypography.caption())
@@ -360,16 +350,13 @@ struct CreateRatingView: View {
 
             Spacer(minLength: 0)
 
-            HStack(spacing: 4) {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 11, weight: .bold))
-                Text("Rate")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-            }
-            .foregroundStyle(TravColors.accent)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(Capsule().fill(TravColors.accent.opacity(0.18)))
+            Text(spot.category.rawValue)
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(spot.category.badgeColor)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(spot.category.badgeColor.opacity(0.18)))
+                .lineLimit(1)
         }
         .padding(TravSpacing.sm)
         .background(TravColors.surface)
@@ -413,16 +400,6 @@ struct CreateRatingView: View {
         .clipShape(RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous))
     }
 
-    private static let straightFoodKeywords = [
-        "restaurant", "pizza", "burger", "tacos", "sushi", "diner", "bistro",
-        "bar", "pub", "grill", "eatery", "kitchen", "noodle", "ramen", "steak", "bbq"
-    ]
-
-    private func isStraightFoodPlace(title: String, subtitle: String) -> Bool {
-        let combined = "\(title) \(subtitle)".lowercased()
-        return Self.straightFoodKeywords.contains { combined.contains($0) }
-    }
-
     private func scheduleSearch(_ query: String) {
         searchTask?.cancel()
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -438,10 +415,11 @@ struct CreateRatingView: View {
             try? await Task.sleep(for: .milliseconds(280))
             guard !Task.isCancelled else { return }
 
-            // 1. Apple Maps search (spots, cafes, viewpoints, landmarks, parks)
+            // 1. Apple Maps hangout / travel spots only
             let mapReq = MapKit.MKLocalSearch.Request()
             mapReq.naturalLanguageQuery = trimmed
-            mapReq.resultTypes = [.pointOfInterest, .address]
+            mapReq.resultTypes = .pointOfInterest
+            mapReq.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
 
             var mapResults: [SpotSuggestion] = []
             do {
@@ -450,13 +428,11 @@ struct CreateRatingView: View {
                 var seen = Set<String>()
 
                 for item in mapResp.mapItems {
+                    guard HangoutSpotFilter.isEligibleSpot(item) else { continue }
                     guard let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
                     let subtitle = item.placemark.title ?? ""
 
-                    // Avoid heavy/straight food, but keep cafes, coffee shops, viewpoints, hikes, landmarks & spots
-                    if isStraightFoodPlace(title: name, subtitle: subtitle) { continue }
-
-                    let category = SpotCategory.infer(title: name, subtitle: subtitle)
+                    let category = HangoutSpotFilter.category(for: item)
                     let coord = item.placemark.coordinate
                     let suggestion = SpotSuggestion(
                         id: "spot|\(name)|\(subtitle)|\(coord.latitude),\(coord.longitude)",

@@ -29,9 +29,17 @@ enum SupabaseManager {
         )
     }()
 
-    /// Forwards an incoming deep link (OAuth callback, magic link, password reset) to Supabase Auth.
+    /// Forwards an incoming deep link (magic link, password reset) to Supabase Auth.
     /// Safe to call even when no client is configured (mock backend).
+    ///
+    /// Google OAuth callbacks are owned by `OAuthLoginFlow` while a native web
+    /// session is active — handing them here a second time clears the PKCE
+    /// verifier and breaks sign-in.
+    @MainActor
     static func handle(_ url: URL) {
+        if OAuthLoginFlow.isInProgress, OAuthLoginFlow.isAuthCallback(url) {
+            return
+        }
         client?.handle(url)
     }
 }

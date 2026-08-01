@@ -150,11 +150,10 @@ private struct RootChromeModifier: ViewModifier {
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
             }
-            .sheet(isPresented: $router.isAuthPresented) {
+            // fullScreenCover (not sheet): ASWebAuthenticationSession started from a
+            // SwiftUI sheet routinely cancels before Google's account picker appears.
+            .fullScreenCover(isPresented: $router.isAuthPresented) {
                 OnboardingView()
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-                    .presentationCornerRadius(TravRadius.xl)
             }
             .fullScreenCover(item: $router.presentedRoute) { route in
                 routeDestination(for: route)

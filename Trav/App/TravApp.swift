@@ -28,8 +28,12 @@ private struct RootContent: View {
             }
             .task { await environment.observeAuthState() }
             .onOpenURL { url in
-                // Auth callbacks (OAuth, magic link, password reset) first;
-                // then app deep links (experience / profile / city).
+                // Google OAuth: prefer the in-flight ASWebAuthenticationSession
+                // coordinator so we never PKCE-exchange the same code twice.
+                if OAuthLoginFlow.consumeOpenURL(url) {
+                    return
+                }
+                // Magic link / password reset, then app deep links.
                 SupabaseManager.handle(url)
                 _ = environment.router.handleDeepLink(url)
             }

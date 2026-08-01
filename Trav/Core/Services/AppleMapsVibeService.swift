@@ -61,6 +61,8 @@ final class AppleMapsVibeService: @unchecked Sendable {
 
             let searchReq = MKLocalSearch.Request()
             searchReq.naturalLanguageQuery = searchQuery
+            searchReq.resultTypes = .pointOfInterest
+            searchReq.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
 
             if let center = center, center.latitude != 0, center.longitude != 0 {
                 searchReq.region = MKCoordinateRegion(
@@ -76,8 +78,10 @@ final class AppleMapsVibeService: @unchecked Sendable {
 
             var categoryBucket: [ExperienceSummary] = []
             
-            // Limit to top 6 items per vibe category per page to prevent bursting GeoServices XPC request limit
-            let candidateItems = Array(searchResponse.mapItems.prefix(6))
+            // Limit to top 6 eligible hangout spots per vibe category per page
+            let candidateItems = searchResponse.mapItems
+                .filter { HangoutSpotFilter.isEligibleSpot($0) }
+                .prefix(6)
 
             for mapItem in candidateItems {
                 guard let name = mapItem.name, !name.isEmpty else { continue }
