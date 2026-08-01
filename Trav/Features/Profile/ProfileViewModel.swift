@@ -70,7 +70,7 @@ final class ProfileViewModel {
         }
 
         do {
-            let mainEntries = try await environment.experiences.fetchMainLeaderboard()
+            let mainEntries = try await environment.experiences.fetchMainLeaderboard(cityID: nil, cityName: nil)
             let validEntries = mainEntries.filter { $0.experienceCount > 0 }
             if let match = validEntries.firstIndex(where: {
                 $0.id == profile?.id || $0.username.lowercased() == username.lowercased()

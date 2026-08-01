@@ -19,6 +19,11 @@ final class RankingsViewModel {
     private(set) var availableLocations: [LocationOption] = [LocationOption.allLocations]
     private(set) var phase: LoadPhase = .loaded
 
+    var isLoading: Bool {
+        if case .loading = phase { return true }
+        return false
+    }
+
     private var currentEnvironment: AppEnvironment?
 
     func filteredEntries(followingIDs: Set<UUID>, currentUserID: UUID?) -> [LeaderboardEntry] {
@@ -70,9 +75,7 @@ final class RankingsViewModel {
             )) ?? []
 
             availableLocations = locs
-            if !fetchedEntries.isEmpty || allEntries.isEmpty {
-                allEntries = fetchedEntries
-            }
+            allEntries = fetchedEntries
             phase = allEntries.isEmpty ? .empty : .loaded
         } catch {
             if allEntries.isEmpty {
@@ -83,10 +86,21 @@ final class RankingsViewModel {
 
     func selectMemberScope(_ scope: MemberScopeFilter) {
         memberScope = scope
+        phase = .loading
+        if let currentEnvironment {
+            Task {
+                await reload(using: currentEnvironment)
+            }
+        }
     }
 
     func selectLocation(_ location: LocationOption) {
         selectedLocation = location
+        if location.id != LocationOption.allLocations.id,
+           !availableLocations.contains(where: { $0.id == location.id || $0.name.lowercased() == location.name.lowercased() }) {
+            availableLocations.insert(location, at: 1)
+        }
+        phase = .loading
         if let currentEnvironment {
             Task {
                 await reload(using: currentEnvironment)

@@ -253,7 +253,7 @@ struct MockExperienceRepository: ExperienceRepository {
         return MockImpactData.entries
     }
 
-    func fetchMainLeaderboard() async throws -> [MainLeaderboardEntry] {
+    func fetchMainLeaderboard(cityID: UUID?, cityName: String?) async throws -> [MainLeaderboardEntry] {
         try await Task.sleep(for: .milliseconds(120))
         return MockMainLeaderboardData.entries
     }

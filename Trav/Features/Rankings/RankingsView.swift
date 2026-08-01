@@ -7,6 +7,15 @@ enum RankingsTab: String, CaseIterable, Identifiable, Sendable {
     case impact = "Impact"
 
     var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .main: return "trophy.fill"
+        case .experiences: return "map.fill"
+        case .streaks: return "flame.fill"
+        case .impact: return "bookmark.fill"
+        }
+    }
 }
 
 struct RankingsView: View {
@@ -17,8 +26,7 @@ struct RankingsView: View {
 
     @State private var viewModel = RankingsViewModel()
     @State private var selectedTab: RankingsTab = .main
-    @State private var showMemberScopeSheet = false
-    @State private var showLocationSheet = false
+    @State private var showCombinedFilterSheet = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -65,26 +73,38 @@ struct RankingsView: View {
                 await viewModel.reload(using: environment)
             }
         }
-        .sheet(isPresented: $showMemberScopeSheet) {
-            MemberFilterModalSheet(
-                selectedScope: viewModel.memberScope,
-                onSelect: { scope in
-                    viewModel.selectMemberScope(scope)
-                }
-            )
-        }
-        .sheet(isPresented: $showLocationSheet) {
-            LocationFilterModalSheet(
+        .fullScreenCover(isPresented: $showCombinedFilterSheet) {
+            CombinedFilterModalSheet(
                 availableLocations: viewModel.availableLocations,
+                selectedScope: viewModel.memberScope,
                 selectedLocation: viewModel.selectedLocation,
-                onSelect: { location in
+                onApply: { scope, location in
+                    viewModel.selectMemberScope(scope)
                     viewModel.selectLocation(location)
                 }
             )
         }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ExperiencePublishedNotification"))) { _ in
+            Task { await viewModel.reload(using: environment) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ExperienceSavedNotification"))) { _ in
+            Task { await viewModel.reload(using: environment) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ExperienceUnsavedNotification"))) { _ in
+            Task { await viewModel.reload(using: environment) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ExperienceCompletedNotification"))) { _ in
+            Task { await viewModel.reload(using: environment) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("UserProfileUpdatedNotification"))) { _ in
+            Task { await viewModel.reload(using: environment) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("FollowStateChangedNotification"))) { _ in
+            Task { await viewModel.reload(using: environment) }
+        }
     }
 
-    // MARK: - Header Title (Matching App Typography)
+    // MARK: - Header Title
 
     private var header: some View {
         HStack {
@@ -95,10 +115,10 @@ struct RankingsView: View {
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
         .padding(.top, TravSpacing.md)
-        .padding(.bottom, TravSpacing.md)
+        .padding(.bottom, TravSpacing.sm)
     }
 
-    // MARK: - Top Tab Bar ("Main", "Experiences", "Streaks", and "Impact")
+    // MARK: - Top Tab Bar ("Main", "Experiences", "Streaks", and "Impact" - Icons Removed)
 
     private var topTabBar: some View {
         HStack(spacing: 3) {
@@ -110,18 +130,18 @@ struct RankingsView: View {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 } label: {
                     Text(tab.rawValue)
-                        .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .medium))
+                        .font(.system(size: 13, weight: selectedTab == tab ? .bold : .medium))
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
-                        .foregroundStyle(selectedTab == tab ? TravColors.primary : TravColors.muted)
+                        .foregroundStyle(selectedTab == tab ? TravColors.accent : TravColors.muted)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 9)
                         .background(
                             Group {
                                 if selectedTab == tab {
                                     RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
                                         .fill(TravColors.surfaceElevated)
-                                        .shadow(color: Color.black.opacity(0.08), radius: 3, y: 1)
+                                        .shadow(color: Color.black.opacity(0.06), radius: 3, y: 1)
                                 }
                             }
                         )
@@ -132,10 +152,10 @@ struct RankingsView: View {
         .padding(4)
         .background(
             RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
-                .fill(appearance.isLightMode ? Color(red: 0.94, green: 0.94, blue: 0.96) : Color.white.opacity(0.08))
+                .fill(appearance.isLightMode ? Color(red: 0.93, green: 0.93, blue: 0.95) : Color.white.opacity(0.08))
         )
         .padding(.horizontal, TravSpacing.screenHorizontal)
-        .padding(.bottom, 12)
+        .padding(.bottom, 10)
     }
 
     // MARK: - Subheader Description
@@ -158,67 +178,97 @@ struct RankingsView: View {
             .font(TravTypography.bodyMedium())
             .foregroundStyle(TravColors.muted)
             .padding(.horizontal, TravSpacing.screenHorizontal)
-            .padding(.bottom, TravSpacing.md)
+            .padding(.bottom, 10)
     }
 
-    // MARK: - Filter Pills Row (Member Scope & Location)
+    // MARK: - Combined Filter Pill (Renamed to "Filter Rankings", Icon Removed)
 
     private var filterPillsRow: some View {
-        HStack(spacing: 12) {
-            // Member Scope Pill (All Members / Friends)
-            FilterPillButton(
-                title: viewModel.memberScope.title
-            ) {
-                showMemberScopeSheet = true
-            }
+        HStack {
+            Button {
+                showCombinedFilterSheet = true
+            } label: {
+                HStack(spacing: 6) {
+                    Text("Filter Rankings")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(TravColors.primary)
 
-            // Location Filter Pill (Worldwide / Dublin, CA / etc.)
-            FilterPillButton(
-                title: viewModel.selectedLocation.name
-            ) {
-                showLocationSheet = true
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(TravColors.muted)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(TravColors.surfaceElevated)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(TravColors.border.opacity(0.4), lineWidth: 1)
+                )
             }
+            .buttonStyle(TravPressButtonStyle(scale: 0.96))
 
             Spacer()
         }
         .padding(.horizontal, TravSpacing.screenHorizontal)
-        .padding(.bottom, TravSpacing.md)
+        .padding(.bottom, 12)
     }
 
     // MARK: - Main Content List (Experiences Tab)
 
     @ViewBuilder
     private var content: some View {
-        let entries = viewModel.filteredEntries(
-            followingIDs: engagement.followingUserIDs,
-            currentUserID: environment.session.currentUser?.id
-        )
+        if viewModel.isLoading {
+            SkeletonRankingsList()
+        } else {
+            let entries = viewModel.filteredEntries(
+                followingIDs: engagement.followingUserIDs,
+                currentUserID: environment.session.currentUser?.id
+            )
 
-        ScrollView {
-            if entries.isEmpty {
-                EmptyStateView(
-                    icon: "crown",
-                    title: "No members found",
-                    description: "No members match the selected filters. Try choosing a different location or member scope."
-                )
-                .padding(.top, 40)
-            } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                        LeaderboardUserRow(
-                            rank: index + 1,
-                            entry: entry,
-                            onTap: {
-                                router.openProfile(entry.username)
-                            }
-                        )
+            ScrollView {
+                if entries.isEmpty {
+                    EmptyStateView(
+                        icon: "map",
+                        title: "No members found",
+                        description: "No members match the selected filters. Try choosing a different location or member scope."
+                    )
+                    .padding(.top, 40)
+                } else {
+                    VStack(spacing: 0) {
+                        if entries.count >= 3 {
+                            RankingsPodiumView<LeaderboardEntry>(
+                                topThree: Array(entries.prefix(3)),
+                                displayName: { $0.displayName },
+                                username: { $0.username },
+                                avatarURL: { $0.avatarURL },
+                                metricValue: { "\($0.experienceCount)" },
+                                metricIcon: "map.fill",
+                                onTap: { router.openProfile($0.username) }
+                            )
+                        }
+
+                        let listEntries = entries.count >= 3 ? Array(entries.dropFirst(3)) : entries
+                        let startIndex = entries.count >= 3 ? 4 : 1
+
+                        if !listEntries.isEmpty {
+                            RankingsListView<LeaderboardEntry>(
+                                items: listEntries,
+                                startIndex: startIndex,
+                                displayName: { $0.displayName },
+                                username: { $0.username },
+                                avatarURL: { $0.avatarURL },
+                                metricValue: { "\($0.experienceCount)" },
+                                metricIcon: "map.fill",
+                                onTap: { router.openProfile($0.username) }
+                            )
+                        }
                     }
+                    .padding(.bottom, TravSpacing.tabBarBottom + 40)
                 }
             }
-        }
-        .padding(.bottom, TravSpacing.tabBarBottom + 40)
-        .refreshable {
-            await viewModel.reload(using: environment)
+            .refreshable {
+                await viewModel.reload(using: environment)
+            }
         }
     }
 }

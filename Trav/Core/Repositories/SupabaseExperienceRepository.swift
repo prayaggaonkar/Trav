@@ -2013,6 +2013,29 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             ))
         }
 
+        // Supplement with other registered profiles if needed
+        if realEntries.count < 6 {
+            let existingIDs = Set(realEntries.map { $0.id })
+            for profile in profiles {
+                if existingIDs.contains(profile.id) { continue }
+                if profile.username.lowercased() == "rec_by_trav"
+                    || profile.display_name?.lowercased() == "rec by trav"
+                    || profile.id == StableUUID.from("rec_by_trav") {
+                    continue
+                }
+                realEntries.append(LeaderboardEntry(
+                    id: profile.id,
+                    username: profile.username,
+                    displayName: profile.display_name ?? profile.username,
+                    avatarURL: profile.avatar_url.flatMap { URL(string: $0) },
+                    experienceCount: profile.experience_count ?? 0,
+                    cityName: cityName ?? profile.onboarding_location,
+                    cityID: cityID,
+                    isFriend: false
+                ))
+            }
+        }
+
         // Sort descending by number of experiences created in this location
         realEntries.sort { lhs, rhs in
             if lhs.experienceCount != rhs.experienceCount {
@@ -2341,43 +2364,45 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         return rankedEntries
     }
 
-    func fetchMainLeaderboard() async throws -> [MainLeaderboardEntry] {
+    func fetchMainLeaderboard(cityID: UUID? = nil, cityName: String? = nil) async throws -> [MainLeaderboardEntry] {
         let client = try client
 
-        // 1. Attempt to call Supabase RPC function get_main_leaderboard
-        if let rpcEntries: [MainLeaderboardEntry] = try? await client
-            .rpc("get_main_leaderboard")
-            .execute()
-            .value,
-           !rpcEntries.isEmpty {
-            let filtered = rpcEntries.filter {
-                $0.username.lowercased() != "rec_by_trav"
-                && $0.displayName.lowercased() != "rec by trav"
-                && $0.id != StableUUID.from("rec_by_trav")
-                && $0.experienceCount > 0
+        // 1. Attempt to call Supabase RPC function get_main_leaderboard if not filtered by city
+        if cityID == nil && (cityName == nil || cityName == LocationOption.allLocations.name) {
+            if let rpcEntries: [MainLeaderboardEntry] = try? await client
+                .rpc("get_main_leaderboard")
+                .execute()
+                .value,
+               !rpcEntries.isEmpty {
+                let filtered = rpcEntries.filter {
+                    $0.username.lowercased() != "rec_by_trav"
+                    && $0.displayName.lowercased() != "rec by trav"
+                    && $0.id != StableUUID.from("rec_by_trav")
+                    && $0.experienceCount > 0
+                }
+                var rankedEntries: [MainLeaderboardEntry] = []
+                for (index, item) in filtered.enumerated() {
+                    rankedEntries.append(MainLeaderboardEntry(
+                        id: item.id,
+                        username: item.username,
+                        displayName: item.displayName,
+                        avatarURL: item.avatarURL,
+                        impactCount: item.impactCount,
+                        experienceCount: item.experienceCount,
+                        streakDays: item.streakDays,
+                        streakPosts: item.streakPosts,
+                        totalScore: item.totalScore,
+                        rank: index + 1
+                    ))
+                }
+                return rankedEntries
             }
-            var rankedEntries: [MainLeaderboardEntry] = []
-            for (index, item) in filtered.enumerated() {
-                rankedEntries.append(MainLeaderboardEntry(
-                    id: item.id,
-                    username: item.username,
-                    displayName: item.displayName,
-                    avatarURL: item.avatarURL,
-                    impactCount: item.impactCount,
-                    experienceCount: item.experienceCount,
-                    streakDays: item.streakDays,
-                    streakPosts: item.streakPosts,
-                    totalScore: item.totalScore,
-                    rank: index + 1
-                ))
-            }
-            return rankedEntries
         }
 
-        // 2. Fallback calculation in Swift if RPC function is not yet created on Supabase
-        let impactEntries = (try? await fetchImpactLeaderboard(cityID: nil, cityName: nil)) ?? []
-        let expEntries = (try? await fetchLeaderboardEntries(cityID: nil, cityName: nil)) ?? []
-        let streakEntries = (try? await fetchHeatStreakEntries(cityID: nil, cityName: nil)) ?? []
+        // 2. Fallback calculation in Swift with city filtering
+        let impactEntries = (try? await fetchImpactLeaderboard(cityID: cityID, cityName: cityName)) ?? []
+        let expEntries = (try? await fetchLeaderboardEntries(cityID: cityID, cityName: cityName)) ?? []
+        let streakEntries = (try? await fetchHeatStreakEntries(cityID: cityID, cityName: cityName)) ?? []
 
         let impactMap = Dictionary(uniqueKeysWithValues: impactEntries.map { ($0.id, $0.totalImpactCount) })
         let expMap = Dictionary(uniqueKeysWithValues: expEntries.map { ($0.id, $0.experienceCount) })
@@ -2457,27 +2482,28 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 continuation.finish()
                 return
             }
-            let channel = client.channel("public:realtime_rankings")
-            let expChange = channel.postgresChange(InsertAction.self, schema: "public", table: "experiences")
-            let compChange = channel.postgresChange(InsertAction.self, schema: "public", table: "experience_completions")
-            let ratingChange = channel.postgresChange(InsertAction.self, schema: "public", table: "ratings")
-            let saveChange = channel.postgresChange(InsertAction.self, schema: "public", table: "experience_saves")
+            let channelName = "public:realtime_rankings_\(UUID().uuidString.prefix(8))"
+            let channel = client.channel(channelName)
+            let expChange = channel.postgresChange(AnyAction.self, schema: "public", table: "experiences")
+            let compChange = channel.postgresChange(AnyAction.self, schema: "public", table: "experience_completions")
+            let ratingChange = channel.postgresChange(AnyAction.self, schema: "public", table: "ratings")
+            let saveChange = channel.postgresChange(AnyAction.self, schema: "public", table: "experience_saves")
+            let legacySaveChange = channel.postgresChange(AnyAction.self, schema: "public", table: "saved_experiences")
+            let profileChange = channel.postgresChange(AnyAction.self, schema: "public", table: "profiles")
+            let followChange = channel.postgresChange(AnyAction.self, schema: "public", table: "follows")
+            let watchlistChange = channel.postgresChange(AnyAction.self, schema: "public", table: "watchlists")
 
             let task = Task {
                 await channel.subscribe()
                 await withTaskGroup(of: Void.self) { group in
-                    group.addTask {
-                        for await _ in expChange { continuation.yield(()) }
-                    }
-                    group.addTask {
-                        for await _ in compChange { continuation.yield(()) }
-                    }
-                    group.addTask {
-                        for await _ in ratingChange { continuation.yield(()) }
-                    }
-                    group.addTask {
-                        for await _ in saveChange { continuation.yield(()) }
-                    }
+                    group.addTask { for await _ in expChange { continuation.yield(()) } }
+                    group.addTask { for await _ in compChange { continuation.yield(()) } }
+                    group.addTask { for await _ in ratingChange { continuation.yield(()) } }
+                    group.addTask { for await _ in saveChange { continuation.yield(()) } }
+                    group.addTask { for await _ in legacySaveChange { continuation.yield(()) } }
+                    group.addTask { for await _ in profileChange { continuation.yield(()) } }
+                    group.addTask { for await _ in followChange { continuation.yield(()) } }
+                    group.addTask { for await _ in watchlistChange { continuation.yield(()) } }
                 }
             }
             continuation.onTermination = { _ in

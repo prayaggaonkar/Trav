@@ -106,7 +106,7 @@ protocol ExperienceRepository: Sendable {
     /// Impact leaders ranked by total completions + saves across all published experiences.
     func fetchImpactLeaderboard(cityID: UUID?, cityName: String?) async throws -> [ImpactEntry]
     /// Main leaderboard ranked by total score: Total Score = (Impact * 5) + (Experiences * 25) + (Streak Days * 15) + (Streak Posts * 5).
-    func fetchMainLeaderboard() async throws -> [MainLeaderboardEntry]
+    func fetchMainLeaderboard(cityID: UUID?, cityName: String?) async throws -> [MainLeaderboardEntry]
     /// Observe real-time insertion of new published experiences.
     func observeExperiencesInsert() -> AsyncStream<Void>
     /// Ranked experiences with a real rating. Unrated experiences are excluded.
