@@ -24,6 +24,7 @@ struct TripRecommendation: Identifiable, Codable, Sendable, Hashable {
     let longitude: Double
     let imageURL: URL?
     var upvoteCount: Int
+    var isLikedByCurrentUser: Bool = false
     let createdAt: Date
 
     var isUserUploaded: Bool {

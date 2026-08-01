@@ -72,6 +72,22 @@ final class UpcomingTripService {
                 ))
             })
 
+            struct DBLike: Codable {
+                let recommendation_id: UUID
+                let user_id: UUID
+            }
+
+            var userLikedRecIDs: Set<UUID> = []
+            if let currentUserID = environment?.session.currentUser?.id {
+                let dbLikes: [DBLike] = (try? await client
+                    .from("trip_recommendation_likes")
+                    .select()
+                    .eq("user_id", value: currentUserID.uuidString.lowercased())
+                    .execute()
+                    .value) ?? []
+                userLikedRecIDs = Set(dbLikes.map { $0.recommendation_id })
+            }
+
             let dbTrips: [DBTrip] = try await client
                 .from("upcoming_trips")
                 .select()
@@ -115,6 +131,7 @@ final class UpcomingTripService {
                         longitude: dr.longitude,
                         imageURL: dr.image_url != nil ? URL(string: dr.image_url!) : nil,
                         upvoteCount: dr.upvote_count,
+                        isLikedByCurrentUser: userLikedRecIDs.contains(dr.id),
                         createdAt: dr.created_at
                     )
                 }
@@ -335,12 +352,24 @@ final class UpcomingTripService {
         }
     }
 
-    /// Upvotes a spot recommendation
+    /// Upvotes or un-upvotes a spot recommendation, synced with Supabase
     @MainActor
-    func toggleUpvote(tripID: UUID, recommendationID: UUID) {
+    func toggleUpvote(tripID: UUID, recommendationID: UUID, currentUser: Profile?) {
+        guard let currentUserID = currentUser?.id else { return }
+
         if let tripIndex = trips.firstIndex(where: { $0.id == tripID }),
            let recIndex = trips[tripIndex].recommendations.firstIndex(where: { $0.id == recommendationID }) {
-            trips[tripIndex].recommendations[recIndex].upvoteCount += 1
+
+            let currentlyLiked = trips[tripIndex].recommendations[recIndex].isLikedByCurrentUser
+            let newLikedState = !currentlyLiked
+
+            trips[tripIndex].recommendations[recIndex].isLikedByCurrentUser = newLikedState
+            if newLikedState {
+                trips[tripIndex].recommendations[recIndex].upvoteCount += 1
+            } else {
+                trips[tripIndex].recommendations[recIndex].upvoteCount = max(0, trips[tripIndex].recommendations[recIndex].upvoteCount - 1)
+            }
+
             let updatedCount = trips[tripIndex].recommendations[recIndex].upvoteCount
 
             if let client = SupabaseManager.client {
@@ -348,11 +377,35 @@ final class UpcomingTripService {
                     struct UpvotePatch: Encodable {
                         let upvote_count: Int
                     }
+
+                    let recIDStr = recommendationID.uuidString.lowercased()
+                    let userIDStr = currentUserID.uuidString.lowercased()
+
+                    // 1. Update total upvote_count on trip_recommendations
                     _ = try? await client
                         .from("trip_recommendations")
                         .update(UpvotePatch(upvote_count: updatedCount))
-                        .eq("id", value: recommendationID.uuidString.lowercased())
+                        .eq("id", value: recIDStr)
                         .execute()
+
+                    // 2. Insert or Delete in trip_recommendation_likes table
+                    if newLikedState {
+                        struct InsertLike: Encodable {
+                            let recommendation_id: UUID
+                            let user_id: UUID
+                        }
+                        _ = try? await client
+                            .from("trip_recommendation_likes")
+                            .insert(InsertLike(recommendation_id: recommendationID, user_id: currentUserID))
+                            .execute()
+                    } else {
+                        _ = try? await client
+                            .from("trip_recommendation_likes")
+                            .delete()
+                            .eq("recommendation_id", value: recIDStr)
+                            .eq("user_id", value: userIDStr)
+                            .execute()
+                    }
                 }
             }
         }

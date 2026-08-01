@@ -642,7 +642,7 @@ struct TripDetailSheet: View {
                                 SpotRecommendationCard(
                                     rec: rec,
                                     onUpvote: {
-                                        UpcomingTripService.shared.toggleUpvote(tripID: trip.id, recommendationID: rec.id)
+                                        UpcomingTripService.shared.toggleUpvote(tripID: trip.id, recommendationID: rec.id, currentUser: environment.session.currentUser)
                                     }
                                 )
                             }
@@ -683,15 +683,15 @@ private struct SpotRecommendationCard: View {
                 Spacer()
                 Button(action: onUpvote) {
                     HStack(spacing: 4) {
-                        Image(systemName: rec.upvoteCount > 0 ? "heart.fill" : "heart")
+                        Image(systemName: rec.isLikedByCurrentUser ? "heart.fill" : "heart")
                             .font(.system(size: 11, weight: .bold))
                         Text("\(rec.upvoteCount)")
                             .font(.system(size: 11, weight: .bold))
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(rec.upvoteCount > 0 ? Color.red.opacity(0.15) : TravColors.surfaceElevated)
-                    .foregroundStyle(rec.upvoteCount > 0 ? Color.red : TravColors.muted)
+                    .background(rec.isLikedByCurrentUser ? Color.red.opacity(0.15) : TravColors.surfaceElevated)
+                    .foregroundStyle(rec.isLikedByCurrentUser ? Color.red : TravColors.muted)
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
