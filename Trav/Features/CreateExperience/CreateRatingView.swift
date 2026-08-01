@@ -285,7 +285,7 @@ struct CreateRatingView: View {
                             VStack(spacing: TravSpacing.xxs) {
                                 ForEach(appleMapSpots) { spot in
                                     Button {
-                                        select(spot.asExperienceSummary(creator: session.currentUser?.summary))
+                                        select(spot.asExperienceSummary())
                                     } label: {
                                         appleMapSpotRow(spot)
                                     }

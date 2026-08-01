@@ -357,8 +357,24 @@ struct HeroExperienceCard: View {
                             .accessibilityLabel("Share")
                         }
 
+                        let isSpotCard = experience.isSpot || experience.stops.count <= 1
                         let resolvedScore = experience.ratingSummary.displayScore ?? experience.rating?.overallScore
-                        if let score = resolvedScore, score > 0 {
+                        let hasAnyRating = experience.ratingSummary.ratingCount > 0
+                            || experience.ratingSummary.communityRatingCount > 0
+                            || (resolvedScore ?? 0) > 0
+
+                        if isSpotCard {
+                            // Spots: grey "--" until anyone rates, then always purple.
+                            if hasAnyRating, let score = resolvedScore ?? experience.ratingSummary.averageScore, score > 0 {
+                                CircularRatingView(
+                                    rating: score,
+                                    size: 40,
+                                    isCommunityValidated: true
+                                )
+                            } else {
+                                CircularRatingView(unratedSize: 40)
+                            }
+                        } else if let score = resolvedScore, score > 0 {
                             CircularRatingView(
                                 rating: score,
                                 size: 40,
@@ -466,22 +482,44 @@ struct HeroExperienceCard: View {
 /// Circular progress bar displaying experience rating out of 10.0.
 /// Ring purple scales hard with score — dull at ~5, strong glowing at 10.
 /// A creator-only score renders grey: it is a claim, not community validation.
+/// Pass `rating: nil` for an unrated placeholder (grey ring + dashes).
 struct CircularRatingView: View {
-    let rating: Double // e.g. 8.5 out of 10.0
+    let rating: Double?
     var maxRating: Double = 10.0
     var size: CGFloat = 88
     var isCommunityValidated: Bool = true
 
+    init(
+        rating: Double,
+        maxRating: Double = 10.0,
+        size: CGFloat = 88,
+        isCommunityValidated: Bool = true
+    ) {
+        self.rating = rating
+        self.maxRating = maxRating
+        self.size = size
+        self.isCommunityValidated = isCommunityValidated
+    }
+
+    /// Grey ring with dashes — used for spots before anyone has rated.
+    init(unratedSize size: CGFloat, maxRating: Double = 10.0) {
+        self.rating = nil
+        self.maxRating = maxRating
+        self.size = size
+        self.isCommunityValidated = false
+    }
+
     var body: some View {
-        let progress = min(max(rating / maxRating, 0.0), 1.0)
-        // Ease toward the top end so 10 reads much stronger than 5.
+        let isUnrated = rating == nil
+        let score = rating ?? 0
+        // Unrated uses a full muted ring so it matches creator-only chrome (not a faint empty track).
+        let progress = isUnrated ? 1.0 : min(max(score / maxRating, 0.0), 1.0)
         let intensity = pow(progress, 1.65)
         let strokeWidth = max(2.5, size * (0.07 + 0.04 * intensity))
         let fontSize = size * 0.3
-        let ringColor = isCommunityValidated
-            ? Self.purple(intensity: intensity)
-            : TravColors.muted
-        let glowOpacity = 0.08 + 0.85 * intensity
+        let showPurple = isCommunityValidated && !isUnrated
+        let ringColor = showPurple ? Self.purple(intensity: intensity) : TravColors.muted
+        let glowOpacity = showPurple ? (0.08 + 0.85 * intensity) : 0.0
         let glowRadius = size * (0.04 + 0.22 * intensity)
 
         ZStack {
@@ -501,7 +539,7 @@ struct CircularRatingView: View {
                 .shadow(color: ringColor.opacity(glowOpacity), radius: glowRadius, x: 0, y: 0)
                 .shadow(color: ringColor.opacity(glowOpacity * 0.55), radius: glowRadius * 0.45, x: 0, y: 0)
 
-            Text(String(format: "%.1f", rating))
+            Text(isUnrated ? "--" : String(format: "%.1f", score))
                 .font(.system(size: fontSize, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .contentTransition(.numericText())
@@ -510,9 +548,11 @@ struct CircularRatingView: View {
         .frame(width: size, height: size)
         .animation(TravAnimation.quick, value: rating)
         .accessibilityLabel(
-            isCommunityValidated
-                ? "Community rating \(TravFormatters.score(rating)) out of 10"
-                : "Creator rating \(TravFormatters.score(rating)) out of 10, no community ratings yet"
+            isUnrated
+                ? "Not rated yet"
+                : (isCommunityValidated
+                    ? "Community rating \(TravFormatters.score(score)) out of 10"
+                    : "Creator rating \(TravFormatters.score(score)) out of 10, no community ratings yet")
         )
     }
 

@@ -129,7 +129,7 @@ struct SupabaseRatingRepository: RatingRepository {
             let spotCity = (cached?.cityName?.isEmpty == false) ? cached!.cityName! : "San Francisco, CA"
             let shadowInsert = ExperienceShadowInsert(
                 id: draft.experienceID,
-                user_id: userID,
+                user_id: ExperienceInsert.travAdminID,
                 title: spotTitle,
                 description: "Spot rated by traveler.",
                 city: spotCity,

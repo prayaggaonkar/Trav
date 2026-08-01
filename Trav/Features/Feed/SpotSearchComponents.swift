@@ -99,13 +99,8 @@ struct SpotSuggestion: Identifiable, Hashable, Sendable {
             longitude: longitude
         )
         let city = resolvedCityName
-        let creatorSummary = currentUser ?? ProfileSummary(
-            id: StableUUID.from("provider:apple_maps"),
-            username: "maps",
-            displayName: "Apple Maps",
-            avatarURL: nil,
-            isVerified: true
-        )
+        // Spots are never person-authored — always Trav.
+        let creatorSummary = currentUser ?? SupabaseExperienceRepository.spotCreator
         let summary = ExperienceSummary(
             id: spotUUID,
             kind: .spot,

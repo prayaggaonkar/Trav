@@ -50,6 +50,8 @@ struct ExperienceCard: View {
     }
 
     private var isUserCard: Bool {
+        // Spots use the circle-rating card; Trav is the owner but never a person author.
+        if experience.isSpot || experience.stops.count <= 1 { return true }
         if experience.creator.displayName.lowercased() == "rec by trav" { return true }
         if badgeText == "Created by You" || badgeText == "Created by Me" { return true }
         let systemNames = ["system", "trav editorial", "editorial", "trav"]
@@ -207,8 +209,23 @@ struct GemPostCardView: View {
 
                     Spacer()
 
+                    let isSpotCard = experience.isSpot || experience.stops.count <= 1
                     let resolvedScore = experience.ratingSummary.displayScore ?? experience.rating?.overallScore
-                    if let score = resolvedScore, score > 0 {
+                    let hasAnyRating = experience.ratingSummary.ratingCount > 0
+                        || experience.ratingSummary.communityRatingCount > 0
+                        || (resolvedScore ?? 0) > 0
+
+                    if isSpotCard {
+                        if hasAnyRating, let score = resolvedScore ?? experience.ratingSummary.averageScore, score > 0 {
+                            CircularRatingView(
+                                rating: score,
+                                size: 36,
+                                isCommunityValidated: true
+                            )
+                        } else {
+                            CircularRatingView(unratedSize: 36)
+                        }
+                    } else if let score = resolvedScore, score > 0 {
                         let hasCommunity = experience.ratingSummary.hasCommunityValidation || experience.ratingSummary.communityRatingCount > 0
                         HStack(spacing: 3) {
                             Image(systemName: hasCommunity ? "hexagon.fill" : "hexagon")

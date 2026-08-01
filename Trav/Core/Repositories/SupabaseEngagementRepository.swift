@@ -142,7 +142,7 @@ struct SupabaseEngagementRepository: EngagementRepository {
         let spotCity = (cached?.cityName?.isEmpty == false) ? cached!.cityName! : "San Francisco, CA"
         let shadowInsert = ExperienceShadowInsert(
             id: experienceID,
-            user_id: userID,
+            user_id: ExperienceInsert.travAdminID,
             title: spotTitle,
             description: "Spot rated by traveler.",
             city: spotCity,
@@ -167,7 +167,18 @@ struct SupabaseEngagementRepository: EngagementRepository {
             .limit(1)
             .execute()
             .value) ?? []
-        if !existing.isEmpty { return }
+        if !existing.isEmpty {
+            // Legacy spot rows may have been attributed to the first rater — reclaim for Trav.
+            if summary.isSpot || summary.stops.count <= 1 {
+                struct SpotOwnerPatch: Encodable { let user_id: UUID }
+                _ = try? await client
+                    .from("experiences")
+                    .update(SpotOwnerPatch(user_id: ExperienceInsert.travAdminID))
+                    .eq("id", value: idStr)
+                    .execute()
+            }
+            return
+        }
 
         // Upsert exact experience row using summary data so place name & city are 100% exact in Supabase!
         struct ExperienceUpsert: Encodable {
@@ -183,16 +194,18 @@ struct SupabaseEngagementRepository: EngagementRepository {
             let latitude: Double?
             let longitude: Double?
             let spot_key: String?
+            let kind: String?
         }
 
         let stopNames = summary.stops.map(\.name)
         let firstStop = summary.stops.first
         let cityName = (summary.cityName?.isEmpty == false) ? summary.cityName! : "San Francisco, CA"
+        let isSpot = summary.isSpot || summary.stops.count <= 1
         let upsertData = ExperienceUpsert(
             id: summary.id,
-            user_id: ownerID,
+            user_id: isSpot ? ExperienceInsert.travAdminID : ownerID,
             title: summary.title,
-            description: "Spot rated by traveler.",
+            description: isSpot ? "Spot rated by traveler." : (summary.title),
             city: cityName,
             city_id: summary.cityID,
             stops: stopNames.isEmpty ? [summary.title] : stopNames,
@@ -200,7 +213,8 @@ struct SupabaseEngagementRepository: EngagementRepository {
             category: summary.category,
             latitude: summary.latitude ?? firstStop?.latitude,
             longitude: summary.longitude ?? firstStop?.longitude,
-            spot_key: summary.spotKey
+            spot_key: summary.spotKey,
+            kind: isSpot ? ExperienceKind.spot.rawValue : ExperienceKind.itinerary.rawValue
         )
 
         _ = try? await client

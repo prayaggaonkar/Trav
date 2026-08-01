@@ -628,7 +628,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             let is_published: Bool
         }
 
-        let owner = try await currentUserID(client: client)
+        let owner = ExperienceInsert.travAdminID
         try await client
             .from("experiences")
             .upsert(Upsert(

@@ -375,7 +375,9 @@ final class ProfileViewModel {
             case .created:
                 let page = reset ? 0 : createdPage + 1
                 let result = try await environment.profiles.fetchCreatedExperiences(userID: profile.id, page: page)
-                created = reset ? result.items : created + result.items
+                // Spots are catalogue places owned by Trav — never user "posts".
+                let itineraries = result.items.filter(\.isItinerary)
+                created = reset ? itineraries : created + itineraries
                 createdPage = page
                 createdHasMore = result.hasMore
                 if var p = self.profile {

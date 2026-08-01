@@ -586,14 +586,25 @@ actor MockSocialState {
         if MockData.experiences.contains(where: { $0.id == summary.id }) { return }
         if bookmarkedSummaries[summary.id] != nil { return }
         var copy = summary
-        // Keep creator as the bookmarking user for mock ownership checks.
-        copy.creator = ProfileSummary(
-            id: ownerID,
-            username: copy.creator.username,
-            displayName: copy.creator.displayName,
-            avatarURL: copy.creator.avatarURL,
-            isVerified: copy.creator.isVerified
-        )
+        let isSpot = summary.isSpot || summary.stops.count <= 1
+        if isSpot {
+            // Spots are always owned by Trav — never the rating user.
+            copy.creator = ProfileSummary(
+                id: ExperienceInsert.travAdminID,
+                username: "trav",
+                displayName: "Trav",
+                avatarURL: nil,
+                isVerified: true
+            )
+        } else {
+            copy.creator = ProfileSummary(
+                id: ownerID,
+                username: copy.creator.username,
+                displayName: copy.creator.displayName,
+                avatarURL: copy.creator.avatarURL,
+                isVerified: copy.creator.isVerified
+            )
+        }
         bookmarkedSummaries[summary.id] = copy
     }
 
@@ -624,7 +635,7 @@ actor MockSocialState {
 
     func createdExperiences(userID: UUID) -> [ExperienceSummary] {
         seedIfNeeded()
-        return MockData.experiences.filter { $0.creator.id == userID }
+        return MockData.experiences.filter { $0.creator.id == userID && $0.isItinerary }
     }
 
     /// Fan-out: notify everyone who follows `creatorID` about a new experience.
