@@ -782,7 +782,7 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
             let width = max(geo.size.width, 1)
 
             ZStack(alignment: .bottomLeading) {
-                if !urls.isEmpty {
+                if !userURLs.isEmpty {
                     HStack(spacing: 0) {
                         ForEach(Array(displayURLs.enumerated()), id: \.offset) { index, url in
                             RemoteImage(url: url, height: height, cornerRadius: 0)
@@ -874,9 +874,13 @@ private struct HeroMediaCarousel<Title: View, Accessory: View>: View {
         }
     }
 
+    private var userURLs: [URL] {
+        urls.filter { isUserUploadedImage($0) }
+    }
+
     private var displayURLs: [URL?] {
-        if urls.isEmpty { return [nil] }
-        return urls.map { Optional($0) }
+        if userURLs.isEmpty { return [] }
+        return userURLs.map { Optional($0) }
     }
 
     private func updateDotContrast() async {
@@ -982,7 +986,6 @@ private extension UIImage {
         return total / CGFloat(pixelCount)
     }
 }
-
 // MARK: - Apple Maps Route Path Visualizer
 
 private struct ExperienceRouteMapView: View {
@@ -993,6 +996,7 @@ private struct ExperienceRouteMapView: View {
     @State private var routePolylines: [MKPolyline] = []
     @State private var mapKitTravelLabel: String? = nil
     @State private var showInteractiveMap = false
+    @State private var streetViewPhotoURL: URL?
 
     private var resolvedStops: [Stop] {
         stops.enumerated().map { index, stop in
@@ -1135,12 +1139,12 @@ private struct ExperienceRouteMapView: View {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     showInteractiveMap = true
                 }
+                .sheet(isPresented: $showInteractiveMap) {
+                    InAppInteractiveMapView(title: resolvedStops.first?.name ?? "Map", stops: resolvedStops)
+                }
             }
         }
         .padding(.vertical, TravSpacing.sm)
-        .sheet(isPresented: $showInteractiveMap) {
-            InAppInteractiveMapView(title: "Map", stops: resolvedStops)
-        }
         .task(id: resolvedStops) {
             updateCameraPosition()
             await fetchRoutes()

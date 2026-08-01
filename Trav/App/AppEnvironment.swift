@@ -199,5 +199,7 @@ extension View {
             .environment(environment.appearance)
             .environment(environment.engagement)
             .environment(environment.notificationStore)
+            .environment(\.colorScheme, environment.appearance.isLightMode ? .light : .dark)
+            .preferredColorScheme(environment.appearance.isLightMode ? .light : .dark)
     }
 }

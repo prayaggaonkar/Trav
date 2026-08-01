@@ -258,8 +258,8 @@ struct PurplePinSplashScreenModifier: ViewModifier {
 
             if !isFinished {
                 ZStack {
-                    // Vibrant Deep Purple Background
-                    Color(red: 0.38, green: 0.15, blue: 0.88)
+                    // Logo Purple Background (#B368FF)
+                    Color(red: 0.700, green: 0.409, blue: 0.997)
                         .ignoresSafeArea()
 
                     // Pure White Map Pin Icon + TRAV branding text

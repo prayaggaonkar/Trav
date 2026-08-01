@@ -18,7 +18,6 @@ struct ExperienceCard: View {
     var onComment: (() -> Void)? = nil
 
     var body: some View {
-        // Destinations and itineraries share one card chrome.
         HeroExperienceCard(
             experience: experience,
             badgeText: badgeText,
@@ -107,16 +106,10 @@ struct GemPostCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topLeading) {
-                if let coverURL = experience.coverImageURL {
-                    RemoteImage(
-                        url: coverURL,
-                        height: TravLayout.feedCardImageHeight,
-                        cornerRadius: 0
-                    )
-                } else {
-                    ExperienceStopsMapView(experience: experience)
-                        .frame(height: TravLayout.feedCardImageHeight)
-                }
+                ExperienceStopsMapView(
+                    experience: experience,
+                    height: TravLayout.feedCardImageHeight
+                )
 
                 LinearGradient(
                     colors: [.black.opacity(0.45), .clear],
@@ -319,14 +312,13 @@ struct GemPostCardView: View {
                     .padding(.vertical, 8)
 
                     let isOwnExperience = (environment.session.currentUser?.id == experience.creator.id)
-                    let resolvedIsSaved = isSavedLocal || engagement.isSaved(experience.id)
+                    let resolvedIsSaved = engagement.isSaved(experience.id) || isSaved
 
                     HStack {
                         // Left Group: Save, Comment, Share
                         HStack(spacing: 16) {
 
                             Button {
-                                isSavedLocal.toggle()
                                 onSave?()
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             } label: {
@@ -387,7 +379,7 @@ struct GemPostCardView: View {
                         }
                     }
             }
-            .padding(connectedLayout ? 20 : TravSpacing.md)
+            .padding(connectedLayout ? 12 : 10)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -517,139 +509,62 @@ struct EmojiParticleView: View {
     }
 }
 
-/// Mini map view displayed on experience cards when no cover image media is available.
-/// Displays markers and connecting polyline route for the experience stops.
+/// Cover image view displayed on experience cards in accordance with strict image tiering:
+/// 1. User uploaded image (if present & valid)
+/// 2. Apple Maps 3D Street View photo (via MKLookAroundSnapshotter)
+/// 3. Apple Maps Map View snapshot (via MKMapSnapshotter) if Street View is unavailable.
 struct ExperienceStopsMapView: View {
     let experience: ExperienceSummary
+    var width: CGFloat? = nil
+    var height: CGFloat = TravLayout.feedCardImageHeight
 
-    @State private var position: MapCameraPosition = .automatic
-    @State private var showInteractiveMap = false
+    @State private var resolvedImageURL: URL?
 
-    private var resolvedCoordinates: [CLLocationCoordinate2D] {
-        let cityBase = getCityBaseCoordinate()
-        var coords: [CLLocationCoordinate2D] = []
-
-        for (index, stop) in experience.stops.enumerated() {
-            if let lat = stop.latitude, let lon = stop.longitude, lat != 0 || lon != 0 {
-                coords.append(CLLocationCoordinate2D(latitude: lat, longitude: lon))
-            } else {
-                let latOffset = (Double(index * 7 + 4) / 1000.0) * (index % 2 == 0 ? 1 : -1)
-                let lonOffset = (Double(index * 9 + 5) / 1000.0) * (index % 3 == 0 ? -1 : 1)
-                coords.append(CLLocationCoordinate2D(
-                    latitude: cityBase.latitude + latOffset,
-                    longitude: cityBase.longitude + lonOffset
-                ))
-            }
+    private var userCoverURL: URL? {
+        if isUserUploadedImage(experience.coverImageURL) {
+            return experience.coverImageURL
         }
-
-        if coords.isEmpty {
-            coords.append(cityBase)
-        }
-        return coords
+        return nil
     }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            Map(position: $position, interactionModes: []) {
-                ForEach(Array(resolvedCoordinates.enumerated()), id: \.offset) { index, coord in
-                    Annotation("", coordinate: coord) {
-                        ZStack {
-                            Circle()
-                                .fill(TravColors.accent)
-                                .frame(width: 18, height: 18)
-                                .shadow(color: .black.opacity(0.35), radius: 2)
-
-                            Text("\(index + 1)")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white)
-                        }
-                    }
+        ZStack(alignment: .center) {
+            if let userCoverURL {
+                RemoteImage(
+                    url: userCoverURL,
+                    height: height,
+                    cornerRadius: 0
+                )
+            } else if let resolvedImageURL {
+                RemoteImage(
+                    url: resolvedImageURL,
+                    height: height,
+                    cornerRadius: 0
+                )
+            } else {
+                ZStack {
+                    Color(uiColor: .secondarySystemBackground)
+                    ProgressView()
+                        .tint(TravColors.muted)
                 }
-
-                if resolvedCoordinates.count >= 2 {
-                    MapPolyline(coordinates: resolvedCoordinates)
-                        .stroke(TravColors.accent, lineWidth: 2.5)
-                }
-            }
-            .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
-            .mapControls {}
-
-            if resolvedCoordinates.count >= 2 {
-                let routeInfo = RouteTravelCalculator.calculate(for: resolvedCoordinates)
-                HStack(spacing: 4) {
-                    Image(systemName: routeInfo.iconName)
-                        .font(.system(size: 9, weight: .bold))
-                    Text(routeInfo.timeAndModeLabel)
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(Color.black.opacity(0.7)))
-                .padding(6)
+                .frame(height: height)
             }
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            showInteractiveMap = true
+        .frame(height: height)
+        .frame(width: width)
+        .task(id: experience.id) {
+            if userCoverURL == nil {
+                let lat = experience.stops.first?.latitude ?? 0
+                let lng = experience.stops.first?.longitude ?? 0
+                if let url = await AppleMapsVibeService.shared.fetchStreetViewOrMapView(
+                    latitude: lat,
+                    longitude: lng,
+                    title: experience.title
+                ) {
+                    self.resolvedImageURL = url
+                }
+            }
         }
-        .sheet(isPresented: $showInteractiveMap) {
-            InAppInteractiveMapView(title: experience.title, stopPreviews: experience.stops)
-        }
-        .onAppear {
-            setupCamera()
-        }
-    }
-
-    private func getCityBaseCoordinate() -> CLLocationCoordinate2D {
-        if let city = MockData.cities.first(where: { $0.id == experience.cityID }) {
-            return CLLocationCoordinate2D(latitude: city.latitude, longitude: city.longitude)
-        }
-        if let cityName = experience.cityName,
-           let city = MockData.cities.first(where: { $0.name.caseInsensitiveCompare(cityName) == .orderedSame }) {
-            return CLLocationCoordinate2D(latitude: city.latitude, longitude: city.longitude)
-        }
-        return CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
-    }
-
-    private func setupCamera() {
-        let coords = resolvedCoordinates
-        guard !coords.isEmpty else { return }
-
-        if coords.count == 1 {
-            position = .region(MKCoordinateRegion(
-                center: coords[0],
-                span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
-            ))
-            return
-        }
-
-        var minLat = coords[0].latitude
-        var maxLat = coords[0].latitude
-        var minLon = coords[0].longitude
-        var maxLon = coords[0].longitude
-
-        for coord in coords {
-            minLat = min(minLat, coord.latitude)
-            maxLat = max(maxLat, coord.latitude)
-            minLon = min(minLon, coord.longitude)
-            maxLon = max(maxLon, coord.longitude)
-        }
-
-        let center = CLLocationCoordinate2D(
-            latitude: (minLat + maxLat) / 2,
-            longitude: (minLon + maxLon) / 2
-        )
-        let latDelta = max((maxLat - minLat) * 1.5, 0.012)
-        let lonDelta = max((maxLon - minLon) * 1.5, 0.012)
-
-        position = .region(MKCoordinateRegion(
-            center: center,
-            span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)
-        ))
     }
 }
 

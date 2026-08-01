@@ -23,6 +23,7 @@ private struct RootContent: View {
         RootCoordinator()
             .injectAppEnvironment(environment)
             .preferredColorScheme(appearance.isLightMode ? .light : .dark)
+            .environment(\.colorScheme, appearance.isLightMode ? .light : .dark)
             .overlay(alignment: .top) {
                 OfflineBanner()
             }

@@ -290,7 +290,7 @@ struct FeedView: View {
                 .padding(.bottom, 4)
 
                 LazyVStack(spacing: 12) {
-                    ForEach(filteredFeed) { experience in
+                    ForEach(Array(filteredFeed.enumerated()), id: \.element.id) { index, experience in
                         ExperienceCard(
                             experience: experience,
                             badgeText: ownExperienceBadge(for: experience),
@@ -332,21 +332,27 @@ struct FeedView: View {
                                 )
                             }
                         )
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity.combined(with: .scale(scale: 0.97, anchor: .top)),
+                                removal: .opacity
+                            )
+                        )
                         .onDrag {
                             NSItemProvider(object: experience.id.uuidString as NSString)
                         }
                         .onAppear {
-                            if experience.id == filteredFeed.last?.id {
+                            // Prefetch next page 3 items before hitting the bottom for instant infinite scroll
+                            if index >= max(0, filteredFeed.count - 3) {
                                 Task { await viewModel.loadMore(using: environment) }
                             }
                         }
                     }
 
                     if viewModel.isLoadingMore {
-                        ProgressView()
-                            .tint(TravColors.accent)
-                            .padding(.vertical, TravSpacing.md)
-                    } else if viewModel.hasReachedScrollLimit {
+                        SleekFeedLoadingIndicator()
+                            .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    } else if viewModel.hasReachedScrollLimit || (!viewModel.hasMore && !viewModel.isLoadingMore) {
                         UnlockRecsBannerView(
                             onInviteFriends: {
                                 shareItem = ShareItem(
@@ -359,8 +365,10 @@ struct FeedView: View {
                             }
                         )
                         .padding(.vertical, TravSpacing.md)
+                        .transition(.opacity.combined(with: .scale(scale: 0.97)))
                     }
                 }
+                .animation(.smooth(duration: 0.35), value: filteredFeed.count)
                 .padding(.horizontal, 12)
             }
             .padding(.vertical, TravSpacing.sm)
@@ -503,7 +511,8 @@ struct FeedView: View {
             using: environment,
             latitude: activeLat,
             longitude: activeLng,
-            city: activeCity
+            city: activeCity,
+            engagement: engagement
         )
     }
 
@@ -1131,18 +1140,28 @@ struct FeedView: View {
 private struct PopupStoryCard: View {
     let popup: Popup
     private let cornerRadius: CGFloat = 16
+    @State private var resolvedURL: URL?
 
-    private var displayImageURL: URL? {
-        popup.imageURL ?? popupImage(for: popup.name)
+    private var userCoverURL: URL? {
+        if isUserUploadedImage(popup.imageURL) {
+            return popup.imageURL
+        }
+        return nil
     }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            if let coverURL = displayImageURL {
-                RemoteImage(url: coverURL, height: 160, cornerRadius: cornerRadius)
+            if let userCoverURL {
+                RemoteImage(url: userCoverURL, height: 160, cornerRadius: cornerRadius)
+            } else if let resolvedURL {
+                RemoteImage(url: resolvedURL, height: 160, cornerRadius: cornerRadius)
             } else {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.gray.opacity(0.2))
+                ZStack {
+                    Color(uiColor: .systemGroupedBackground)
+                    ProgressView()
+                        .tint(TravColors.muted)
+                }
+                .frame(height: 160)
             }
 
             LinearGradient(
@@ -1171,6 +1190,19 @@ private struct PopupStoryCard: View {
         .frame(width: 124, height: 160)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .shadow(color: Color.black.opacity(0.12), radius: 6, y: 3)
+        .task(id: popup.id) {
+            if userCoverURL == nil {
+                let lat = popup.latitude ?? 0
+                let lng = popup.longitude ?? 0
+                if let url = await AppleMapsVibeService.shared.fetchStreetViewOrMapView(
+                    latitude: lat,
+                    longitude: lng,
+                    title: popup.name
+                ) {
+                    self.resolvedURL = url
+                }
+            }
+        }
     }
 }
 
@@ -1179,16 +1211,32 @@ private struct PopupDetailSheet: View {
     let popup: Popup
     @Environment(\.dismiss) private var dismiss
     @State private var shareItem: ShareItem?
+    @State private var resolvedURL: URL?
 
-    private var displayImageURL: URL? {
-        popup.imageURL ?? popupImage(for: popup.name)
+    private var userCoverURL: URL? {
+        if isUserUploadedImage(popup.imageURL) {
+            return popup.imageURL
+        }
+        return nil
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: TravSpacing.md) {
-            if let coverURL = displayImageURL {
-                RemoteImage(url: coverURL, height: 180, cornerRadius: TravRadius.lg)
+            if let userCoverURL {
+                RemoteImage(url: userCoverURL, height: 180, cornerRadius: TravRadius.lg)
                     .frame(maxWidth: .infinity)
+            } else if let resolvedURL {
+                RemoteImage(url: resolvedURL, height: 180, cornerRadius: TravRadius.lg)
+                    .frame(maxWidth: .infinity)
+            } else {
+                ZStack {
+                    Color(uiColor: .systemGroupedBackground)
+                    ProgressView()
+                        .tint(TravColors.muted)
+                }
+                .frame(height: 180)
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg))
             }
 
             VStack(alignment: .leading, spacing: TravSpacing.xs) {
@@ -1284,6 +1332,19 @@ private struct PopupDetailSheet: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .travScreenBackground()
         .travShareSheet(item: $shareItem)
+        .task(id: popup.id) {
+            if userCoverURL == nil {
+                let lat = popup.latitude ?? 0
+                let lng = popup.longitude ?? 0
+                if let url = await AppleMapsVibeService.shared.fetchStreetViewOrMapView(
+                    latitude: lat,
+                    longitude: lng,
+                    title: popup.name
+                ) {
+                    self.resolvedURL = url
+                }
+            }
+        }
     }
 
     private func openInMaps() {
@@ -1414,5 +1475,47 @@ private struct UnlockRecsBannerView: View {
                 .stroke(TravColors.accent.opacity(0.3), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
+    }
+}
+
+/// Premium, sleek loading indicator for infinite feed scrolling.
+private struct SleekFeedLoadingIndicator: View {
+    @State private var isPulsing = false
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .tint(TravColors.accent)
+                    .scaleEffect(0.9)
+
+                Text("Discovering more spots...")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(TravColors.primary.opacity(0.9))
+
+                Circle()
+                    .fill(TravColors.accent)
+                    .frame(width: 6, height: 6)
+                    .scaleEffect(isPulsing ? 1.4 : 0.8)
+                    .opacity(isPulsing ? 1.0 : 0.4)
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .background {
+                Capsule()
+                    .fill(TravColors.surfaceElevated.opacity(0.9))
+                    .overlay(
+                        Capsule()
+                            .stroke(TravColors.accent.opacity(0.35), lineWidth: 1)
+                    )
+                    .shadow(color: TravColors.accent.opacity(0.18), radius: 10, x: 0, y: 3)
+            }
+        }
+        .padding(.vertical, TravSpacing.md)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                isPulsing = true
+            }
+        }
     }
 }

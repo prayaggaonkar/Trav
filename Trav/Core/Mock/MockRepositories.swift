@@ -12,6 +12,18 @@ struct MockCityRepository: CityRepository {
         return city
     }
 
+    func fetchCityStats(for city: City) async -> City {
+        let matches = MockData.experiences.filter { exp in
+            exp.cityID == city.id || (exp.cityName != nil && exp.cityName?.localizedCaseInsensitiveCompare(city.name) == .orderedSame)
+        }
+        let expCount = matches.count
+        let creatorsCount = Set(matches.map { $0.creator.id }).count
+        var updated = city
+        updated.experienceCount = expCount
+        updated.creatorCount = creatorsCount
+        return updated
+    }
+
     func fetchFeaturedExperience(cityID: UUID) async throws -> ExperienceSummary? {
         MockData.experiences.first { $0.cityID == cityID }
     }

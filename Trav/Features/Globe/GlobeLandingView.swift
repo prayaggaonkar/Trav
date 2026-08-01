@@ -68,6 +68,7 @@ struct GlobeLandingView: View {
             VStack(spacing: 0) {
                 header
                     .padding(.top, TravSpacing.xs)
+                    .padding(.horizontal, TravSpacing.xxs)
 
                 searchBar
                     .padding(.horizontal, TravSpacing.xxs)
@@ -102,7 +103,10 @@ struct GlobeLandingView: View {
             )
             viewModel = vm
             vm.controller.setRenderingActive(isActive)
-            await vm.prepare(isLightMode: appearance.isLightMode)
+            await vm.prepare(isLightMode: appearance.isLightMode, userLocationName: session.currentUser?.homeCityLabel)
+        }
+        .task(id: session.currentUser?.homeCityLabel) {
+            await viewModel?.loadCities(userLocationName: session.currentUser?.homeCityLabel)
         }
         .task(id: session.currentUser?.id) {
             if let userID = session.currentUser?.id {
@@ -202,16 +206,11 @@ struct GlobeLandingView: View {
                         appearance.toggle()
                     }
                 } label: {
-                    Image("AppLogo")
+                    Image("ExploreLogo")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                                .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                        )
-                        .shadow(color: Color.purple.opacity(0.4), radius: 6, x: 0, y: 2)
+                        .shadow(color: Color(red: 0.700, green: 0.409, blue: 0.997).opacity(0.35), radius: 6, x: 0, y: 2)
                 }
                 .buttonStyle(TravPressButtonStyle(scale: 0.92))
                 .accessibilityLabel(appearance.isLightMode ? "Switch to dark mode" : "Switch to light mode")
@@ -673,8 +672,7 @@ struct GlobeLandingView: View {
 
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: TravSpacing.sm) {
-                            let prefixCities = Array(filtered.prefix(6))
-                            ForEach(prefixCities) { city in
+                            ForEach(filtered) { city in
                                 CityChip(city: city, isLightMode: appearance.isLightMode) {
                                     viewModel?.selectCity(city)
                                 }
