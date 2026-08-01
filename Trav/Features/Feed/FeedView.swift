@@ -443,13 +443,13 @@ struct FeedView: View {
                 if selectedFilter == .all {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("HAP PEN ING   SOON")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .tracking(2.5)
-                                .foregroundStyle(TravColors.muted)
+                            Text("Happening Soon")
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .foregroundStyle(TravColors.primary)
                             Spacer()
                         }
                         .padding(.horizontal, TravSpacing.screenHorizontal)
+                        .padding(.top, TravSpacing.xs)
 
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 12) {
