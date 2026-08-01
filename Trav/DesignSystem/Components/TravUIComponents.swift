@@ -682,9 +682,12 @@ struct TravAppearModifier: ViewModifier {
 }
 
 struct TravScreenBackground: ViewModifier {
+    @Environment(AppearanceStore.self) private var appearance
     func body(content: Content) -> some View {
         content
             .background(TravColors.surface)
+            .preferredColorScheme(appearance.isLightMode ? .light : .dark)
+            .environment(\.colorScheme, appearance.isLightMode ? .light : .dark)
             .scrollIndicators(.hidden)
     }
 }

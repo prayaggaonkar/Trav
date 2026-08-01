@@ -71,11 +71,13 @@ struct ProfileView: View {
                         saveConfirmation = true
                         UINotificationFeedbackGenerator().notificationOccurred(.success)
                     }
+                    .injectAppEnvironment(environment)
                 }
             }
             .sheet(item: $followListMode) { mode in
                 if let profile = viewModel.profile {
                     FollowListView(profile: profile, mode: mode)
+                        .injectAppEnvironment(environment)
                         .presentationDetents([.large])
                         .presentationDragIndicator(.visible)
                         .presentationCornerRadius(TravRadius.xl)
@@ -85,9 +87,11 @@ struct ProfileView: View {
                 SettingsSheetView {
                     Task { await viewModel.signOut(using: environment) }
                 }
+                .injectAppEnvironment(environment)
             }
             .sheet(isPresented: $showCreateExperience) {
                 CreateExperienceView()
+                    .injectAppEnvironment(environment)
             }
             .alert("Block \(viewModel.profile.map { "@\($0.username)" } ?? "this user")?", isPresented: $showBlockConfirmation) {
                 Button("Block", role: .destructive) {
@@ -913,10 +917,12 @@ struct SettingsSheetView: View {
                                     get: { !environment.appearance.isLightMode },
                                     set: { isDark in
                                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                        if isDark {
-                                            environment.appearance.modeRaw = "dark"
-                                        } else {
-                                            environment.appearance.modeRaw = "light"
+                                        withAnimation(.snappy(duration: 0.14)) {
+                                            if isDark {
+                                                environment.appearance.modeRaw = "dark"
+                                            } else {
+                                                environment.appearance.modeRaw = "light"
+                                            }
                                         }
                                     }
                                 ),

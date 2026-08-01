@@ -66,8 +66,8 @@ enum MockData {
             longitude: -122.4194,
             heroImageURL: URL(string: "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=1200&q=80"),
             timezone: "America/Los_Angeles",
-            experienceCount: 842,
-            creatorCount: 312
+            experienceCount: 4,
+            creatorCount: 3
         ),
         City(
             id: UUID(uuidString: "C1000002-0000-0000-0000-000000000002")!,
@@ -78,8 +78,8 @@ enum MockData {
             longitude: 139.6503,
             heroImageURL: URL(string: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1200&q=80"),
             timezone: "Asia/Tokyo",
-            experienceCount: 12_493,
-            creatorCount: 4_291
+            experienceCount: 2,
+            creatorCount: 2
         ),
         City(
             id: UUID(uuidString: "C1000003-0000-0000-0000-000000000003")!,
@@ -90,8 +90,8 @@ enum MockData {
             longitude: 2.3522,
             heroImageURL: URL(string: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=1200&q=80"),
             timezone: "Europe/Paris",
-            experienceCount: 967,
-            creatorCount: 401
+            experienceCount: 1,
+            creatorCount: 1
         ),
         City(
             id: UUID(uuidString: "C1000004-0000-0000-0000-000000000004")!,
@@ -102,8 +102,8 @@ enum MockData {
             longitude: -74.0060,
             heroImageURL: URL(string: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=1200&q=80"),
             timezone: "America/New_York",
-            experienceCount: 1532,
-            creatorCount: 578
+            experienceCount: 1,
+            creatorCount: 1
         ),
         City(
             id: UUID(uuidString: "C1000005-0000-0000-0000-000000000005")!,
@@ -114,8 +114,8 @@ enum MockData {
             longitude: -0.1278,
             heroImageURL: URL(string: "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=1200&q=80"),
             timezone: "Europe/London",
-            experienceCount: 891,
-            creatorCount: 334
+            experienceCount: 1,
+            creatorCount: 1
         ),
         City(
             id: UUID(uuidString: "C1000006-0000-0000-0000-000000000006")!,
@@ -126,8 +126,8 @@ enum MockData {
             longitude: 2.1686,
             heroImageURL: URL(string: "https://images.unsplash.com/photo-1583422409516-2895a77efded?w=1200&q=80"),
             timezone: "Europe/Madrid",
-            experienceCount: 654,
-            creatorCount: 267
+            experienceCount: 1,
+            creatorCount: 1
         ),
         City(
             id: UUID(uuidString: "C1000007-0000-0000-0000-000000000007")!,
@@ -138,8 +138,8 @@ enum MockData {
             longitude: 151.2093,
             heroImageURL: URL(string: "https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=1200&q=80"),
             timezone: "Australia/Sydney",
-            experienceCount: 523,
-            creatorCount: 198
+            experienceCount: 1,
+            creatorCount: 1
         ),
         City(
             id: UUID(uuidString: "C1000008-0000-0000-0000-000000000008")!,
@@ -150,8 +150,92 @@ enum MockData {
             longitude: 126.9780,
             heroImageURL: URL(string: "https://images.unsplash.com/photo-1517154421773-0529f29ea451?w=1200&q=80"),
             timezone: "Asia/Seoul",
-            experienceCount: 778,
-            creatorCount: 301
+            experienceCount: 1,
+            creatorCount: 1
+        ),
+        City(
+            id: UUID(uuidString: "C1000010-0000-0000-0000-000000000010")!,
+            name: "Rome",
+            slug: "rome",
+            countryCode: "IT",
+            latitude: 41.9028,
+            longitude: 12.4964,
+            heroImageURL: URL(string: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=1200&q=80"),
+            timezone: "Europe/Rome",
+            experienceCount: 0,
+            creatorCount: 0
+        ),
+        City(
+            id: UUID(uuidString: "C1000011-0000-0000-0000-000000000011")!,
+            name: "Amsterdam",
+            slug: "amsterdam",
+            countryCode: "NL",
+            latitude: 52.3676,
+            longitude: 4.9041,
+            heroImageURL: URL(string: "https://images.unsplash.com/photo-1512470876302-972faa2aa9a4?w=1200&q=80"),
+            timezone: "Europe/Amsterdam",
+            experienceCount: 0,
+            creatorCount: 0
+        ),
+        City(
+            id: UUID(uuidString: "C1000012-0000-0000-0000-000000000012")!,
+            name: "Singapore",
+            slug: "singapore",
+            countryCode: "SG",
+            latitude: 1.3521,
+            longitude: 103.8198,
+            heroImageURL: URL(string: "https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=1200&q=80"),
+            timezone: "Asia/Singapore",
+            experienceCount: 0,
+            creatorCount: 0
+        ),
+        City(
+            id: UUID(uuidString: "C1000013-0000-0000-0000-000000000013")!,
+            name: "Dubai",
+            slug: "dubai",
+            countryCode: "AE",
+            latitude: 25.2048,
+            longitude: 55.2708,
+            heroImageURL: URL(string: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=1200&q=80"),
+            timezone: "Asia/Dubai",
+            experienceCount: 0,
+            creatorCount: 0
+        ),
+        City(
+            id: UUID(uuidString: "C1000014-0000-0000-0000-000000000014")!,
+            name: "Rio de Janeiro",
+            slug: "rio-de-janeiro",
+            countryCode: "BR",
+            latitude: -22.9068,
+            longitude: -43.1729,
+            heroImageURL: URL(string: "https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=1200&q=80"),
+            timezone: "America/Sao_Paulo",
+            experienceCount: 0,
+            creatorCount: 0
+        ),
+        City(
+            id: UUID(uuidString: "C1000015-0000-0000-0000-000000000015")!,
+            name: "Mexico City",
+            slug: "mexico-city",
+            countryCode: "MX",
+            latitude: 19.4326,
+            longitude: -99.1332,
+            heroImageURL: URL(string: "https://images.unsplash.com/photo-1512813195386-6cf811ad3542?w=1200&q=80"),
+            timezone: "America/Mexico_City",
+            experienceCount: 0,
+            creatorCount: 0
+        ),
+        City(
+            id: UUID(uuidString: "C1000016-0000-0000-0000-000000000016")!,
+            name: "Los Angeles",
+            slug: "los-angeles",
+            countryCode: "US",
+            latitude: 34.0522,
+            longitude: -118.2437,
+            heroImageURL: URL(string: "https://images.unsplash.com/photo-1580655653885-65763b2597d0?w=1200&q=80"),
+            timezone: "America/Los_Angeles",
+            experienceCount: 0,
+            creatorCount: 0
         )
     ]
 

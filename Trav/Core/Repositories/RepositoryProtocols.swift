@@ -71,6 +71,7 @@ enum ContentModelError: LocalizedError, Sendable, Equatable {
 protocol CityRepository: Sendable {
     func fetchGlobeCities() async throws -> [City]
     func fetchCity(id: UUID) async throws -> City
+    func fetchCityStats(for city: City) async -> City
     func fetchFeaturedExperience(cityID: UUID) async throws -> ExperienceSummary?
     func fetchTrendingCreators(cityID: UUID) async throws -> [Profile]
 }

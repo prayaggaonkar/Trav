@@ -4,6 +4,7 @@ import Foundation
 // MARK: - Glistening Purple Rank Text (Moving Gradient within #1, 2, and 3)
 
 struct GlisteningPurpleRankText: View {
+    @Environment(\.colorScheme) private var colorScheme
     let text: String
     let font: Font
     var shadowRadius: CGFloat = 3
@@ -19,15 +20,26 @@ struct GlisteningPurpleRankText: View {
             let startX = -1.8 + (CGFloat(progress) * 3.6)
             let endX = startX + 2.0
             
+            let isLight = colorScheme == .light
+            
+            // App signature light purple color: #B267FF (RGB 0.70, 0.40, 1.00)
             let purpleGlisteningGradient = LinearGradient(
-                gradient: Gradient(stops: [
-                    .init(color: Color(red: 0.54, green: 0.18, blue: 0.86), location: 0.0),   // Deep Violet
-                    .init(color: Color(red: 0.68, green: 0.28, blue: 0.94), location: 0.25),  // Electric Purple
+                gradient: Gradient(stops: isLight ? [
+                    .init(color: Color(red: 0.68, green: 0.35, blue: 0.98), location: 0.0),   // Signature Light Purple
+                    .init(color: Color(red: 0.72, green: 0.42, blue: 1.00), location: 0.25),  // Signature Light Purple
+                    .init(color: Color(red: 0.88, green: 0.75, blue: 1.00), location: 0.42),  // Soft Lilac Shimmer
+                    .init(color: Color(red: 0.96, green: 0.90, blue: 1.00), location: 0.50),  // Crisp Lilac Glistening Sheen Core
+                    .init(color: Color(red: 0.88, green: 0.75, blue: 1.00), location: 0.58),  // Soft Lilac Shimmer
+                    .init(color: Color(red: 0.72, green: 0.42, blue: 1.00), location: 0.75),  // Signature Light Purple
+                    .init(color: Color(red: 0.66, green: 0.32, blue: 0.96), location: 1.0)    // Signature Light Purple
+                ] : [
+                    .init(color: Color(red: 0.58, green: 0.24, blue: 0.90), location: 0.0),   // Violet
+                    .init(color: Color(red: 0.70, green: 0.40, blue: 1.00), location: 0.25),  // Signature Light Purple
                     .init(color: Color(red: 0.86, green: 0.70, blue: 0.98), location: 0.42),  // Soft Lavender
-                    .init(color: Color(red: 0.98, green: 0.94, blue: 1.00).opacity(0.85), location: 0.50), // Subtle Glistening Shine Core
+                    .init(color: Color(red: 0.98, green: 0.94, blue: 1.00).opacity(0.9), location: 0.50), // Glistening Core
                     .init(color: Color(red: 0.86, green: 0.70, blue: 0.98), location: 0.58),  // Soft Lavender
-                    .init(color: Color(red: 0.72, green: 0.32, blue: 0.95), location: 0.75),  // Soft Purple
-                    .init(color: Color(red: 0.48, green: 0.12, blue: 0.80), location: 1.0)    // Rich Dark Violet
+                    .init(color: Color(red: 0.70, green: 0.40, blue: 1.00), location: 0.75),  // Signature Light Purple
+                    .init(color: Color(red: 0.54, green: 0.20, blue: 0.86), location: 1.0)    // Deep Violet
                 ]),
                 startPoint: UnitPoint(x: startX, y: 0.15),
                 endPoint: UnitPoint(x: endX, y: 0.85)
@@ -36,7 +48,14 @@ struct GlisteningPurpleRankText: View {
             Text(text)
                 .font(font)
                 .foregroundStyle(purpleGlisteningGradient)
-                .shadow(color: Color(red: 0.58, green: 0.22, blue: 0.95).opacity(0.30), radius: shadowRadius, x: 0, y: 1.0)
+                .shadow(
+                    color: isLight
+                        ? Color(red: 0.70, green: 0.40, blue: 1.00).opacity(0.35)
+                        : Color(red: 0.58, green: 0.22, blue: 0.95).opacity(0.30),
+                    radius: shadowRadius,
+                    x: 0,
+                    y: 1.0
+                )
         }
     }
 }
@@ -340,6 +359,10 @@ struct RankingsListView<Item: Identifiable>: View {
                             url: avatarURL(item),
                             name: username(item),
                             size: 42
+                        )
+                        .overlay(
+                            Circle()
+                                .stroke(rank <= 3 ? TravColors.accent : Color.clear, lineWidth: rank <= 3 ? 2.0 : 0)
                         )
 
                         // Handle ONLY (Names removed as requested)
@@ -959,6 +982,10 @@ struct HeatStreakUserRow: View {
                     name: entry.displayName,
                     size: 44
                 )
+                .overlay(
+                    Circle()
+                        .stroke(entry.rank <= 3 ? TravColors.accent : Color.clear, lineWidth: entry.rank <= 3 ? 2.0 : 0)
+                )
 
                 // User name and handle
                 VStack(alignment: .leading, spacing: 2) {
@@ -1193,6 +1220,10 @@ struct ImpactUserRow: View {
                     name: entry.displayName,
                     size: 44
                 )
+                .overlay(
+                    Circle()
+                        .stroke(entry.rank <= 3 ? TravColors.accent : Color.clear, lineWidth: entry.rank <= 3 ? 2.0 : 0)
+                )
 
                 // User name and handle
                 VStack(alignment: .leading, spacing: 2) {
@@ -1378,6 +1409,10 @@ struct MainLeaderboardUserRow: View {
                     url: entry.avatarURL,
                     name: entry.displayName,
                     size: 44
+                )
+                .overlay(
+                    Circle()
+                        .stroke(entry.rank <= 3 ? TravColors.accent : Color.clear, lineWidth: entry.rank <= 3 ? 2.0 : 0)
                 )
 
                 // User name and handle

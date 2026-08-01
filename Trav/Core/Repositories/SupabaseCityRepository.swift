@@ -22,6 +22,48 @@ struct SupabaseCityRepository: CityRepository {
         return city
     }
 
+    func fetchCityStats(for city: City) async -> City {
+        guard let client = try? client else {
+            let matches = MockData.experiences.filter { exp in
+                exp.cityID == city.id || (exp.cityName != nil && exp.cityName?.localizedCaseInsensitiveCompare(city.name) == .orderedSame)
+            }
+            let expCount = matches.count
+            let creatorsCount = Set(matches.map { $0.creator.id }).count
+            var updated = city
+            updated.experienceCount = expCount
+            updated.creatorCount = creatorsCount
+            return updated
+        }
+
+        do {
+            struct Row: Decodable { let user_id: UUID }
+            let rows: [Row] = try await client
+                .from("experiences")
+                .select("user_id")
+                .or("city_id.eq.\(city.id.uuidString.lowercased()),city.ilike.\(city.name)")
+                .eq("is_published", value: true)
+                .execute()
+                .value
+
+            let expCount = rows.count
+            let creatorsCount = Set(rows.map { $0.user_id }).count
+            var updated = city
+            updated.experienceCount = expCount
+            updated.creatorCount = creatorsCount
+            return updated
+        } catch {
+            let matches = MockData.experiences.filter { exp in
+                exp.cityID == city.id || (exp.cityName != nil && exp.cityName?.localizedCaseInsensitiveCompare(city.name) == .orderedSame)
+            }
+            let expCount = matches.count
+            let creatorsCount = Set(matches.map { $0.creator.id }).count
+            var updated = city
+            updated.experienceCount = expCount
+            updated.creatorCount = creatorsCount
+            return updated
+        }
+    }
+
     func fetchFeaturedExperience(cityID: UUID) async throws -> ExperienceSummary? {
         let feed = try await SupabaseExperienceRepository().fetchCityFeed(cityID: cityID, page: 0)
         return feed.items.max { lhs, rhs in
