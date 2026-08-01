@@ -97,7 +97,6 @@ struct SpotSuggestion: Identifiable, Hashable, Sendable {
             longitude: longitude
         )
         let city = resolvedCityName
-        // Destinations are never person-authored — always Trav.
         let creatorSummary = ExperienceInsert.travCreator
         let summary = ExperienceSummary(
             id: spotUUID,

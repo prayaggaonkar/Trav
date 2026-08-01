@@ -628,12 +628,11 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             let is_published: Bool
         }
 
-        let owner = ExperienceInsert.travAdminID
         try await client
             .from("experiences")
             .upsert(Upsert(
                 id: id,
-                user_id: owner,
+                user_id: ExperienceInsert.travAdminID,
                 title: request.name,
                 description: request.description,
                 city: request.cityName,

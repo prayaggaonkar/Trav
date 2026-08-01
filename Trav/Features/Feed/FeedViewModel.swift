@@ -55,7 +55,8 @@ final class FeedViewModel {
         using environment: AppEnvironment,
         latitude: Double? = nil,
         longitude: Double? = nil,
-        city: String? = nil
+        city: String? = nil,
+        engagement: EngagementStore? = nil
     ) async {
         if let latitude { cachedLat = latitude }
         if let longitude { cachedLng = longitude }
@@ -110,11 +111,20 @@ final class FeedViewModel {
         }
         popups = uniquePopups
 
-        experiences = exp?.items ?? []
+        let rawExperiences = exp?.items ?? []
+        let rawPlaces = pla?.items ?? []
+
+        // Exclude saved posts from user's own feed
+        if let engagement {
+            experiences = rawExperiences.filter { !engagement.isSaved($0.id) }
+            places = rawPlaces.filter { !engagement.isSaved($0.id) }
+        } else {
+            experiences = rawExperiences
+            places = rawPlaces
+        }
+
         experiencePage = 0
         hasMoreExperiences = exp?.hasMore ?? false
-
-        places = pla?.items ?? []
         placePage = 0
         hasMorePlaces = true
 
@@ -136,9 +146,10 @@ final class FeedViewModel {
             page: 0
         )
 
-        // Progressively append Chunk 2 recommendations
+        // Progressively append Chunk 2 recommendations (filtering saved posts)
         var blendedPlaces = places
         for rec in vibeRecs {
+            if let engagement, engagement.isSaved(rec.id) { continue }
             if !experiences.contains(where: { $0.id == rec.id }) && !blendedPlaces.contains(where: { $0.id == rec.id }) {
                 blendedPlaces.append(rec)
             }

@@ -495,7 +495,8 @@ struct FeedView: View {
             using: environment,
             latitude: activeLat,
             longitude: activeLng,
-            city: activeCity
+            city: activeCity,
+            engagement: engagement
         )
     }
 
