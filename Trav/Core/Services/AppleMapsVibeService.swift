@@ -214,18 +214,23 @@ final class AppleMapsVibeService: @unchecked Sendable {
             }
         }
 
+        let cacheKey = "\(targetCity.lowercased()):\(targetVibes.sorted().joined(separator: ","))"
+        if page == 0, let cached = cachedSummariesByCityAndVibes[cacheKey], !cached.isEmpty {
+            return cached
+        }
+
         lookAroundCount = 0
         let radiusMeters = min(100000.0, 10000.0 + Double(page) * 20000.0)
 
         var vibeBuckets: [[ExperienceSummary]] = []
 
-        for vibe in searchVibes.shuffled() {
+        for (vibeIdx, vibe) in searchVibes.enumerated() {
             let (emoji, cleanCategory) = extractEmojiAndText(from: vibe)
             let categoryKey = cleanCategory.lowercased()
             
-            // Build niche search query
+            // Build deterministic search query
             let subQueries = Self.nicheQueriesByVibe.first(where: { categoryKey.contains($0.key) })?.value ?? [cleanCategory]
-            let chosenTerm = subQueries.randomElement() ?? cleanCategory
+            let chosenTerm = subQueries[vibeIdx % subQueries.count]
             let searchQuery = "\(chosenTerm) in \(targetCity)"
 
             let searchReq = MKLocalSearch.Request()
@@ -234,11 +239,8 @@ final class AppleMapsVibeService: @unchecked Sendable {
             searchReq.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
 
             if let center = center, center.latitude != 0, center.longitude != 0 {
-                let latOffset = Double.random(in: -0.025...0.025)
-                let lngOffset = Double.random(in: -0.025...0.025)
-                let shiftedCenter = CLLocationCoordinate2D(latitude: center.latitude + latOffset, longitude: center.longitude + lngOffset)
                 searchReq.region = MKCoordinateRegion(
-                    center: shiftedCenter,
+                    center: center,
                     latitudinalMeters: radiusMeters,
                     longitudinalMeters: radiusMeters
                 )
@@ -397,6 +399,10 @@ final class AppleMapsVibeService: @unchecked Sendable {
                     interleaved.append(bucket[index])
                 }
             }
+        }
+
+        if page == 0 {
+            cachedSummariesByCityAndVibes[cacheKey] = interleaved
         }
 
         return interleaved

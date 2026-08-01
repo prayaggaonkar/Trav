@@ -87,7 +87,7 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
     var distanceMiles: Double?
 
     init(
-        id: UUID = UUID(),
+        id: UUID? = nil,
         name: String,
         address: String,
         city: String? = nil,
@@ -103,7 +103,9 @@ struct Popup: Identifiable, Codable, Sendable, Hashable {
         source: String? = nil,
         distanceMiles: Double? = nil
     ) {
-        self.id = id
+        let cityKey = (city ?? "").lowercased()
+        let nameKey = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        self.id = id ?? StableUUID.from("popup:\(cityKey):\(nameKey)")
         self.name = name
         self.address = address
         self.city = city

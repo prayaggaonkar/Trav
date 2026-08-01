@@ -67,12 +67,13 @@ final class FeedViewModel {
         let targetLng = longitude ?? cachedLng
         let targetCity = city ?? cachedCity
 
-        phase = .loading
+        if phase == .idle {
+            phase = .loading
+        }
 
         // Reset Apple Maps recommendation scroll state on new load
         appleMapsScrollCount = 0
         hasReachedScrollLimit = false
-        AppleMapsVibeService.shared.resetPagination()
 
         let userVibes = environment.session.currentUser?.selectedVibes ?? [
             "🎨 Street Art",
