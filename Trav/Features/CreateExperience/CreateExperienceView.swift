@@ -50,7 +50,7 @@ struct CreateExperienceView: View {
     @State private var selectedImagesData: [Data] = []
     @State private var selectedUIImages: [UIImage] = []
     @State private var stops: [Stop] = []
-    @State private var rating = RadarRating.defaultRating
+    @State private var rating = RadarRating.emptyRating
 
     @State private var cities: [City] = []
     @State private var selectedCity: City?
@@ -197,7 +197,7 @@ struct CreateExperienceView: View {
                 media: []
             )
         ]
-        rating = SpotRatingAxes.defaultRating
+        rating = RadarRating.emptyRating
 
         Task {
             _ = await resolveCityFromStops()
@@ -297,7 +297,7 @@ struct CreateExperienceView: View {
 
                         Spacer(minLength: 0)
 
-                        CreateOverallScoreBox(score: rating.overallScore)
+                        CreateOverallScoreBox(score: rating.overallScore, hasActiveScores: rating.hasActiveScores)
                     }
 
                     InteractiveRadarChartView(rating: $rating, showsHeader: false)
@@ -547,6 +547,7 @@ struct CreateExperienceView: View {
             && distinctStopCount >= ExperienceKind.itinerary.minimumStops
             && duplicateStopName == nil
             && !selectedImagesData.isEmpty
+            && rating.hasActiveScores
             && !isSubmitting
     }
 
@@ -561,6 +562,9 @@ struct CreateExperienceView: View {
         }
         if distinctStopCount < 2 { return "An itinerary needs at least 2 different spots." }
         if selectedImagesData.isEmpty { return "Add at least one photo to publish." }
+        if !rating.hasActiveScores {
+            return "Rate at least one category on the polygon to publish."
+        }
         return nil
     }
 
@@ -583,6 +587,11 @@ struct CreateExperienceView: View {
     private func submit() {
         guard !selectedImagesData.isEmpty else {
             errorMessage = "Add at least one photo to publish."
+            showErrorAlert = true
+            return
+        }
+        guard rating.hasActiveScores else {
+            errorMessage = "Rate at least one category on the polygon to publish."
             showErrorAlert = true
             return
         }
@@ -642,7 +651,7 @@ struct CreateExperienceView: View {
         selectedUIImages = []
         stops = []
         selectedCity = nil
-        rating = RadarRating.defaultRating
+        rating = RadarRating.emptyRating
         showSuccess = false
         CreateDraft.clear()
     }

@@ -26,7 +26,7 @@ struct CreateRatingView: View {
     @State private var isSearching = false
     @State private var searchTask: Task<Void, Never>?
 
-    @State private var radar = RadarRating.defaultRating
+    @State private var radar = RadarRating.emptyRating
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var photosData: [Data] = []
     @State private var photoImages: [UIImage] = []
@@ -166,7 +166,7 @@ struct CreateRatingView: View {
     }
 
     private var overallScoreBadge: some View {
-        CreateOverallScoreBox(score: radar.overallScore)
+        CreateOverallScoreBox(score: radar.overallScore, hasActiveScores: radar.hasActiveScores)
     }
 
     private var alreadyRatedBanner: some View {
@@ -513,7 +513,7 @@ struct CreateRatingView: View {
     private func clearTarget() {
         target = nil
         existingRating = nil
-        radar = RadarRating.defaultRating
+        radar = RadarRating.emptyRating
         photoItems = []
         photosData = []
         photoImages = []
@@ -659,16 +659,15 @@ struct CreateRatingView: View {
     private var canSubmit: Bool {
         target != nil
             && !hasAlreadyRated
-            && !radar.scores.isEmpty
-            && radar.scores.contains { radar.isEnabled($0.key) }
+            && radar.hasActiveScores
             && !isSubmitting
     }
 
     private var validationHint: String? {
         if target == nil { return "Pick the experience you finished to start rating." }
         if hasAlreadyRated { return "You've already rated this experience." }
-        if !radar.scores.contains(where: { radar.isEnabled($0.key) }) {
-            return "Keep at least one category on to submit a rating."
+        if !radar.hasActiveScores {
+            return "Rate at least one category on the polygon to submit."
         }
         return nil
     }
@@ -694,7 +693,7 @@ struct CreateRatingView: View {
     }
 
     private func submit() {
-        guard let target, !hasAlreadyRated else { return }
+        guard let target, !hasAlreadyRated, radar.hasActiveScores else { return }
         isSubmitting = true
         errorMessage = nil
 

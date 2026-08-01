@@ -4,6 +4,7 @@ import SwiftUI
 /// same purple community badge language as the experience page, sized down.
 struct CreateOverallScoreBox: View {
     let score: Double
+    var hasActiveScores: Bool = true
 
     private let purple = Color(red: 0.52, green: 0.24, blue: 0.86)
     private let starYellow = Color(red: 0.95, green: 0.75, blue: 0.15)
@@ -14,7 +15,7 @@ struct CreateOverallScoreBox: View {
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(starYellow)
 
-            Text(TravFormatters.score(score))
+            Text(hasActiveScores ? TravFormatters.score(score) : "--")
                 .font(.system(size: 20, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
                 .monospacedDigit()
@@ -31,7 +32,11 @@ struct CreateOverallScoreBox: View {
                         .stroke(purple, lineWidth: 1.25)
                 )
         )
-        .accessibilityLabel("Overall rating \(TravFormatters.score(score)) out of 10")
+        .accessibilityLabel(
+            hasActiveScores
+                ? "Overall rating \(TravFormatters.score(score)) out of 10"
+                : "No categories rated yet"
+        )
     }
 }
 
