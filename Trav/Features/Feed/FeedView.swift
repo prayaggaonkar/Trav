@@ -91,6 +91,12 @@ struct FeedView: View {
     @State private var isSavingItinerary = false
     @State private var plannerError: String?
 
+    // Upcoming Trips state
+    @State private var showingCreateTripSheet = false
+    @State private var createTripInitialType: TripType = .upcomingTrip
+    @State private var selectedTripForRec: UpcomingTrip? = nil
+    @State private var selectedTripDetail: UpcomingTrip? = nil
+
     private var showSearchSuggestions: Bool {
         isSearchFocused && !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -138,6 +144,15 @@ struct FeedView: View {
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(TravRadius.xl)
         }
+        .sheet(isPresented: $showingCreateTripSheet) {
+            CreateUpcomingTripSheet(initialTripType: createTripInitialType)
+        }
+        .sheet(item: $selectedTripForRec) { trip in
+            TripDetailSheet(trip: trip)
+        }
+        .sheet(item: $selectedTripDetail) { trip in
+            TripDetailSheet(trip: trip)
+        }
         .alert("Couldn't Save Route", isPresented: Binding(
             get: { plannerError != nil },
             set: { if !$0 { plannerError = nil } }
@@ -152,7 +167,8 @@ struct FeedView: View {
             }
             catalogCities = (try? await environment.cities.fetchGlobeCities()) ?? []
 
-            // Load feed and popups for active app location
+            // Load feed, popups, and upcoming trips
+            await UpcomingTripService.shared.fetchTrips(using: environment)
             await reloadPopupsForActiveAppLocation()
         }
 
@@ -275,6 +291,8 @@ struct FeedView: View {
         ScrollView {
             // 40% tighter gap between Happening Soon and Experiences (16 → ~10).
             VStack(spacing: 10) {
+                upcomingTripsSection
+
                 if !visiblePopups.isEmpty && selectedFilter == .all {
                     popupCarousel
                 }
@@ -385,6 +403,49 @@ struct FeedView: View {
                 }
             }
         )
+    }
+
+    // MARK: - Upcoming Trips section
+
+    private var upcomingTripsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            UpcomingTripHeaderInputBar { type in
+                createTripInitialType = type
+                showingCreateTripSheet = true
+            }
+
+            let trips = UpcomingTripService.shared.trips
+            if !trips.isEmpty && selectedFilter == .all {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Upcoming Trips")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(trips) { trip in
+                                UpcomingTripCard(
+                                    trip: trip,
+                                    onRecommend: {
+                                        selectedTripForRec = trip
+                                    },
+                                    onTap: {
+                                        selectedTripDetail = trip
+                                    }
+                                )
+                                .frame(width: 320)
+                            }
+                        }
+                        .padding(.horizontal, TravSpacing.screenHorizontal)
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
     }
 
     // MARK: - Popups carousel

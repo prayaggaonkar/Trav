@@ -88,6 +88,9 @@
 		F78F1C88E8624B4B96982725 /* AuthEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 391BB83942334B4B8845FD1C /* AuthEntryView.swift */; };
 		F7A1B2C3D4E5461789ABCDEF /* CityComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A1B2C3D4E5461789ABCD00 /* CityComponents.swift */; };
 		F8926D8B86B5A09BC0905150 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A09FFAAE4AEFDCC33C844C /* FeedView.swift */; };
+		TRIP0010000000000000001 /* UpcomingTrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = TRIP0000000000000000001 /* UpcomingTrip.swift */; };
+		TRIP0010000000000000002 /* UpcomingTripService.swift in Sources */ = {isa = PBXBuildFile; fileRef = TRIP0000000000000000002 /* UpcomingTripService.swift */; };
+		TRIP0010000000000000003 /* UpcomingTripComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = TRIP0000000000000000003 /* UpcomingTripComponents.swift */; };
 		F9480B158BF94DAEBFFEA2B1 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27DF1837071E4ABC855B8498 /* OnboardingView.swift */; };
 		FAEEC631BDED43D580C242D5 /* AsyncContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5214E298F515465C8669751B /* AsyncContentView.swift */; };
 		PROD0010000000000000001 /* TravLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000001 /* TravLog.swift */; };
@@ -174,6 +177,9 @@
 		C0BA082CA18B4C8FA2514428 /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
 		C7EAD1EAE5A54853BC25399A /* CreateExperienceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateExperienceView.swift; sourceTree = "<group>"; };
 		D0A09FFAAE4AEFDCC33C844C /* FeedView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
+		TRIP0000000000000000001 /* UpcomingTrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingTrip.swift; sourceTree = "<group>"; };
+		TRIP0000000000000000002 /* UpcomingTripService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingTripService.swift; sourceTree = "<group>"; };
+		TRIP0000000000000000003 /* UpcomingTripComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingTripComponents.swift; sourceTree = "<group>"; };
 		78FB928744779B1363949999 /* SpotSearchComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpotSearchComponents.swift; sourceTree = "<group>"; };
 		D4E5F6A7B8C9488990ABCDEF /* clouds.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = clouds.jpg; sourceTree = "<group>"; };
 		D56F2816135D445860185FA7 /* Popup.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Popup.swift; sourceTree = "<group>"; };
@@ -326,8 +332,17 @@
 				C7EAD1EAE5A54853BC25399C /* CreateExperience */,
 				RANK0000000000000000000 /* Rankings */,
 				8CDE1430A8C21954FD31B980 /* Feed */,
+				TRIP0000000000000000000 /* UpcomingTrips */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		TRIP0000000000000000000 /* UpcomingTrips */ = {
+			isa = PBXGroup;
+			children = (
+				TRIP0000000000000000003 /* UpcomingTripComponents.swift */,
+			);
+			path = UpcomingTrips;
 			sourceTree = "<group>";
 		};
 		8FC45DD7329E4045852F9C15 /* Globe */ = {
@@ -371,6 +386,7 @@
 				PROD0000000000000000003 /* PushNotificationService.swift */,
 				PROD0000000000000000004 /* ImageCache.swift */,
 				SUGG0000000000000000001 /* ContactSyncService.swift */,
+				TRIP0000000000000000002 /* UpcomingTripService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -450,6 +466,7 @@
 				8C9C50758E87D7A5F85D3E13 /* Comment.swift */,
 				D56F2816135D445860185FA7 /* Popup.swift */,
 				BD2A8658EC911DEBA9F87FA6 /* Rating.swift */,
+				TRIP0000000000000000001 /* UpcomingTrip.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -692,6 +709,9 @@
 				PROD0010000000000000004 /* ImageCache.swift in Sources */,
 				SUGG0010000000000000001 /* ContactSyncService.swift in Sources */,
 				PROD0010000000000000005 /* OfflineBanner.swift in Sources */,
+				TRIP0010000000000000001 /* UpcomingTrip.swift in Sources */,
+				TRIP0010000000000000002 /* UpcomingTripService.swift in Sources */,
+				TRIP0010000000000000003 /* UpcomingTripComponents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
