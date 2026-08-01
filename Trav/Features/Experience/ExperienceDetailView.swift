@@ -151,8 +151,13 @@ struct ExperienceDetailView: View {
                 descriptionSection(experience)
                     .travAppear(delay: 0.08)
 
-                timeline(experience, title: experience.stops.count > 1 ? "TIMELINE" : "ADDRESS")
-                    .travAppear(delay: 0.1)
+                if experience.stops.count > 1 {
+                    timeline(experience, title: "TIMELINE")
+                        .travAppear(delay: 0.1)
+                } else if let spot = experience.stops.first {
+                    addressSection(experience: experience, stop: spot)
+                        .travAppear(delay: 0.1)
+                }
 
                 overviewSection(experience)
                     .travAppear(delay: 0.14)
@@ -642,6 +647,92 @@ struct ExperienceDetailView: View {
             }
         }
         .padding(.bottom, TravSpacing.lg)
+    }
+
+    @ViewBuilder
+    private func addressSection(experience: Experience, stop: Stop) -> some View {
+        let displayAddr = resolvedAddress(experience: experience, stop: stop)
+        VStack(alignment: .leading, spacing: TravSpacing.xs) {
+            Text("ADDRESS")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .tracking(2.0)
+                .foregroundStyle(TravColors.accent)
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "mappin.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(TravColors.accent)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(stop.name)
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+
+                        Text(displayAddr)
+                            .font(TravTypography.bodyMedium())
+                            .foregroundStyle(TravColors.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                }
+
+                Button {
+                    openInAppleMaps(experience: experience, stop: stop)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "map.fill")
+                        Text("Open in Apple Maps")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(TravColors.accent)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(TravPressButtonStyle(scale: 0.97))
+                .padding(.top, 2)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(TravColors.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: TravRadius.lg))
+            .overlay(
+                RoundedRectangle(cornerRadius: TravRadius.lg)
+                    .stroke(TravColors.border.opacity(0.3), lineWidth: 1)
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, TravSpacing.screenHorizontal)
+        .padding(.top, TravSpacing.sm)
+        .padding(.bottom, TravSpacing.lg)
+    }
+
+    private func resolvedAddress(experience: Experience, stop: Stop) -> String {
+        // If creatorNotes contains a real physical address:
+        if let notes = stop.creatorNotes, !notes.isEmpty && !notes.contains("Curated by Local AI") {
+            return notes
+        }
+        let desc = stop.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        if desc.contains(",") || desc.rangeOfCharacter(from: .decimalDigits) != nil {
+            return desc
+        }
+        if let city = experience.cityName, !city.isEmpty {
+            return "\(stop.name), \(city)"
+        }
+        return stop.name
+    }
+
+    private func openInAppleMaps(experience: Experience, stop: Stop) {
+        let lat = stop.latitude != 0 ? stop.latitude : (experience.stops.first?.latitude ?? 37.7749)
+        let lng = stop.longitude != 0 ? stop.longitude : (experience.stops.first?.longitude ?? -122.4194)
+        let coord = CLLocationCoordinate2D(latitude: lat, longitude: lng)
+        let mapItem = MKMapItem(placemark: MKPlacemark(coordinate: coord))
+        mapItem.name = stop.name
+        mapItem.openInMaps(launchOptions: [
+            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving
+        ])
     }
 
     private func load() async {

@@ -203,26 +203,38 @@ final class LocalVibeAICurator: @unchecked Sendable {
         let category = (mapItem.pointOfInterestCategory?.rawValue ?? "").lowercased()
         let shortCity = cityName.components(separatedBy: ",").first ?? cityName
 
-        if nameLower.contains("coffee") || nameLower.contains("roaster") || category.contains("cafe") {
-            return "\(name) is an artisanal neighborhood coffee sanctuary in \(shortCity). Known for single-origin pour-overs, sunlit window seating, and an unhurried vibe—ideal for long reading sessions or casual morning catch-ups."
+        if nameLower.contains("coffee") || nameLower.contains("roaster") || nameLower.contains("cafe") || category.contains("cafe") {
+            return "\(name) is an artisanal neighborhood coffee sanctuary in \(shortCity). Renowned for its single-origin pour-overs, house-baked morning goods, and sunlit minimalist seating, it’s the ideal spot for a slow morning catch-up or deep focus session."
         }
-        if nameLower.contains("bakery") || nameLower.contains("pastry") || category.contains("bakery") {
-            return "\(name) is a beloved local bakery in \(shortCity) crafting fresh sourdough, warm croissants, and seasonal pastries daily. Recommended by travelers for a slow morning treat with great coffee."
+        if nameLower.contains("bakery") || nameLower.contains("pastry") || nameLower.contains("patisserie") || category.contains("bakery") {
+            return "\(name) is a celebrated local bakery in \(shortCity) crafting golden sourdough loaves, delicate croissants, and seasonal fruit tarts fresh every morning. Highly recommended by locals for a slow breakfast pairing rich espresso with warm pastries."
         }
-        if nameLower.contains("park") || nameLower.contains("lookout") || nameLower.contains("view") || nameLower.contains("ridge") || category.contains("park") {
-            return "\(name) is a scenic outdoor vantage point offering panoramic views across \(shortCity). Draws a vibrant local crowd around Golden Hour—bring a blanket, grab a hot drink, and watch the sunset."
+        if nameLower.contains("park") || nameLower.contains("lookout") || nameLower.contains("view") || nameLower.contains("vista") || nameLower.contains("garden") || category.contains("park") {
+            return "\(name) is a scenic outdoor haven offering sweeping panoramic views across \(shortCity). It draws an enthusiastic crowd around Golden Hour—bring a cozy blanket, grab a warm drink from a nearby cafe, and watch the sun dip below the skyline."
         }
-        if nameLower.contains("trail") || nameLower.contains("hike") || nameLower.contains("peak") {
-            return "\(name) is an invigorating natural escape near \(shortCity) featuring lush winding paths and fresh coastal breezes. Perfect for an uplifting weekend walk or sunset trail run."
+        if nameLower.contains("trail") || nameLower.contains("hike") || nameLower.contains("ridge") || nameLower.contains("peak") {
+            return "\(name) is an invigorating natural escape situated near \(shortCity), featuring shaded tree-lined paths and breathtaking coastal breezes. Perfect for an energizing morning workout, weekend trail walk, or golden hour photography."
         }
-        if nameLower.contains("cocktail") || nameLower.contains("speakeasy") || nameLower.contains("lounge") || category.contains("nightlife") {
-            return "\(name) is an intimate evening hangout in \(shortCity) featuring handcrafted cocktails, moody low lighting, and curated vinyl playlists. Highly rated for date nights and late evening conversations."
+        if nameLower.contains("cocktail") || nameLower.contains("speakeasy") || nameLower.contains("lounge") || nameLower.contains("bar") || category.contains("nightlife") {
+            return "\(name) is an atmospheric evening destination in \(shortCity) known for masterfully crafted signature cocktails, dim warm lighting, and vinyl-focused playlists. A top choice for intimate date nights and late evening conversations."
         }
-        if nameLower.contains("book") || nameLower.contains("gallery") || nameLower.contains("art") || category.contains("museum") {
-            return "\(name) is an inspiring cultural haven in \(shortCity) showcasing rare independent titles, local artwork, and creative artifacts. A peaceful sanctuary to wander and discover something unexpected."
+        if nameLower.contains("wine") || nameLower.contains("winery") || nameLower.contains("tasting") {
+            return "\(name) is a refined wine lounge in \(shortCity) offering curated organic pours, artisanal charcuterie boards, and an unhurried candlelit ambience. Perfect for lingering over conversation with close friends."
+        }
+        if nameLower.contains("brewery") || nameLower.contains("taproom") || nameLower.contains("beer") {
+            return "\(name) is a vibrant craft brewery taproom in \(shortCity) featuring small-batch IPAs, crisp lagers, and open communal seating. Popular for casual afternoon hangouts and evening gatherings."
+        }
+        if nameLower.contains("book") || nameLower.contains("library") {
+            return "\(name) is a beloved independent bookstore in \(shortCity) filled with curated floor-to-ceiling shelves, rare vintage editions, and quiet reading nooks. A serene sanctuary to lose track of time."
+        }
+        if nameLower.contains("art") || nameLower.contains("gallery") || nameLower.contains("museum") || category.contains("museum") {
+            return "\(name) is an inspiring cultural landmark in \(shortCity) showcasing captivating contemporary exhibits, local artwork, and immersive installations. A peaceful space to wander and experience local artistic vision."
+        }
+        if nameLower.contains("pizza") || nameLower.contains("trattoria") || nameLower.contains("taco") || nameLower.contains("ramen") || nameLower.contains("bistro") || category.contains("restaurant") {
+            return "\(name) is a standout culinary destination in \(shortCity) celebrated for authentic flavors, locally sourced ingredients, and a warm, inviting atmosphere. A favorite spot for memorable lunch and dinner gatherings."
         }
 
-        return "\(name) is a standout local spot in \(shortCity) selected by travelers for its unique character and high-vibe atmosphere. Great for an effortless afternoon hangout."
+        return "\(name) is a standout local destination in \(shortCity) selected by travelers for its distinct character, welcoming atmosphere, and vibrant neighborhood feel. Ideal for a relaxed, authentic local experience."
     }
 
     func generateRelatableVibeNote(mapItem: MKMapItem, category: String) -> String {

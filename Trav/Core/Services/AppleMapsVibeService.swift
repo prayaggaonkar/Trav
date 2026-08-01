@@ -313,12 +313,38 @@ final class AppleMapsVibeService: @unchecked Sendable {
                     longitude: coord.longitude
                 )
 
+                let p = mapItem.placemark
+                let realAddress: String = {
+                    var parts: [String] = []
+                    if let sub = p.subThoroughfare, let street = p.thoroughfare {
+                        parts.append("\(sub) \(street)")
+                    } else if let street = p.thoroughfare {
+                        parts.append(street)
+                    }
+                    if let locality = p.locality {
+                        parts.append(locality)
+                    }
+                    if let state = p.administrativeArea {
+                        parts.append(state)
+                    }
+                    if let zip = p.postalCode {
+                        parts.append(zip)
+                    }
+                    if !parts.isEmpty {
+                        return parts.joined(separator: ", ")
+                    }
+                    if let title = p.title, !title.isEmpty {
+                        return title
+                    }
+                    return targetCity
+                }()
+
                 let stop = Stop(
                     id: stopPreview.id,
                     orderIndex: 1,
                     name: officialTitle,
-                    description: result.relatableVibeNote,
-                    creatorNotes: "Curated by Local AI (\(Int(result.hangoutConfidence * 100))% hangout match).",
+                    description: result.richDescription,
+                    creatorNotes: realAddress,
                     latitude: coord.latitude,
                     longitude: coord.longitude,
                     placeID: nil,
@@ -334,7 +360,7 @@ final class AppleMapsVibeService: @unchecked Sendable {
                     cityID: summary.cityID,
                     creator: creator,
                     title: officialTitle,
-                    description: result.relatableVibeNote,
+                    description: result.richDescription,
                     imageURLs: imageURLs,
                     durationMinutes: result.recommendedDurationMinutes,
                     costLevel: .moderate,
