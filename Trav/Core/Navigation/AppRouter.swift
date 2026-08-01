@@ -81,7 +81,7 @@ enum CreateTab: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .rating: "Rate"
-        case .experience: "Create"
+        case .experience: "Itinerary"
         }
     }
 

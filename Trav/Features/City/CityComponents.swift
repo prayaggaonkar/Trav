@@ -504,9 +504,11 @@ struct CircularRatingView: View {
             Text(String(format: "%.1f", rating))
                 .font(.system(size: fontSize, weight: .bold, design: .rounded))
                 .monospacedDigit()
+                .contentTransition(.numericText())
                 .foregroundStyle(TravColors.primary)
         }
         .frame(width: size, height: size)
+        .animation(TravAnimation.quick, value: rating)
         .accessibilityLabel(
             isCommunityValidated
                 ? "Community rating \(TravFormatters.score(rating)) out of 10"

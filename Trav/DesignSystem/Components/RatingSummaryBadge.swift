@@ -1,5 +1,40 @@
 import SwiftUI
 
+/// Compact overall-score box used on Create Rating / Create Itinerary —
+/// same purple community badge language as the experience page, sized down.
+struct CreateOverallScoreBox: View {
+    let score: Double
+
+    private let purple = Color(red: 0.52, green: 0.24, blue: 0.86)
+    private let starYellow = Color(red: 0.95, green: 0.75, blue: 0.15)
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "star.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(starYellow)
+
+            Text(TravFormatters.score(score))
+                .font(.system(size: 20, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(TravAnimation.quick, value: score)
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                .fill(purple)
+                .overlay(
+                    RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
+                        .stroke(purple, lineWidth: 1.25)
+                )
+        )
+        .accessibilityLabel("Overall rating \(TravFormatters.score(score)) out of 10")
+    }
+}
+
 /// Shows an experience's rating with the styling that tells users whether it has
 /// genuine public validation.
 ///

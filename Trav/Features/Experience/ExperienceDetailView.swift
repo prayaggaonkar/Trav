@@ -42,6 +42,18 @@ struct ExperienceDetailView: View {
             .modifier(HiddenToolbarBackgroundVisibility())
         }
         .travShareSheet(item: $shareItem)
+        .overlay {
+            if showComments {
+                CommentsDrawer(
+                    experienceID: experienceID,
+                    onCountChange: { localCommentCount = $0 },
+                    onDismiss: { showComments = false }
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(50)
+            }
+        }
+        .animation(TravAnimation.quick, value: showComments)
         .overlay(alignment: .topLeading) {
             Button {
                 dismissEnv()
@@ -210,6 +222,26 @@ struct ExperienceDetailView: View {
                     .overlay(Capsule().stroke(TravColors.accent.opacity(0.4), lineWidth: 1))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+
+                Button {
+                    showComments = true
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: "bubble.right.fill")
+                            .font(.system(size: 15.5, weight: .semibold))
+                        Text(TravFormatters.count(commentCount))
+                            .font(.system(size: 13.8, weight: .bold, design: .rounded))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 11.5)
+                    .padding(.vertical, 11.5)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(TravPressButtonStyle())
+                .layoutPriority(1)
+                .accessibilityLabel("Comments, \(commentCount)")
             }
         }
     }
@@ -408,7 +440,6 @@ struct ExperienceDetailView: View {
     @ViewBuilder
     private func averageCommunityRatingCard(_ experience: Experience) -> some View {
         let summary = experience.ratingSummary
-        let radar = summary.displayRadar(creatorRadar: experience.rating)
         let creatorID = experience.creator.id
         let communityRatings = ratings.filter { $0.author.id != creatorID }
         let communityCount = max(summary.communityRatingCount, communityRatings.count)
@@ -425,6 +456,9 @@ struct ExperienceDetailView: View {
         }()
         let score = summary.displayScore ?? calcAvg
         let isCreatorOnly = !hasCommunity && (summary.isCreatorOnly || score != nil)
+        // Experience.rating is often unset for creator-only posts; fall back to the
+        // creator's entry in the loaded ratings list so the summary row can expand.
+        let radar = resolvedSummaryRadar(for: experience, hasCommunity: hasCommunity)
 
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
             Button {
@@ -434,10 +468,15 @@ struct ExperienceDetailView: View {
                 }
             } label: {
                 HStack(alignment: .center, spacing: TravSpacing.md) {
+                    // Creator-only: only the star is muted — the badge box and score stay full color.
                     HStack(spacing: 5) {
                         Image(systemName: "star.fill")
                             .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(Color(red: 0.95, green: 0.75, blue: 0.15).opacity(0.9))
+                            .foregroundStyle(
+                                hasCommunity
+                                    ? Color(red: 0.95, green: 0.75, blue: 0.15)
+                                    : TravColors.muted
+                            )
                         Text(score != nil ? TravFormatters.score(score!) : "--")
                             .font(.system(size: 28, weight: .black, design: .rounded))
                             .foregroundStyle(hasCommunity ? Color.white : TravColors.primary)
@@ -450,15 +489,15 @@ struct ExperienceDetailView: View {
                             .fill(
                                 hasCommunity
                                     ? Color(red: 0.52, green: 0.24, blue: 0.86)
-                                    : TravColors.surfaceElevated
+                                    : TravColors.surface
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: TravRadius.md, style: .continuous)
                                     .stroke(
                                         hasCommunity
                                             ? Color(red: 0.52, green: 0.24, blue: 0.86)
-                                            : TravColors.border.opacity(0.5),
-                                        lineWidth: 1
+                                            : TravColors.accent.opacity(0.45),
+                                        lineWidth: 1.25
                                     )
                             )
                     )
@@ -488,10 +527,10 @@ struct ExperienceDetailView: View {
                             .padding(.trailing, 22)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(radar == nil)
 
             if isSummaryRadarExpanded, let radar {
                 ReadOnlyRadarChartView(rating: radar, showsHeader: false, showsScoreSummary: false)
@@ -500,6 +539,29 @@ struct ExperienceDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, TravSpacing.xs)
+    }
+
+    /// Radar for the summary expander: prefer community/creator radar on the experience,
+    /// then the creator's loaded rating, then any sole rating on creator-only posts.
+    private func resolvedSummaryRadar(for experience: Experience, hasCommunity: Bool) -> RadarRating? {
+        if let radar = experience.ratingSummary.displayRadar(creatorRadar: experience.rating),
+           !radar.scores.isEmpty {
+            return radar
+        }
+
+        let creatorID = experience.creator.id
+        if let creatorRadar = ratings.first(where: { $0.author.id == creatorID })?.radar,
+           !creatorRadar.scores.isEmpty {
+            return creatorRadar
+        }
+
+        if !hasCommunity,
+           let only = ratings.first?.radar,
+           !only.scores.isEmpty {
+            return only
+        }
+
+        return nil
     }
 
     private func sortedRatings(for experience: Experience) -> [Rating] {
