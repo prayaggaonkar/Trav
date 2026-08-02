@@ -164,6 +164,19 @@ struct MockExperienceRepository: ExperienceRepository {
         return id
     }
 
+    func updateExperience(id: UUID, draft: ExperienceDraft) async throws {
+        try draft.validateForPublishing()
+        try await Task.sleep(for: .milliseconds(300))
+        NotificationCenter.default.post(name: Notification.Name("ExperienceUpdatedNotification"), object: nil)
+        NotificationCenter.default.post(name: Notification.Name("ExperiencePublishedNotification"), object: nil)
+    }
+
+    func deleteExperience(id: UUID) async throws {
+        try await Task.sleep(for: .milliseconds(300))
+        NotificationCenter.default.post(name: Notification.Name("ExperienceDeletedNotification"), object: nil)
+        NotificationCenter.default.post(name: Notification.Name("ExperiencePublishedNotification"), object: nil)
+    }
+
     @discardableResult
     func syncSpot(_ request: SpotSyncRequest) async throws -> UUID {
         StableUUID.from(request.placeID ?? request.identityKey)

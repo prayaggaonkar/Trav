@@ -43,6 +43,8 @@ struct CreateExperienceView: View {
 
     /// When false (user left the Create tab), clear any success screen so the form is ready next time.
     var isActive: Bool = true
+    var editingExperience: Experience? = nil
+    var onSave: (() -> Void)? = nil
 
     @State private var title = ""
     @State private var descriptionText = ""
@@ -308,7 +310,7 @@ struct CreateExperienceView: View {
                 .travAppear(delay: 0.15)
 
                 PrimaryButton(
-                    title: "Publish Experience",
+                    title: editingExperience != nil ? "Save Changes" : "Publish Experience",
                     isLoading: isSubmitting,
                     isEnabled: canPublish
                 ) {
@@ -323,10 +325,10 @@ struct CreateExperienceView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
 
-                Spacer(minLength: TravSpacing.xxl + TravSpacing.xl)
+                Spacer(minLength: TravSpacing.md)
             }
             .padding(.horizontal, TravSpacing.screenHorizontal)
-            .padding(.bottom, TravSpacing.xl)
+            .padding(.bottom, TravSpacing.md)
         }
     }
 
@@ -617,21 +619,32 @@ struct CreateExperienceView: View {
                     imagesData: selectedImagesData
                 )
 
-                try await environment.experiences.publishExperience(draft)
+                if let editingExp = editingExperience {
+                    try await environment.experiences.updateExperience(id: editingExp.id, draft: draft)
+                } else {
+                    try await environment.experiences.publishExperience(draft)
+                }
 
                 await MainActor.run {
                     isSubmitting = false
-                    CreateDraft.clear()
-                    withAnimation(TravAnimation.enter) {
-                        showSuccess = true
-                    }
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    if var user = session.currentUser {
-                        user.experienceCount += 1
-                        session.currentUser = user
-                        environment.engagement.cache(user)
+
+                    if editingExperience != nil {
+                        onSave?()
+                        router.noteExperienceCatalogChanged()
+                    } else {
+                        CreateDraft.clear()
+                        withAnimation(TravAnimation.enter) {
+                            showSuccess = true
+                        }
+                        if var user = session.currentUser {
+                            user.experienceCount += 1
+                            session.currentUser = user
+                            environment.engagement.cache(user)
+                        }
+                        onSave?()
+                        router.noteExperiencePublished()
                     }
-                    router.noteExperiencePublished()
                 }
             } catch {
                 await MainActor.run {
@@ -667,6 +680,32 @@ struct CreateExperienceView: View {
     private func restoreDraftIfNeeded() {
         guard !didRestoreDraft else { return }
         didRestoreDraft = true
+        if let exp = editingExperience {
+            title = exp.title
+            descriptionText = exp.description
+            stops = exp.stops
+            selectedCity = cities.first(where: { $0.id == exp.cityID || $0.name.lowercased() == exp.cityName?.lowercased() })
+                ?? City(id: exp.cityID, name: exp.cityName ?? "Unknown", slug: (exp.cityName ?? "unknown").lowercased(), countryCode: "US", latitude: 0, longitude: 0, heroImageURL: nil, timezone: "America/Los_Angeles", experienceCount: 1, creatorCount: 1)
+            if let expRating = exp.rating ?? exp.displayRadar ?? exp.ratingSummary.communityRadar {
+                rating = expRating.sanitizedForEditing
+            }
+            Task {
+                var datas: [Data] = []
+                var uiImages: [UIImage] = []
+                for url in exp.imageURLs {
+                    if let (data, _) = try? await URLSession.shared.data(from: url),
+                       let img = UIImage(data: data) {
+                        datas.append(data)
+                        uiImages.append(img)
+                    }
+                }
+                await MainActor.run {
+                    self.selectedImagesData = datas
+                    self.selectedUIImages = uiImages
+                }
+            }
+            return
+        }
         guard let draft = CreateDraft.load() else { return }
         title = draft.title
         descriptionText = draft.description

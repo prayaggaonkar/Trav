@@ -179,6 +179,12 @@ private struct RootChromeModifier: ViewModifier {
                     notificationStore.startListening(userID: userID, using: environment)
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ExperienceDeletedNotification"))) { _ in
+                router.noteExperienceCatalogChanged()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ExperienceUpdatedNotification"))) { _ in
+                router.noteExperienceCatalogChanged()
+            }
             .onChange(of: activeTab) { _, tab in
                 retainedTabs.insert(tab)
                 tabBarBackdrop = defaultBackdrop(tab)

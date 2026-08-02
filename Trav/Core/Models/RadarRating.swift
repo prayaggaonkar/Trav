@@ -43,7 +43,13 @@ struct RadarRating: Codable, Equatable, Hashable, Sendable {
 
     init(scores: [String: Double] = [:], disabledCategories: Set<String> = []) {
         self.scores = scores
-        self.disabledCategories = Self.normalizedDisabled(disabledCategories)
+        if disabledCategories.isEmpty && !scores.isEmpty {
+            let activeKeys = Set(scores.keys.map { Self.canonicalAxisID($0) })
+            let allKeys = Set(RadarAxis.defaultAxes.map(\.id))
+            self.disabledCategories = allKeys.subtracting(activeKeys)
+        } else {
+            self.disabledCategories = Self.normalizedDisabled(disabledCategories)
+        }
     }
 
     /// Default sample rating with continuous decimal values
@@ -63,6 +69,18 @@ struct RadarRating: Codable, Equatable, Hashable, Sendable {
             scores: [:],
             disabledCategories: Set(RadarAxis.defaultAxes.map(\.id))
         )
+    }
+
+    /// Ensures all scored categories are enabled so the polygon chart renders filled.
+    var sanitizedForEditing: RadarRating {
+        var copy = self
+        for (key, val) in copy.scores {
+            if val >= 1.0 {
+                let canonical = Self.canonicalAxisID(key)
+                copy.disabledCategories.remove(canonical)
+            }
+        }
+        return copy
     }
 
     // MARK: - Enable / Disable Category Controls
@@ -216,15 +234,22 @@ struct RadarRating: Codable, Equatable, Hashable, Sendable {
         let container = try decoder.singleValueContainer()
         if let dict = try? container.decode([String: Double].self) {
             self.scores = dict
-            self.disabledCategories = []
+            let activeKeys = Set(dict.keys.map { Self.canonicalAxisID($0) })
+            let allKeys = Set(RadarAxis.defaultAxes.map(\.id))
+            self.disabledCategories = allKeys.subtracting(activeKeys)
             return
         }
 
         let objectContainer = try decoder.container(keyedBy: CodingKeys.self)
         self.scores = try objectContainer.decode([String: Double].self, forKey: .scores)
-        self.disabledCategories = Self.normalizedDisabled(
-            (try? objectContainer.decode(Set<String>.self, forKey: .disabledCategories)) ?? []
-        )
+        let rawDisabled = (try? objectContainer.decode(Set<String>.self, forKey: .disabledCategories)) ?? []
+        if rawDisabled.isEmpty && !self.scores.isEmpty {
+            let activeKeys = Set(self.scores.keys.map { Self.canonicalAxisID($0) })
+            let allKeys = Set(RadarAxis.defaultAxes.map(\.id))
+            self.disabledCategories = allKeys.subtracting(activeKeys)
+        } else {
+            self.disabledCategories = Self.normalizedDisabled(rawDisabled)
+        }
     }
 
     func encode(to encoder: Encoder) throws {

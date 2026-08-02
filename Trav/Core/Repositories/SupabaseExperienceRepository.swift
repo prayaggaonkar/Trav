@@ -417,7 +417,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             let path = "\(creatorID.uuidString.lowercased())/\(experienceID.uuidString.lowercased())/photo_\(index).jpg"
             _ = try await client.storage
                 .from("experiences")
-                .upload(path, data: data, options: FileOptions(contentType: "image/jpeg"))
+                .upload(path, data: data, options: FileOptions(contentType: "image/jpeg", upsert: true))
             let publicURL = try client.storage.from("experiences").getPublicURL(path: path)
             imageURLStrings.append(publicURL.absoluteString)
         }
@@ -460,8 +460,14 @@ struct SupabaseExperienceRepository: ExperienceRepository {
             let stops: [String]
             let image: [String]?
             let rating: [String: Double]?
+            let creator_rating: Double?
             let is_published: Bool
         }
+
+        let legacyCreatorRating: Double? = {
+            guard let r = draft.rating else { return nil }
+            return r.hasActiveScores ? r.overallScore : nil
+        }()
 
         try await client
             .from("experiences")
@@ -475,6 +481,7 @@ struct SupabaseExperienceRepository: ExperienceRepository {
                 stops: stopPayloads,
                 image: imageURLStrings.isEmpty ? nil : imageURLStrings,
                 rating: draft.rating?.scores,
+                creator_rating: legacyCreatorRating,
                 is_published: true
             ))
             .execute()
@@ -519,6 +526,155 @@ struct SupabaseExperienceRepository: ExperienceRepository {
 
         NotificationCenter.default.post(name: Notification.Name("ExperiencePublishedNotification"), object: nil)
         return experienceID
+    }
+
+    func updateExperience(id: UUID, draft: ExperienceDraft) async throws {
+        try draft.validateForPublishing()
+        let client = try client
+        let idStr = id.uuidString.lowercased()
+        let cityID = try await ensureCityExists(draft.city, client: client)
+
+        let imageURLStrings = try await uploadExperiencePhotos(
+            draft.imagesData,
+            creatorID: draft.creatorID,
+            experienceID: id,
+            client: client
+        )
+
+        let encoder = JSONEncoder()
+        let stopPayloads: [String] = try draft.stops
+            .sorted { $0.orderIndex < $1.orderIndex }
+            .map { stop in
+                let data = try encoder.encode(DBStop(from: stop))
+                return String(decoding: data, as: UTF8.self)
+            }
+
+        struct ExperienceUpdatePayload: Encodable {
+            let title: String
+            let description: String
+            let city: String
+            let city_id: UUID
+            let stops: [String]
+            let image: [String]?
+            let rating: [String: Double]?
+            let creator_rating: Double?
+
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(title, forKey: .title)
+                try container.encode(description, forKey: .description)
+                try container.encode(city, forKey: .city)
+                try container.encode(city_id, forKey: .city_id)
+                try container.encode(stops, forKey: .stops)
+                if let image {
+                    try container.encode(image, forKey: .image)
+                }
+                if let rating {
+                    try container.encode(rating, forKey: .rating)
+                }
+                if let creator_rating {
+                    try container.encode(creator_rating, forKey: .creator_rating)
+                }
+            }
+
+            private enum CodingKeys: String, CodingKey {
+                case title, description, city, city_id, stops, image, rating, creator_rating
+            }
+        }
+
+        let ratingScoresMap = (draft.rating?.hasActiveScores == true)
+            ? draft.rating?.activeScores
+            : draft.rating?.scores
+
+        let calculatedCreatorRating: Double? = {
+            guard let map = ratingScoresMap, !map.isEmpty else { return nil }
+            let vals = Array(map.values.filter { $0 >= 1.0 && $0 <= 10.0 })
+            guard !vals.isEmpty else { return nil }
+            let avg = vals.reduce(0.0, +) / Double(vals.count)
+            return (avg * 10.0).rounded() / 10.0
+        }()
+
+        try await client
+            .from("experiences")
+            .update(ExperienceUpdatePayload(
+                title: draft.title,
+                description: draft.description,
+                city: draft.city.name,
+                city_id: cityID,
+                stops: stopPayloads,
+                image: imageURLStrings.isEmpty ? nil : imageURLStrings,
+                rating: ratingScoresMap,
+                creator_rating: calculatedCreatorRating
+            ))
+            .eq("id", value: idStr)
+            .execute()
+
+        // Clean & update normalized stops
+        try? await client.from("stops").delete().eq("experience_id", value: idStr).execute()
+
+        struct StopInsert: Encodable {
+            let experience_id: UUID
+            let order_index: Int
+            let name: String
+            let description: String
+            let creator_notes: String
+            let latitude: Double?
+            let longitude: Double?
+            let place_id: String?
+            let recommended_time: String?
+            let duration_minutes: Int
+            let emoji: String?
+        }
+
+        let stopRows = draft.stops
+            .sorted { $0.orderIndex < $1.orderIndex }
+            .enumerated()
+            .map { index, stop in
+                StopInsert(
+                    experience_id: id,
+                    order_index: index,
+                    name: stop.name,
+                    description: stop.description,
+                    creator_notes: stop.creatorNotes ?? "",
+                    latitude: stop.latitude,
+                    longitude: stop.longitude,
+                    place_id: stop.placeID,
+                    recommended_time: stop.recommendedTime,
+                    duration_minutes: stop.durationMinutes,
+                    emoji: stop.emoji
+                )
+            }
+
+        if !stopRows.isEmpty {
+            do {
+                try await client.from("stops").upsert(stopRows).execute()
+            } catch {
+                try? await client.from("stops").insert(stopRows).execute()
+            }
+        }
+
+        if let rating = draft.rating, !rating.scores.isEmpty {
+            try? await SupabaseRatingRepository().upsertRating(
+                RatingDraft(experienceID: id, radar: rating),
+                userID: draft.creatorID
+            )
+        }
+
+        NotificationCenter.default.post(name: Notification.Name("ExperienceUpdatedNotification"), object: nil)
+        NotificationCenter.default.post(name: Notification.Name("ExperiencePublishedNotification"), object: nil)
+    }
+
+    func deleteExperience(id: UUID) async throws {
+        let client = try client
+        let idStr = id.uuidString.lowercased()
+
+        try? await client.from("stops").delete().eq("experience_id", value: idStr).execute()
+        try? await client.from("ratings").delete().eq("experience_id", value: idStr).execute()
+        try? await client.from("saved_experiences").delete().eq("experience_id", value: idStr).execute()
+        try await client.from("experiences").delete().eq("id", value: idStr).execute()
+
+        NotificationCenter.default.post(name: Notification.Name("ExperienceDeletedNotification"), object: nil)
+        NotificationCenter.default.post(name: Notification.Name("ExperiencePublishedNotification"), object: nil)
     }
 
     /// Client-side duplicate detection for databases without `publish_itinerary`.

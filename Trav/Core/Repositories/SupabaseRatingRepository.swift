@@ -327,6 +327,57 @@ struct SupabaseRatingRepository: RatingRepository {
         return Paginated(items: items, page: page, hasMore: rows.count == Self.pageSize)
     }
 
+    func upsertRating(_ draft: RatingDraft, userID: UUID) async throws {
+        guard !draft.radar.scores.isEmpty else { return }
+        let client = try client
+        let expIDStr = draft.experienceID.uuidString.lowercased()
+        let userIDStr = userID.uuidString.lowercased()
+
+        struct RatingUpsert: Encodable {
+            let user_id: UUID
+            let experience_id: UUID
+            let radar: [String: Double]
+            let overall_score: Double
+            let review: String?
+        }
+
+        let activeScores = draft.radar.activeScores.isEmpty ? draft.radar.scores : draft.radar.activeScores
+        let overall = draft.radar.overallScore
+
+        let payload = RatingUpsert(
+            user_id: userID,
+            experience_id: draft.experienceID,
+            radar: activeScores,
+            overall_score: overall,
+            review: draft.review
+        )
+
+        do {
+            try await client
+                .from("ratings")
+                .upsert(payload)
+                .execute()
+        } catch {
+            struct DBCheck: Decodable { let id: UUID }
+            let existing: [DBCheck] = (try? await client
+                .from("ratings")
+                .select("id")
+                .eq("user_id", value: userIDStr)
+                .eq("experience_id", value: expIDStr)
+                .limit(1)
+                .execute()
+                .value) ?? []
+
+            if let existingID = existing.first?.id {
+                try? await client
+                    .from("ratings")
+                    .update(payload)
+                    .eq("id", value: existingID.uuidString.lowercased())
+                    .execute()
+            }
+        }
+    }
+
     private func fetchAuthors(
         for rows: [DBRatingRow],
         client: SupabaseClient

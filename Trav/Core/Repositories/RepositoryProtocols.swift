@@ -89,6 +89,10 @@ protocol ExperienceRepository: Sendable {
     /// draft has fewer than 2 distinct spots or duplicates an existing journey.
     @discardableResult
     func publishExperience(_ draft: ExperienceDraft) async throws -> UUID
+    /// Updates an existing user-authored experience.
+    func updateExperience(id: UUID, draft: ExperienceDraft) async throws
+    /// Deletes a user-authored experience.
+    func deleteExperience(id: UUID) async throws
     /// Idempotently resolves a provider place to its canonical Spot, creating it
     /// on first sight. Spots are never authored by users, so this is the only
     /// way one enters the catalog.

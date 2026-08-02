@@ -20,6 +20,9 @@ struct ExperienceDetailView: View {
     @State private var initialIsCompleted: Bool = false
     @State private var isSummaryRadarExpanded = false
     @State private var presentedProfile: PresentedProfile?
+    @State private var showEditSheet = false
+    @State private var showDeleteConfirmation = false
+    @State private var isDeleting = false
 
     let experienceID: UUID
 
@@ -79,6 +82,56 @@ struct ExperienceDetailView: View {
             .padding(.top, 12)
             .zIndex(60)
         }
+        .overlay(alignment: .topTrailing) {
+            if let exp = experience, let currentUserID = session.currentUser?.id, exp.creator.id == currentUserID {
+                HStack(spacing: TravSpacing.xs) {
+                    Button {
+                        showEditSheet = true
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color.black.opacity(0.65))
+                                .frame(width: 38, height: 38)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                                )
+                                .shadow(color: Color.black.opacity(0.35), radius: 6, y: 2)
+
+                            Image(systemName: "pencil")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .buttonStyle(TravPressButtonStyle())
+                    .accessibilityLabel("Edit Experience")
+
+                    Button {
+                        showDeleteConfirmation = true
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color.black.opacity(0.65))
+                                .frame(width: 38, height: 38)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                                )
+                                .shadow(color: Color.black.opacity(0.35), radius: 6, y: 2)
+
+                            Image(systemName: "trash.fill")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Color.red)
+                        }
+                    }
+                    .buttonStyle(TravPressButtonStyle())
+                    .accessibilityLabel("Delete Experience")
+                }
+                .padding(.trailing, TravSpacing.md)
+                .padding(.top, 12)
+                .zIndex(60)
+            }
+        }
         .fullScreenCover(item: $activeImagePreview) { item in
             FullScreenImageViewer(urls: item.urls, initialIndex: item.initialIndex) {
                 activeImagePreview = nil
@@ -87,11 +140,55 @@ struct ExperienceDetailView: View {
         .fullScreenCover(item: $presentedProfile) { profile in
             ProfileView(username: profile.username)
         }
+        .sheet(isPresented: $showEditSheet) {
+            if let exp = experience {
+                NavigationStack {
+                    CreateExperienceView(editingExperience: exp) {
+                        showEditSheet = false
+                        Task { await load() }
+                    }
+                    .injectAppEnvironment(environment)
+                    .navigationTitle("Edit Experience")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Close") {
+                                showEditSheet = false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .alert("Delete Experience?", isPresented: $showDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                if let exp = experience {
+                    Task {
+                        isDeleting = true
+                        try? await environment.experiences.deleteExperience(id: exp.id)
+                        if var user = session.currentUser, user.experienceCount > 0 {
+                            user.experienceCount -= 1
+                            session.currentUser = user
+                            environment.engagement.cache(user)
+                        }
+                        isDeleting = false
+                        dismissEnv()
+                        router.dismiss()
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to delete '\(experience?.title ?? "this experience")'? This action cannot be undone.")
+        }
         .task {
             if let userID = environment.session.currentUser?.id {
                 await engagement.refreshBootstrap(userID: userID, using: environment)
             }
             await load()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ExperienceUpdatedNotification"))) { _ in
+            Task { await load() }
         }
     }
 
@@ -451,11 +548,22 @@ struct ExperienceDetailView: View {
                     ? summary.communityAverageScore
                     : communityRatings.reduce(0.0) { $0 + $1.overallScore } / Double(communityRatings.count)
             }
+            if let expRatingScore = experience.rating?.overallScore {
+                return expRatingScore
+            }
+            if let creatorScore = summary.creatorScore {
+                return creatorScore
+            }
             return ratings.isEmpty
                 ? nil
                 : ratings.reduce(0.0) { $0 + $1.overallScore } / Double(ratings.count)
         }()
-        let score = summary.displayScore ?? calcAvg
+        let score: Double? = {
+            if hasCommunity {
+                return summary.displayScore ?? calcAvg
+            }
+            return experience.rating?.overallScore ?? summary.creatorScore ?? calcAvg
+        }()
         let isCreatorOnly = !hasCommunity && (summary.isCreatorOnly || score != nil)
         // Experience.rating is often unset for creator-only posts; fall back to the
         // creator's entry in the loaded ratings list so the summary row can expand.
@@ -607,7 +715,27 @@ struct ExperienceDetailView: View {
 
     private func sortedRatings(for experience: Experience) -> [Rating] {
         let creatorID = experience.creator.id
-        return ratings.sorted { a, b in
+        var list = ratings
+
+        if let expRating = experience.rating, !expRating.scores.isEmpty {
+            if let idx = list.firstIndex(where: { $0.author.id == creatorID }) {
+                list[idx].radar = expRating.sanitizedForEditing
+                list[idx].overallScore = expRating.overallScore
+            } else {
+                let creatorItem = Rating(
+                    id: StableUUID.from("creator-rating:\(experience.id)"),
+                    experienceID: experience.id,
+                    author: experience.creator,
+                    radar: expRating.sanitizedForEditing,
+                    overallScore: expRating.overallScore,
+                    createdAt: experience.publishedAt ?? .now,
+                    updatedAt: .now
+                )
+                list.append(creatorItem)
+            }
+        }
+
+        return list.sorted { a, b in
             let aIsCreator = a.author.id == creatorID
             let bIsCreator = b.author.id == creatorID
             if aIsCreator != bIsCreator { return aIsCreator }
