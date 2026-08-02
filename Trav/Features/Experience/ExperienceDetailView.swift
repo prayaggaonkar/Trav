@@ -546,34 +546,45 @@ struct ExperienceDetailView: View {
     private func averageCommunityRatingCard(_ experience: Experience) -> some View {
         let summary = experience.ratingSummary
         let creatorID = experience.creator.id
+        let myID = environment.session.currentUser?.id
         let communityRatings = ratings.filter { $0.author.id != creatorID }
         let communityCount = max(summary.communityRatingCount, communityRatings.count)
         let hasCommunity = communityCount > 0 || summary.hasCommunityValidation
-        let calcAvg: Double? = {
-            if hasCommunity {
-                return communityRatings.isEmpty
-                    ? summary.communityAverageScore
-                    : communityRatings.reduce(0.0) { $0 + $1.overallScore } / Double(communityRatings.count)
-            }
-            if let expRatingScore = experience.rating?.overallScore {
-                return expRatingScore
-            }
-            if let creatorScore = summary.creatorScore {
-                return creatorScore
-            }
-            return ratings.isEmpty
-                ? nil
-                : ratings.reduce(0.0) { $0 + $1.overallScore } / Double(ratings.count)
-        }()
+
         let score: Double? = {
             if hasCommunity {
-                return summary.displayScore ?? calcAvg
+                if let display = summary.displayScore, display > 0 { return display }
+                if !communityRatings.isEmpty {
+                    let validScores = communityRatings.map(\.overallScore).filter { $0 > 0 }
+                    if !validScores.isEmpty {
+                        return validScores.reduce(0.0, +) / Double(validScores.count)
+                    }
+                }
+                if let commAvg = summary.communityAverageScore, commAvg > 0 { return commAvg }
             }
-            return experience.rating?.overallScore ?? summary.creatorScore ?? calcAvg
+            // Creator rating resolution: check experience.rating, creatorScore, loaded ratings, and session user's rating
+            if let expRatingScore = experience.rating?.overallScore, expRatingScore > 0 {
+                return expRatingScore
+            }
+            if let creatorScore = summary.creatorScore, creatorScore > 0 {
+                return creatorScore
+            }
+            if let creatorRating = ratings.first(where: { $0.author.id == creatorID }), creatorRating.overallScore > 0 {
+                return creatorRating.overallScore
+            }
+            if let myRating = ratings.first(where: { $0.author.id == myID }), myRating.overallScore > 0 {
+                return myRating.overallScore
+            }
+            if let avg = summary.averageScore, avg > 0 {
+                return avg
+            }
+            let validAll = ratings.map(\.overallScore).filter { $0 > 0 }
+            if !validAll.isEmpty {
+                return validAll.reduce(0.0, +) / Double(validAll.count)
+            }
+            return nil
         }()
         let isCreatorOnly = !hasCommunity && (summary.isCreatorOnly || score != nil)
-        // Experience.rating is often unset for creator-only posts; fall back to the
-        // creator's entry in the loaded ratings list so the summary row can expand.
         let radar = resolvedSummaryRadar(for: experience, hasCommunity: hasCommunity)
 
         VStack(alignment: .leading, spacing: TravSpacing.sm) {
@@ -725,16 +736,19 @@ struct ExperienceDetailView: View {
         var list = ratings
 
         if let expRating = experience.rating, !expRating.scores.isEmpty {
+            let positiveScore = expRating.overallScore > 0 ? expRating.overallScore : (expRating.scores.values.filter { $0 > 0 }.reduce(0.0, +) / Double(max(1, expRating.scores.count)))
             if let idx = list.firstIndex(where: { $0.author.id == creatorID }) {
                 list[idx].radar = expRating.sanitizedForEditing
-                list[idx].overallScore = expRating.overallScore
+                if list[idx].overallScore <= 0 {
+                    list[idx].overallScore = positiveScore
+                }
             } else {
                 let creatorItem = Rating(
                     id: StableUUID.from("creator-rating:\(experience.id)"),
                     experienceID: experience.id,
                     author: experience.creator,
                     radar: expRating.sanitizedForEditing,
-                    overallScore: expRating.overallScore,
+                    overallScore: positiveScore,
                     createdAt: experience.publishedAt ?? .now,
                     updatedAt: .now
                 )
@@ -1680,10 +1694,18 @@ private struct PersonRatingCard: View {
 
             Spacer(minLength: 0)
 
+            let displayScore: Double = {
+                if rating.overallScore > 0 { return rating.overallScore }
+                if rating.radar.overallScore > 0 { return rating.radar.overallScore }
+                let validValues = rating.radar.scores.values.filter { $0 > 0 }
+                if !validValues.isEmpty { return validValues.reduce(0.0, +) / Double(validValues.count) }
+                return 5.0
+            }()
+
             HStack(spacing: 3) {
                 Image(systemName: "star.fill")
                     .font(.system(size: 11))
-                Text(TravFormatters.score(rating.overallScore))
+                Text(TravFormatters.score(displayScore))
                     .font(.system(size: 13, weight: .bold, design: .rounded))
             }
             .foregroundStyle(TravColors.accent)

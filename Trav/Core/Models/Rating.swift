@@ -95,8 +95,16 @@ struct RatingSummary: Codable, Sendable, Hashable {
 
     /// Score to lead with: community when it exists, otherwise the creator's.
     var displayScore: Double? {
-        if hasCommunityValidation { return communityAverageScore }
-        return creatorScore ?? averageScore
+        if hasCommunityValidation, let communityAverageScore, communityAverageScore > 0 {
+            return communityAverageScore
+        }
+        if let creatorScore, creatorScore > 0 {
+            return creatorScore
+        }
+        if let averageScore, averageScore > 0 {
+            return averageScore
+        }
+        return nil
     }
 
     var displayCount: Int {

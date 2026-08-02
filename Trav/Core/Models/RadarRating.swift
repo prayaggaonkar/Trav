@@ -153,10 +153,18 @@ struct RadarRating: Codable, Equatable, Hashable, Sendable {
     /// Overall aggregate across ONLY enabled axes. Disabled subratings never count.
     var overallScore: Double {
         let active = activeScores
-        guard !active.isEmpty else { return 0.0 }
-        let sum = active.values.reduce(0.0, +)
-        let average = sum / Double(active.count)
-        return (average * 10.0).rounded() / 10.0
+        if !active.isEmpty {
+            let sum = active.values.reduce(0.0, +)
+            let average = sum / Double(active.count)
+            return (average * 10.0).rounded() / 10.0
+        }
+        let validScores = scores.values.filter { $0 >= 1.0 && $0 <= 10.0 }
+        if !validScores.isEmpty {
+            let sum = validScores.reduce(0.0, +)
+            let average = sum / Double(validScores.count)
+            return (average * 10.0).rounded() / 10.0
+        }
+        return 0.0
     }
 
     /// Returns score for a specific axis ID. If disabled, returns 0.0.
@@ -164,6 +172,7 @@ struct RadarRating: Codable, Equatable, Hashable, Sendable {
         let canonical = Self.canonicalAxisID(key)
         guard isEnabled(canonical) else { return 0.0 }
         if let val = scores[canonical] { return val }
+        if let val = scores[key] { return val }
         if canonical == "Niche", let legacyVal = scores["Immersion"] { return legacyVal }
         return defaultVal
     }
@@ -191,7 +200,13 @@ struct RadarRating: Codable, Equatable, Hashable, Sendable {
     }
 
     private static func canonicalAxisID(_ key: String) -> String {
-        key == "Immersion" ? "Niche" : key
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.caseInsensitiveCompare("Cost") == .orderedSame { return "Cost" }
+        if trimmed.caseInsensitiveCompare("Food") == .orderedSame { return "Food" }
+        if trimmed.caseInsensitiveCompare("Memorability") == .orderedSame { return "Memorability" }
+        if trimmed.caseInsensitiveCompare("Authenticity") == .orderedSame { return "Authenticity" }
+        if trimmed.caseInsensitiveCompare("Niche") == .orderedSame || trimmed.caseInsensitiveCompare("Immersion") == .orderedSame { return "Niche" }
+        return trimmed
     }
 
     private static func normalizedDisabled(_ set: Set<String>) -> Set<String> {
