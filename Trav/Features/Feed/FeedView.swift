@@ -526,7 +526,7 @@ struct FeedView: View {
                                         selectedTripDetail = trip
                                     }
                                 )
-                                .frame(width: 320)
+                                .frame(width: 320, height: 215)
                             }
                         }
                         .padding(.horizontal, TravSpacing.screenHorizontal)

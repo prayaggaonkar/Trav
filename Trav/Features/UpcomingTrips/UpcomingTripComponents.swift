@@ -106,28 +106,22 @@ struct UpcomingTripCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TravSpacing.sm) {
+        VStack(alignment: .leading, spacing: 0) {
             // Header: User avatar + name + trip type badge
             HStack(spacing: 10) {
                 AvatarView(url: trip.user.avatarURL, size: 36)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 4) {
-                        Text(trip.user.displayName)
-                            .font(.system(size: 15, weight: .bold, design: .rounded))
-                            .foregroundStyle(TravColors.primary)
-
-                        Text("is planning a")
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(TravColors.muted)
-                    }
+                    (Text(trip.user.displayName).font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(TravColors.primary) +
+                     Text(" is planning a").font(.system(size: 12, weight: .medium, design: .rounded)).foregroundColor(TravColors.muted))
+                        .lineLimit(1)
 
                     Text(trip.dateRangeLabel)
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(trip.tripType == .dayTrip ? Color.blue : TravColors.accent)
                 }
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 Text(trip.tripType.rawValue)
                     .font(.system(size: 10, weight: .bold, design: .rounded))
@@ -138,11 +132,14 @@ struct UpcomingTripCard: View {
                     .clipShape(Capsule())
             }
 
-            // Destination Title Banner (No icons)
-            VStack(alignment: .leading, spacing: 6) {
+            Spacer(minLength: 6)
+
+            // Destination Title Banner
+            VStack(alignment: .leading, spacing: 4) {
                 Text(trip.destinationName)
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(TravColors.primary)
+                    .lineLimit(1)
 
                 // Category Tag Pills
                 if !trip.categoryTags.isEmpty {
@@ -162,14 +159,16 @@ struct UpcomingTripCard: View {
                 }
             }
 
-            // Recommendations Preview Row
-            if !trip.recommendations.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("RECOMMENDED SPOTS (\(trip.recommendations.count))")
-                        .font(TravTypography.overline())
-                        .foregroundStyle(TravColors.muted)
-                        .tracking(1.5)
+            Spacer(minLength: 6)
 
+            // Recommendations Preview Row (Always takes up uniform vertical space)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("RECOMMENDED SPOTS (\(trip.recommendations.count))")
+                    .font(TravTypography.overline())
+                    .foregroundStyle(TravColors.muted)
+                    .tracking(1.5)
+
+                if !trip.recommendations.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(trip.recommendations.prefix(4)) { rec in
@@ -199,12 +198,19 @@ struct UpcomingTripCard: View {
                             }
                         }
                     }
+                } else {
+                    Text("No spots recommended yet. Be the first!")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(TravColors.muted.opacity(0.6))
+                        .padding(.vertical, 2)
                 }
-                .padding(.top, 2)
             }
+
+            Spacer(minLength: 6)
 
             Divider()
                 .background(TravColors.border.opacity(0.4))
+                .padding(.bottom, 8)
 
             // Action Row: Recommend a Spot + Recommendation Count
             HStack {
@@ -213,7 +219,7 @@ struct UpcomingTripCard: View {
                         Text("Recommend a Spot")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
+                            .padding(.vertical, 7)
                             .background(TravColors.accent)
                             .foregroundStyle(.white)
                             .clipShape(Capsule())
@@ -233,6 +239,7 @@ struct UpcomingTripCard: View {
             }
         }
         .padding(14)
+        .frame(width: 320, height: 215)
         .background {
             RoundedRectangle(cornerRadius: TravRadius.xl, style: .continuous)
                 .fill(TravColors.surfaceElevated)

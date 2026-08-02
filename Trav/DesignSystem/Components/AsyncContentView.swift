@@ -136,7 +136,7 @@ struct SkeletonUpcomingTripCard: View {
             SkeletonView(height: 34, cornerRadius: TravRadius.sm)
         }
         .padding(14)
-        .frame(width: 320)
+        .frame(width: 320, height: 215)
         .background(
             RoundedRectangle(cornerRadius: TravRadius.lg, style: .continuous)
                 .fill(TravColors.surfaceElevated)
