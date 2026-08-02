@@ -220,8 +220,7 @@ final class EarthGlobeController: NSObject, SCNSceneRendererDelegate {
             syncRenderingMode()
         } else if isIdle {
             renderer.applyIdleRotation(speed: autoRotateSpeed)
-            // Single-frame render for idle spin — no continuous GPU loop.
-            sceneView?.rendersContinuously = false
+            sceneView?.rendersContinuously = true
             sceneView?.isPlaying = true
         } else {
             syncRenderingMode()

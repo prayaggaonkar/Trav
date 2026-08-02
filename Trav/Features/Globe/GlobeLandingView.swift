@@ -684,16 +684,13 @@ struct GlobeLandingView: View {
                         .minimumScaleFactor(0.9)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: TravSpacing.sm) {
-                            ForEach(filtered) { city in
-                                CityChip(city: city, isLightMode: appearance.isLightMode) {
-                                    viewModel?.selectCity(city)
-                                }
-                            }
+                    CityChipsCarousel(
+                        filteredCities: filtered,
+                        isLightMode: appearance.isLightMode,
+                        onSelectCity: { city in
+                            viewModel?.selectCity(city)
                         }
-                        .padding(.vertical, TravSpacing.xxs)
-                    }
+                    )
                 }
             } else if case .loading = viewModel?.loadState {
                 ProgressView()
@@ -714,6 +711,61 @@ struct GlobeLandingView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, TravSpacing.sm)
             }
+        }
+    }
+}
+
+// MARK: - Auto-Scrolling City Chips Carousel
+
+private struct CityChipsCarousel: View {
+    let filteredCities: [City]
+    let isLightMode: Bool
+    let onSelectCity: (City) -> Void
+
+    @State private var currentIndex = 0
+    @State private var isUserInteracting = false
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: TravSpacing.sm) {
+                    ForEach(filteredCities) { city in
+                        CityChip(city: city, isLightMode: isLightMode) {
+                            pauseAutoScroll()
+                            onSelectCity(city)
+                        }
+                        .id(city.id)
+                    }
+                }
+                .padding(.vertical, TravSpacing.xxs)
+            }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 5).onChanged { _ in
+                    pauseAutoScroll()
+                }
+            )
+            .task(id: filteredCities.map(\.id)) {
+                guard !filteredCities.isEmpty else { return }
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(2.5))
+                    if Task.isCancelled { break }
+                    guard !isUserInteracting else { continue }
+
+                    currentIndex = (currentIndex + 1) % filteredCities.count
+                    let nextCity = filteredCities[currentIndex]
+                    withAnimation(.easeInOut(duration: 0.8)) {
+                        proxy.scrollTo(nextCity.id, anchor: .center)
+                    }
+                }
+            }
+        }
+    }
+
+    private func pauseAutoScroll() {
+        isUserInteracting = true
+        Task {
+            try? await Task.sleep(for: .seconds(6))
+            isUserInteracting = false
         }
     }
 }
