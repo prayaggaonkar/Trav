@@ -28,7 +28,8 @@ struct SupabaseAuthRepository: AuthRepository {
     }
 
     func signOut() async throws {
-        try await client.auth.signOut()
+        try? await client.auth.signOut()
+        await OAuthWebSession.clearSessionCookies()
     }
 
     func resetPassword(email: String) async throws {
@@ -36,11 +37,15 @@ struct SupabaseAuthRepository: AuthRepository {
     }
 
     func signInWithGoogle() async throws -> Profile {
+        await OAuthWebSession.clearSessionCookies()
         let callbackScheme = AppConfiguration.oauthRedirectURL?.scheme ?? "trav"
         let authClient = try client.auth
         let authURL = try authClient.getOAuthSignInURL(
             provider: .google,
-            redirectTo: AppConfiguration.oauthRedirectURL
+            redirectTo: AppConfiguration.oauthRedirectURL,
+            queryParams: [
+                (name: "prompt", value: "select_account")
+            ]
         )
 
         // Single-path callback: ASWebAuthenticationSession and onOpenURL both

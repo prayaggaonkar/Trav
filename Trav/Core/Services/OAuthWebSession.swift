@@ -1,5 +1,6 @@
 import AuthenticationServices
 import UIKit
+import WebKit
 
 enum OAuthPresentationError: LocalizedError {
     case failedToStart
@@ -160,6 +161,20 @@ enum OAuthWebSession {
                 continuation.resume(throwing: OAuthPresentationError.failedToStart)
                 return
             }
+        }
+    }
+
+    /// Clears shared cookies and WKWebsiteDataStore web data to prevent Google/OAuth from auto-logging into previous accounts
+    @MainActor
+    static func clearSessionCookies() {
+        if let cookies = HTTPCookieStorage.shared.cookies {
+            for cookie in cookies {
+                HTTPCookieStorage.shared.deleteCookie(cookie)
+            }
+        }
+        let dataTypes = WKWebsiteDataStore.allWebsiteDataTypes()
+        WKWebsiteDataStore.default().fetchDataRecords(ofTypes: dataTypes) { records in
+            WKWebsiteDataStore.default().removeData(ofTypes: dataTypes, for: records, completionHandler: {})
         }
     }
 }
