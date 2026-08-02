@@ -91,6 +91,12 @@ struct FeedView: View {
     @State private var isSavingItinerary = false
     @State private var plannerError: String?
 
+    // Upcoming Trips state
+    @State private var showingCreateTripSheet = false
+    @State private var createTripInitialType: TripType = .upcomingTrip
+    @State private var selectedTripForRec: UpcomingTrip? = nil
+    @State private var selectedTripDetail: UpcomingTrip? = nil
+
     private var showSearchSuggestions: Bool {
         isSearchFocused && !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -138,6 +144,15 @@ struct FeedView: View {
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(TravRadius.xl)
         }
+        .sheet(isPresented: $showingCreateTripSheet) {
+            CreateUpcomingTripSheet(initialTripType: createTripInitialType)
+        }
+        .sheet(item: $selectedTripForRec) { trip in
+            TripDetailSheet(trip: trip)
+        }
+        .sheet(item: $selectedTripDetail) { trip in
+            TripDetailSheet(trip: trip)
+        }
         .alert("Couldn't Save Route", isPresented: Binding(
             get: { plannerError != nil },
             set: { if !$0 { plannerError = nil } }
@@ -152,7 +167,8 @@ struct FeedView: View {
             }
             catalogCities = (try? await environment.cities.fetchGlobeCities()) ?? []
 
-            // Load feed and popups for active app location
+            // Load feed, popups, and upcoming trips
+            await UpcomingTripService.shared.fetchTrips(using: environment)
             await reloadPopupsForActiveAppLocation()
         }
 
@@ -236,15 +252,7 @@ struct FeedView: View {
     private var feedBody: some View {
         switch viewModel.phase {
         case .idle, .loading:
-            ScrollView {
-                VStack(spacing: 12) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        SkeletonExperienceCard()
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, TravSpacing.sm)
-            }
+            feedSkeletonBody
         case let .failed(message):
             Spacer()
             EmptyStateView(
@@ -275,6 +283,8 @@ struct FeedView: View {
         ScrollView {
             // 40% tighter gap between Happening Soon and Experiences (16 → ~10).
             VStack(spacing: 10) {
+                upcomingTripsSection
+
                 if !visiblePopups.isEmpty && selectedFilter == .all {
                     popupCarousel
                 }
@@ -385,6 +395,146 @@ struct FeedView: View {
                 }
             }
         )
+    }
+
+    private var feedSkeletonBody: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                // 1. Upcoming Trips Section Skeleton
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("Your Feed")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+                    .padding(.top, 4)
+
+                    UpcomingTripHeaderInputBar { type in
+                        createTripInitialType = type
+                        showingCreateTripSheet = true
+                    }
+
+                    if selectedFilter == .all {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Upcoming Trips")
+                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .foregroundStyle(TravColors.primary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, TravSpacing.screenHorizontal)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(0..<2, id: \.self) { _ in
+                                        SkeletonUpcomingTripCard()
+                                    }
+                                }
+                                .padding(.horizontal, TravSpacing.screenHorizontal)
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
+                }
+
+                // 2. Happening Soon Popups Skeleton
+                if selectedFilter == .all {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Happening Soon")
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .foregroundStyle(TravColors.primary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, TravSpacing.screenHorizontal)
+                        .padding(.top, TravSpacing.xs)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(0..<2, id: \.self) { _ in
+                                    SkeletonPopupCard()
+                                }
+                            }
+                            .padding(.horizontal, TravSpacing.screenHorizontal)
+                        }
+                    }
+                }
+
+                // 3. Experiences Section Header Skeleton
+                HStack {
+                    Text("Experiences")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundStyle(TravColors.primary)
+                    Spacer()
+                }
+                .padding(.horizontal, TravSpacing.screenHorizontal)
+                .padding(.bottom, 4)
+
+                // 4. Experiences Feed Cards Skeleton
+                VStack(spacing: 12) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        SkeletonExperienceCard()
+                    }
+                }
+                .padding(.horizontal, 12)
+            }
+            .padding(.vertical, TravSpacing.sm)
+            .padding(.bottom, TravSpacing.tabBarBottom + 20)
+        }
+    }
+
+    // MARK: - Upcoming Trips section
+
+    private var upcomingTripsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Your Feed")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(TravColors.primary)
+                Spacer()
+            }
+            .padding(.horizontal, TravSpacing.screenHorizontal)
+            .padding(.top, 4)
+
+            UpcomingTripHeaderInputBar { type in
+                createTripInitialType = type
+                showingCreateTripSheet = true
+            }
+
+            let trips = UpcomingTripService.shared.trips
+            if !trips.isEmpty && selectedFilter == .all {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Upcoming Trips")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(TravColors.primary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, TravSpacing.screenHorizontal)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(trips) { trip in
+                                UpcomingTripCard(
+                                    trip: trip,
+                                    onRecommend: {
+                                        selectedTripForRec = trip
+                                    },
+                                    onTap: {
+                                        selectedTripDetail = trip
+                                    }
+                                )
+                                .frame(width: 320)
+                            }
+                        }
+                        .padding(.horizontal, TravSpacing.screenHorizontal)
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
     }
 
     // MARK: - Popups carousel
@@ -789,11 +939,12 @@ struct FeedView: View {
     private var matchingCities: [City] {
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
-        return catalogCities.filter { city in
-            city.name.localizedCaseInsensitiveContains(trimmed)
-                || city.countryName.localizedCaseInsensitiveContains(trimmed)
-                || city.locationLabel.localizedCaseInsensitiveContains(trimmed)
-        }
+        return IntelligentSearchRanking.rankCatalogCities(
+            catalogCities,
+            query: trimmed,
+            userCoordinate: spotSearchController.userCoordinate
+                ?? LocationManager.shared.coordinateForSearch
+        )
     }
 
     private func scheduleUserSearch(for query: String) {
@@ -806,7 +957,7 @@ struct FeedView: View {
         }
         isSearchingUsers = true
         userSearchTask = Task {
-            try? await Task.sleep(for: .milliseconds(280))
+            try? await Task.sleep(for: .milliseconds(260))
             guard !Task.isCancelled else { return }
             let results = (try? await environment.profiles.searchUsers(query: trimmed)) ?? []
             guard !Task.isCancelled else { return }

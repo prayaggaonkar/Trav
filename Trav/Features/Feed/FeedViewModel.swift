@@ -59,6 +59,16 @@ final class FeedViewModel {
         city: String? = nil,
         engagement: EngagementStore? = nil
     ) async {
+        let isInitialLoad = (phase == .idle)
+        let isCityChange = (cachedCity != nil && city != nil && cachedCity != city)
+
+        if isInitialLoad || isCityChange {
+            phase = .loading
+            experiences = []
+            places = []
+            popups = []
+        }
+
         if let latitude { cachedLat = latitude }
         if let longitude { cachedLng = longitude }
         if let city { cachedCity = city }
@@ -67,12 +77,9 @@ final class FeedViewModel {
         let targetLng = longitude ?? cachedLng
         let targetCity = city ?? cachedCity
 
-        phase = .loading
-
         // Reset Apple Maps recommendation scroll state on new load
         appleMapsScrollCount = 0
         hasReachedScrollLimit = false
-        AppleMapsVibeService.shared.resetPagination()
 
         let userVibes = environment.session.currentUser?.selectedVibes ?? [
             "🎨 Street Art",
@@ -82,7 +89,7 @@ final class FeedViewModel {
         ]
         let resolvedCity = targetCity ?? "Berkeley, CA"
 
-        // Chunk 1: Immediate fetch of social feed experiences, places, and popups
+        // Chunk 1: Immediate fetch of social feed experiences, places, and popups from Supabase
         async let experiencesResult = fetchExperiencesPage(0, using: environment)
         async let placesResult = fetchPlacesPage(0, using: environment)
         async let popupsResult = fetchPopupsQuietly(using: environment, latitude: targetLat, longitude: targetLng, city: targetCity)
@@ -91,11 +98,11 @@ final class FeedViewModel {
         let pla = await placesResult
         let rawPopups = await popupsResult
 
-        var uniquePopups: [Popup] = []
+        var fetchedPopups: [Popup] = []
         let calendar = Calendar.current
         for p in rawPopups {
             let norm = p.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            let isDup = uniquePopups.contains { existing in
+            let isDup = fetchedPopups.contains { existing in
                 let existingNorm = existing.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                 guard existingNorm == norm else { return false }
 
@@ -107,34 +114,59 @@ final class FeedViewModel {
                 }
             }
             if !isDup {
-                uniquePopups.append(p)
+                fetchedPopups.append(p)
             }
         }
-        popups = uniquePopups
 
         let rawExperiences = exp?.items ?? []
         let rawPlaces = pla?.items ?? []
 
-        // Exclude saved posts from user's own feed
-        if let engagement {
-            experiences = rawExperiences.filter { !engagement.isSaved($0.id) }
-            places = rawPlaces.filter { !engagement.isSaved($0.id) }
-        } else {
-            experiences = rawExperiences
-            places = rawPlaces
-        }
+        if isInitialLoad || isCityChange {
+            // Initial load or city change: populate feed from scratch
+            popups = fetchedPopups
+            if let engagement {
+                experiences = rawExperiences.filter { !engagement.isSaved($0.id) }
+                places = rawPlaces.filter { !engagement.isSaved($0.id) }
+            } else {
+                experiences = rawExperiences
+                places = rawPlaces
+            }
+            experiencePage = 0
+            hasMoreExperiences = exp?.hasMore ?? false
+            placePage = 0
+            hasMorePlaces = true
 
-        experiencePage = 0
-        hasMoreExperiences = exp?.hasMore ?? false
-        placePage = 0
-        hasMorePlaces = true
-
-        // Reveal content immediately as soon as Chunk 1 is ready!
-        if !experiences.isEmpty || !places.isEmpty || !popups.isEmpty {
-            phase = .loaded
-        } else if exp == nil && pla == nil {
-            phase = .failed("Couldn't reach Trav's servers. Check your connection and try again.")
+            if !experiences.isEmpty || !places.isEmpty || !popups.isEmpty {
+                phase = .loaded
+            } else if exp == nil && pla == nil {
+                phase = .failed("Couldn't reach Trav's servers. Check your connection and try again.")
+            } else {
+                phase = .loaded
+            }
         } else {
+            // Pull-to-refresh on same city: PRESERVE CACHED FEED & PREPEND NEW SUPABASE POSTS AT THE TOP!
+            let newExperiences = rawExperiences.filter { item in
+                !experiences.contains(where: { $0.id == item.id }) && !(engagement?.isSaved(item.id) ?? false)
+            }
+            if !newExperiences.isEmpty {
+                withAnimation(TravAnimation.enter) {
+                    experiences.insert(contentsOf: newExperiences, at: 0)
+                }
+            }
+
+            let newPlaces = rawPlaces.filter { item in
+                !places.contains(where: { $0.id == item.id }) && !experiences.contains(where: { $0.id == item.id }) && !(engagement?.isSaved(item.id) ?? false)
+            }
+            if !newPlaces.isEmpty {
+                places.append(contentsOf: newPlaces)
+            }
+
+            for p in fetchedPopups {
+                if !popups.contains(where: { $0.id == p.id || $0.name.lowercased() == p.name.lowercased() }) {
+                    popups.append(p)
+                }
+            }
+
             phase = .loaded
         }
 
@@ -147,7 +179,7 @@ final class FeedViewModel {
             page: 0
         )
 
-        // Progressively append Chunk 2 recommendations (filtering saved posts)
+        // Progressively append Chunk 2 recommendations (filtering saved posts & existing items)
         var blendedPlaces = places
         for rec in vibeRecs {
             if let engagement, engagement.isSaved(rec.id) { continue }

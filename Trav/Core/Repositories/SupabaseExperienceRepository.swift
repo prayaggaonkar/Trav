@@ -1263,7 +1263,8 @@ struct SupabaseExperienceRepository: ExperienceRepository {
         if let kind, !(await SchemaSupport.shared.hasExtendedColumns) {
             items = items.filter { $0.kind == kind }
         }
-        return items
+        // Re-rank: text relevance + Trav popularity (completion/save/like blend).
+        return IntelligentSearchRanking.rankExperiences(items, query: trimmed)
     }
 
     func fetchPlacesFeed(page: Int) async throws -> Paginated<ExperienceSummary> {

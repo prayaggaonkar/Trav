@@ -89,15 +89,15 @@ final class SpotSearchController: NSObject, CLLocationManagerDelegate {
         didSet {
             let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
             searchTask?.cancel()
-            currentSearch?.cancel()
             if trimmed.isEmpty {
                 spots = []
                 isSearching = false
+                lastQueried = ""
             } else if trimmed != lastQueried {
                 lastQueried = trimmed
                 isSearching = true
                 searchTask = Task {
-                    try? await Task.sleep(for: .milliseconds(200))
+                    try? await Task.sleep(for: .milliseconds(HangoutSpotSearchService.defaultDebounceMilliseconds))
                     guard !Task.isCancelled else { return }
                     await performSpotSearch(for: trimmed)
                 }
@@ -107,36 +107,36 @@ final class SpotSearchController: NSObject, CLLocationManagerDelegate {
 
     private(set) var spots: [SpotSuggestion] = []
     private(set) var isSearching = false
+    private(set) var userCoordinate: CLLocationCoordinate2D?
 
     private let locationManager = CLLocationManager()
     private var lastQueried = ""
     private var searchTask: Task<Void, Never>?
-    private var currentSearch: MKLocalSearch?
-    private var userCoordinate: CLLocationCoordinate2D?
 
     override init() {
         super.init()
         locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         if locationManager.authorizationStatus == .notDetermined {
             locationManager.requestWhenInUseAuthorization()
         }
-        if locationManager.authorizationStatus == .authorizedWhenInUse || locationManager.authorizationStatus == .authorizedAlways {
-            userCoordinate = locationManager.location?.coordinate
+        refreshCoordinateFromManager()
+        if locationManager.authorizationStatus == .authorizedWhenInUse
+            || locationManager.authorizationStatus == .authorizedAlways {
+            locationManager.requestLocation()
+            locationManager.startUpdatingLocation()
         }
     }
 
     func clear() {
         searchTask?.cancel()
-        currentSearch?.cancel()
-        currentSearch = nil
         query = ""
         spots = []
         lastQueried = ""
         isSearching = false
     }
 
-    // MARK: - CLLocationManagerDelegate (Safe Non-isolated Handlers)
+    // MARK: - CLLocationManagerDelegate
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
@@ -148,84 +148,34 @@ final class SpotSearchController: NSObject, CLLocationManagerDelegate {
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
-        if status == .authorizedWhenInUse || status == .authorizedAlways {
-            let loc = manager.location?.coordinate
-            Task { @MainActor in
-                self.userCoordinate = loc
+        Task { @MainActor in
+            self.refreshCoordinateFromManager()
+            if status == .authorizedWhenInUse || status == .authorizedAlways {
+                self.locationManager.requestLocation()
+                self.locationManager.startUpdatingLocation()
             }
         }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
 
-    // MARK: - Apple Maps Search
+    private func refreshCoordinateFromManager() {
+        if let coord = locationManager.location?.coordinate {
+            userCoordinate = coord
+        }
+    }
+
+    // MARK: - Intelligent spot search
 
     private func performSpotSearch(for queryText: String) async {
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = queryText
-        request.resultTypes = .pointOfInterest
-        request.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
-
-        // Localized regional search around user location if available
-        if let coord = userCoordinate {
-            request.region = MKCoordinateRegion(
-                center: coord,
-                latitudinalMeters: 100_000,
-                longitudinalMeters: 100_000
-            )
-        }
-
-        do {
-            let search = MKLocalSearch(request: request)
-            currentSearch = search
-            var response = try await search.start()
-
-            // If regional search returned no items, execute global search without bounds
-            if response.mapItems.isEmpty {
-                let globalRequest = MKLocalSearch.Request()
-                globalRequest.naturalLanguageQuery = queryText
-                globalRequest.resultTypes = .pointOfInterest
-                globalRequest.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
-                let globalSearch = MKLocalSearch(request: globalRequest)
-                currentSearch = globalSearch
-                response = try await globalSearch.start()
-            }
-
-            guard !Task.isCancelled else { return }
-
-            var results: [SpotSuggestion] = []
-            var seen = Set<String>()
-
-            for item in response.mapItems {
-                guard HangoutSpotFilter.isEligibleSpot(item) else { continue }
-                guard let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
-                let subtitle = item.placemark.title ?? ""
-
-                let category = HangoutSpotFilter.category(for: item)
-                let coord = item.placemark.coordinate
-                let suggestion = SpotSuggestion(
-                    id: "spot|\(name)|\(subtitle)|\(coord.latitude),\(coord.longitude)",
-                    title: name,
-                    subtitle: subtitle,
-                    category: category,
-                    latitude: coord.latitude,
-                    longitude: coord.longitude
-                )
-
-                let key = "\(name.lowercased())|\(subtitle.lowercased())"
-                guard !seen.contains(key) else { continue }
-                seen.insert(key)
-                results.append(suggestion)
-
-                if results.count >= 15 { break }
-            }
-
-            self.spots = results
-            self.isSearching = false
-        } catch {
-            self.spots = []
-            self.isSearching = false
-        }
+        let results = await HangoutSpotSearchService.search(
+            query: queryText,
+            userCoordinate: userCoordinate,
+            limit: 15
+        )
+        guard !Task.isCancelled else { return }
+        self.spots = results
+        self.isSearching = false
     }
 }
 
@@ -658,6 +608,7 @@ struct FullSearchResultsView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppRouter.self) private var router
     @Environment(AppearanceStore.self) private var appearance
+    @Environment(EngagementStore.self) private var engagement
     @Environment(\.dismiss) private var dismiss
 
     let initialQuery: String
@@ -713,6 +664,18 @@ struct FullSearchResultsView: View {
             }
             .background(TravColors.surface.ignoresSafeArea())
             .task(id: query) {
+                let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else {
+                    spots = []
+                    cities = []
+                    users = []
+                    itineraries = []
+                    isLoading = false
+                    return
+                }
+                isLoading = true
+                try? await Task.sleep(for: .milliseconds(HangoutSpotSearchService.defaultDebounceMilliseconds))
+                guard !Task.isCancelled else { return }
                 await performSearch()
             }
             .sheet(item: $selectedSpotDetail) { spot in
@@ -1051,73 +1014,69 @@ struct FullSearchResultsView: View {
             cities = []
             users = []
             itineraries = []
+            isLoading = false
             return
         }
 
         isLoading = true
         defer { isLoading = false }
 
-        // 1. Fetch Apple Maps hangout / travel spots only
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = trimmed
-        request.resultTypes = .pointOfInterest
-        request.pointOfInterestFilter = HangoutSpotFilter.pointOfInterestFilter
+        let userCoordinate = LocationManager.shared.coordinateForSearch
 
-        do {
-            let search = MKLocalSearch(request: request)
-            let response = try await search.start()
-            var mapSpots: [SpotSuggestion] = []
-            var seen = Set<String>()
+        // 1. Intelligent hangout spot search (dual fetch + popularity rank)
+        async let spotResults = HangoutSpotSearchService.search(
+            query: trimmed,
+            userCoordinate: userCoordinate,
+            limit: 20
+        )
 
-            for item in response.mapItems {
-                guard HangoutSpotFilter.isEligibleSpot(item) else { continue }
-                guard let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
-                let subtitle = item.placemark.title ?? ""
-                let category = HangoutSpotFilter.category(for: item)
-                let coord = item.placemark.coordinate
-                let suggestion = SpotSuggestion(
-                    id: "spot|\(name)|\(subtitle)|\(coord.latitude),\(coord.longitude)",
-                    title: name,
-                    subtitle: subtitle,
-                    category: category,
-                    latitude: coord.latitude,
-                    longitude: coord.longitude
+        // 2. Ranked Trav catalog cities
+        async let cityResults: [City] = {
+            do {
+                let allCities = try await environment.cities.fetchGlobeCities()
+                return IntelligentSearchRanking.rankCatalogCities(
+                    allCities,
+                    query: trimmed,
+                    userCoordinate: userCoordinate
                 )
-
-                let key = "\(name.lowercased())|\(subtitle.lowercased())"
-                guard !seen.contains(key) else { continue }
-                seen.insert(key)
-                mapSpots.append(suggestion)
+            } catch {
+                return []
             }
-            spots = mapSpots
-        } catch {
-            spots = []
-        }
+        }()
 
-        // 2. Fetch matching cities
-        do {
-            let allCities = try await environment.cities.fetchGlobeCities()
-            cities = allCities.filter {
-                $0.name.localizedCaseInsensitiveContains(trimmed) ||
-                $0.countryName.localizedCaseInsensitiveContains(trimmed)
+        // 3. Ranked creators (blocked filtered)
+        async let userResults: [ProfileSummary] = {
+            do {
+                let found = try await environment.profiles.searchUsers(query: trimmed)
+                return found.filter { !engagement.isBlocked($0.id) }
+            } catch {
+                return []
             }
-        } catch {
-            cities = []
-        }
+        }()
 
-        // 3. Fetch matching profiles
-        do {
-            users = try await environment.profiles.searchUsers(query: trimmed)
-        } catch {
-            users = []
-        }
+        // 4. Ranked itineraries only
+        async let itineraryResults: [ExperienceSummary] = {
+            do {
+                let matches = try await environment.experiences.searchExperiences(
+                    query: trimmed,
+                    kind: nil,
+                    limit: 20
+                )
+                let itinerariesOnly = matches.filter { !$0.isSpot }
+                return IntelligentSearchRanking.rankExperiences(itinerariesOnly, query: trimmed)
+            } catch {
+                return []
+            }
+        }()
 
-        // 4. Fetch matching experiences
-        do {
-            let matches = try await environment.experiences.searchExperiences(query: trimmed, kind: nil, limit: 15)
-            itineraries = matches.filter { !$0.isSpot }
-        } catch {
-            itineraries = []
-        }
+        let (mapSpots, rankedCities, rankedUsers, rankedItineraries) = await (
+            spotResults, cityResults, userResults, itineraryResults
+        )
+
+        guard !Task.isCancelled else { return }
+        spots = mapSpots
+        cities = rankedCities
+        users = rankedUsers
+        itineraries = Array(rankedItineraries.prefix(15))
     }
 }

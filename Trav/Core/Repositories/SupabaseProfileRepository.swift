@@ -231,10 +231,26 @@ struct SupabaseProfileRepository: ProfileRepository {
             .from("profiles")
             .select()
             .or("username.ilike.%\(sanitized)%,display_name.ilike.%\(sanitized)%")
-            .limit(20)
+            .limit(40)
             .execute()
             .value
-        return rows.map { $0.profile.summary }
+
+        let ranked = rows
+            .map { row -> (ProfileRow, Double) in
+                let score = IntelligentSearchRanking.scoreUser(
+                    username: row.username,
+                    displayName: row.displayName,
+                    query: String(sanitized),
+                    followerCount: row.followerCount,
+                    experienceCount: row.experienceCount
+                )
+                return (row, score)
+            }
+            .sorted { $0.1 > $1.1 }
+            .prefix(20)
+            .map { $0.0.profile.summary }
+
+        return Array(ranked)
     }
 
     func isFollowing(followerID: UUID, followingID: UUID) async throws -> Bool {

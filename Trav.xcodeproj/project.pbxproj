@@ -21,6 +21,7 @@
 		1A16E68EBF364414A7904864 /* VibeSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D3B0EF7FF86451FB9158313 /* VibeSelectionView.swift */; };
 		1C29181213E187231347D9BA /* CommentsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A4FD5E8629270EFF4D0754 /* CommentsSheet.swift */; };
 		2D9C4391DE9B4203970F202E /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10CE54D2D476419EB5E371A9 /* AppEnvironment.swift */; };
+		5C91A0012C1A2B3C4D5E6F7A /* AnimatedSplashScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C91A0022C1A2B3C4D5E6F7B /* AnimatedSplashScreen.swift */; };
 		31C68C88FD69438C896F87E6 /* EngagementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B969E76B8F634876BDCDEE19 /* EngagementStore.swift */; };
 		42F0E192AF2B492C8A5C8288 /* CityAutocompleteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042EA83356B64A548B6D9EE9 /* CityAutocompleteService.swift */; };
 		4471FBD864E94E03B448A4B0 /* EarthGlobeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52B7E6A8F912449E8BCC2CCE /* EarthGlobeView.swift */; };
@@ -56,6 +57,9 @@
 		AUTOSEED0000000000000003 /* AutoSeedManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AUTOSEED0000000000000004 /* AutoSeedManager.swift */; };
 		APPLEMAPSVIBE00000000001 /* AppleMapsVibeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = APPLEMAPSVIBE00000000002 /* AppleMapsVibeService.swift */; };
 		HANGOUTFILTER000000001 /* HangoutSpotFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = HANGOUTFILTER000000002 /* HangoutSpotFilter.swift */; };
+		INTELSEARCH00000000001 /* IntelligentSearchRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = INTELSEARCH00000000002 /* IntelligentSearchRanking.swift */; };
+		INTELSEARCH00000000003 /* SpotEngagementLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = INTELSEARCH00000000004 /* SpotEngagementLookup.swift */; };
+		INTELSEARCH00000000005 /* HangoutSpotSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = INTELSEARCH00000000006 /* HangoutSpotSearchService.swift */; };
 		LOCALAICURATOR00000001 /* LocalVibeAICurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = LOCALAICURATOR00000002 /* LocalVibeAICurator.swift */; };
 		AC10E298F515465C8669B004 /* SupabaseAuthRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */; };
 		AC10E298F515465C8669B009 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = AC10E298F515465C8669B008 /* Supabase */; };
@@ -88,6 +92,9 @@
 		F78F1C88E8624B4B96982725 /* AuthEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 391BB83942334B4B8845FD1C /* AuthEntryView.swift */; };
 		F7A1B2C3D4E5461789ABCDEF /* CityComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A1B2C3D4E5461789ABCD00 /* CityComponents.swift */; };
 		F8926D8B86B5A09BC0905150 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A09FFAAE4AEFDCC33C844C /* FeedView.swift */; };
+		TRIP0010000000000000001 /* UpcomingTrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = TRIP0000000000000000001 /* UpcomingTrip.swift */; };
+		TRIP0010000000000000002 /* UpcomingTripService.swift in Sources */ = {isa = PBXBuildFile; fileRef = TRIP0000000000000000002 /* UpcomingTripService.swift */; };
+		TRIP0010000000000000003 /* UpcomingTripComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = TRIP0000000000000000003 /* UpcomingTripComponents.swift */; };
 		F9480B158BF94DAEBFFEA2B1 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27DF1837071E4ABC855B8498 /* OnboardingView.swift */; };
 		FAEEC631BDED43D580C242D5 /* AsyncContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5214E298F515465C8669751B /* AsyncContentView.swift */; };
 		PROD0010000000000000001 /* TravLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = PROD0000000000000000001 /* TravLog.swift */; };
@@ -121,6 +128,7 @@
 		0F1A2B3C4D5E6F708192A3B3 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
 		0F1A2B3C4D5E6F708192A3B9 /* InAppNotificationBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InAppNotificationBanner.swift; sourceTree = "<group>"; };
 		10CE54D2D476419EB5E371A9 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		5C91A0022C1A2B3C4D5E6F7B /* AnimatedSplashScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedSplashScreen.swift; sourceTree = "<group>"; };
 		118A3664AB2548DA90972DDC /* SupabaseProfileRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseProfileRepository.swift; sourceTree = "<group>"; };
 		11E6F8A4B25B440892DC9677 /* TravApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravApp.swift; sourceTree = "<group>"; };
 		1468F8B546604199BB6747BD /* Enums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Enums.swift; sourceTree = "<group>"; };
@@ -160,6 +168,9 @@
 		AUTOSEED0000000000000004 /* AutoSeedManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoSeedManager.swift; sourceTree = "<group>"; };
 		APPLEMAPSVIBE00000000002 /* AppleMapsVibeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMapsVibeService.swift; sourceTree = "<group>"; };
 		HANGOUTFILTER000000002 /* HangoutSpotFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HangoutSpotFilter.swift; sourceTree = "<group>"; };
+		INTELSEARCH00000000002 /* IntelligentSearchRanking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligentSearchRanking.swift; sourceTree = "<group>"; };
+		INTELSEARCH00000000004 /* SpotEngagementLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotEngagementLookup.swift; sourceTree = "<group>"; };
+		INTELSEARCH00000000006 /* HangoutSpotSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HangoutSpotSearchService.swift; sourceTree = "<group>"; };
 		LOCALAICURATOR00000002 /* LocalVibeAICurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalVibeAICurator.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B003 /* SupabaseAuthRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseAuthRepository.swift; sourceTree = "<group>"; };
 		AC10E298F515465C8669B015 /* SupabaseExperienceRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseExperienceRepository.swift; sourceTree = "<group>"; };
@@ -174,6 +185,9 @@
 		C0BA082CA18B4C8FA2514428 /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
 		C7EAD1EAE5A54853BC25399A /* CreateExperienceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateExperienceView.swift; sourceTree = "<group>"; };
 		D0A09FFAAE4AEFDCC33C844C /* FeedView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
+		TRIP0000000000000000001 /* UpcomingTrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingTrip.swift; sourceTree = "<group>"; };
+		TRIP0000000000000000002 /* UpcomingTripService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingTripService.swift; sourceTree = "<group>"; };
+		TRIP0000000000000000003 /* UpcomingTripComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingTripComponents.swift; sourceTree = "<group>"; };
 		78FB928744779B1363949999 /* SpotSearchComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpotSearchComponents.swift; sourceTree = "<group>"; };
 		D4E5F6A7B8C9488990ABCDEF /* clouds.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = clouds.jpg; sourceTree = "<group>"; };
 		D56F2816135D445860185FA7 /* Popup.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Popup.swift; sourceTree = "<group>"; };
@@ -326,8 +340,17 @@
 				C7EAD1EAE5A54853BC25399C /* CreateExperience */,
 				RANK0000000000000000000 /* Rankings */,
 				8CDE1430A8C21954FD31B980 /* Feed */,
+				TRIP0000000000000000000 /* UpcomingTrips */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		TRIP0000000000000000000 /* UpcomingTrips */ = {
+			isa = PBXGroup;
+			children = (
+				TRIP0000000000000000003 /* UpcomingTripComponents.swift */,
+			);
+			path = UpcomingTrips;
 			sourceTree = "<group>";
 		};
 		8FC45DD7329E4045852F9C15 /* Globe */ = {
@@ -362,6 +385,9 @@
 				AUTOSEED0000000000000004 /* AutoSeedManager.swift */,
 				APPLEMAPSVIBE00000000002 /* AppleMapsVibeService.swift */,
 				HANGOUTFILTER000000002 /* HangoutSpotFilter.swift */,
+				INTELSEARCH00000000002 /* IntelligentSearchRanking.swift */,
+				INTELSEARCH00000000004 /* SpotEngagementLookup.swift */,
+				INTELSEARCH00000000006 /* HangoutSpotSearchService.swift */,
 				LOCALAICURATOR00000002 /* LocalVibeAICurator.swift */,
 				AC10E298F515465C8669B020 /* OAuthWebSession.swift */,
 				AC10E298F515465C8669B001 /* SupabaseManager.swift */,
@@ -371,6 +397,7 @@
 				PROD0000000000000000003 /* PushNotificationService.swift */,
 				PROD0000000000000000004 /* ImageCache.swift */,
 				SUGG0000000000000000001 /* ContactSyncService.swift */,
+				TRIP0000000000000000002 /* UpcomingTripService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -420,6 +447,7 @@
 			isa = PBXGroup;
 			children = (
 				10CE54D2D476419EB5E371A9 /* AppEnvironment.swift */,
+				5C91A0022C1A2B3C4D5E6F7B /* AnimatedSplashScreen.swift */,
 				672FB6BB7F77428D976B3870 /* RootCoordinator.swift */,
 				11E6F8A4B25B440892DC9677 /* TravApp.swift */,
 			);
@@ -450,6 +478,7 @@
 				8C9C50758E87D7A5F85D3E13 /* Comment.swift */,
 				D56F2816135D445860185FA7 /* Popup.swift */,
 				BD2A8658EC911DEBA9F87FA6 /* Rating.swift */,
+				TRIP0000000000000000001 /* UpcomingTrip.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -630,6 +659,7 @@
 				RADAR0020000000000000004 /* InteractiveRadarChartView.swift in Sources */,
 				8B190362ECF6427BB5B10288 /* Profile.swift in Sources */,
 				2D9C4391DE9B4203970F202E /* AppEnvironment.swift in Sources */,
+				5C91A0012C1A2B3C4D5E6F7A /* AnimatedSplashScreen.swift in Sources */,
 				876F04B073464336BA929541 /* RootCoordinator.swift in Sources */,
 				8DB0861862E74A70A9F34A6E /* TravApp.swift in Sources */,
 				BA61FC3A67154D3FB4379A72 /* ExperienceDetailView.swift in Sources */,
@@ -664,6 +694,9 @@
 				AUTOSEED0000000000000003 /* AutoSeedManager.swift in Sources */,
 				APPLEMAPSVIBE00000000001 /* AppleMapsVibeService.swift in Sources */,
 				HANGOUTFILTER000000001 /* HangoutSpotFilter.swift in Sources */,
+				INTELSEARCH00000000001 /* IntelligentSearchRanking.swift in Sources */,
+				INTELSEARCH00000000003 /* SpotEngagementLookup.swift in Sources */,
+				INTELSEARCH00000000005 /* HangoutSpotSearchService.swift in Sources */,
 				LOCALAICURATOR00000001 /* LocalVibeAICurator.swift in Sources */,
 				AC10E298F515465C8669B021 /* OAuthWebSession.swift in Sources */,
 				AC10E298F515465C8669B004 /* SupabaseAuthRepository.swift in Sources */,
@@ -692,6 +725,9 @@
 				PROD0010000000000000004 /* ImageCache.swift in Sources */,
 				SUGG0010000000000000001 /* ContactSyncService.swift in Sources */,
 				PROD0010000000000000005 /* OfflineBanner.swift in Sources */,
+				TRIP0010000000000000001 /* UpcomingTrip.swift in Sources */,
+				TRIP0010000000000000002 /* UpcomingTripService.swift in Sources */,
+				TRIP0010000000000000003 /* UpcomingTripComponents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

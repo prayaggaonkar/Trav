@@ -102,6 +102,11 @@ struct ExperienceSummary: Identifiable, Codable, Sendable, Hashable {
         )
     }
 
+    /// True only if this is a real multi-stop itinerary created by a user.
+    var isRealUserItinerary: Bool {
+        kind == .itinerary && !isTravOwned
+    }
+
     /// Destinations are Trav-owned, so any rating is community validation.
     /// Itineraries need a non-creator rating before the score is social proof.
     var showsCommunityValidatedScore: Bool {
@@ -236,6 +241,11 @@ struct Experience: Identifiable, Codable, Sendable, Hashable {
             username: creator.username,
             displayName: creator.displayName
         )
+    }
+
+    /// True only if this is a real multi-stop itinerary created by a user.
+    var isRealUserItinerary: Bool {
+        kind == .itinerary && !isTravOwned
     }
 
     var showsCommunityValidatedScore: Bool {

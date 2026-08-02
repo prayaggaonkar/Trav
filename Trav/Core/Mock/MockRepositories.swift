@@ -208,13 +208,15 @@ struct MockExperienceRepository: ExperienceRepository {
     }
 
     func searchExperiences(query: String, kind: ExperienceKind?, limit: Int) async throws -> [ExperienceSummary] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else { return [] }
-        var items = MockData.experiences.filter { $0.title.lowercased().contains(trimmed) }
+        let lower = trimmed.lowercased()
+        var items = MockData.experiences.filter { $0.title.lowercased().contains(lower) }
         if let kind {
             items = items.filter { $0.kind == kind }
         }
-        return Array(items.prefix(limit))
+        let ranked = IntelligentSearchRanking.rankExperiences(items, query: trimmed)
+        return Array(ranked.prefix(limit))
     }
 
     func fetchUserExperiences(cityID: UUID, userID: UUID) async throws -> [ExperienceSummary] {
@@ -379,15 +381,26 @@ struct MockProfileRepository: ProfileRepository {
 
     func searchUsers(query: String) async throws -> [ProfileSummary] {
         try await Task.sleep(for: .milliseconds(120))
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return [] }
-        return MockData.creators.compactMap { creator in
+        let lower = q.lowercased()
+        let matches: [(Profile, Double)] = MockData.creators.compactMap { creator in
             let profile = MockData.profile(for: creator)
-            if profile.username.lowercased().contains(q) || profile.displayName.lowercased().contains(q) {
-                return profile.summary
-            }
-            return nil
+            guard profile.username.lowercased().contains(lower)
+                || profile.displayName.lowercased().contains(lower) else { return nil }
+            let score = IntelligentSearchRanking.scoreUser(
+                username: profile.username,
+                displayName: profile.displayName,
+                query: q,
+                followerCount: profile.followerCount,
+                experienceCount: profile.experienceCount
+            )
+            return (profile, score)
         }
+        return matches
+            .sorted { $0.1 > $1.1 }
+            .prefix(20)
+            .map { $0.0.summary }
     }
 
     func isFollowing(followerID: UUID, followingID: UUID) async throws -> Bool {
